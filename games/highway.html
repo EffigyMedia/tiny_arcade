@@ -207,8 +207,15 @@ var LEAD = [440, 523.25, 659.25, 523.25, 587.33, 493.88, 440, 392];
 var snd = {
   eng:null, wind:null, siren:null, sirenPhase:0,
 
+  armed:false,
+  arm: function(){
+    if (snd.armed || !AR.audio.onReset) return;
+    snd.armed = true;
+    AR.audio.onReset(function(){ snd.eng = null; snd.begin(); });
+  },
   begin: function(){
     if (!AR || !AR.audio.init()) return;
+    snd.arm();
     if (!snd.eng){
       snd.eng   = AR.sfx.hold({ freq:70, type:'sawtooth', cutoff:520, q:3.2 });
       snd.eng2  = AR.sfx.hold({ freq:70, type:'square',  cutoff:400, q:2, detune:14 });
@@ -492,17 +499,23 @@ function spawnWave(z){
   const order = [0,1,2,3].sort(()=>Math.random()-0.5).slice(0,n);
   for(const lane of order){
     if(!laneFree(z, lane, 2200)) continue;
+    // keep a roadblock's opening clear so it is always threadable
+    let inGap = false;
+    for(const b of blocks)
+      if(Math.abs(LANE_X[lane] - b.gapX) < 0.34 && Math.abs(z - b.z) < 9000) inGap = true;
+    if(inGap) continue;
     const roll = Math.random();
     const t = roll<0.16 ? 'truck' : roll<0.42 ? 'coupe' : roll<0.7 ? 'sedan' : 'sedan2';
     traffic.push({
       z: z + rnd(-600,600), lane,
       x: LANE_X[lane] + rnd(-0.03,0.03),
-      spd: (t==='truck' ? rnd(0.30,0.38) : rnd(0.42,0.60)) * MAX_SPD,
+      spd: 0, cruise: (t==='truck' ? rnd(0.30,0.38) : rnd(0.42,0.60)) * MAX_SPD,
       type: t,
       w: t==='truck' ? 0.32 : t==='coupe' ? 0.26 : 0.275,
       len: t==='truck' ? 520 : 380,
       near: false, drift: rnd(-1,1)*0.0002
     });
+    traffic[traffic.length-1].spd = traffic[traffic.length-1].cruise;
   }
 }
 
@@ -519,17 +532,43 @@ function spawnCop(){
 }
 
 function spawnRoadblock(){
-  const gap = rint(0,3);
-  const z = pos + 34000;
-  const b = { z, gap, hit:false, parts:[] };
-  for(let l=0;l<LANES;l++){
-    if(l===gap) continue;
-    b.parts.push({ x: LANE_X[l], w:0.46 });
+  // Panels are tiled across the road with one deliberate opening. Spacing is
+  // chosen so no two panels can be squeezed between, and the opening leaves
+  // the car GAP_SLACK of room either side of dead centre.
+  const SEG  = 0.34;                       // one barrier panel, world units
+  const HIT  = (SEG + 0.26)/2;             // centre distance that blocks the car
+  const SLACK = 0.15;                      // wiggle room inside the opening
+  const gx = clamp(LANE_X[rint(0,3)], -0.58, 0.58);
+  const b = { z: pos + 34000, gapX: gx, hit:false, parts:[] };
+
+  for(let x = gx - (HIT + SLACK); x > -1.12; x -= SEG) b.parts.push({ x, w:SEG });
+  for(let x = gx + (HIT + SLACK); x <  1.12; x += SEG) b.parts.push({ x, w:SEG });
+
+  // a cruiser parked well clear of the opening, on the far shoulder
+  b.parts.push({ x: gx > 0 ? -1.06 : 1.06, w:0, cop:true, off:0 });
+
+  // nothing may be sitting in the opening when the player arrives
+  for(let i=traffic.length-1;i>=0;i--){
+    const c = traffic[i];
+    if(Math.abs(c.x - gx) < 0.34 && c.z > b.z - 9000 && c.z < b.z + 2000) traffic.splice(i,1);
   }
-  // a cruiser parked beside the barricade
-  b.parts.push({ x: LANE_X[gap] + (gap<2?-0.02:0.02), w:0, cop:true, off:(gap<2?-0.5:0.5) });
+
   blocks.push(b);
   flashWarn('ROADBLOCK AHEAD');
+}
+
+// widest run of road the car's centre can occupy — used to prove passability
+function blockClearance(b){
+  let best = 0, run = 0;
+  for(let x = -1.0; x <= 1.0; x += 0.01){
+    let ok = true;
+    for(const p of b.parts){
+      if(p.cop) continue;
+      if(Math.abs(p.x - x) < (p.w + 0.26)/2){ ok = false; break; }
+    }
+    if(ok){ run += 0.01; if(run > best) best = run; } else run = 0;
+  }
+  return best;
 }
 
 function flashWarn(t){
@@ -692,6 +731,42 @@ function step(dt){
     nextWaveZ += rnd(3400,6600) - heat*180;
   }
   const pz = pos + PLAYER_Z;
+
+  // --- traffic follows the car in front and queues at roadblocks ---
+  traffic.sort((a,b) => a.z - b.z);
+  for(const c of traffic){
+    let want = c.cruise;
+
+    // a barrier in this car's path: slow to a halt short of it
+    for(const b of blocks){
+      const dz = b.z - c.z;
+      if(dz < -400 || dz > 9000) continue;
+      let blocked = false;
+      for(const p of b.parts){
+        if(p.cop) continue;
+        if(Math.abs(p.x - c.x) < (p.w + c.w)/2){ blocked = true; break; }
+      }
+      if(!blocked) continue;
+      const room = dz - 900;                       // stop this far short
+      want = Math.min(want, room <= 0 ? 0 : Math.min(c.cruise, room * 0.55));
+    }
+
+    // a slower car ahead in the same tyre tracks
+    for(const o of traffic){
+      if(o === c) continue;
+      const dz = o.z - c.z;
+      if(dz <= 0 || dz > 5000) continue;
+      if(Math.abs(o.x - c.x) > (o.w + c.w)/2 + 0.03) continue;
+      const gap = dz - (o.len + o.len)/2;
+      if(gap > 2200) continue;
+      want = Math.min(want, gap < 420 ? 0 : o.spd + gap * 0.35);
+    }
+
+    const rate = want < c.spd ? 9000 : 2600;       // brakes beat the engine
+    c.spd += clamp(want - c.spd, -rate*dt, rate*dt);
+    if(c.spd < 0) c.spd = 0;
+  }
+
   for(let i=traffic.length-1;i>=0;i--){
     const c = traffic[i];
     c.z += c.spd*dt;
@@ -715,6 +790,30 @@ function step(dt){
       nos = Math.min(100, nos + 7);
       score += 90*combo;
       fx.push({txt:'+'+(90*combo), x:W/2+rnd(-30,30), y:H*0.64, vy:-70, age:0, life:.9});
+    }
+  }
+
+  // --- nothing overlaps, whatever the controller did ---
+  for(let a=traffic.length-1; a>0; a--){
+    const c = traffic[a];
+    for(let bIdx=a-1; bIdx>=0; bIdx--){
+      const o = traffic[bIdx];
+      if(Math.abs(o.x - c.x) > (o.w + c.w)/2) continue;
+      const minGap = (o.len + c.len)/2 + 40;
+      if(c.z > o.z && c.z - o.z < minGap){ c.z = o.z + minGap; c.spd = Math.max(c.spd, o.spd); }
+      else if(o.z > c.z && o.z - c.z < minGap){ c.z = o.z - minGap; c.spd = Math.min(c.spd, o.spd); }
+    }
+  }
+  for(const c of traffic){
+    for(const b of blocks){
+      let blocked = false;
+      for(const p of b.parts){
+        if(p.cop) continue;
+        if(Math.abs(p.x - c.x) < (p.w + c.w)/2){ blocked = true; break; }
+      }
+      if(!blocked) continue;
+      const stop = b.z - 620 - c.len/2;
+      if(c.z > stop && c.z < b.z + 3000){ c.z = stop; c.spd = 0; }
     }
   }
 
@@ -748,6 +847,17 @@ function step(dt){
       if(Math.abs(c.z - k.z) < (c.len+k.len)/2 && Math.abs(c.x-k.x) < (c.w+k.w)/2){
         wreckCop(k,'traffic'); c.spd*=0.6; smashed=true; break;
       }
+    }
+    if(smashed) continue;
+
+    for(const bl of blocks){
+      if(Math.abs(bl.z - k.z) > 500) continue;
+      let hitBar = false;
+      for(const p of bl.parts){
+        if(p.cop) continue;
+        if(Math.abs(p.x - k.x) < (p.w + k.w)/2){ hitBar = true; break; }
+      }
+      if(hitBar){ wreckCop(k, 'barrier'); smashed = true; break; }
     }
     if(smashed) continue;
 

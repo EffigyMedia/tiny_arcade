@@ -191,9 +191,16 @@ const PENT = [329.63, 392.00, 440.00, 493.88, 587.33];   // E minor pentatonic
 
 const snd = {
   drone: null,
+  armed: false,
+  arm(){
+    if (snd.armed || !AR.audio.onReset) return;
+    snd.armed = true;
+    AR.audio.onReset(() => { snd.drone = null; snd.begin(); });
+  },
 
   begin(){
     if (!AR || !AR.audio.init()) return;
+    snd.arm();
     if (!snd.drone) snd.drone = AR.sfx.hold({ freq:41.2, type:'sawtooth', cutoff:230, q:2.4, verb:0.5, bus:'music' });
     snd.drone.set(41.2, 0.15, 230, 1.4);
     AR.music.start(62, 4, snd.bed);
@@ -349,7 +356,7 @@ function reset(){
   dist = 0; sparks = 0; threads = 0;
   px = W/2; targetX = W/2; vxSmoothed = 0;
   obstacles = []; orbs = []; fish = []; bits = [];
-  shake = 0; flash = 0; toast = null; cause = 'rock';
+  shake = 0; flash = 0; toast = null; cause = 'ledge';
   acc = 0;
   seedMotes();
   lastLedgeY = H + 340;
@@ -440,7 +447,7 @@ function lose(){
 function showEnd(m){
   eyebrow.textContent = 'Descent log — ' + String(dives).padStart(3,'0');
   panel.innerHTML =
-    '<div class="final">'+(cause==='fish' ? 'Something found you at' : 'You hit the rock at')+'</div>' +
+    '<div class="final">'+(cause==='fish' ? 'Something took you at' : 'You struck a ledge at')+'</div>' +
     '<div class="big">' + m + '<u>m</u></div>' +
     '<div class="tally">' +
       '<div>Deepest<b>' + best + 'm</b></div>' +

@@ -399,10 +399,16 @@ const ix = i => i%COLS, iy = i => (i/COLS)|0;
    ================================================================ */
 const AR = window.Arcade;
 const snd = {
-  drone:null, room:null,
+  drone:null, room:null, armed:false,
+  arm(){
+    if (snd.armed || !AR.audio.onReset) return;
+    snd.armed = true;
+    AR.audio.onReset(() => { snd.drone = null; snd.room = null; snd.begin(); });
+  },
 
   begin(){
     if (!AR || !AR.audio.init()) return;
+    snd.arm();
     if (!snd.drone){
       snd.drone = AR.sfx.hold({ freq:36.7, type:'sawtooth', cutoff:190, q:3, verb:0.45, bus:'music' });
       snd.room  = AR.sfx.holdNoise({ freq:340, q:0.6, bus:'music' });
