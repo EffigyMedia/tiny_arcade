@@ -409,7 +409,8 @@ function theme(step, t){
 
 var themeRunning = false;
 function startTheme(){
-  if (!A.audio.init()) return;
+  A.audio.init();
+  if (!A.audio.ctx) return;
   if (!themeRunning){ A.music.start(138, 4, theme); themeRunning = true; }
   paintSnd();
 }

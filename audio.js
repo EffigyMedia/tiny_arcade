@@ -84,9 +84,13 @@ A.audio = {
   ctx:null,
 
   init: function(){
+    /* Returns "there is an engine to talk to", NOT "it is making sound yet".
+       iOS builds the context inside the gesture but resumes it a moment
+       later, so demanding 'running' here made every caller bail out before
+       queueing its music, and nothing ever queued it again. */
     if (ctx){
-      if (ctx.state === 'suspended' && gestured) ctx.resume().then(flush, function(){});
-      return ctx.state === 'running';
+      if (ctx.state !== 'running' && gestured) ctx.resume().then(flush, function(){});
+      return true;
     }
     if (!gestured) return false;          // wait for a gesture; music will be queued
     var C = window.AudioContext || window.webkitAudioContext;
@@ -111,10 +115,10 @@ A.audio = {
     applyGains(0);
     ctx.onstatechange = flush;
     unlockTap();
-    if (ctx.state === 'suspended') ctx.resume().then(flush, function(){});
+    if (ctx.state !== 'running') ctx.resume().then(flush, function(){});
     else flush();
     startWatchdog();
-    return ctx.state === 'running';
+    return true;
   },
 
   get: function(k){ return pref[k]; },
