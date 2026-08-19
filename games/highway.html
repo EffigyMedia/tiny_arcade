@@ -224,31 +224,67 @@ var snd = {
       snd.wind  = AR.sfx.holdNoise({ freq:900, q:0.5 });
       snd.siren = AR.sfx.hold({ freq:700, type:'sine', cutoff:2600, q:1 });
     }
-    AR.music.start(124, 4, snd.bed);
+    AR.music.start(152, 4, snd.bed);
   },
 
   bed: function(step, t){
     if (!AR) return;
-    var s = step % 32, bar = Math.floor(step/32) % 4;
-    if (s % 4 === 0) AR.sfx.drum('kick', t, 0.92);
-    if (s === 8 || s === 24) AR.sfx.drum('snare', t, 0.56);
-    if (s % 4 === 2) AR.sfx.drum('hat', t, 0.34);
-    if (s === 30) AR.sfx.drum('open', t, 0.22);
+    var s = step % 16, bar = Math.floor(step/16) % 8;
 
-    var bf = BASS[(s >> 2) % BASS.length];
-    if (s % 2 === 0)
-      AR.sfx.tone({ t:t, freq:bf, dur:0.13, type:'sawtooth', gain:0.34, bus:'music', cutoff:620, q:4 });
+    /* --- riff: E5 E5 G5 D5 over eight bars, with a turnaround --- */
+    var ROOTS = [41.20, 41.20, 48.99, 36.71, 41.20, 41.20, 32.70, 36.71];
+    var root = ROOTS[bar];
 
-    if (bar >= 1 && (s === 0 || s === 6 || s === 12 || s === 20 || s === 26)){
-      var lf = LEAD[(s >> 2) % LEAD.length];
-      AR.sfx.tone({ t:t, freq:lf, dur:0.34, type:'sawtooth', gain:0.145, bus:'music',
-                    cutoff:2600, q:3, verb:0.35 });
-      AR.sfx.tone({ t:t+0.02, freq:lf*1.005, dur:0.32, type:'sawtooth', gain:0.05,
-                    bus:'music', cutoff:2400 });
+    /* --- double kick: straight eighths, doubled up on the last bar --- */
+    if (s % 2 === 0 || (bar === 7 && s % 1 === 0))
+      AR.sfx.drum('kick', t, s % 4 === 0 ? 0.86 : 0.60);
+
+    /* --- backbeat, hard --- */
+    if (s === 4 || s === 12){
+      AR.sfx.drum('snare', t, 0.62);
+      AR.sfx.noise({ t:t, freq:2200, dur:0.10, gain:0.10, filter:'bandpass', q:1.2, bus:'music' });
     }
-    if (s === 0 && bar % 2 === 0)
-      AR.sfx.tone({ t:t, freq:110, dur:1.5, type:'sawtooth', gain:0.055, bus:'music',
-                    cutoff:800, attack:0.25, verb:0.4 });
+    /* --- sixteenth hats, opening on the offbeat --- */
+    AR.sfx.drum('hat', t, s % 2 ? 0.20 : 0.32);
+    if (s === 14) AR.sfx.drum('open', t, 0.30);
+    if (bar === 7 && (s === 8 || s === 10 || s === 12 || s === 14))
+      AR.sfx.drum('tom', t, 0.42);
+
+    /* --- palm-muted sixteenths on the root: the engine of the whole thing --- */
+    var gallop = (s % 4 === 0) ? 1 : (s % 2 === 0 ? 0.82 : 0.6);
+    AR.sfx.tone({ t:t, freq:root, dur:0.075, type:'square', gain:0.235*gallop,
+                  bus:'music', cutoff:420 + gallop*260, q:6 });
+    AR.sfx.tone({ t:t, freq:root*0.5, dur:0.09, type:'square', gain:0.125*gallop,
+                  bus:'music', cutoff:260, q:3 });
+
+    /* --- power chords: root and fifth, three detuned saws for the grind --- */
+    if (s === 0 || s === 3 || s === 6 || s === 11){
+      var stab = s === 0 ? 0.20 : 0.145;
+      [1, 1.4983, 2].forEach(function(mul, i){
+        AR.sfx.tone({ t:t, freq:root*2*mul, dur:0.20, type:'sawtooth',
+                      gain:stab*(i===2?0.6:1), bus:'music', cutoff:1500, q:5 });
+        AR.sfx.tone({ t:t+0.004, freq:root*2*mul*1.008, dur:0.19, type:'sawtooth',
+                      gain:stab*0.55*(i===2?0.6:1), bus:'music', cutoff:1400, q:5 });
+      });
+    }
+
+    /* --- lead: E minor pentatonic, shredding over the back half --- */
+    var PENT = [329.63, 392.00, 440.00, 493.88, 587.33, 659.25];
+    if (bar >= 4){
+      var run = [0,2,3,5,4,3,2,0,3,5,4,2,5,4,3,2];
+      if (s % 2 === 0 || bar >= 6){
+        var lf = PENT[run[s] % PENT.length] * (bar >= 6 && s % 8 > 4 ? 2 : 1);
+        AR.sfx.tone({ t:t, freq:lf, dur:0.14, type:'sawtooth', gain:0.105,
+                      bus:'music', cutoff:3400, q:4, verb:0.22 });
+        AR.sfx.tone({ t:t+0.006, freq:lf*1.006, dur:0.13, type:'square', gain:0.055,
+                      bus:'music', cutoff:3000 });
+      }
+    }
+
+    /* --- a held fifth underneath, so the bottom never drops out --- */
+    if (s === 0)
+      AR.sfx.tone({ t:t, freq:root*1.4983, dur:0.95, type:'sawtooth', gain:0.055,
+                    bus:'music', cutoff:900, attack:0.02, verb:0.3 });
   },
 
   /* driven every frame from the game loop */
