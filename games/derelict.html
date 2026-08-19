@@ -101,77 +101,14 @@ html,body{
   flex:1;min-height:0;overflow:hidden;margin:8px 0;
   display:flex;align-items:center;justify-content:center;
 }
-#grid{
-  display:grid;grid-template-columns:repeat(10,var(--cell));grid-auto-rows:var(--cell);
-  gap:2px;background:var(--seam);border:1px solid var(--seam);
-}
-.cell{
-  width:var(--cell);height:var(--cell);
-  position:relative;background:#05070a;
-  display:grid;place-items:center;overflow:hidden;
-}
-.cell.seen{background:#1c2c39}
-.cell.seen::before{
-  content:"";position:absolute;inset:0;
-  background:linear-gradient(135deg,rgba(255,255,255,.03),transparent 60%);
-}
-.cell.wall{background:#0a0e12}
-.cell.wall.seen{background:#080c11;box-shadow:inset 0 0 0 1px rgba(147,167,181,.16)}
-.cell.wall.seen.organic{background:#180d13;box-shadow:inset 0 0 0 1px rgba(255,59,92,.30)}
-.cell.wall.seen.organic::after{
-  content:"";position:absolute;inset:0;opacity:.5;
-  background:repeating-linear-gradient(45deg,rgba(255,59,92,.16) 0 2px,transparent 2px 5px);
-}
-.g{
-  font-family:var(--mono);font-weight:600;
-  font-size:calc(var(--cell)*0.5);line-height:1;position:relative;z-index:2;
-}
-.badge{
-  position:absolute;right:1px;bottom:0;z-index:3;
-  font-size:calc(var(--cell)*0.26);font-weight:600;color:var(--text);opacity:.8;
-  text-shadow:0 0 3px #000,0 0 3px #000;
-}
-.cell.mob .g{text-shadow:0 0 8px currentColor}
-.cell.sel{outline:1px solid var(--ice);outline-offset:-1px;background:#16232e}
-.cell.reach{box-shadow:inset 0 0 0 1px rgba(127,216,255,.20)}
-.c-crawler{color:var(--blood)} .c-husk{color:#ff7a6e}
-.c-spitter{color:var(--acid)} .c-warden{color:var(--steel)}
-.c-wraith{color:var(--violet)} .c-gorger{color:var(--amber)}
-.c-stalker{color:#ff1f4a} .c-apex{color:#fff}
-.cell.apex{background:#1a0d13}
-.c-player{color:var(--ice)}
-.cell.player .g{text-shadow:0 0 10px var(--ice),0 0 22px rgba(127,216,255,.4)}
-.c-med{color:var(--acid)} .c-cell{color:var(--ice)}
-.c-exit{color:#4a5c68}
-.c-exit.open{color:var(--acid);animation:beat 1.4s ease-in-out infinite}
-@keyframes beat{0%,100%{opacity:.55}50%{opacity:1}}
-@media (prefers-reduced-motion:reduce){.c-exit.open{animation:none}}
-
-/* doors */
-.cell.door.seen{background:#0c141c}
-.cell.door.locked.b-blue  { background:rgba(77,163,255,.20); box-shadow:inset 0 0 0 2px var(--kblue) }
-.cell.door.locked.b-amber { background:rgba(255,179,71,.20); box-shadow:inset 0 0 0 2px var(--kamber) }
-.cell.door.locked.b-red   { background:rgba(255,84,112,.20); box-shadow:inset 0 0 0 2px var(--kred) }
-.cell.door.open.b-blue  { box-shadow:inset 0 -2px 0 0 rgba(77,163,255,.55), inset 0 2px 0 0 rgba(77,163,255,.55) }
-.cell.door.open.b-amber { box-shadow:inset 0 -2px 0 0 rgba(255,179,71,.55), inset 0 2px 0 0 rgba(255,179,71,.55) }
-.cell.door.open.b-red   { box-shadow:inset 0 -2px 0 0 rgba(255,84,112,.55), inset 0 2px 0 0 rgba(255,84,112,.55) }
-.cell.door.locked .g{font-size:calc(var(--cell)*0.62);opacity:.55}
-.c-door{color:#0c141c}
-.cell.door.locked.b-blue  .g{color:var(--kblue)}
-.cell.door.locked.b-amber .g{color:var(--kamber)}
-.cell.door.locked.b-red   .g{color:var(--kred)}
-
-/* gear */
-.c-med{color:var(--acid)} .c-cell{color:var(--ice)}
-.c-plate{color:var(--steel)} .c-chip{color:var(--blood)}
-.c-cap{color:var(--violet)} .c-shard{color:var(--amber)}
-.c-key.k-blue{color:var(--kblue)} .c-key.k-amber{color:var(--kamber)} .c-key.k-red{color:var(--kred)}
-.c-core{color:var(--core);text-shadow:0 0 10px rgba(255,212,121,.7)}
-.cell.corecell{background:#241d10;box-shadow:inset 0 0 0 1px rgba(255,212,121,.4)}
+#board{display:block;image-rendering:auto}
 
 /* status tags */
 .tag.k-blue{color:var(--kblue)} .tag.k-amber{color:var(--kamber)} .tag.k-red{color:var(--kred)}
-.tag.guard{color:var(--ice)} .tag.core{color:var(--core)}
+.tag.guard{color:var(--ice)} .tag.core{color:var(--core)} .tag.wep{color:var(--steel)}
+.c-wpn{color:var(--amber)} .c-ammo{color:var(--steel)}
+.c-trauma{color:var(--acid)} .c-grenade{color:var(--amber)}
+.c-stim{color:var(--blood)} .c-carapace{color:var(--steel)}
 
 .vtitle.amberT{color:var(--core)}
 .vbtn.amberB{border-color:var(--core);color:var(--core);background:#241c0c}
@@ -179,6 +116,23 @@ html,body{
 .syslist div{padding:6px 0;border-top:1px solid var(--seam)}
 .syslist b{display:block;font-family:var(--mono);font-size:11px;font-weight:600;letter-spacing:.12em;color:var(--core)}
 .syslist span{display:block;font-size:10px;line-height:1.5;color:var(--dim);margin-top:2px}
+.kit{text-align:left}
+.kithead{font-size:9px;letter-spacing:.24em;color:var(--dim);margin:16px 0 7px;
+  border-bottom:1px solid var(--seam);padding-bottom:5px}
+.kithead:first-child{margin-top:0}
+.krow{display:flex;align-items:flex-start;gap:9px;padding:7px 0;border-bottom:1px solid rgba(27,40,51,.6)}
+.krow b{font-family:var(--mono);font-size:11px;font-weight:600;color:var(--text);letter-spacing:.06em}
+.krow i{display:block;font-style:normal;font-size:10px;line-height:1.5;color:var(--dim);margin-top:2px}
+.krow .kmid{flex:1;min-width:0}
+.krow .kdmg{font-size:10px;color:var(--ice);white-space:nowrap;padding-top:1px}
+.kbtn{flex:none;align-self:center;font-family:var(--mono);font-size:9px;letter-spacing:.14em;
+  padding:6px 9px;border:1px solid var(--seam);background:transparent;color:var(--text);cursor:pointer}
+.kbtn.on{border-color:var(--ice);color:var(--ice);background:rgba(127,216,255,.08)}
+.kstats{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--seam);
+  border:1px solid var(--seam)}
+.kstats div{background:var(--panel);padding:8px 9px}
+.kstats span{display:block;font-size:8px;letter-spacing:.18em;color:var(--dim);margin-bottom:3px}
+.kstats b{font-size:13px;font-weight:600;font-variant-numeric:tabular-nums}
 
 /* ---------------- panel ---------------- */
 #panel{
@@ -186,7 +140,7 @@ html,body{
   padding:8px 10px;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-end;
 }
 #log{font-size:10.5px;line-height:1.65;color:var(--dim)}
-#log div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#log div{white-space:normal;overflow-wrap:anywhere;padding-bottom:1px}
 #log div:last-child{color:var(--text)}
 .assess{display:flex;flex-direction:column;gap:5px}
 .arow{display:flex;align-items:baseline;gap:8px}
@@ -199,9 +153,9 @@ html,body{
 .hint{font-size:9.5px;color:var(--dim);letter-spacing:.08em}
 
 /* ---------------- actions ---------------- */
-#acts{flex:none;display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:8px}
+#acts{flex:none;display:grid;grid-template-columns:repeat(5,1fr);gap:5px;margin-top:8px}
 button{
-  font-family:var(--mono);font-weight:600;font-size:10px;letter-spacing:.1em;
+  font-family:var(--mono);font-weight:600;font-size:9.5px;letter-spacing:.06em;
   background:#0d141b;color:var(--text);border:1px solid var(--seam);
   padding:9px 2px 7px;cursor:pointer;position:relative;
 }
@@ -273,7 +227,7 @@ button:focus-visible{outline:2px solid var(--ice);outline-offset:1px}
     <div class="status" id="status"></div>
   </div>
 
-  <div id="gridwrap"><div id="grid"></div></div>
+  <div id="gridwrap"><canvas id="board"></canvas></div>
 
   <div id="panel"><div id="log"></div></div>
 
@@ -282,6 +236,7 @@ button:focus-visible{outline:2px solid var(--ice);outline-offset:1px}
     <button id="bArc">ARC<span class="cost">3 CH</span></button>
     <button id="bPatch">PATCH<span class="cost">4 CH</span></button>
     <button id="bSurge">SURGE<span class="cost">5 CH</span></button>
+    <button id="bGear">GEAR<span class="cost">KIT</span></button>
   </div>
 
   <div id="veil"><div class="vwrap" id="veilBody"></div></div>
@@ -301,7 +256,7 @@ button:focus-visible{outline:2px solid var(--ice);outline-offset:1px}
 const COLS = 10, ROWS = 13, N = COLS*ROWS;
 
 const $ = id => document.getElementById(id);
-const gridEl = $('grid'), panelEl = $('panel');
+const panelEl = $('panel');
 const veil = $('veil'), veilBody = $('veilBody'), frame = $('frame');
 
 const clamp = (v,a,b) => v<a?a:v>b?b:v;
@@ -311,21 +266,25 @@ function shuffled(a){ const c=a.slice(); for(let i=c.length-1;i>0;i--){ const j=
 
 /* ---------------- bestiary ---------------- */
 const SPECIES = {
-  crawler:{ name:'Crawler', g:'c', hp:1.0, dmg:1.0, trait:null,
-            desc:'Nothing clever. Just teeth.' },
-  husk:   { name:'Husk',    g:'h', hp:0.8, dmg:1.0, trait:'FIRST STRIKE',
+  crawler:{ name:'Crawler', g:'c', hp:1.0, dmg:1.0, trait:null, sight:3, spd:0.40, patrol:0.30,
+            desc:'Nothing clever. Short sight, slow legs, plenty of teeth.' },
+  husk:   { name:'Husk',    g:'h', hp:0.8, dmg:1.0, trait:'FIRST STRIKE', sight:4, spd:0.60, patrol:0.30,
             desc:'Hits before you do, every exchange.' },
-  spitter:{ name:'Spitter', g:'s', hp:0.7, dmg:0.9, trait:'CORROSIVE',
+  spitter:{ name:'Spitter', g:'s', hp:0.7, dmg:0.9, trait:'CORROSIVE', sight:5, spd:0.40, patrol:0.30,
             desc:'Sears your suit: scan repair drops to a third until purged.' },
-  warden: { name:'Warden',  g:'W', hp:1.3, dmg:1.0, trait:'PLATED',
+  warden: { name:'Warden',  g:'W', hp:1.3, dmg:1.0, trait:'PLATED', sight:3, spd:0.30, patrol:0.22,
             desc:'Melee does 30% less. ARC ignores plating.' },
-  wraith: { name:'Wraith',  g:'w', hp:0.8, dmg:0.9, trait:'DRAIN',
+  wraith: { name:'Wraith',  g:'w', hp:0.8, dmg:0.9, trait:'DRAIN', sight:6, spd:0.60, patrol:0.40,
             desc:'Every hit it lands strips 2 charge.' },
-  gorger: { name:'Gorger',  g:'g', hp:1.3, dmg:0.9, trait:'REGENERATES',
+  gorger: { name:'Gorger',  g:'g', hp:1.3, dmg:0.9, trait:'REGENERATES', sight:3, spd:0.30, patrol:0.22,
             desc:'Knits back 12% of its mass each turn you spend elsewhere.' },
-  stalker:{ name:'Stalker', g:'t', hp:0.7, dmg:1.1, trait:'HUNTS',
-            desc:'Moves toward you. Lunges on any turn you do not strike it.' },
-  apex:   { name:'Apex',    g:'\u03A9', hp:1.7, dmg:1.1, trait:'APEX',
+  stalker:{ name:'Stalker', g:'t', hp:0.7, dmg:1.1, trait:'HUNTS', sight:7, spd:1.15, patrol:0.50,
+            desc:'Sees furthest, moves fastest, and does not lose the scent.' },
+  skitter:{ name:'Skitter', g:'k', hp:0.30, dmg:0.50, trait:'PACK \u00B7 FAST', sight:6, spd:1.50, patrol:0.60, pack:4,
+            desc:'Faster than you and never alone. Individually, almost nothing.' },
+  shrike: { name:'Shrike',  g:'y', hp:0.55, dmg:0.85, trait:'FAST', sight:8, spd:1.25, patrol:0.55, pack:2,
+            desc:'Crosses a compartment in the time you cross half of one.' },
+  apex:   { name:'Apex',    g:'\u03A9', hp:1.7, dmg:1.1, trait:'APEX', sight:4, spd:0.40, patrol:0.22,
             desc:'Whatever the deck was built around. It is holding the salvage.' }
 };
 
@@ -343,16 +302,135 @@ const DECKS = [
 ];
 const ROSTER = [
   ['crawler'],
-  ['crawler','husk'],
-  ['crawler','husk','spitter'],
-  ['crawler','husk','spitter','warden'],
-  ['husk','spitter','warden','stalker'],
-  ['spitter','warden','wraith','stalker'],
-  ['warden','wraith','gorger','stalker'],
-  ['husk','spitter','wraith','gorger','stalker'],
-  ['spitter','warden','wraith','gorger','stalker'],
-  ['husk','spitter','warden','wraith','gorger','stalker']
+  ['crawler','husk','skitter'],
+  ['crawler','husk','spitter','skitter'],
+  ['husk','spitter','warden','skitter'],
+  ['husk','spitter','warden','stalker','skitter'],
+  ['spitter','warden','wraith','stalker','shrike'],
+  ['warden','wraith','gorger','stalker','skitter','shrike'],
+  ['husk','spitter','wraith','gorger','stalker','shrike'],
+  ['spitter','warden','wraith','gorger','skitter','shrike'],
+  ['husk','spitter','warden','wraith','gorger','stalker','skitter','shrike']
 ];
+
+/* ---------------- armoury ----------------
+   Four things you can feed a weapon: slugs, cells, plasma, fuel. Melee
+   costs nothing but invites a counterattack. Everything else is quiet
+   about it. Tools were built for the hull and repurposed badly.        */
+const AMMO = {
+  slug:   { name:'Slugs',  c:'steel'  },
+  cell:   { name:'Cells',  c:'ice'    },
+  plasma: { name:'Plasma', c:'violet' },
+  fuel:   { name:'Fuel',   c:'amber'  }
+};
+
+const WEAPONS = {
+  /* --- melee --- */
+  knife:   { name:'Bone Knife',      kind:'melee', mul:1.00, tier:0,
+             note:'Silent, reliable, and far too short.' },
+  crowbar: { name:'Salvage Bar',     kind:'melee', mul:1.30, pry:true, tier:1,
+             note:'Levers plating apart \u2014 half again as much against PLATED.' },
+  baton:   { name:'Shock Baton',     kind:'melee', mul:1.15, stun:1, tier:1,
+             note:'Staggers the target: it loses its next turn.' },
+  sword:   { name:'Bulkhead Sabre',  kind:'melee', mul:1.75, tier:2,
+             note:'Somebody aboard knew how to use one of these.' },
+  chainsaw:{ name:'Tooth Saw',       kind:'melee', mul:2.55, ammo:'fuel', cost:1,
+             cleave:true, tier:3,
+             note:'Cleaves everything adjacent at once. Drinks fuel.' },
+
+  /* --- tools, repurposed --- */
+  torch:   { name:'Cutting Torch',   kind:'tool', mul:1.20, ammo:'fuel', cost:1,
+             pierce:true, burn:2, tier:1,
+             note:'Ignores plating and leaves them burning.' },
+  welder:  { name:'Arc Welder',      kind:'tool', mul:1.35, ammo:'cell', cost:1,
+             stun:1, tier:2,
+             note:'Dumps a charge through them. They stop for a moment.' },
+  sampler: { name:'Core Sampler',    kind:'tool', mul:1.10, bleed:3, tier:1,
+             note:'Leaves a wound that will not close.' },
+  rivet:   { name:'Rivet Gun',       kind:'ranged', mul:0.80, ammo:'slug', cost:1,
+             range:3, tier:0,
+             note:'Short range, cheap, and never meant for this.' }
+};
+
+/* firearms: five frames, each in the ammunition it was built for */
+const FRAMES = {
+  pistol:  { mul:0.90, range:5, cost:1, shots:1, tier:0 },
+  smg:     { mul:0.55, range:4, cost:2, shots:3, tier:1 },
+  shotgun: { mul:1.55, range:3, cost:1, shots:1, splash:true, tier:2 },
+  rifle:   { mul:1.70, range:9, cost:1, shots:1, pierceLine:true, tier:2 },
+  lmg:     { mul:0.60, range:6, cost:3, shots:5, tier:3 }
+};
+const LOADS = {
+  slug:   { mul:1.00, pool:'slug'   },
+  laser:  { mul:0.90, pool:'cell', pierce:true },   // lasers run off cells
+  plasma: { mul:1.25, pool:'plasma', burn:2 }
+};
+const GUN_NAMES = {
+  'pistol.slug':'Bolt Pistol',  'pistol.laser':'Beam Pistol',
+  'smg.slug':'Ripper SMG',      'smg.laser':'Lash SMG',
+  'shotgun.slug':'Breaker',     'shotgun.plasma':'Sunburst',
+  'rifle.slug':'Longshot',      'rifle.laser':'Lancet',      'rifle.plasma':'Starfall',
+  'lmg.slug':'Grinder',         'lmg.laser':'Cascade'
+};
+const GUN_NOTES = {
+  pistol:'One round, clean line, no reply.',
+  smg:'Three-round burst. Close work.',
+  shotgun:'Brutal up close, and it catches whatever stands beside them.',
+  rifle:'Reaches the length of the compartment and punches through.',
+  lmg:'Five rounds a pull. Bring a lot of them.'
+};
+for(const f in FRAMES){
+  for(const a in LOADS){
+    const id = f + '.' + a;
+    if(!GUN_NAMES[id]) continue;
+    const F = FRAMES[f], L = LOADS[a];
+    WEAPONS[id] = {
+      name:GUN_NAMES[id], kind:'ranged', ammo:L.pool, cost:F.cost, range:F.range,
+      shots:F.shots, mul:F.mul * L.mul, tier:F.tier,
+      pierce:L.pierce, burn:L.burn, splash:F.splash, pierceLine:F.pierceLine,
+      note:GUN_NOTES[f]
+    };
+  }
+}
+
+/* what turns up in a weapon crate, roughly by how deep you are */
+const DROPS = [
+  ['rivet','crowbar','baton','sampler','pistol.laser'],
+  ['torch','smg.slug','crowbar','baton','sampler'],
+  ['sword','welder','smg.laser','shotgun.slug','torch'],
+  ['shotgun.plasma','rifle.slug','sword','welder','lmg.slug'],
+  ['rifle.laser','rifle.plasma','chainsaw','lmg.laser','shotgun.plasma']
+];
+
+/* ---------------- consumables ---------------- */
+const USABLE = {
+  med:      { name:'Med-Gel',    note:'Seals the suit and repairs you.',          c:'acid'   },
+  trauma:   { name:'Trauma Kit', note:'A serious repair. Purges everything.',     c:'acid'   },
+  grenade:  { name:'Charge',     note:'Thrown. Hurts everything around the spot.', c:'amber' },
+  stim:     { name:'Stim',       note:'+60% damage for six turns.',               c:'blood'  },
+  carapace: { name:'Carapace',   note:'\u221235% incoming for six turns.',           c:'steel'  }
+};
+
+function wep(){ return WEAPONS[P.weapon] || WEAPONS.knife; }
+function hasWep(id){ return P.weapons.indexOf(id) >= 0; }
+function rounds(id){ const w = WEAPONS[id] || {}; return w.ammo ? (P.ammo[w.ammo] || 0) : Infinity; }
+function canFire(id){ const w = WEAPONS[id] || {}; return !w.ammo || rounds(id) >= (w.cost || 1); }
+function equip(id){
+  if(!hasWep(id)) return;
+  P.weapon = id;
+  say('Holding the ' + WEAPONS[id].name + '.');
+  snd.pickup();
+  render();
+}
+function wepDmg(id, m){
+  const w = WEAPONS[id] || WEAPONS.knife;
+  let d = P.dmg * P.dmgMul * w.mul * (w.shots || 1) * (P.buff.dmg > 0 ? 1.6 : 1) * (P.surge ? 2 : 1);
+  if(m && m.type === 'warden'){
+    if(w.pry) d *= 1.6;
+    else if(!w.pierce) d *= 0.7;
+  }
+  return Math.max(1, Math.round(d));
+}
 
 /* ---------------- doors, gear, salvage ---------------- */
 const DOOR_ORDER = ['blue','amber','red'];
@@ -360,13 +438,19 @@ const DOOR_NAME  = { blue:'BLUE', amber:'AMBER', red:'RED' };
 
 const GEAR = {
   med:   { g:'+',        c:'acid',   name:'MED-GEL',    note:'field repair' },
+  trauma:{ g:'\u2695',   c:'acid',   name:'TRAUMA KIT', note:'a serious repair' },
+  grenade:{g:'\u25CF',   c:'amber',  name:'CHARGE',     note:'thrown explosive' },
+  stim:  { g:'\u2191',   c:'blood',  name:'STIM',       note:'damage, six turns' },
+  carapace:{g:'\u25D3',  c:'steel',  name:'CARAPACE',   note:'armour, six turns' },
   cell:  { g:'\u25C6',   c:'ice',    name:'POWER CELL', note:'+3 charge' },
   plate: { g:'\u25A3',   c:'steel',  name:'HULL PLATE', note:'+8 max integrity' },
   chip:  { g:'\u25B2',   c:'blood',  name:'FOCUS CHIP', note:'+2 melee damage' },
   cap:   { g:'\u25C8',   c:'violet', name:'CAPACITOR',  note:'+2 max charge' },
   shard: { g:'\u2726',   c:'amber',  name:'DATA SHARD', note:'+2 data' },
   key:   { g:'\u25AE',   c:'key',    name:'KEYCARD',    note:'opens a sealed door' },
-  core:  { g:'\u2299',   c:'core',   name:'SALVAGE CORE', note:'a permanent system' }
+  core:  { g:'\u2299',   c:'core',   name:'SALVAGE CORE', note:'a permanent system' },
+  wpn:   { g:'\u2020',   c:'wpn',    name:'WEAPON',       note:'something better to hold' },
+  ammo:  { g:'\u2237',   c:'ammo',   name:'ROUNDS',       note:'+6 rounds' }
 };
 
 // one per deck, shuffled per run, so no two ships pay out the same
@@ -604,7 +688,7 @@ function carveCorridor(a,b){
 function attemptFloorplan(){
   map = new Array(N);
   for(let i=0;i<N;i++)
-    map[i] = { wall:true, organic:false, seen:false, item:null, key:null,
+    map[i] = { wall:true, organic:false, seen:false, item:null, key:null, wid:null, atype:null,
                exit:false, door:null, room:-1 };
   rooms = [];
   const joins = [];
@@ -708,19 +792,47 @@ function assembleDeck(){
     const j = (Math.random()*spots.length)|0;
     const i = spots.splice(j,1)[0];
     used.add(i);
-    spawnMob(ix(i), iy(i), pick(roster), Math.max(1, pick(pool)));
+    const type = pick(roster), lv = Math.max(1, pick(pool));
+    spawnMob(ix(i), iy(i), type, lv);
+    const packs = SPECIES[type].pack;
+    if(packs){
+      let placed = 1;
+      for(const n of neighbours(i)){
+        if(placed >= packs) break;
+        if(used.has(n) || map[n].wall || map[n].door || dist[n] < 3) continue;
+        const j = spots.indexOf(n);
+        if(j >= 0) spots.splice(j,1);
+        used.add(n);
+        spawnMob(ix(n), iy(n), type, lv);
+        placed++;
+        k++;
+      }
+    }
   }
   spawnMob(ix(apexI), iy(apexI), 'apex', base + 1 + Math.floor(deck/5));
 
   /* --- gear strewn through the compartments --- */
-  const kinds = ['med','cell','med','cell','plate','chip','cap','shard'];
+  const kinds = ['med','cell','med','plate','chip','cap','shard','ammo','ammo','ammo','grenade','stim','carapace','trauma'];
   const drops = 4 + Math.floor(deck/2);
   const shelf = roomTiles.filter(i => !used.has(i) && !map[i].door && !map[i].exit);
   for(let k=0;k<drops && shelf.length;k++){
     const j = (Math.random()*shelf.length)|0;
     const i = shelf.splice(j,1)[0];
     used.add(i);
-    map[i].item = k < 2 ? (k===0?'med':'cell') : pick(kinds);
+    map[i].item = k < 2 ? (k===0?'med':'ammo') : pick(kinds);
+    if(map[i].item === 'ammo'){
+      const owned = P.weapons.map(id => WEAPONS[id].ammo).filter(Boolean);
+      map[i].atype = owned.length && Math.random() < 0.75 ? pick(owned) : pick(['slug','cell','plasma','fuel']);
+    }
+  }
+
+  // one weapon crate every couple of decks
+  if(deck >= 2 && shelf.length && (deck % 2 === 0 || Math.random() < 0.4)){
+    const i = shelf.splice((Math.random()*shelf.length)|0, 1)[0];
+    used.add(i);
+    map[i].item = 'wpn';
+    const tierList = DROPS[Math.min(DROPS.length-1, Math.floor((deck-1)/2))];
+    map[i].wid = pick(tierList.filter(id => !hasWep(id))) || pick(tierList);
   }
 
   exitOpen = false; coreDrop = null; sel = null;
@@ -738,7 +850,8 @@ function spawnMob(x,y,type,lvl){
   const s = SPECIES[type];
   const hp = Math.max(4, Math.round(10*lvl*s.hp));
   mobs.push({ x,y,type,lvl,alive:true, hp, maxHp:hp,
-              dmg: Math.max(1, Math.round(5*lvl*s.dmg)), boss: type === 'apex' });
+              dmg: Math.max(1, Math.round(2.5*lvl*s.dmg)), boss: type === 'apex',
+              alert:0, move:0, dir:null, stun:0, burn:0, bleed:0 });
 }
 
 /* ================================================================
@@ -749,6 +862,10 @@ function newRun(){
   P = { lvl:1, hp:26, maxHp:26, dmg:5, charge:4, maxCharge:10,
         xp:0, xpNeed:2, x:0, y:0, corroded:false, surge:false,
         revealed:0, kills:0, keys:[],
+        weapons:['knife','pistol.slug'], weapon:'knife',
+        ammo:{ slug:20, cell:0, plasma:0, fuel:0 },
+        items:{ med:1, trauma:0, grenade:1, stim:0, carapace:0 },
+        buff:{ dmg:0, res:0 },
         dmgMul:1, arcMul:1, scanMul:1, resist:0, siphon:0, radius:1,
         xpBonus:0, guard:false, guardReady:false };
   deck = 1; dead = false; logLines = [];
@@ -801,14 +918,29 @@ function gainXp(n){
 /* ================================================================
    COMBAT MATHS — deterministic, and shown before you commit
    ================================================================ */
-function meleeDmg(m){
-  let d = P.dmg * P.dmgMul * (P.surge ? 2 : 1);
-  if(m.type === 'warden') d *= 0.7;
-  return Math.max(1, Math.round(d));
+function meleeDmg(m){ return wepDmg(P.weapon, m); }
+function shotDmg(m){ return wepDmg(P.weapon, m); }
+function inShotRange(m){
+  const w = wep();
+  if(w.kind !== 'ranged' || !m || !m.alive) return false;
+  const d = Math.max(Math.abs(m.x-P.x), Math.abs(m.y-P.y));
+  return d <= w.range && lineClear(P.x, P.y, m.x, m.y);
+}
+function isMelee(){ return wep().kind !== 'ranged'; }
+function incoming(m){
+  return Math.max(1, Math.round(m.dmg * (1 - P.resist) * (P.buff.res > 0 ? 0.65 : 1)));
+}
+function applyPerks(w, m, d){
+  if(w.stun)  m.stun  = Math.max(m.stun || 0,  w.stun);
+  if(w.burn)  m.burn  = Math.max(m.burn || 0,  w.burn),  m.burnD  = Math.max(1, Math.round(d*0.25));
+  if(w.bleed) m.bleed = Math.max(m.bleed || 0, w.bleed), m.bleedD = Math.max(1, Math.round(d*0.15));
+}
+function hurtMob(m, d, w){
+  m.hp -= d;
+  if(w) applyPerks(w, m, d);
+  if(m.hp <= 0) killMob(m);
 }
 function arcDmg(){ return Math.max(1, Math.round(4 * P.lvl * P.arcMul)); }
-function incoming(m){ return Math.max(1, Math.round(m.dmg * (1 - P.resist))); }
-
 function project(m){
   let hpLeft = m.hp, taken = 0, swing = 0;
   const first = m.type === 'husk';
@@ -816,8 +948,9 @@ function project(m){
   let guard = P.guardReady;
   while(hpLeft > 0 && swing < 60){
     if(first){ if(guard) guard = false; else taken += inc; }
-    let d = P.dmg * P.dmgMul * (swing === 0 && P.surge ? 2 : 1);
-    if(m.type === 'warden') d *= 0.7;
+    const w0 = wep();
+    let d = P.dmg * P.dmgMul * w0.mul * (w0.shots||1) * (P.buff.dmg>0?1.6:1) * (swing === 0 && P.surge ? 2 : 1);
+    if(m.type === 'warden'){ if(w0.pry) d *= 1.6; else if(!w0.pierce) d *= 0.7; }
     hpLeft -= Math.max(1, Math.round(d));
     swing++;
     if(hpLeft > 0 && !first){ if(guard) guard = false; else taken += inc; }
@@ -839,17 +972,85 @@ function label(m){ return SPECIES[m.type].name.toUpperCase() + ' L' + m.lvl; }
 
 function strike(m){
   if(!m || !m.alive || !adjacent(m) || busy || dead) return;
+  const w = wep();
+  if(w.ammo && !canFire(P.weapon)){
+    say('The ' + w.name + ' is dry \u2014 no ' + AMMO[w.ammo].name.toLowerCase() + '.');
+    snd.denied(); render(); return;
+  }
+  if(w.ammo) P.ammo[w.ammo] -= (w.cost || 1);
   const d = meleeDmg(m);
   const surged = P.surge;
   P.surge = false;
   const first = m.type === 'husk';
   if(first){ if(hurtPlayer(m)) return; }
-  m.hp -= d;
   snd.strike(surged);
-  say('Strike \u2192 ' + label(m) + ' \u2212' + d + (surged ? ' (SURGE)' : ''));
-  if(m.hp <= 0) killMob(m);
-  else if(!first){ if(hurtPlayer(m)) return; }
+  say(w.name + ' \u2192 ' + label(m) + ' \u2212' + d + (surged ? ' (SURGE)' : ''));
+  hurtMob(m, d, w);
+
+  if(w.cleave){
+    for(const o of mobs){
+      if(o === m || !o.alive || !adjacent(o)) continue;
+      const dd = wepDmg(P.weapon, o);
+      say('  \u2026and through ' + label(o) + ' \u2212' + dd);
+      hurtMob(o, dd, w);
+    }
+  }
+  if(m.alive && !first){ if(hurtPlayer(m)) return; }
   endTurn(m);
+}
+
+function fire(m){
+  const w = wep();
+  if(!m || !m.alive || busy || dead) return;
+  if(w.kind !== 'ranged' || !inShotRange(m)) return;
+  if(!canFire(P.weapon)){
+    say('Dry. No ' + AMMO[w.ammo].name.toLowerCase() + ' for the ' + w.name + '.');
+    snd.denied(); render(); return;
+  }
+  P.ammo[w.ammo] -= (w.cost || 1);
+  P.surge = false;
+  const d = shotDmg(m);
+  snd.arc();
+  say(w.name + ' \u2192 ' + label(m) + ' \u2212' + d + ' (no reply)');
+  hurtMob(m, d, w);
+
+  if(w.splash){
+    for(const o of mobs){
+      if(o === m || !o.alive) continue;
+      if(Math.max(Math.abs(o.x-m.x), Math.abs(o.y-m.y)) > 1) continue;
+      const dd = Math.max(1, Math.round(wepDmg(P.weapon, o) * 0.5));
+      say('  spread \u2192 ' + label(o) + ' \u2212' + dd);
+      hurtMob(o, dd, w);
+    }
+  }
+  if(w.pierceLine){
+    for(const o of mobs){
+      if(o === m || !o.alive) continue;
+      const dm = Math.max(Math.abs(o.x-P.x), Math.abs(o.y-P.y));
+      if(dm > w.range || !lineClear(P.x, P.y, o.x, o.y)) continue;
+      if(!onSegment(P.x, P.y, m.x, m.y, o.x, o.y)) continue;
+      const dd = Math.max(1, Math.round(wepDmg(P.weapon, o) * 0.7));
+      say('  through \u2192 ' + label(o) + ' \u2212' + dd);
+      hurtMob(o, dd, w);
+    }
+  }
+  endTurn(m);
+}
+
+/* is (px,py) roughly on the line from a to b — used for punch-through */
+function onSegment(ax, ay, bx, by, px, py){
+  const dx = bx-ax, dy = by-ay;
+  if(!dx && !dy) return false;
+  const t = ((px-ax)*dx + (py-ay)*dy) / (dx*dx + dy*dy);
+  if(t < 0 || t > 1.35) return false;
+  const cx = ax + dx*t, cy = ay + dy*t;
+  return Math.abs(cx-px) < 0.9 && Math.abs(cy-py) < 0.9;
+}
+
+function attack(m){
+  const w = wep();
+  if(w.kind === 'ranged') fire(m);
+  else strike(m);
 }
 
 function arc(m){
@@ -921,38 +1122,184 @@ function killMob(m){
   gainXp(xp);
 }
 
+/* ---------------- using what you carry ---------------- */
+function useItem(id){
+  if(busy || dead) return;
+  if(!P.items[id]){ snd.denied(); return; }
+
+  if(id === 'grenade'){
+    const t = targetMob() || nearestVisible();
+    if(!t){ say('Nothing worth throwing it at.'); render(); return; }
+    if(Math.max(Math.abs(t.x-P.x), Math.abs(t.y-P.y)) > 6 || !lineClear(P.x,P.y,t.x,t.y)){
+      say('No line to throw it.'); snd.denied(); render(); return;
+    }
+    P.items.grenade--;
+    const base = Math.max(3, Math.round(3.2 * P.lvl * P.dmgMul));
+    say('Charge thrown at ' + label(t) + '.');
+    snd.core();
+    for(const o of mobs.slice()){
+      if(!o.alive) continue;
+      const r = Math.max(Math.abs(o.x-t.x), Math.abs(o.y-t.y));
+      if(r > 1) continue;
+      const d = r === 0 ? base : Math.round(base*0.6);
+      say('  blast \u2192 ' + label(o) + ' \u2212' + d);
+      o.stun = Math.max(o.stun||0, 1);
+      hurtMob(o, d, null);
+    }
+    endTurn(null);
+    return;
+  }
+
+  P.items[id]--;
+  if(id === 'med'){
+    const h = 5 * P.lvl; heal(h); P.corroded = false;
+    snd.patch(); say('Med-gel \u2192 +' + h + ' integrity, suit clean.');
+  } else if(id === 'trauma'){
+    const h = 12 * P.lvl; heal(h); P.corroded = false; P.guardReady = !!P.guard;
+    snd.core(); say('Trauma kit \u2192 +' + h + ' integrity. Everything purged.');
+  } else if(id === 'stim'){
+    P.buff.dmg = 6; snd.surge(); say('Stim \u2192 +60% damage for six turns.');
+  } else if(id === 'carapace'){
+    P.buff.res = 6; snd.patch(); say('Carapace \u2192 \u221235% incoming for six turns.');
+  }
+  endTurn(null);
+}
+
+function nearestVisible(){
+  let best = null, bd = 1e9;
+  for(const m of mobs){
+    if(!m.alive || !at(m.x,m.y).seen) continue;
+    const d = Math.max(Math.abs(m.x-P.x), Math.abs(m.y-P.y));
+    if(d < bd && lineClear(P.x,P.y,m.x,m.y)){ bd = d; best = m; }
+  }
+  return best;
+}
+
 /* ================================================================
    ENEMY TURN
    ================================================================ */
 function endTurn(actedOn){
+  if(P.buff.dmg > 0) P.buff.dmg--;
+  if(P.buff.res > 0) P.buff.res--;
+  const field = playerField();
   for(const m of mobs){
     if(!m.alive) continue;
+
     if(m.type === 'gorger' && m !== actedOn && m.hp < m.maxHp)
       m.hp = Math.min(m.maxHp, m.hp + Math.max(1, Math.round(m.maxHp*0.12)));
-    if(m.type === 'stalker' && at(m.x,m.y).seen){
-      const d = Math.abs(m.x-P.x) + Math.abs(m.y-P.y);
-      if(adjacent(m)){
-        if(m !== actedOn){ say(label(m) + ' lunges.'); if(hurtPlayer(m)) return; }
-      } else if(d <= 6) stepToward(m);
+
+    if(m.burn > 0){
+      m.burn--; m.hp -= (m.burnD || 1);
+      if(m.hp <= 0){ say(label(m) + ' burns out.'); killMob(m); continue; }
+    }
+    if(m.bleed > 0){
+      m.bleed--; m.hp -= (m.bleedD || 1);
+      if(m.hp <= 0){ say(label(m) + ' bleeds out.'); killMob(m); continue; }
+    }
+    if(m.stun > 0){ m.stun--; continue; }
+
+    if(canSee(m)){ m.alert = 3; m.mx = P.x; m.my = P.y; }
+    else if(m.alert > 0) m.alert--;
+    const hunting = m.alert > 0;
+
+    // already on top of you: swing rather than shuffle
+    if(adjacent(m)){
+      if(m !== actedOn){
+        say(label(m) + (hunting ? ' strikes.' : ' catches you.'));
+        if(hurtPlayer(m)) return;
+      }
+      continue;
+    }
+
+    const s = SPECIES[m.type];
+    m.move += hunting ? (s.spd || 0.5) : (s.patrol || 0.3);
+    let steps = 0;
+    while(m.move >= 1 && steps < 2){
+      m.move -= 1; steps++;
+      if(hunting && field[idx(P.x,P.y)] >= 0) stepHunt(m, field);
+      else if(hunting) stepToward(m, m.mx, m.my);
+      else stepPatrol(m);
+      if(adjacent(m)) break;               // closing costs the whole turn
     }
   }
   render();
 }
 
-function stepToward(m){
-  const opts = [];
-  for(let dy=-1;dy<=1;dy++) for(let dx=-1;dx<=1;dx++){
-    if(!dx && !dy) continue;
-    const nx=m.x+dx, ny=m.y+dy;
-    if(!inB(nx,ny)) continue;
-    const t = at(nx,ny);
-    if(t.wall || (t.door && !t.door.open) || mobAt(nx,ny)) continue;
-    if(nx===P.x && ny===P.y) continue;
-    opts.push({nx,ny,d:Math.abs(nx-P.x)+Math.abs(ny-P.y)});
+/* ================================================================
+   SENSES — nothing here is omniscient. A hostile has to actually see
+   you down an unbroken line, within its own eyesight, before it comes.
+   Lose it for long enough and it goes back to wandering the deck.
+   ================================================================ */
+function mobPassable(x,y){
+  if(!inB(x,y)) return false;
+  const t = at(x,y);
+  if(t.wall) return false;
+  if(t.door && !t.door.open) return false;      // they cannot work doors
+  if(x === P.x && y === P.y) return false;
+  return !mobAt(x,y);
+}
+
+function lineClear(x0,y0,x1,y1){
+  let dx = Math.abs(x1-x0), dy = Math.abs(y1-y0);
+  let sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
+  let err = dx - dy, x = x0, y = y0, guard = 0;
+  while(guard++ < 60){
+    if(x === x1 && y === y1) return true;
+    const e2 = 2*err;
+    if(e2 > -dy){ err -= dy; x += sx; }
+    if(e2 <  dx){ err += dx; y += sy; }
+    if(x === x1 && y === y1) return true;
+    const t = at(x,y);
+    if(t.wall || (t.door && !t.door.open)) return false;
   }
-  if(!opts.length) return;
-  opts.sort((a,b)=>a.d-b.d);
-  if(opts[0].d < Math.abs(m.x-P.x)+Math.abs(m.y-P.y)){ m.x=opts[0].nx; m.y=opts[0].ny; }
+  return false;
+}
+
+function canSee(m){
+  const s = SPECIES[m.type];
+  const d = Math.max(Math.abs(m.x-P.x), Math.abs(m.y-P.y));
+  if(d > (s.sight || 4)) return false;
+  return lineClear(m.x, m.y, P.x, P.y);
+}
+
+/* one shared distance field per turn, so pursuers round corners properly */
+function playerField(){
+  const shut = new Set();
+  for(let i=0;i<N;i++){ const t = map[i]; if(t.door && !t.door.open) shut.add(i); }
+  return flood(idx(P.x,P.y), shut);
+}
+
+function stepHunt(m, field){
+  const here = field[idx(m.x,m.y)];
+  if(here < 0){ stepPatrol(m); return; }
+  let best = -1, bd = here;
+  for(const n of neighbours(idx(m.x,m.y))){
+    if(!mobPassable(ix(n), iy(n))) continue;
+    if(field[n] >= 0 && field[n] < bd){ bd = field[n]; best = n; }
+  }
+  if(best >= 0){ m.x = ix(best); m.y = iy(best); }
+  else stepPatrol(m);
+}
+
+const DIRS = [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]];
+function stepPatrol(m){
+  if(!m.dir || Math.random() < 0.18) m.dir = pick(DIRS);
+  for(let k=0;k<5;k++){
+    const nx = m.x + m.dir[0], ny = m.y + m.dir[1];
+    if(mobPassable(nx,ny)){ m.x = nx; m.y = ny; return; }
+    m.dir = pick(DIRS);
+  }
+}
+
+function stepToward(m, tx, ty){
+  let best = null, bd = 1e9;
+  for(const [dx,dy] of DIRS){
+    const nx = m.x+dx, ny = m.y+dy;
+    if(!mobPassable(nx,ny)) continue;
+    const d = Math.max(Math.abs(nx-tx), Math.abs(ny-ty));
+    if(d < bd){ bd = d; best = [nx,ny]; }
+  }
+  if(best){ m.x = best[0]; m.y = best[1]; }
 }
 
 /* ================================================================
@@ -1014,12 +1361,32 @@ function takeItem(t){
   t.item = null;
   snd.pickup();
   const g = GEAR[kind];
-  if(kind === 'med'){ const h = 5*P.lvl; heal(h); P.corroded = false; say('MED-GEL \u2192 +' + h + ', suit clean.'); }
   if(kind === 'cell'){ P.charge = Math.min(P.maxCharge, P.charge+3); say('POWER CELL \u2192 +3 charge.'); }
   if(kind === 'plate'){ P.maxHp += 8; heal(8); say('HULL PLATE welded on \u2192 +8 max integrity.'); }
   if(kind === 'chip'){ P.dmg += 2; say('FOCUS CHIP \u2192 +2 melee damage.'); }
   if(kind === 'cap'){ P.maxCharge += 2; P.charge = Math.min(P.maxCharge, P.charge+2); say('CAPACITOR \u2192 +2 max charge.'); }
   if(kind === 'shard'){ say('DATA SHARD \u2192 +2 data.'); gainXp(2); }
+  if(kind === 'ammo'){
+    const a = t.atype || 'slug';
+    const n = a === 'slug' ? 14 : a === 'fuel' ? 6 : 8;
+    P.ammo[a] = (P.ammo[a] || 0) + n;
+    say(AMMO[a].name.toUpperCase() + ' \u2192 +' + n + ', now ' + P.ammo[a] + '.');
+  }
+  if(USABLE[kind]){
+    P.items[kind] = (P.items[kind] || 0) + 1;
+    say(USABLE[kind].name.toUpperCase() + ' stowed. ' + USABLE[kind].note);
+  }
+  if(kind === 'wpn'){
+    const id = t.wid || 'crowbar', w = WEAPONS[id];
+    if(hasWep(id)){
+      if(w.ammo){ P.ammo[w.ammo] += 6; say('A second ' + w.name + ' \u2014 stripped for 6 ' + AMMO[w.ammo].name.toLowerCase() + '.'); }
+      else { P.items.stim = (P.items.stim||0)+1; say('A second ' + w.name + ' \u2014 traded off for a stim.'); }
+    } else {
+      P.weapons.push(id);
+      say(w.name.toUpperCase() + ' recovered. ' + w.note);
+      if(w.ammo && !P.ammo[w.ammo]) P.ammo[w.ammo] = w.ammo === 'fuel' ? 6 : 10;
+    }
+  }
   void g;
 }
 
@@ -1148,6 +1515,12 @@ function loadRun(){
     runDeaths = r.runDeaths || 0;
     logLines = r.logLines || [];
     P = r.P; map = r.map; mobs = r.mobs;
+    if(typeof P.ammo === 'number' || !P.ammo) P.ammo = { slug:20, cell:0, plasma:0, fuel:0 };
+    P.items  = P.items  || { med:1, trauma:0, grenade:1, stim:0, carapace:0 };
+    P.buff   = P.buff   || { dmg:0, res:0 };
+    P.weapons = (P.weapons || ['knife','pistol.slug']).filter(id => WEAPONS[id]);
+    if(!P.weapons.length) P.weapons = ['knife'];
+    if(!WEAPONS[P.weapon]) P.weapon = P.weapons[0];
     installed = (r.installed || []).map(coreByName).filter(Boolean);
     corePool  = (r.pool || []).map(coreByName).filter(Boolean);
     live = true;
@@ -1163,15 +1536,390 @@ function loadRun(){
 /* ================================================================
    RENDER
    ================================================================ */
-const cells = [];
-for(let i=0;i<N;i++){
-  const d = document.createElement('div');
-  d.className = 'cell'; d.dataset.i = i;
-  const g = document.createElement('span'); g.className='g';
-  const b = document.createElement('span'); b.className='badge';
-  d.appendChild(g); d.appendChild(b);
-  gridEl.appendChild(d);
-  cells.push({el:d, g, b});
+/* ================================================================
+   BOARD — everything is drawn, nothing is a letter. Silhouettes are
+   built to read at about thirty pixels: heavy outline, one strong
+   shape, colour carrying the species.
+   ================================================================ */
+const board = $('board'), bx = board.getContext('2d');
+let CELL = 30, BDPR = 1;
+
+const PAL = {
+  void:'#04060a', floor:'#20323f', floorAlt:'#1c2c38', seam:'#2f4a5f',
+  wall:'#070b11', wallLip:'#31485f', wallDark:'#03060a',
+  organic:'#1d0e15', organicLip:'#5d2032', vein:'#8a2b45',
+  ink:'#04070a', text:'#dfeaf0'
+};
+const MOBCOL = {
+  crawler:'#ff3b5c', husk:'#ff8a72', spitter:'#a3e635', warden:'#93a7b5',
+  wraith:'#b79cf0', gorger:'#ffb347', stalker:'#ff1f4a',
+  skitter:'#ff8fa8', shrike:'#ff5f8f', apex:'#ffffff'
+};
+const DOORCOL = { blue:'#4da3ff', amber:'#ffb347', red:'#ff5470' };
+
+function rr(g,x,y,w,h,r){
+  r = Math.min(r, w/2, h/2);
+  g.beginPath();
+  g.moveTo(x+r,y); g.lineTo(x+w-r,y); g.quadraticCurveTo(x+w,y,x+w,y+r);
+  g.lineTo(x+w,y+h-r); g.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+  g.lineTo(x+r,y+h); g.quadraticCurveTo(x,y+h,x,y+h-r);
+  g.lineTo(x,y+r); g.quadraticCurveTo(x,y,x+r,y); g.closePath();
+}
+function outline(g, col, w){ g.strokeStyle = col || PAL.ink; g.lineWidth = w || Math.max(1.2, CELL*0.055); g.stroke(); }
+
+/* ---------------- terrain ---------------- */
+function drawFloor(g, x, y, alt){
+  const C = CELL;
+  g.fillStyle = alt ? PAL.floorAlt : PAL.floor;
+  g.fillRect(x, y, C, C);
+  g.strokeStyle = 'rgba(47,74,95,.7)'; g.lineWidth = 1;
+  g.strokeRect(x+0.5, y+0.5, C-1, C-1);
+  g.fillStyle = 'rgba(255,255,255,.028)';
+  g.fillRect(x+C*0.12, y+C*0.12, C*0.30, C*0.05);
+}
+function drawWall(g, x, y, organic){
+  const C = CELL;
+  g.fillStyle = organic ? PAL.organic : PAL.wall;
+  g.fillRect(x, y, C, C);
+  g.fillStyle = organic ? PAL.organicLip : PAL.wallLip;
+  g.fillRect(x, y, C, Math.max(1.5, C*0.10));
+  g.fillStyle = organic ? 'rgba(0,0,0,.35)' : PAL.wallDark;
+  g.fillRect(x, y+C-Math.max(1.5,C*0.09), C, Math.max(1.5, C*0.09));
+  if(organic){
+    g.strokeStyle = PAL.vein; g.lineWidth = Math.max(1, C*0.045);
+    for(let k=0;k<3;k++){
+      g.beginPath();
+      g.moveTo(x+C*(0.18+k*0.28), y+C*0.22);
+      g.quadraticCurveTo(x+C*(0.34+k*0.22), y+C*0.52, x+C*(0.16+k*0.30), y+C*0.86);
+      g.stroke();
+    }
+  } else {
+    g.fillStyle = 'rgba(150,180,205,.22)';
+    const r = Math.max(1, C*0.045);
+    for(const [px,py] of [[0.20,0.28],[0.80,0.28],[0.20,0.78],[0.80,0.78]]){
+      g.beginPath(); g.arc(x+C*px, y+C*py, r, 0, 6.2832); g.fill();
+    }
+  }
+}
+function drawDoor(g, x, y, colour, open){
+  const C = CELL, col = DOORCOL[colour] || '#8899aa';
+  g.fillStyle = '#0d151d'; g.fillRect(x, y, C, C);
+  g.fillStyle = col; g.globalAlpha = open ? 0.20 : 0.34;
+  g.fillRect(x, y, C, C); g.globalAlpha = 1;
+  if(open){
+    g.fillStyle = col;
+    g.fillRect(x, y, C*0.14, C); g.fillRect(x+C*0.86, y, C*0.14, C);
+    g.globalAlpha = .35; g.fillRect(x, y+C*0.46, C, C*0.08); g.globalAlpha = 1;
+  } else {
+    g.fillStyle = col;
+    rr(g, x+C*0.06, y+C*0.16, C*0.40, C*0.68, C*0.06); g.fill();
+    rr(g, x+C*0.54, y+C*0.16, C*0.40, C*0.68, C*0.06); g.fill();
+    g.fillStyle = 'rgba(0,0,0,.45)';
+    g.fillRect(x+C*0.46, y+C*0.16, C*0.08, C*0.68);
+    g.fillStyle = '#fff'; g.globalAlpha = .85;
+    g.fillRect(x+C*0.20, y+C*0.44, C*0.13, C*0.12);
+    g.fillRect(x+C*0.67, y+C*0.44, C*0.13, C*0.12);
+    g.globalAlpha = 1;
+  }
+}
+function drawExit(g, x, y, open){
+  const C = CELL, col = open ? '#a3e635' : '#4a5c68';
+  g.fillStyle = '#0a121a'; g.fillRect(x, y, C, C);
+  g.strokeStyle = col; g.lineWidth = Math.max(1.4, C*0.07);
+  g.beginPath(); g.arc(x+C/2, y+C/2, C*0.32, 0, 6.2832); g.stroke();
+  g.fillStyle = col;
+  for(let k=0;k<3;k++){
+    g.beginPath();
+    g.moveTo(x+C*0.32, y+C*(0.34+k*0.14));
+    g.lineTo(x+C*0.50, y+C*(0.46+k*0.14));
+    g.lineTo(x+C*0.68, y+C*(0.34+k*0.14));
+    g.lineTo(x+C*0.68, y+C*(0.40+k*0.14));
+    g.lineTo(x+C*0.50, y+C*(0.52+k*0.14));
+    g.lineTo(x+C*0.32, y+C*(0.40+k*0.14));
+    g.closePath(); g.fill();
+  }
+  if(open){
+    g.globalAlpha = .30; g.fillStyle = col;
+    g.beginPath(); g.arc(x+C/2, y+C/2, C*0.46, 0, 6.2832); g.fill();
+    g.globalAlpha = 1;
+  }
+}
+
+/* ---------------- pickups ---------------- */
+function drawItem(g, x, y, kind, extra){
+  const C = CELL, cx = x+C/2, cy = y+C/2;
+  const col = {
+    med:'#a3e635', trauma:'#a3e635', grenade:'#ffb347', stim:'#ff3b5c',
+    carapace:'#93a7b5', cell:'#7fd8ff', plate:'#93a7b5', chip:'#ff3b5c',
+    cap:'#b79cf0', shard:'#ffb347', ammo:'#93a7b5', wpn:'#ffb347',
+    key:DOORCOL[extra]||'#4da3ff', core:'#ffd479'
+  }[kind] || '#cfe0e6';
+
+  g.save();
+  g.shadowColor = col; g.shadowBlur = C*0.35;
+
+  if(kind === 'med' || kind === 'trauma'){
+    g.fillStyle = '#0e1a14';
+    rr(g, cx-C*0.26, cy-C*0.22, C*0.52, C*0.44, C*0.07); g.fill(); outline(g);
+    g.fillStyle = col;
+    g.fillRect(cx-C*0.055, cy-C*0.15, C*0.11, C*0.30);
+    g.fillRect(cx-C*0.16, cy-C*0.055, C*0.32, C*0.11);
+  } else if(kind === 'grenade'){
+    g.fillStyle = col;
+    g.beginPath(); g.arc(cx, cy+C*0.04, C*0.20, 0, 6.2832); g.fill(); outline(g);
+    g.fillStyle = '#5b4a2a'; g.fillRect(cx-C*0.06, cy-C*0.26, C*0.12, C*0.12);
+  } else if(kind === 'stim'){
+    g.fillStyle = col;
+    rr(g, cx-C*0.07, cy-C*0.22, C*0.14, C*0.34, C*0.03); g.fill(); outline(g);
+    g.strokeStyle = col; g.lineWidth = Math.max(1.2, C*0.05);
+    g.beginPath(); g.moveTo(cx, cy+C*0.12); g.lineTo(cx, cy+C*0.28); g.stroke();
+  } else if(kind === 'carapace'){
+    g.fillStyle = col;
+    g.beginPath();
+    g.moveTo(cx, cy-C*0.26); g.lineTo(cx+C*0.22, cy-C*0.14);
+    g.lineTo(cx+C*0.17, cy+C*0.22); g.lineTo(cx, cy+C*0.30);
+    g.lineTo(cx-C*0.17, cy+C*0.22); g.lineTo(cx-C*0.22, cy-C*0.14);
+    g.closePath(); g.fill(); outline(g);
+  } else if(kind === 'cell'){
+    g.fillStyle = col;
+    g.beginPath();
+    g.moveTo(cx, cy-C*0.26); g.lineTo(cx+C*0.20, cy); g.lineTo(cx, cy+C*0.26); g.lineTo(cx-C*0.20, cy);
+    g.closePath(); g.fill(); outline(g);
+  } else if(kind === 'plate'){
+    g.fillStyle = col;
+    rr(g, cx-C*0.24, cy-C*0.20, C*0.48, C*0.40, C*0.05); g.fill(); outline(g);
+    g.fillStyle = 'rgba(0,0,0,.45)';
+    for(const [ox,oy] of [[-0.15,-0.11],[0.15,-0.11],[-0.15,0.11],[0.15,0.11]]){
+      g.beginPath(); g.arc(cx+C*ox, cy+C*oy, C*0.035, 0, 6.2832); g.fill();
+    }
+  } else if(kind === 'chip'){
+    g.fillStyle = col;
+    g.beginPath(); g.moveTo(cx, cy-C*0.24); g.lineTo(cx+C*0.22, cy+C*0.18);
+    g.lineTo(cx-C*0.22, cy+C*0.18); g.closePath(); g.fill(); outline(g);
+  } else if(kind === 'cap'){
+    g.fillStyle = col;
+    rr(g, cx-C*0.20, cy-C*0.24, C*0.40, C*0.48, C*0.10); g.fill(); outline(g);
+    g.fillStyle = '#0b0f18'; g.fillRect(cx-C*0.11, cy-C*0.08, C*0.22, C*0.16);
+  } else if(kind === 'shard'){
+    g.fillStyle = col;
+    g.beginPath();
+    for(let k=0;k<8;k++){
+      const a = k*Math.PI/4, r = k%2 ? C*0.10 : C*0.26;
+      const px = cx+Math.cos(a)*r, py = cy+Math.sin(a)*r;
+      k ? g.lineTo(px,py) : g.moveTo(px,py);
+    }
+    g.closePath(); g.fill(); outline(g);
+  } else if(kind === 'ammo'){
+    g.fillStyle = '#2a3742';
+    rr(g, cx-C*0.24, cy-C*0.16, C*0.48, C*0.32, C*0.04); g.fill(); outline(g);
+    g.fillStyle = col;
+    for(let k=0;k<3;k++) g.fillRect(cx-C*0.17+k*C*0.13, cy-C*0.09, C*0.07, C*0.18);
+  } else if(kind === 'wpn'){
+    g.fillStyle = '#2b2618';
+    rr(g, cx-C*0.28, cy-C*0.18, C*0.56, C*0.36, C*0.05); g.fill(); outline(g);
+    g.fillStyle = col;
+    g.fillRect(cx-C*0.20, cy-C*0.05, C*0.34, C*0.08);
+    g.fillRect(cx+C*0.02, cy+C*0.03, C*0.07, C*0.12);
+  } else if(kind === 'key'){
+    g.fillStyle = col;
+    rr(g, cx-C*0.22, cy-C*0.14, C*0.44, C*0.28, C*0.04); g.fill(); outline(g);
+    g.fillStyle = 'rgba(0,0,0,.55)'; g.fillRect(cx-C*0.22, cy-C*0.04, C*0.44, C*0.07);
+  } else if(kind === 'core'){
+    g.fillStyle = col;
+    g.beginPath(); g.arc(cx, cy, C*0.22, 0, 6.2832); g.fill();
+    g.strokeStyle = col; g.lineWidth = Math.max(1.2, C*0.05);
+    g.beginPath(); g.arc(cx, cy, C*0.34, 0, 6.2832); g.stroke();
+    g.fillStyle = '#fff';
+    g.beginPath(); g.arc(cx-C*0.06, cy-C*0.06, C*0.07, 0, 6.2832); g.fill();
+  }
+  g.restore();
+}
+
+/* ---------------- creatures ---------------- */
+function legs(g, cx, cy, C, n, spread, len, col){
+  g.strokeStyle = col; g.lineWidth = Math.max(1.1, C*0.05);
+  for(let k=0;k<n;k++){
+    const t = (k/(n-1))*2 - 1;
+    g.beginPath();
+    g.moveTo(cx + t*C*spread*0.5, cy);
+    g.lineTo(cx + t*C*spread*0.85, cy + C*len);
+    g.stroke();
+  }
+}
+
+function drawMob(g, x, y, m){
+  const C = CELL, cx = x+C/2, cy = y+C/2;
+  const col = MOBCOL[m.type] || '#ff3b5c';
+  const t = m.type;
+  g.save();
+  if(m.stun > 0) g.globalAlpha = 0.55;
+  g.shadowColor = col; g.shadowBlur = C*0.30;
+
+  if(t === 'crawler'){
+    legs(g, cx, cy+C*0.06, C, 6, 0.62, 0.24, col);
+    g.fillStyle = col;
+    g.beginPath(); g.ellipse(cx, cy, C*0.30, C*0.20, 0, 0, 6.2832); g.fill(); outline(g);
+    g.fillStyle = PAL.ink;
+    g.beginPath(); g.arc(cx-C*0.10, cy-C*0.04, C*0.045, 0, 6.2832); g.fill();
+    g.beginPath(); g.arc(cx+C*0.10, cy-C*0.04, C*0.045, 0, 6.2832); g.fill();
+  } else if(t === 'husk'){
+    g.fillStyle = col;
+    rr(g, cx-C*0.17, cy-C*0.10, C*0.34, C*0.38, C*0.08); g.fill(); outline(g);
+    g.beginPath(); g.arc(cx, cy-C*0.20, C*0.135, 0, 6.2832); g.fill(); outline(g);
+    g.strokeStyle = col; g.lineWidth = Math.max(1.2, C*0.06);
+    g.beginPath(); g.moveTo(cx-C*0.17, cy-C*0.02); g.lineTo(cx-C*0.32, cy+C*0.16); g.stroke();
+    g.beginPath(); g.moveTo(cx+C*0.17, cy-C*0.02); g.lineTo(cx+C*0.32, cy+C*0.16); g.stroke();
+  } else if(t === 'spitter'){
+    g.fillStyle = col;
+    g.beginPath(); g.ellipse(cx, cy+C*0.06, C*0.26, C*0.24, 0, 0, 6.2832); g.fill(); outline(g);
+    g.beginPath();
+    g.moveTo(cx-C*0.08, cy-C*0.12); g.lineTo(cx, cy-C*0.32); g.lineTo(cx+C*0.08, cy-C*0.12);
+    g.closePath(); g.fill(); outline(g);
+    g.fillStyle = '#e6ff9a';
+    g.beginPath(); g.arc(cx, cy-C*0.30, C*0.05, 0, 6.2832); g.fill();
+  } else if(t === 'warden'){
+    g.fillStyle = col;
+    rr(g, cx-C*0.28, cy-C*0.24, C*0.56, C*0.48, C*0.07); g.fill(); outline(g);
+    g.fillStyle = 'rgba(0,0,0,.40)';
+    g.fillRect(cx-C*0.28, cy-C*0.06, C*0.56, C*0.09);
+    g.fillStyle = '#0b1218';
+    g.fillRect(cx-C*0.16, cy-C*0.17, C*0.32, C*0.07);
+    g.fillStyle = 'rgba(255,255,255,.30)';
+    g.fillRect(cx-C*0.24, cy-C*0.22, C*0.10, C*0.40);
+    g.fillRect(cx+C*0.14, cy-C*0.22, C*0.10, C*0.40);
+  } else if(t === 'wraith'){
+    g.globalAlpha *= 0.82;
+    g.fillStyle = col;
+    g.beginPath();
+    g.moveTo(cx, cy-C*0.30);
+    g.quadraticCurveTo(cx+C*0.26, cy-C*0.02, cx+C*0.18, cy+C*0.28);
+    g.quadraticCurveTo(cx+C*0.06, cy+C*0.16, cx, cy+C*0.30);
+    g.quadraticCurveTo(cx-C*0.06, cy+C*0.16, cx-C*0.18, cy+C*0.28);
+    g.quadraticCurveTo(cx-C*0.26, cy-C*0.02, cx, cy-C*0.30);
+    g.closePath(); g.fill();
+    g.fillStyle = '#fff';
+    g.beginPath(); g.arc(cx-C*0.07, cy-C*0.12, C*0.035, 0, 6.2832); g.fill();
+    g.beginPath(); g.arc(cx+C*0.07, cy-C*0.12, C*0.035, 0, 6.2832); g.fill();
+  } else if(t === 'gorger'){
+    g.fillStyle = col;
+    g.beginPath(); g.arc(cx, cy+C*0.02, C*0.30, 0, 6.2832); g.fill(); outline(g);
+    g.fillStyle = PAL.ink;
+    g.beginPath();
+    g.moveTo(cx-C*0.20, cy+C*0.06);
+    g.quadraticCurveTo(cx, cy+C*0.26, cx+C*0.20, cy+C*0.06);
+    g.closePath(); g.fill();
+    g.fillStyle = '#fff';
+    for(let k=0;k<4;k++)
+      g.fillRect(cx-C*0.16+k*C*0.10, cy+C*0.07, C*0.04, C*0.07);
+  } else if(t === 'stalker'){
+    legs(g, cx, cy+C*0.02, C, 4, 0.70, 0.30, col);
+    g.fillStyle = col;
+    g.beginPath(); g.ellipse(cx, cy-C*0.04, C*0.26, C*0.15, 0, 0, 6.2832); g.fill(); outline(g);
+    g.beginPath();
+    g.moveTo(cx+C*0.18, cy-C*0.08); g.lineTo(cx+C*0.36, cy-C*0.18); g.lineTo(cx+C*0.18, cy+C*0.02);
+    g.closePath(); g.fill();
+    g.fillStyle = '#fff';
+    g.beginPath(); g.arc(cx+C*0.24, cy-C*0.12, C*0.035, 0, 6.2832); g.fill();
+  } else if(t === 'skitter'){
+    legs(g, cx, cy+C*0.04, C, 4, 0.50, 0.20, col);
+    g.fillStyle = col;
+    g.beginPath(); g.ellipse(cx, cy, C*0.17, C*0.13, 0, 0, 6.2832); g.fill(); outline(g, PAL.ink, Math.max(1, C*0.045));
+    g.fillStyle = '#fff';
+    g.beginPath(); g.arc(cx, cy-C*0.03, C*0.035, 0, 6.2832); g.fill();
+  } else if(t === 'shrike'){
+    g.fillStyle = col;
+    g.beginPath();
+    g.moveTo(cx, cy-C*0.28);
+    g.lineTo(cx+C*0.30, cy+C*0.10); g.lineTo(cx+C*0.10, cy+C*0.04);
+    g.lineTo(cx, cy+C*0.28);
+    g.lineTo(cx-C*0.10, cy+C*0.04); g.lineTo(cx-C*0.30, cy+C*0.10);
+    g.closePath(); g.fill(); outline(g);
+    g.fillStyle = '#fff';
+    g.beginPath(); g.arc(cx, cy-C*0.13, C*0.04, 0, 6.2832); g.fill();
+  } else if(t === 'apex'){
+    g.fillStyle = '#2a1018';
+    g.beginPath(); g.arc(cx, cy, C*0.42, 0, 6.2832); g.fill();
+    legs(g, cx, cy, C, 8, 0.86, 0.34, '#ff3b5c');
+    g.fillStyle = col;
+    g.beginPath(); g.ellipse(cx, cy, C*0.30, C*0.26, 0, 0, 6.2832); g.fill(); outline(g);
+    g.fillStyle = '#ff3b5c';
+    g.beginPath(); g.arc(cx, cy, C*0.13, 0, 6.2832); g.fill();
+    g.fillStyle = '#fff';
+    g.beginPath(); g.arc(cx, cy, C*0.06, 0, 6.2832); g.fill();
+  }
+  g.restore();
+
+  /* hunting marker, level, and a bar once it is hurt */
+  if(m.alert > 0){
+    g.fillStyle = '#ff3b5c';
+    g.beginPath(); g.arc(x+C*0.13, y+C*0.13, C*0.075, 0, 6.2832); g.fill();
+  }
+  if(m.hp < m.maxHp){
+    const w = C*0.62, h = Math.max(2, C*0.07);
+    g.fillStyle = 'rgba(0,0,0,.7)'; g.fillRect(x+(C-w)/2, y+C*0.86, w, h);
+    g.fillStyle = '#ff3b5c';
+    g.fillRect(x+(C-w)/2, y+C*0.86, w*Math.max(0, m.hp/m.maxHp), h);
+  }
+  g.font = '600 ' + Math.round(C*0.28) + 'px "IBM Plex Mono", monospace';
+  g.textAlign = 'right'; g.textBaseline = 'alphabetic';
+  g.lineWidth = Math.max(2, C*0.09); g.strokeStyle = PAL.ink;
+  g.strokeText(m.lvl, x+C*0.95, y+C*0.30);
+  g.fillStyle = PAL.text;
+  g.fillText(m.lvl, x+C*0.95, y+C*0.30);
+}
+
+function drawPlayer(g, x, y){
+  const C = CELL, cx = x+C/2, cy = y+C/2;
+  g.save();
+  g.shadowColor = '#7fd8ff'; g.shadowBlur = C*0.5;
+  g.fillStyle = '#cfe8f5';
+  rr(g, cx-C*0.19, cy-C*0.06, C*0.38, C*0.34, C*0.09); g.fill(); outline(g);
+  g.fillStyle = '#eaf7ff';
+  g.beginPath(); g.arc(cx, cy-C*0.16, C*0.16, 0, 6.2832); g.fill(); outline(g);
+  g.fillStyle = '#123244';
+  rr(g, cx-C*0.11, cy-C*0.21, C*0.22, C*0.11, C*0.04); g.fill();
+  g.fillStyle = '#7fd8ff';
+  rr(g, cx-C*0.09, cy-C*0.20, C*0.09, C*0.05, C*0.02); g.fill();
+  g.strokeStyle = '#cfe8f5'; g.lineWidth = Math.max(1.2, C*0.055);
+  g.beginPath(); g.moveTo(cx-C*0.19, cy+C*0.02); g.lineTo(cx-C*0.31, cy+C*0.16); g.stroke();
+  g.beginPath(); g.moveTo(cx+C*0.19, cy+C*0.02); g.lineTo(cx+C*0.31, cy+C*0.16); g.stroke();
+  g.restore();
+}
+
+/* ---------------- the whole board ---------------- */
+function drawBoard(){
+  const g = bx, C = CELL;
+  g.setTransform(BDPR,0,0,BDPR,0,0);
+  g.fillStyle = PAL.void;
+  g.fillRect(0, 0, COLS*C, ROWS*C);
+
+  for(let i=0;i<N;i++){
+    const t = map[i];
+    if(!t.seen) continue;
+    const x = ix(i)*C, y = iy(i)*C;
+    if(t.wall){ drawWall(g, x, y, t.organic); continue; }
+    drawFloor(g, x, y, (ix(i)+iy(i)) % 2 === 0);
+    if(t.door) drawDoor(g, x, y, t.door.colour, t.door.open);
+    if(t.exit) drawExit(g, x, y, exitOpen);
+    if(t.item) drawItem(g, x, y, t.item, t.key);
+  }
+
+  for(const m of mobs){
+    if(!m.alive || !at(m.x,m.y).seen) continue;
+    drawMob(g, m.x*C, m.y*C, m);
+  }
+  drawPlayer(g, P.x*C, P.y*C);
+
+  if(sel && sel.alive && at(sel.x,sel.y).seen){
+    const x = sel.x*C, y = sel.y*C, k = C*0.26;
+    g.strokeStyle = '#7fd8ff'; g.lineWidth = Math.max(1.6, C*0.07);
+    for(const [ox,oy,dx,dy] of [[0,0,1,1],[1,0,-1,1],[0,1,1,-1],[1,1,-1,-1]]){
+      const px = x+ox*C, py = y+oy*C;
+      g.beginPath();
+      g.moveTo(px+dx*k, py); g.lineTo(px, py); g.lineTo(px, py+dy*k);
+      g.stroke();
+    }
+  }
 }
 
 function render(){
@@ -1193,42 +1941,14 @@ function render(){
   if(P.corroded) tag('SUIT SEARED \u00B7 SCAN \u2153');
   if(P.surge) tag('SURGE ARMED','surge');
   if(P.guardReady) tag('GUARD READY','guard');
+  const w = wep();
+  tag(w.name.toUpperCase() + (w.ammo ? ' \u00B7 ' + (P.ammo[w.ammo]||0) : ''), 'wep');
+  if(P.buff.dmg > 0) tag('STIM ' + P.buff.dmg, 'surge');
+  if(P.buff.res > 0) tag('CARAPACE ' + P.buff.res, 'guard');
   if(installed.length) tag(installed.length + ' SYSTEM' + (installed.length>1?'S':''),'core');
 
-  for(let i=0;i<N;i++){
-    const t = map[i], c = cells[i];
-    const x = ix(i), y = iy(i);
-    let cls = 'cell';
-    let glyph='', gcls='', badge='';
+  drawBoard();
 
-    if(t.seen) cls += ' seen';
-    if(t.wall) cls += ' wall' + (t.organic ? ' organic' : '');
-
-    if(t.seen && !t.wall){
-      if(t.door){
-        cls += ' door b-' + t.door.colour + (t.door.open ? ' open' : ' locked');
-        if(!t.door.open){ glyph = '\u2588'; gcls = 'c-door'; }
-      }
-      const m = mobAt(x,y);
-      if(x===P.x && y===P.y){ glyph='@'; gcls='c-player'; cls += ' player'; }
-      else if(m){
-        glyph = SPECIES[m.type].g; gcls = 'c-' + m.type; badge = m.lvl;
-        cls += ' mob' + (m.boss ? ' apex' : '');
-        if(m === sel) cls += ' sel';
-      }
-      else if(t.exit){ glyph='\u25BC'; gcls = 'c-exit' + (exitOpen ? ' open' : ''); }
-      else if(t.item){
-        const g = GEAR[t.item];
-        glyph = g.g;
-        gcls = 'c-' + (t.item==='key' ? 'key k-'+t.key : t.item);
-        if(t.item === 'core') cls += ' corecell';
-      }
-    }
-    c.el.className = cls;
-    c.g.className = 'g ' + gcls;
-    c.g.textContent = glyph;
-    c.b.textContent = badge;
-  }
   renderPanel();
   renderActions();
   queueSave();
@@ -1248,9 +1968,18 @@ function renderPanel(){
           '<span class="astat">LV'+sel.lvl+' \u00B7 '+sel.hp+'/'+sel.maxHp+' \u00B7 HITS '+incoming(sel)+'</span>' +
         '</div>' +
         '<div class="hint">'+s.desc+'</div>' +
-        '<div class="aline">MELEE \u00B7 <b>'+pr.swings+'</b> hits \u00B7 you take <b>'+pr.taken+
-          '</b> \u00B7 <b class="'+stt+'">'+(pr.survive>0? pr.survive+' left \u00B7 '+verdict : verdict)+'</b></div>' +
-        '<div class="hint">'+(adjacent(sel) ? 'Tap it again or press STRIKE.' : 'Closing in\u2026')+'</div>' +
+        (wep().kind === 'ranged'
+          ? '<div class="aline">'+wep().name.toUpperCase()+' \u00B7 <b>'+
+              Math.ceil(sel.hp/Math.max(1,shotDmg(sel)))+'</b> shots \u00B7 <b>'+
+              (Math.ceil(sel.hp/Math.max(1,shotDmg(sel)))*(wep().cost||1))+'</b> rounds \u00B7 '+
+              '<b class="'+(inShotRange(sel)?'safe':'risk')+'">'+
+              (inShotRange(sel) ? 'CLEAR SHOT' : 'NO LINE')+'</b></div>'
+          : '<div class="aline">MELEE \u00B7 <b>'+pr.swings+'</b> hits \u00B7 you take <b>'+pr.taken+
+            '</b> \u00B7 <b class="'+stt+'">'+(pr.survive>0? pr.survive+' left \u00B7 '+verdict : verdict)+'</b></div>') +
+        '<div class="hint">'+
+          (wep().kind === 'ranged'
+            ? (inShotRange(sel) ? 'Tap it again or press FIRE.' : 'Needs clear line within '+wep().range+' squares.')
+            : (adjacent(sel) ? 'Tap it again or press STRIKE.' : 'Closing in\u2026'))+'</div>' +
       '</div>';
   } else {
     panelEl.innerHTML = '<div id="log"></div>';
@@ -1264,11 +1993,21 @@ function renderPanel(){
 }
 
 function renderActions(){
-  const adj = sel && sel.alive && adjacent(sel);
-  $('bStrike').disabled = !adj || busy || dead;
+  const w = wep();
+  const adj  = sel && sel.alive && adjacent(sel);
+  const shot = sel && sel.alive && inShotRange(sel);
+  const canHit = w.kind === 'ranged' ? shot : adj;
+  const b = $('bStrike');
+  b.firstChild.nodeValue = w.kind === 'ranged' ? 'FIRE' : 'STRIKE';
+  b.querySelector('.cost').textContent = w.kind === 'ranged'
+    ? (w.cost || 1) + 'RD \u00B7 ' + (sel && sel.alive ? shotDmg(sel) : Math.round(P.dmg*P.dmgMul*w.mul))
+    : 'MELEE \u00B7 ' + (sel && sel.alive ? meleeDmg(sel) : Math.round(P.dmg*P.dmgMul*w.mul));
+  b.disabled = !canHit || busy || dead ||
+               (w.kind === 'ranged' && P.ammo < (w.cost || 1));
   $('bArc').disabled = !adj || P.charge < 3 || busy || dead;
   $('bPatch').disabled = P.charge < 4 || busy || dead || (P.hp === P.maxHp && !P.corroded);
   $('bSurge').disabled = P.charge < 5 || P.surge || busy || dead;
+  $('bGear').disabled = busy || dead;
   $('bArc').querySelector('.cost').textContent = adj ? arcDmg() + ' DMG \u00B7 3' : '3 CH';
   $('bPatch').querySelector('.cost').textContent = '+' + (5*P.lvl) + ' \u00B7 4';
 }
@@ -1279,11 +2018,13 @@ function flashHurt(){ frame.classList.remove('hurt'); void frame.offsetWidth; fr
 /* ================================================================
    INPUT
    ================================================================ */
-gridEl.addEventListener('click', e => {
+board.addEventListener('click', e => {
   if(busy || dead) return;
-  const cell = e.target.closest('.cell');
-  if(!cell) return;
-  const i = +cell.dataset.i, x = ix(i), y = iy(i);
+  const r = board.getBoundingClientRect();
+  const x = Math.floor((e.clientX - r.left) / (r.width / COLS));
+  const y = Math.floor((e.clientY - r.top)  / (r.height / ROWS));
+  if(!inB(x,y)) return;
+  const i = idx(x,y);
   const t = at(x,y);
   if(!t.seen || t.wall) return;
 
@@ -1297,8 +2038,10 @@ gridEl.addEventListener('click', e => {
 
   const m = mobAt(x,y);
   if(m){
+    if(sel === m && wep().kind === 'ranged' && inShotRange(m)){ fire(m); return; }
     if(sel === m && adjacent(m)){ strike(m); return; }
     sel = m;
+    if(wep().kind === 'ranged' && inShotRange(m)){ render(); return; }
     if(!adjacent(m)){
       let bestPath = null, bl = 1e9;
       for(let dy=-1;dy<=1;dy++) for(let dx=-1;dx<=1;dx++){
@@ -1321,10 +2064,11 @@ gridEl.addEventListener('click', e => {
   walk(path);
 });
 
-$('bStrike').addEventListener('click', ()=>strike(sel));
+$('bStrike').addEventListener('click', ()=>attack(sel));
 $('bArc').addEventListener('click', ()=>arc(sel));
 $('bPatch').addEventListener('click', patch);
 $('bSurge').addEventListener('click', surge);
+$('bGear').addEventListener('click', ()=>{ if(!busy && !dead) showKit(); });
 
 /* ---------------- keyboard & gamepad ----------------
    Bump into something to hit it, which is how a crawler should read. */
@@ -1332,6 +2076,21 @@ function adjacentMob(){
   if(sel && sel.alive && adjacent(sel)) return sel;
   for(const m of mobs) if(m.alive && adjacent(m)) return m;
   return null;
+}
+
+/* what the equipped weapon can actually reach right now */
+function targetMob(){
+  if(wep().kind === 'ranged'){
+    if(sel && sel.alive && inShotRange(sel)) return sel;
+    let best = null, bd = 1e9;
+    for(const m of mobs){
+      if(!m.alive || !inShotRange(m)) continue;
+      const d = Math.max(Math.abs(m.x-P.x), Math.abs(m.y-P.y));
+      if(d < bd){ bd = d; best = m; }
+    }
+    if(best) return best;
+  }
+  return adjacentMob();
 }
 
 function nudge(dx, dy){
@@ -1371,11 +2130,12 @@ window.addEventListener('keydown', ev => {
   if(busy || dead) return;
   const d = KEYMAP[ev.key];
   if(d){ ev.preventDefault(); nudge(d[0], d[1]); return; }
-  if(ev.key === '1'){ const m = adjacentMob(); if(m){ sel = m; arc(m); } }
+  if(ev.key === '1'){ const m = targetMob(); if(m){ sel = m; arc(m); } }
   else if(ev.key === '2') patch();
   else if(ev.key === '3') surge();
+  else if(ev.key === 'i' || ev.key === 'I' || ev.key === 'Tab'){ ev.preventDefault(); showKit(); }
   else if(ev.key === ' ' || ev.key === 'Enter'){
-    const m = adjacentMob(); if(m){ sel = m; strike(m); }
+    const m = targetMob(); if(m){ sel = m; attack(m); }
   }
 });
 
@@ -1391,10 +2151,11 @@ if(AR && AR.pad) AR.pad.onPress(name => {
   if(busy || dead) return;
   const d = { up:[0,-1], down:[0,1], left:[-1,0], right:[1,0] }[name];
   if(d){ nudge(d[0], d[1]); return; }
-  if(name === 'a'){ const m = adjacentMob(); if(m){ sel = m; strike(m); } }
+  if(name === 'a'){ const m = targetMob(); if(m){ sel = m; attack(m); } }
   else if(name === 'x'){ const m = adjacentMob(); if(m){ sel = m; arc(m); } }
   else if(name === 'y') patch();
   else if(name === 'rb') surge();
+  else if(name === 'back' || name === 'lb') showKit();
 });
 
 /* ================================================================
@@ -1404,9 +2165,13 @@ function fit(){
   const wrap = $('gridwrap');
   const w = wrap.clientWidth, h = wrap.clientHeight;
   if(!w || !h) return;
-  const cell = Math.max(15, Math.floor(Math.min(
-    (w - 2 - (COLS-1)*2)/COLS, (h - 2 - (ROWS-1)*2)/ROWS)));
-  document.documentElement.style.setProperty('--cell', cell + 'px');
+  CELL = Math.max(14, Math.floor(Math.min(w/COLS, h/ROWS)));
+  BDPR = Math.min(2, window.devicePixelRatio || 1);
+  board.style.width  = (COLS*CELL) + 'px';
+  board.style.height = (ROWS*CELL) + 'px';
+  board.width  = Math.round(COLS*CELL*BDPR);
+  board.height = Math.round(ROWS*CELL*BDPR);
+  if(map) drawBoard();
 }
 window.addEventListener('resize', fit);
 window.addEventListener('orientationchange', ()=>setTimeout(fit,150));
@@ -1433,6 +2198,90 @@ function systemsList(){
   if(!installed.length) return '<div class="vflavor">No systems recovered yet.</div>';
   return '<div class="syslist">' + installed.map(c =>
     '<div><b>'+c.name+'</b><span>'+c.desc+'</span></div>').join('') + '</div>';
+}
+
+function showKit(){
+  const KIND = { melee:'MELEE', tool:'TOOL', ranged:'RANGED' };
+  let html =
+    '<div class="veyebrow">SUIT MANIFEST \u00B7 DECK ' + String(deck).padStart(2,'0') + '</div>' +
+    '<div class="vtitle ice">Gear</div>' +
+    '<div class="kit">' +
+      '<div class="kstats">' +
+        '<div><span>INTEGRITY</span><b>' + P.hp + '/' + P.maxHp + '</b></div>' +
+        '<div><span>CHARGE</span><b>' + P.charge + '/' + P.maxCharge + '</b></div>' +
+        '<div><span>CALIBRATION</span><b>LV ' + P.lvl + '</b></div>' +
+        '<div><span>DATA</span><b>' + P.xp + '/' + P.xpNeed + '</b></div>' +
+        '<div><span>BASE DAMAGE</span><b>' + Math.round(P.dmg * P.dmgMul) + '</b></div>' +
+        '<div><span>RESIST</span><b>' + Math.round((P.resist + (P.buff.res>0?0.35:0))*100) + '%</b></div>' +
+      '</div>';
+
+  if(P.buff.dmg > 0 || P.buff.res > 0 || P.corroded){
+    html += '<div class="kithead">ACTIVE</div>';
+    if(P.buff.dmg > 0) html += '<div class="krow"><div class="kmid"><b>STIM</b><i>+60% damage \u00B7 ' + P.buff.dmg + ' turns left</i></div></div>';
+    if(P.buff.res > 0) html += '<div class="krow"><div class="kmid"><b>CARAPACE</b><i>\u221235% incoming \u00B7 ' + P.buff.res + ' turns left</i></div></div>';
+    if(P.corroded)     html += '<div class="krow"><div class="kmid"><b>SUIT SEARED</b><i>Scan repair cut to a third until purged</i></div></div>';
+  }
+
+  html += '<div class="kithead">WEAPONS</div>';
+  const order = P.weapons.slice().sort((a,b) => (WEAPONS[a].tier||0) - (WEAPONS[b].tier||0));
+  for(const id of order){
+    const k = WEAPONS[id];
+    const dmg = wepDmg(id, null);
+    const spec = k.kind === 'ranged'
+      ? dmg + ' \u00B7 ' + k.range + 'sq' + (k.shots > 1 ? ' \u00B7 x' + k.shots : '')
+      : dmg + ' \u00B7 ' + KIND[k.kind].toLowerCase();
+    const feed = k.ammo ? (k.cost||1) + ' ' + AMMO[k.ammo].name.toLowerCase() + ' (' + (P.ammo[k.ammo]||0) + ')' : 'no ammunition';
+    const dry = k.ammo && !canFire(id);
+    html +=
+      '<div class="krow">' +
+        '<div class="kmid"><b>' + k.name + (dry ? ' \u00B7 DRY' : '') + '</b>' +
+          '<i>' + k.note + '<br>' + feed + '</i></div>' +
+        '<div class="kdmg">' + spec + '</div>' +
+        '<button class="kbtn' + (id === P.weapon ? ' on' : '') + '" data-eq="' + id + '">' +
+          (id === P.weapon ? 'HELD' : 'HOLD') + '</button>' +
+      '</div>';
+  }
+
+  html += '<div class="kithead">CARRIED</div>';
+  let any = false;
+  for(const id in USABLE){
+    const n = P.items[id] || 0;
+    if(!n) continue;
+    any = true;
+    html +=
+      '<div class="krow">' +
+        '<div class="kmid"><b>' + USABLE[id].name + ' \u00D7' + n + '</b><i>' + USABLE[id].note + '</i></div>' +
+        '<button class="kbtn" data-use="' + id + '">USE</button>' +
+      '</div>';
+  }
+  if(!any) html += '<div class="krow"><div class="kmid"><i>Pockets empty.</i></div></div>';
+
+  html += '<div class="kithead">AMMUNITION</div><div class="krow"><div class="kmid"><i>';
+  html += Object.keys(AMMO).map(a => AMMO[a].name + ' ' + (P.ammo[a]||0)).join(' \u00B7 ');
+  html += '</i></div></div>';
+
+  if(P.keys.length)
+    html += '<div class="kithead">KEYCARDS</div><div class="krow"><div class="kmid"><i>' +
+            P.keys.map(k => DOOR_NAME[k]).join(' \u00B7 ') + '</i></div></div>';
+
+  html += '<div class="kithead">SYSTEMS</div>';
+  if(!installed.length) html += '<div class="krow"><div class="kmid"><i>Nothing recovered yet.</i></div></div>';
+  for(const c of installed)
+    html += '<div class="krow"><div class="kmid"><b>' + c.name + '</b><i>' + c.desc + '</i></div></div>';
+
+  html += '</div><button class="vbtn" data-act="close" style="margin-top:20px">BACK TO THE DECK</button>';
+
+  openVeil(html, { close: ()=>{ render(); } });
+  veilBody.querySelectorAll('[data-eq]').forEach(b => {
+    b.addEventListener('click', e => { e.stopPropagation(); equip(b.getAttribute('data-eq')); showKit(); });
+  });
+  veilBody.querySelectorAll('[data-use]').forEach(b => {
+    b.addEventListener('click', e => {
+      e.stopPropagation();
+      veil.classList.add('hidden');
+      useItem(b.getAttribute('data-use'));
+    });
+  });
 }
 
 function showTitle(){

@@ -133,7 +133,7 @@ h1 u{text-decoration:none;display:block;font-size:.34em;letter-spacing:.26em;col
       <div id="pursuit">PURSUIT</div>
     </div>
     <div class="botrow">
-      <div class="speedo"><b id="kmh">0</b><span>KM/H</span></div>
+      <div class="speedo"><b id="kmh">0</b><span>MPH</span></div>
       <div class="bars">
         <div class="bar"><em>DMG</em><span class="trk"><i id="dmgFill"></i></span></div>
         <div class="bar"><em>NOS</em><span class="trk"><i id="nosFill"></i></span></div>
@@ -189,7 +189,7 @@ let dist, score, combo, comboTime, heat, heatT;
 let traffic, cops, blocks, fx, shake, hitFlash, sirenPhase, lastKmh, iframe;
 let bestScore=0, bestDist=0, runs=0;
 const SV = AR && AR.save ? AR.save.get('highway') : null;
-if(SV){ bestScore = SV.best || 0; bestDist = SV.bestKm || 0; }
+if(SV){ bestScore = SV.best || 0; bestDist = SV.bestMi || SV.bestKm || 0; }
 let acc, last;
 
 const clamp=(v,a,b)=>v<a?a:v>b?b:v;
@@ -605,7 +605,7 @@ function wreck(reason){
   bestScore=Math.max(bestScore,Math.round(score));
   bestDist=Math.max(bestDist,dist);
   if(AR && AR.save) AR.save.merge('highway', {
-    best: bestScore, bestKm: +bestDist.toFixed(1), runs: runs,
+    best: bestScore, bestMi: +bestDist.toFixed(1), runs: runs,
     label: 'BEST ' + bestScore.toLocaleString()
   });
   shake=1.4;
@@ -709,7 +709,7 @@ function step(dt){
   }
 
   pos += spd*dt;
-  dist += spd*dt/1000 * 0.0125;      // ~ kilometres
+  dist += spd*dt/1000 * 0.00777;     // ~ miles
   score += spd*dt*0.0009*(1+combo*0.12);
 
   // --- heat ---
@@ -1247,9 +1247,9 @@ function draw(){
 /* ---------- HUD ---------- */
 const $=id=>document.getElementById(id);
 function hud(){
-  const kmh = Math.round(spd/MAX_SPD*288);
+  const kmh = Math.round(spd/MAX_SPD*180);
   if(kmh!==lastKmh){ $('kmh').textContent = kmh; lastKmh=kmh; }
-  $('dist').innerHTML = dist.toFixed(1)+'<i>KM</i>';
+  $('dist').innerHTML = dist.toFixed(1)+'<i>MI</i>';
   $('score').textContent = Math.round(score).toLocaleString();
   $('dmgFill').style.width = dmg+'%';
   $('nosFill').style.width = nos+'%';
@@ -1304,10 +1304,10 @@ function showEnd(reason){
     '<div class="eyebrow">'+reason+'</div>'+
     '<h1>'+Math.round(score).toLocaleString()+'<u>FINAL SCORE</u></h1>'+
     '<div class="grid2">'+
-      '<div class="gc"><span>DISTANCE</span><b>'+dist.toFixed(1)+' KM</b></div>'+
+      '<div class="gc"><span>DISTANCE</span><b>'+dist.toFixed(1)+' MI</b></div>'+
       '<div class="gc"><span>HEAT</span><b>LV '+heat+'</b></div>'+
       '<div class="gc"><span>BEST SCORE</span><b>'+bestScore.toLocaleString()+'</b></div>'+
-      '<div class="gc"><span>BEST RUN</span><b>'+bestDist.toFixed(1)+' KM</b></div>'+
+      '<div class="gc"><span>BEST RUN</span><b>'+bestDist.toFixed(1)+' MI</b></div>'+
     '</div>'+
     '<button class="go">RUN IT AGAIN</button>'+
     '<div class="tip">ATTEMPT '+(runs+1)+'</div>',
