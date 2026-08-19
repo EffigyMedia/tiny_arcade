@@ -2,6 +2,8 @@
 
 A tiny arcade cabinet that lives in a browser tab. Runs offline, no build step.
 
+    DESIGN.md           the work queue: what is built, what is next
+    sync.sh             pushes this folder to the GitHub repo
     index.html          the launcher (the arcade floor)
     audio.js            shared synth engine — every sound is generated
     manifest.webmanifest  installs as TINY ARCADE on Android/Chrome
@@ -25,6 +27,16 @@ does so even if you happen to be inside a game when you hit Share — `arcade.js
 puts the arcade's name, icon and manifest on every page, and the manifest's
 `start_url` sends the installed app back to the launcher rather than whichever
 machine you were standing at.
+
+## Pushing to GitHub
+
+    ./sync.sh "what changed"
+
+Clones github.com/EffigyMedia/tiny_arcade to a temp directory, copies these
+files over it, and commits only what actually differs. History is preserved,
+nothing is force-pushed, and a second run with no changes does nothing.
+
+Override the target with `TINY_ARCADE_REPO=...` if the repo ever moves.
 
 ## Adding a game
 
