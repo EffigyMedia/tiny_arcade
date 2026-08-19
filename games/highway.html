@@ -214,7 +214,9 @@ var snd = {
     AR.audio.onReset(function(){ snd.eng = null; snd.begin(); });
   },
   begin: function(){
-    if (!AR || !AR.audio.init()) return;
+    if (!AR) return;
+    AR.audio.init();
+    if (!AR.audio.ctx) return;  // no engine yet; a real gesture will call us back
     snd.arm();
     if (!snd.eng){
       snd.eng   = AR.sfx.hold({ freq:70, type:'sawtooth', cutoff:520, q:3.2 });

@@ -495,7 +495,9 @@ const snd = {
   },
 
   begin(){
-    if (!AR || !AR.audio.init()) return;
+    if (!AR) return;
+    AR.audio.init();
+    if (!AR.audio.ctx) return;  // no engine yet; a real gesture will call us back
     snd.arm();
     if (!snd.drone){
       /* two pedal tones a few cents apart. The beating between them is what

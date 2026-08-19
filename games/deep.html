@@ -199,7 +199,9 @@ const snd = {
   },
 
   begin(){
-    if (!AR || !AR.audio.init()) return;
+    if (!AR) return;
+    AR.audio.init();
+    if (!AR.audio.ctx) return;  // no engine yet; a real gesture will call us back
     snd.arm();
     if (!snd.drone) snd.drone = AR.sfx.hold({ freq:41.2, type:'sawtooth', cutoff:230, q:2.4, verb:0.5, bus:'music' });
     snd.drone.set(41.2, 0.15, 230, 1.4);
