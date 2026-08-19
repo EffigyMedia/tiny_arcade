@@ -286,6 +286,13 @@ footer{margin-top:30px;border-top:1px solid var(--line);padding-top:26px;text-al
     </div>
 
     <div class="shrow">
+      <b>FORCE UPDATE</b>
+      <button class="shbtn" id="shPurge">REFRESH</button>
+    </div>
+    <div class="shnote">Throws away every cached copy and reloads from the
+      network. Use it if the arcade looks like an older build than the one you
+      uploaded.</div>
+    <div class="shrow">
       <b>SAVED DATA</b>
       <button class="shbtn" id="shWipe">ERASE</button>
     </div>
@@ -504,6 +511,20 @@ sheet.addEventListener('click', function(e){ if (e.target === sheet) sheet.class
 fetchBtn.addEventListener('click', function(){ A.audio.init(); prefetch(false); });
 document.getElementById('shSfx').addEventListener('click', function(){ A.audio.init(); A.audio.toggle('sfx'); });
 document.getElementById('shMus').addEventListener('click', function(){ A.audio.init(); A.audio.toggle('music'); startTheme(); });
+document.getElementById('shPurge').addEventListener('click', function(){
+  var b = document.getElementById('shPurge');
+  b.textContent = 'CLEARING';
+  var done = function(){ location.reload(true); };
+  if (navigator.serviceWorker && navigator.serviceWorker.controller){
+    navigator.serviceWorker.addEventListener('message', function once(e){
+      if (e.data && e.data.type === 'purged'){ done(); }
+    });
+    navigator.serviceWorker.controller.postMessage('purge');
+    setTimeout(done, 2500);
+  } else if (window.caches){
+    caches.keys().then(function(ks){ return Promise.all(ks.map(function(k){ return caches.delete(k); })); }).then(done);
+  } else done();
+});
 document.getElementById('shWipe').addEventListener('click', function(){
   var b = document.getElementById('shWipe');
   if (b.dataset.sure !== '1'){ b.dataset.sure = '1'; b.textContent = 'SURE?'; return; }
@@ -612,9 +633,13 @@ function road(g,s,t){
     g.beginPath(); g.moveTo(laneX(0,z), y); g.lineTo(laneX(0,z-0.03), screenY(z-0.03)); g.stroke();
   }
 
-  /* the line the player takes, and the same line delayed for the cruiser */
+  /* Camera sits behind the cruiser: it is nearest, the white car is up ahead.
+     The cruiser retraces the player's own line, delayed by exactly the time
+     it takes to cover the gap between them — so it threads the same holes in
+     the traffic rather than driving through anything. */
   function playerU(time){ return Math.sin(time*0.85)*0.58; }
-  var PZ = 0.15, CZ = 0.42;                    /* cruiser is further away, so behind */
+  var PZ = 0.44, CZ = 0.13, SPEED = 0.22;
+  var LAG = (PZ - CZ) / SPEED;
 
   /* Traffic is placed in whichever lane is furthest from the player's line at
      the moment it reaches him, so it is threadable by construction. */
@@ -625,21 +650,21 @@ function road(g,s,t){
   ];
   var cars = [];
   for(var n=0;n<TR.length;n++){
-    var f2 = ((t*0.22 + TR[n].off) % 1);
+    var f2 = ((t*SPEED + TR[n].off) % 1);
     var z = 1 - f2;
-    var meet = t + (z - PZ)/0.22;              /* when this car reaches the player */
+    var meet = t + (z - PZ)/SPEED;             /* when this car reaches the player */
     var pu = playerU(meet);
     var u = pu > 0 ? -0.60 : 0.60;             /* sit on the far side of his line */
     cars.push({ z:z, u:u, body:TR[n].body, roof:TR[n].roof, kind:'t' });
   }
-  cars.push({ z:CZ, u:playerU(t - 1.15), body:'#20242e', roof:'#141821', kind:'c' });
+  cars.push({ z:CZ, u:playerU(t - LAG), body:'#20242e', roof:'#141821', kind:'c' });
   cars.push({ z:PZ, u:playerU(t),        body:'#eef2f7', roof:'#b9c4d2', kind:'p' });
 
   cars.sort(function(a,b){ return b.z - a.z; });   /* far first, near last */
 
   for(var k=0;k<cars.length;k++){
     var c = cars[k], sc = scale(c.z);
-    var cw = sc*s.w*0.30*(c.kind==='p'?1.14:c.kind==='c'?1.02:1);
+    var cw = sc*s.w*0.30*(c.kind==='c'?1.10:c.kind==='p'?1.04:1);
     var ch = cw*0.62, x = laneX(c.u, c.z), y = screenY(c.z);
     g.fillStyle='rgba(0,0,0,.45)';
     g.beginPath(); g.ellipse(x, y+ch*0.44, cw*0.56, ch*0.16, 0,0,6.2832); g.fill();
@@ -691,12 +716,13 @@ function maze(g,s,t){
       var len = Math.abs(b[0]-a[0]) + Math.abs(b[1]-a[1]);
       segs.push({a:a,b:b,len:len}); per += len;
     }
-    var d = ((u % per) + per) % per;
+    var d = ((u % per) + per) % per, total = d;
     for(var k=0;k<segs.length;k++){
       if(d > segs[k].len){ d -= segs[k].len; continue; }
       var f = d / segs[k].len, A = segs[k].a, B = segs[k].b;
       return { x:A[0] + (B[0]-A[0])*f, y:A[1] + (B[1]-A[1])*f,
-               dx:Math.sign(B[0]-A[0]), dy:Math.sign(B[1]-A[1]), d:d, seg:k, per:per };
+               dx:Math.sign(B[0]-A[0]), dy:Math.sign(B[1]-A[1]),
+               d:d, along:total, seg:k, per:per };
     }
     return { x:LOOP[0][0], y:LOOP[0][1], dx:1, dy:0, d:0, seg:0, per:per };
   }
@@ -719,23 +745,29 @@ function maze(g,s,t){
   var nib = along(t*2.2);
   var lap = Math.floor((t*2.2) / nib.per);
 
-  /* marks on the circuit, cleared behind the nib */
-  g.strokeStyle = '#9fc7d8'; g.lineWidth = Math.max(0.9, C*0.09);
+  /* Marks fill the whole maze, not just the route. The ones the nib is
+     actually running get taken as it passes and come back each lap; the rest
+     stand, so the sheet looks like a sheet rather than a bare track. */
+  var eaten = {};
+  var run = 0;
   for(var i=0;i<LOOP.length;i++){
     var a = LOOP[i], b = LOOP[(i+1)%LOOP.length];
     var len = Math.abs(b[0]-a[0]) + Math.abs(b[1]-a[1]);
     for(var q=0;q<len;q++){
       var px = a[0] + Math.sign(b[0]-a[0])*q, py = a[1] + Math.sign(b[1]-a[1])*q;
-      var before = 0;
-      for(var j=0;j<i;j++){
-        var aa = LOOP[j], bb = LOOP[(j+1)%LOOP.length];
-        before += Math.abs(bb[0]-aa[0]) + Math.abs(bb[1]-aa[1]);
-      }
-      if(before + q < nib.d) continue;          /* already collected this lap */
-      var mx = ox + px*C + C/2, my = oy + py*C + C/2, r = C*0.13;
-      g.beginPath(); g.moveTo(mx-r,my); g.lineTo(mx+r,my);
-      g.moveTo(mx,my-r); g.lineTo(mx,my+r); g.stroke();
+      eaten[px+','+py] = (run + q) < nib.along;
     }
+    run += len;
+  }
+
+  g.strokeStyle = '#9fc7d8'; g.lineWidth = Math.max(0.9, C*0.09);
+  for(var yy=0;yy<N;yy++) for(var xx=0;xx<N;xx++){
+    if(M[yy][xx] === '#') continue;
+    var key = xx+','+yy;
+    if(eaten[key]) continue;
+    var mx = ox + xx*C + C/2, my = oy + yy*C + C/2, r = C*0.13;
+    g.beginPath(); g.moveTo(mx-r,my); g.lineTo(mx+r,my);
+    g.moveTo(mx,my-r); g.lineTo(mx,my+r); g.stroke();
   }
 
   /* the hunter, a little way back down the same corridor */

@@ -33,7 +33,7 @@ const CORE_FILES = [
   './effigy.png'
 ];
 
-const NET_TIMEOUT = 2500;
+const NET_TIMEOUT = 7000;
 
 self.addEventListener('install', event => {
   event.waitUntil((async () => {
@@ -143,6 +143,13 @@ async function fetchAll(urls, client){
 self.addEventListener('message', event => {
   const data = event.data;
   if (data === 'skipWaiting') return self.skipWaiting();
+  if (data === 'purge'){
+    event.waitUntil((async () => {
+      for (const k of await caches.keys()) await caches.delete(k);
+      if (event.source) event.source.postMessage({ type:'purged' });
+    })());
+    return;
+  }
   if (data && data.type === 'prefetch' && Array.isArray(data.urls)){
     event.waitUntil(fetchAll(data.urls, event.source));
   }
