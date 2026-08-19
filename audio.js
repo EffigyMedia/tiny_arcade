@@ -319,7 +319,7 @@ var M = { bpm:120, div:4, step:0, next:0, tickFn:null, timer:null, on:false, pau
 function runMusic(spec){
   if (M.timer){ clearInterval(M.timer); M.timer = null; }
   M.bpm = spec.bpm; M.div = spec.div; M.tickFn = spec.tickFn;
-  M.step = 0; M.next = ctx.currentTime + 0.1; M.on = true; M.paused = false;
+  M.step = 0; M.next = ctx.currentTime + 0.05; M.on = true; M.paused = false;
   M.timer = setInterval(function(){
     if (!M.on || M.paused || !ctx || ctx.state !== 'running') return;
     var spb = 60 / M.bpm / M.div;
@@ -338,7 +338,11 @@ A.music = {
   start: function(bpm, div, tickFn){
     pending = { bpm:bpm, div:div, tickFn:tickFn };
     M.on = true;
-    if (ctx && ctx.state === 'running') runMusic(pending);
+    /* Run it now even if the context is still waking. The tick loop skips
+       scheduling while the clock is dead and resyncs the moment it starts,
+       so the bed comes in within one 25ms tick instead of waiting for a
+       watchdog sweep or a state-change event that may never fire. */
+    if (ctx) runMusic(pending);
   },
   stop: function(){
     M.on = false; M.tickFn = null; pending = null;
@@ -365,11 +369,14 @@ A.note = function(name, oct){
    twice a second, check that what should be audible actually is, and repair
    it. It fixes a stalled start without the player having to touch the mute
    toggle, which is the manual version of exactly this. */
-var wdTimer = null;
+var wdTimer = null, wdFast = 0;
 function startWatchdog(){
-  if (wdTimer) return;
+  if (wdTimer){ wdFast = Date.now() + 6000; return; }
+  wdFast = Date.now() + 6000;
   wdTimer = setInterval(function(){
     if (!ctx) return;
+    /* after the opening scramble, back off so we are not polling forever */
+    if (Date.now() > wdFast && ctx.state === 'running' && M.timer && !pending) return;
     if (ctx.state === 'closed'){
       ctx = null; master = sfxBus = musBus = uiBus = verb = noiseBuf = null;
       A.audio.ctx = null; A.audio.ready = false;
@@ -390,7 +397,7 @@ function startWatchdog(){
     var wantSfx = (pref.sfx   && !hushed) ? 0.62 : 0;
     if (Math.abs(musBus.gain.value - wantMus) > 0.4 ||
         Math.abs(sfxBus.gain.value - wantSfx) > 0.4) applyGains(0.05);
-  }, 500);
+  }, 120);
 }
 
 /* Any real gesture is our cue: build the context if we have not yet, resume
