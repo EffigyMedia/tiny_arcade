@@ -1,0 +1,993 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0a0e14">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Pellet</title>
+<meta name="arcade-title" content="Pellet">
+<meta name="arcade-accent" content="#ffd23c">
+<script src="../audio.js"></script>
+<script src="../arcade.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Chivo+Mono:wght@400;600&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --stage-h:100dvh;
+  --safe-top:env(safe-area-inset-top,0px);
+  --paper:#0a0e14;
+  --ink:#5fc9d8;
+  --line:#16303c;
+  --dot:#9fc7d8;
+  --amber:#ffd23c;
+  --text:#dfeef2;
+  --dim:#5d7f8c;
+  --disp:"Syne","Helvetica Neue",Arial,sans-serif;
+  --mono:"Chivo Mono",ui-monospace,Menlo,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{
+  height:100%;width:100%;position:fixed;overflow:hidden;
+  background:#04060a;color:var(--text);font-family:var(--mono);
+  overscroll-behavior:none;touch-action:none;
+  -webkit-user-select:none;user-select:none;
+}
+#stage{position:absolute;inset:0;display:grid;place-items:center;background:#04060a}
+#frame{
+  position:relative;
+  width:min(100dvw, calc(var(--stage-h) * 0.62));
+  height:var(--stage-h);
+  display:flex;flex-direction:column;
+  padding:calc(var(--safe-top) + 10px) 12px calc(env(safe-area-inset-bottom,0px) + 10px);
+  background:
+    radial-gradient(120% 60% at 50% 0%, #101823 0%, var(--paper) 62%),
+    var(--paper);
+  overflow:hidden;
+}
+#frame::after{
+  content:"";position:absolute;inset:0;pointer-events:none;z-index:40;
+  background:repeating-linear-gradient(to bottom,rgba(255,255,255,.018) 0 1px,transparent 1px 3px);
+}
+#frame.hit{animation:hit .4s steps(3) 1}
+@keyframes hit{
+  0%{filter:none}
+  30%{filter:brightness(1.6) saturate(.4);transform:translateX(-3px)}
+  60%{transform:translateX(3px)}
+  100%{filter:none;transform:none}
+}
+
+/* ---------------- readouts ---------------- */
+#head{flex:none;display:flex;align-items:flex-start;gap:10px;
+  border-bottom:1px solid var(--line);padding-bottom:8px;margin-bottom:6px}
+.stat span{display:block;font-size:8px;letter-spacing:.22em;color:var(--dim);margin-bottom:2px}
+.stat b{font-family:var(--disp);font-weight:800;font-size:20px;line-height:1;
+  font-variant-numeric:tabular-nums;letter-spacing:.01em}
+.stat.r{margin-left:auto;text-align:right}
+#lives{display:flex;gap:5px;align-items:center;justify-content:flex-end;height:20px}
+#lives i{display:block;width:10px;height:10px;border-radius:50%;background:var(--amber);
+  box-shadow:0 0 7px rgba(255,210,60,.6)}
+
+#boardwrap{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;margin:4px 0}
+#board{display:block}
+
+#foot{flex:none;height:26px;display:flex;align-items:center;gap:10px;
+  border-top:1px solid var(--line);padding-top:6px;
+  font-size:9px;letter-spacing:.16em;color:var(--dim)}
+#phase{margin-left:auto;color:var(--ink)}
+
+/* ---------------- overlay ---------------- */
+#veil{
+  position:absolute;inset:0;z-index:60;display:flex;
+  padding:26px 22px calc(env(safe-area-inset-bottom,0px) + 28px);
+  overflow-y:auto;-webkit-overflow-scrolling:touch;
+  background:linear-gradient(180deg,rgba(6,9,14,.92),rgba(6,9,14,.98));
+  text-align:center;
+}
+#veil.hidden{display:none}
+.vw{width:100%;max-width:320px;margin:auto}
+.eyebrow{font-size:9px;letter-spacing:.32em;color:var(--ink);margin-bottom:12px}
+h1{font-family:var(--disp);font-weight:800;font-size:clamp(46px,15vw,72px);
+  line-height:.88;letter-spacing:-.03em;margin-bottom:6px}
+h1 em{display:block;font-style:normal;font-size:.26em;letter-spacing:.24em;
+  color:var(--amber);margin-top:12px}
+.blurb{font-size:12px;line-height:1.75;color:var(--dim);margin:18px 0 0}
+.blurb b{color:var(--text)}
+.legend{margin-top:16px;text-align:left;font-size:11px;line-height:1.9;color:var(--dim)}
+.legend i{font-style:normal;font-weight:600}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line);
+  border:1px solid var(--line);margin:20px 0}
+.gc{background:#0b1119;padding:9px 10px;text-align:left}
+.gc span{display:block;font-size:8px;letter-spacing:.18em;color:var(--dim);margin-bottom:3px}
+.gc b{font-family:var(--disp);font-weight:800;font-size:17px;font-variant-numeric:tabular-nums}
+.btn{width:100%;padding:14px;margin-top:16px;cursor:pointer;
+  font-family:var(--mono);font-weight:600;font-size:11px;letter-spacing:.24em;
+  background:rgba(255,210,60,.10);border:2px solid var(--amber);color:var(--amber)}
+.btn:active{background:rgba(255,210,60,.24)}
+.btn:focus-visible{outline:2px solid var(--text);outline-offset:2px}
+.sub{margin-top:12px;font-size:9px;letter-spacing:.18em;color:var(--dim)}
+</style>
+</head>
+<body>
+<div id="stage"><div id="frame">
+
+  <div id="head">
+    <div class="stat"><span>SCORE</span><b id="score">0</b></div>
+    <div class="stat"><span>LEVEL</span><b id="level">1</b></div>
+    <div class="stat r"><span>LIVES</span><div id="lives"></div></div>
+  </div>
+
+  <div id="boardwrap"><canvas id="board"></canvas></div>
+
+  <div id="foot">
+    <span id="dots">240 LEFT</span>
+    <span id="phase">SCATTER</span>
+  </div>
+
+  <div id="veil"><div class="vw" id="veilBody"></div></div>
+
+</div></div>
+
+<script>
+(function(){
+"use strict";
+
+/* =====================================================================
+   PELLET — a maze, a resource you have four of, and four things that
+   want you. The hunters are the game: each one wants a different tile,
+   and they break off on a timer so the maze has a rhythm.
+   ===================================================================== */
+
+const AR = window.Arcade;
+const $ = id => document.getElementById(id);
+const board = $('board'), bx = board.getContext('2d');
+const frame = $('frame'), veil = $('veil'), veilBody = $('veilBody');
+
+/* '#' hull  '.' pellet  'o' power  '-' gate  'C' core  'T' tunnel  ' ' void */
+const MAZE = [
+  '###############',
+  '#......#......#',
+  '#.###.#.#.###.#',
+  '#.###.#.#.###.#',
+  '#.............#',
+  '#.###.###.###.#',
+  '#o..#.....#..o#',
+  '###.#.#-#.#.###',
+  'T.....#C#.....T',
+  '###.#.###.#.###',
+  '#o..#.....#..o#',
+  '#.###.###.###.#',
+  '#.............#',
+  '#.###.#.#.###.#',
+  '#.###.#.#.###.#',
+  '#......#......#',
+  '#.###########.#',
+  '#.............#',
+  '###############'
+];
+const COLS = MAZE[0].length, ROWS = MAZE.length;
+
+const WALL = 1, OPEN = 0, GATE = 2;
+let grid, pellets, powers, pelletsLeft, inked;
+
+const CORE = { x:7, y:8 };
+const SPAWN = { x:7, y:12 };
+const CORNERS = [ {x:COLS-2,y:1}, {x:1,y:1}, {x:COLS-2,y:ROWS-2}, {x:1,y:ROWS-2} ];
+
+const HUNTERS = [
+  { key:'chaser',  col:'#ff5c8a', shape:'blade',  home:{x:7,y:8} },
+  { key:'ambush',  col:'#a06cff', shape:'wedge',  home:{x:7,y:8} },
+  { key:'flank',   col:'#3fd6c8', shape:'hex',    home:{x:7,y:8} },
+  { key:'drifter', col:'#a8e35c', shape:'lozenge',home:{x:7,y:8} }
+];
+
+const DIRS = { up:{x:0,y:-1}, down:{x:0,y:1}, left:{x:-1,y:0}, right:{x:1,y:0} };
+const DIRLIST = ['up','left','down','right'];
+const OPPOSITE = { up:'down', down:'up', left:'right', right:'left' };
+
+let CELL = 22, DPR = 1;
+let state = 'ready';
+let score, best, level, lives, player, hunters, phase, phaseT, fright, frightChain;
+let bonus, bonusT, dotsEaten, msg, msgT, deathT, ready, readyT;
+let last, acc, shake;
+
+const clamp = (v,a,b) => v<a?a:v>b?b:v;
+const tileAt = (x,y) => {
+  if(y<0||y>=ROWS) return WALL;
+  x = ((x % COLS) + COLS) % COLS;
+  return grid[y][x];
+};
+const walkable = (x,y,gate) => {
+  const t = tileAt(x,y);
+  return t === OPEN || (t === GATE && gate);
+};
+
+/* ---------------- build ---------------- */
+function buildMaze(){
+  grid = []; pellets = []; powers = []; pelletsLeft = 0; inked = [];
+  for(let y=0;y<ROWS;y++){
+    const row = [], prow = [];
+    for(let x=0;x<COLS;x++){
+      const c = MAZE[y][x];
+      row.push(c === '#' ? WALL : c === '-' ? GATE : OPEN);
+      if(c === '.'){ prow.push(1); pelletsLeft++; }
+      else if(c === 'o'){ prow.push(2); pelletsLeft++; powers.push({x,y}); }
+      else prow.push(0);
+    }
+    grid.push(row); pellets.push(prow); inked.push(new Array(COLS).fill(0));
+  }
+}
+
+/* ---------------- actors ---------------- */
+function newPlayer(){
+  return { x:SPAWN.x, y:SPAWN.y, dir:'left', want:'left', spd:5.6, mouth:0 };
+}
+function newHunter(h, i){
+  return {
+    key:h.key, col:h.col, shape:h.shape, idx:i,
+    x:h.home.x, y:h.home.y, dir: i%2 ? 'up':'down',
+    mode:'house', hold: i * 1.6 + 0.6, spd:4.9, wob:Math.random()*6, guard:null, guardT:12
+  };
+}
+
+function resetActors(){
+  player = newPlayer();
+  hunters = HUNTERS.map(newHunter);
+  phase = 'scatter'; phaseT = 7;
+  fright = 0; frightChain = 0;
+  ready = true; readyT = 1.6;
+}
+
+function newGame(){
+  score = 0; level = 1; lives = 3;
+  dotsEaten = 0; bonus = null; bonusT = 0;
+  msg = null; msgT = 0; shake = 0;
+  buildMaze(); resetActors();
+  state = 'play';
+  snd.begin();
+  paint();
+}
+function nextLevel(){
+  level++;
+  buildMaze();
+  resetActors();
+  dotsEaten = 0; bonus = null;
+  flash('LEVEL ' + level);
+  snd.level();
+}
+
+/* ---------------- movement ---------------- */
+function centred(a){
+  return Math.abs(a.x - Math.round(a.x)) < 1e-6 && Math.abs(a.y - Math.round(a.y)) < 1e-6;
+}
+function advance(a, dt, gate, pick){
+  let dist = a.spd * dt, guard = 0;
+  while(dist > 1e-9 && guard++ < 16){
+    if(centred(a)){
+      a.x = Math.round(a.x); a.y = Math.round(a.y);
+      pick(a);
+      const d = DIRS[a.dir];
+      if(!d || !walkable(a.x + d.x, a.y + d.y, gate)) return;
+    }
+    const d = DIRS[a.dir];
+    /* distance to the NEXT TILE CENTRE, not a whole tile. Getting this
+       wrong lets an actor leave a centre, overshoot the next one, and
+       then sail through walls forever because the check only runs on a
+       centre it never lands on again. */
+    let room;
+    if(d.x > 0)      room = Math.floor(a.x + 1e-9) + 1 - a.x;
+    else if(d.x < 0) room = a.x - (Math.ceil(a.x - 1e-9) - 1);
+    else if(d.y > 0) room = Math.floor(a.y + 1e-9) + 1 - a.y;
+    else             room = a.y - (Math.ceil(a.y - 1e-9) - 1);
+    if(room < 1e-9) room = 1;
+    const move = Math.min(dist, room);
+    a.x += d.x * move; a.y += d.y * move;
+    dist -= move;
+    if(Math.abs(a.x - Math.round(a.x)) < 1e-6) a.x = Math.round(a.x);
+    if(Math.abs(a.y - Math.round(a.y)) < 1e-6) a.y = Math.round(a.y);
+    if(a.x < -0.5) a.x += COLS;
+    if(a.x > COLS - 0.5) a.x -= COLS;
+  }
+}
+
+function playerPick(a){
+  const w = DIRS[a.want];
+  if(w && walkable(a.x + w.x, a.y + w.y, false)) a.dir = a.want;
+}
+
+/* the four of them want four different tiles — that is the whole game */
+function targetFor(h){
+  const px = Math.round(player.x), py = Math.round(player.y);
+  const pd = DIRS[player.dir];
+  if(h.mode === 'eyes') return CORE;
+  /* the guard never scatters — holding ground IS its scatter behaviour,
+     and alternating would leave the pellets unwatched half the time */
+  if(h.key !== 'drifter' && phase === 'scatter') return CORNERS[h.idx];
+  if(h.key === 'chaser') return { x:px, y:py };
+  if(h.key === 'ambush') return { x:px + pd.x*4, y:py + pd.y*4 };
+  if(h.key === 'flank'){
+    const c = hunters[0];
+    const ax = px + pd.x*2, ay = py + pd.y*2;
+    return { x: ax + (ax - Math.round(c.x)), y: ay + (ay - Math.round(c.y)) };
+  }
+  /* The fourth one does not chase and does not run. It denies. It sits on
+     whichever power pellet you are closest to, so the thing that saves you
+     is the thing being guarded. With those gone it squats on the dots you
+     have left, which is the same job at the end of a level. */
+  const dOf = q => (q.x-px)*(q.x-px) + (q.y-py)*(q.y-py);
+  const live = powers.filter(q => pellets[q.y][q.x] === 2);
+
+  if(live.length){
+    if(h.guard && pellets[h.guard.y][h.guard.x] !== 2) h.guard = null;
+    let pick = live[0], bd = dOf(live[0]);
+    for(const q of live){ const d = dOf(q); if(d < bd){ bd = d; pick = q; } }
+    /* commit. Re-choosing every junction makes it dither in corridors and
+       guard nothing; it only relocates once you are clearly closer to a
+       different one. */
+    if(!h.guard || dOf(h.guard) - bd > 25) h.guard = pick;
+    /* Stand BESIDE it, never on it. Camping the tile itself would deny the
+       pellet outright, and a guard should make something dangerous, not
+       impossible. It takes the neighbour facing your approach, so the other
+       ways in stay open — you have to come at it from the wrong side. */
+    return guardPost(h.guard, px, py);
+  }
+
+  h.guard = null;
+  let target = null, bd = Infinity;
+  for(let y=0;y<ROWS;y++) for(let x=0;x<COLS;x++){
+    if(!pellets[y][x]) continue;
+    const d = (x-px)*(x-px) + (y-py)*(y-py);
+    if(d < bd){ bd = d; target = { x, y }; }
+  }
+  return target || { x:px, y:py };
+}
+
+/* an open tile beside the pellet, on the side you are coming from */
+function guardPost(q, px, py){
+  let best = null, bd = Infinity;
+  for(const d of DIRLIST){
+    const v = DIRS[d];
+    const nx = q.x + v.x, ny = q.y + v.y;
+    if(!walkable(nx, ny, false)) continue;
+    const dist = (nx-px)*(nx-px) + (ny-py)*(ny-py);
+    if(dist < bd){ bd = dist; best = { x:nx, y:ny }; }
+  }
+  return best || q;
+}
+
+function hunterPick(h){
+  const gate = h.mode === 'eyes' || h.mode === 'house';
+  const back = OPPOSITE[h.dir];
+  const opts = DIRLIST.filter(d => {
+    if(d === back) return false;
+    const v = DIRS[d];
+    return walkable(h.x + v.x, h.y + v.y, gate);
+  });
+  if(!opts.length){ h.dir = back; return; }
+
+  if(h.mode === 'fright'){
+    h.dir = opts[(Math.random()*opts.length)|0];
+    return;
+  }
+  const t = targetFor(h);
+  let bestD = Infinity, bestDir = opts[0];
+  for(const d of opts){
+    const v = DIRS[d];
+    const nx = h.x + v.x, ny = h.y + v.y;
+    let ddx = nx - t.x;
+    if(ddx > COLS/2) ddx -= COLS; else if(ddx < -COLS/2) ddx += COLS;
+    const dist = ddx*ddx + (ny - t.y)*(ny - t.y);
+    if(dist < bestD){ bestD = dist; bestDir = d; }
+  }
+  h.dir = bestDir;
+}
+
+function hunterSpeed(h){
+  const lv = Math.min(1, (level-1)/8);
+  if(h.mode === 'eyes') return 11;
+  if(h.mode === 'fright') return 3.1 + lv*0.5;
+  if(h.mode === 'house') return 3.4;
+  return 4.5 + lv*1.5;
+}
+
+/* ---------------- the turn of the world ---------------- */
+function step(dt){
+  if(ready){
+    readyT -= dt;
+    if(readyT <= 0) ready = false;
+    return;
+  }
+  if(deathT > 0){
+    deathT -= dt;
+    if(deathT <= 0) afterDeath();
+    return;
+  }
+
+  player.spd = 5.4 + Math.min(1,(level-1)/8) * 1.1;
+  advance(player, dt, false, playerPick);
+  player.mouth += dt * 9;
+
+  eatAt(Math.round(player.x), Math.round(player.y));
+
+  /* scatter and hunt trade places, which gives the maze its rhythm */
+  if(fright > 0){
+    fright -= dt;
+    if(fright <= 0){
+      for(const h of hunters) if(h.mode === 'fright') h.mode = 'hunt';
+      frightChain = 0;
+    }
+  } else {
+    phaseT -= dt;
+    if(phaseT <= 0){
+      phase = phase === 'scatter' ? 'chase' : 'scatter';
+      phaseT = phase === 'scatter' ? Math.max(3, 7 - level*0.4) : 20;
+      for(const h of hunters) if(h.mode === 'hunt') h.dir = OPPOSITE[h.dir];
+    }
+  }
+
+  /* the watch changes: a post held forever locks a pellet away for good */
+  const gd = hunters[3];
+  if(gd && gd.mode === 'hunt'){
+    gd.guardT -= dt;
+    if(gd.guardT <= 0){
+      gd.guardT = 11 + Math.random()*5;
+      const live = powers.filter(q => pellets[q.y][q.x] === 2);
+      if(live.length > 1 && gd.guard){
+        let far = null, fd = -1;
+        for(const q of live){
+          const d = (q.x-gd.guard.x)*(q.x-gd.guard.x) + (q.y-gd.guard.y)*(q.y-gd.guard.y);
+          if(d > fd){ fd = d; far = q; }
+        }
+        gd.guard = far;
+      } else gd.guard = null;
+    }
+  }
+
+  for(const h of hunters){
+    if(h.mode === 'house'){
+      h.hold -= dt;
+      if(h.hold <= 0){ h.mode = 'out'; h.dir = 'up'; }
+      h.wob += dt*4;
+      continue;
+    }
+    if(h.mode === 'out'){
+      /* rise through the gate, then join the maze proper */
+      h.spd = hunterSpeed(h);
+      advance(h, dt, true, a => {
+        if(Math.round(a.y) <= CORE.y - 2){
+          a.mode = 'hunt'; a.dir = Math.random()<0.5 ? 'left' : 'right'; return;
+        }
+        /* slide under the gate first, then rise through it */
+        const rx = Math.round(a.x);
+        a.dir = rx < CORE.x ? 'right' : rx > CORE.x ? 'left' : 'up';
+      });
+      continue;
+    }
+    h.spd = hunterSpeed(h);
+    advance(h, dt, h.mode === 'eyes', hunterPick);
+    if(h.mode === 'eyes' && Math.abs(h.x - CORE.x) < 0.2 && Math.abs(h.y - CORE.y) < 0.2){
+      h.mode = 'house'; h.hold = 0.9; h.x = CORE.x; h.y = CORE.y;
+    }
+  }
+
+  collide();
+
+  if(bonus){
+    bonusT -= dt;
+    if(bonusT <= 0) bonus = null;
+  }
+  if(msg){ msgT -= dt; if(msgT <= 0) msg = null; }
+  shake = Math.max(0, shake - dt*2.4);
+
+  if(pelletsLeft <= 0) nextLevel();
+}
+
+function eatAt(x, y){
+  const p = pellets[y] && pellets[y][x];
+  if(!p) return;
+  pellets[y][x] = 0;
+  inked[y][x] = 1;
+  pelletsLeft--;
+  dotsEaten++;
+  if(p === 1){ score += 10; snd.bite(dotsEaten); }
+  else {
+    score += 50;
+    fright = Math.max(2, 8 - level*0.55);
+    frightChain = 0;
+    for(const h of hunters) if(h.mode === 'hunt' || h.mode === 'out'){
+      h.mode = 'fright'; h.dir = OPPOSITE[h.dir];
+    }
+    snd.power();
+  }
+  if(dotsEaten === 60 || dotsEaten === 150){
+    bonus = { x:SPAWN.x, y:SPAWN.y - 4, value: 100 * level };
+    bonusT = 9;
+  }
+}
+
+function collide(){
+  for(const h of hunters){
+    if(h.mode === 'house' || h.mode === 'eyes') continue;
+    if(Math.abs(h.x - player.x) > 0.55 || Math.abs(h.y - player.y) > 0.55) continue;
+    if(h.mode === 'fright'){
+      frightChain++;
+      const gain = 200 * Math.pow(2, Math.min(3, frightChain-1));
+      score += gain;
+      h.mode = 'eyes';
+      flash('+' + gain);
+      snd.eat(frightChain);
+    } else {
+      die();
+      return;
+    }
+  }
+  if(bonus && Math.abs(bonus.x - player.x) < 0.6 && Math.abs(bonus.y - player.y) < 0.6){
+    score += bonus.value;
+    flash('+' + bonus.value);
+    snd.bonus();
+    bonus = null;
+  }
+}
+
+function die(){
+  lives--;
+  deathT = 1.5;
+  shake = 1;
+  frame.classList.remove('hit'); void frame.offsetWidth; frame.classList.add('hit');
+  snd.die();
+}
+function afterDeath(){
+  if(lives <= 0){ gameOver(); return; }
+  resetActors();
+}
+
+function gameOver(){
+  state = 'over';
+  best = Math.max(best, score);
+  if(AR && AR.save) AR.save.merge('pellet', {
+    best: best, level: level,
+    label: 'BEST ' + best.toLocaleString()
+  });
+  snd.over();
+  setTimeout(showOver, 700);
+}
+
+function flash(t){ msg = t; msgT = 1.1; }
+
+/* =====================================================================
+   SOUND — a rising interval that ratchets a semitone per level, so the
+   maze audibly tightens as you clear it.
+   ===================================================================== */
+const snd = {
+  begin(){
+    if(!AR) return;
+    AR.audio.init();
+    if(!AR.audio.ctx) return;
+    AR.music.start(112, 2, snd.bed);
+  },
+  bed(stepN, t){
+    if(!AR) return;
+    const s = stepN % 8;
+    const key = 55 * Math.pow(2, ((level-1) % 12) / 12);
+    const scared = fright > 0;
+    if(s === 0 || s === 4){
+      AR.sfx.tone({ t, freq:key, dur:0.30, type:'triangle', gain:0.20, bus:'music', cutoff:900 });
+    }
+    if(s === 2 || s === 6){
+      AR.sfx.tone({ t, freq:key * (scared ? 1.19 : 1.5), dur:0.26, type:'triangle',
+                    gain:0.17, bus:'music', cutoff:1100 });
+    }
+    if(scared && s % 2 === 1)
+      AR.sfx.tone({ t, freq:key*2.4, dur:0.10, type:'square', gain:0.06, bus:'music', cutoff:2600 });
+    if(!scared && s === 7)
+      AR.sfx.tone({ t, freq:key*3, dur:0.14, type:'sine', gain:0.05, bus:'music', verb:0.4 });
+  },
+  bite(n){
+    if(!AR) return;
+    const up = n % 2 === 0;
+    AR.sfx.tone({ freq: up ? 300 : 210, to: up ? 210 : 300, dur:0.055,
+                  type:'square', gain:0.085, cutoff:1600 });
+  },
+  power(){
+    if(!AR) return;
+    const t = AR.audio.now();
+    [880, 740, 620, 520].forEach((f,i) =>
+      AR.sfx.tone({ t:t+i*0.055, freq:f, dur:0.18, type:'square', gain:0.11, cutoff:3000, verb:0.3 }));
+  },
+  eat(chain){
+    if(!AR) return;
+    AR.sfx.tone({ freq: 300 + chain*120, to: 900 + chain*180, dur:0.26,
+                  type:'square', gain:0.13, cutoff:3600, verb:0.35 });
+  },
+  bonus(){
+    if(!AR) return;
+    const t = AR.audio.now();
+    [660, 880, 1320].forEach((f,i) =>
+      AR.sfx.tone({ t:t+i*0.07, freq:f, dur:0.24, type:'sine', gain:0.12, verb:0.5 }));
+  },
+  die(){
+    if(!AR) return;
+    const t = AR.audio.now();
+    AR.sfx.tone({ t, freq:520, to:70, dur:1.1, type:'square', gain:0.15, cutoff:2200 });
+    AR.sfx.noise({ t:t+0.1, freq:900, to:120, dur:0.8, gain:0.10, filter:'lowpass' });
+  },
+  level(){
+    if(!AR) return;
+    const t = AR.audio.now();
+    [523, 659, 784, 1047].forEach((f,i) =>
+      AR.sfx.tone({ t:t+i*0.08, freq:f, dur:0.3, type:'triangle', gain:0.12, verb:0.45 }));
+  },
+  over(){
+    if(!AR) return;
+    const t = AR.audio.now();
+    [392, 330, 262, 196].forEach((f,i) =>
+      AR.sfx.tone({ t:t+i*0.16, freq:f, dur:0.6, type:'triangle', gain:0.13, verb:0.5 }));
+  }
+};
+
+/* =====================================================================
+   RENDER — drafting paper. The maze is a technical drawing and the
+   things in it are instruments moving across it.
+   ===================================================================== */
+function fit(){
+  const wrap = $('boardwrap');
+  const w = wrap.clientWidth, h = wrap.clientHeight;
+  if(!w || !h) return;
+  CELL = Math.max(8, Math.floor(Math.min(w / COLS, h / ROWS)));
+  DPR = Math.min(2, window.devicePixelRatio || 1);
+  board.style.width = (COLS*CELL) + 'px';
+  board.style.height = (ROWS*CELL) + 'px';
+  board.width = Math.round(COLS*CELL*DPR);
+  board.height = Math.round(ROWS*CELL*DPR);
+  if(grid) paint();
+}
+window.addEventListener('resize', fit);
+window.addEventListener('orientationchange', () => setTimeout(fit, 150));
+
+function wallAt(x,y){ return tileAt(x,y) === WALL; }
+
+function drawMaze(g){
+  const C = CELL;
+  g.strokeStyle = 'rgba(22,48,60,.85)';
+  g.lineWidth = 1;
+  for(let x=0;x<=COLS;x++){ g.beginPath(); g.moveTo(x*C+.5,0); g.lineTo(x*C+.5,ROWS*C); g.stroke(); }
+  for(let y=0;y<=ROWS;y++){ g.beginPath(); g.moveTo(0,y*C+.5); g.lineTo(COLS*C,y*C+.5); g.stroke(); }
+
+  g.strokeStyle = '#5fc9d8';
+  g.lineWidth = Math.max(1.6, C*0.10);
+  g.lineCap = 'round';
+  const reach = C*0.5;
+  const solid = (x,y) => x>=0 && x<COLS && y>=0 && y<ROWS && grid[y][x] === WALL;
+  for(let y=0;y<ROWS;y++){
+    for(let x=0;x<COLS;x++){
+      if(!solid(x,y)) continue;
+      const cx = x*C + C/2, cy = y*C + C/2;
+      /* reach halfway to each neighbouring wall so the pair meets on the
+         shared edge — the maze reads as one continuous drawn line */
+      let drew = false;
+      if(solid(x+1,y)){ g.beginPath(); g.moveTo(cx,cy); g.lineTo(cx+reach,cy); g.stroke(); drew = true; }
+      if(solid(x,y+1)){ g.beginPath(); g.moveTo(cx,cy); g.lineTo(cx,cy+reach); g.stroke(); drew = true; }
+      if(solid(x-1,y)){ g.beginPath(); g.moveTo(cx,cy); g.lineTo(cx-reach,cy); g.stroke(); drew = true; }
+      if(solid(x,y-1)){ g.beginPath(); g.moveTo(cx,cy); g.lineTo(cx,cy-reach); g.stroke(); drew = true; }
+      if(!drew){ g.beginPath(); g.arc(cx,cy,C*0.13,0,6.2832); g.stroke(); }
+    }
+  }
+  /* the gate */
+  for(let y=0;y<ROWS;y++) for(let x=0;x<COLS;x++){
+    if(tileAt(x,y) !== GATE) continue;
+    g.strokeStyle = 'rgba(255,210,60,.55)'; g.lineWidth = Math.max(1.4, C*0.08);
+    g.beginPath(); g.moveTo(x*C+C*0.12, y*C+C/2); g.lineTo(x*C+C*0.88, y*C+C/2); g.stroke();
+  }
+}
+
+function drawPellets(g, now){
+  const C = CELL;
+  /* every square you clear is inked in: the sheet fills up as you survey it,
+     so progress reads as a drawing being finished rather than a board
+     being emptied */
+  g.fillStyle = 'rgba(255,210,60,.07)';
+  for(let y=0;y<ROWS;y++)
+    for(let x=0;x<COLS;x++)
+      if(inked[y][x]) g.fillRect(x*C+C*0.18, y*C+C*0.18, C*0.64, C*0.64);
+  for(let y=0;y<ROWS;y++){
+    for(let x=0;x<COLS;x++){
+      const p = pellets[y][x];
+      if(!p) continue;
+      const cx = x*C + C/2, cy = y*C + C/2;
+      if(p === 1){
+        g.strokeStyle = '#9fc7d8';
+        g.lineWidth = Math.max(1, C*0.055);
+        const s = C*0.13;
+        g.beginPath();
+        g.moveTo(cx-s, cy); g.lineTo(cx+s, cy);
+        g.moveTo(cx, cy-s); g.lineTo(cx, cy+s);
+        g.stroke();
+      } else {
+        const pulse = 0.80 + Math.sin(now*3.4 + x + y)*0.20;
+        g.save();
+        g.shadowColor = '#ffd23c'; g.shadowBlur = C*0.5;
+        g.strokeStyle = '#ffd23c'; g.lineWidth = Math.max(1.3, C*0.07);
+        g.beginPath(); g.arc(cx, cy, C*0.30*pulse, 0, 6.2832); g.stroke();
+        g.fillStyle = '#ffd23c';
+        g.beginPath(); g.arc(cx, cy, C*0.09, 0, 6.2832); g.fill();
+        g.beginPath();
+        g.moveTo(cx-C*0.30*pulse, cy); g.lineTo(cx-C*0.16, cy);
+        g.moveTo(cx+C*0.16, cy); g.lineTo(cx+C*0.30*pulse, cy);
+        g.stroke();
+        g.restore();
+      }
+    }
+  }
+}
+
+function drawPlayer(g, now){
+  const C = CELL, cx = player.x*C + C/2, cy = player.y*C + C/2;
+  const d = DIRS[player.dir] || DIRS.left;
+  const ang = Math.atan2(d.y, d.x);
+  const beat = ready || deathT > 0 ? 0 : Math.abs(Math.sin(player.mouth*0.5));
+  g.save();
+  g.translate(cx, cy);
+  g.rotate(ang);
+  if(deathT > 0){
+    g.globalAlpha = Math.max(0, deathT/1.5);
+    g.rotate((1.5 - deathT) * 7);
+  }
+  g.shadowColor = '#ffd23c'; g.shadowBlur = C*(0.5 + beat*0.5);
+
+  /* a nib: chisel point forward, shoulders back, a bright ferrule.
+     Reads as an instrument travelling over the sheet. */
+  g.fillStyle = '#ffd23c';
+  g.beginPath();
+  g.moveTo(C*0.46, 0);
+  g.lineTo(C*0.02, -C*0.30);
+  g.lineTo(-C*0.26, -C*0.20);
+  g.lineTo(-C*0.26, C*0.20);
+  g.lineTo(C*0.02, C*0.30);
+  g.closePath(); g.fill();
+
+  g.fillStyle = '#0a0e14';
+  g.beginPath();
+  g.moveTo(C*0.44, 0); g.lineTo(C*0.10, -C*0.07); g.lineTo(C*0.10, C*0.07);
+  g.closePath(); g.fill();
+
+  g.fillStyle = '#fff6d4';
+  g.fillRect(-C*0.20, -C*0.13, C*0.10, C*0.26);
+  g.restore();
+}
+
+function drawHunter(g, h, now){
+  const C = CELL, cx = h.x*C + C/2, cy = h.y*C + C/2;
+  const r = C*0.36;
+  const scared = h.mode === 'fright';
+  const gone = h.mode === 'eyes';
+  const col = h.col;
+
+  if(gone){
+    /* being redrawn: a dashed wireframe of the mark, heading back to the sheet */
+    g.save();
+    g.setLineDash([C*0.10, C*0.09]);
+    g.strokeStyle = 'rgba(160,200,215,.75)';
+    g.lineWidth = Math.max(1.2, C*0.05);
+    g.beginPath(); g.arc(cx, cy, r*0.82, 0, 6.2832); g.stroke();
+    g.setLineDash([]);
+    g.fillStyle = 'rgba(160,200,215,.9)';
+    g.beginPath(); g.arc(cx, cy, C*0.06, 0, 6.2832); g.fill();
+    g.restore();
+    return;
+  }
+
+  {
+    g.save();
+    const fading = scared && fright < 2 && Math.floor(now*6)%2 === 0;
+    g.shadowColor = col; g.shadowBlur = scared ? 0 : C*0.5;
+    if(scared){
+      /* voided on the drawing: hollow, dashed, drained of authority */
+      g.globalAlpha = fading ? 0.95 : 0.55;
+      g.setLineDash([C*0.13, C*0.10]);
+      g.strokeStyle = col; g.lineWidth = Math.max(1.3, C*0.06);
+    } else {
+      g.fillStyle = col;
+    }
+    g.beginPath();
+    const wob = scared ? 0 : Math.sin(now*7 + h.wob) * C*0.05;
+    if(h.shape === 'blade'){
+      g.moveTo(cx, cy-r); g.lineTo(cx+r, cy+r*0.5); g.lineTo(cx, cy+r*0.2+wob);
+      g.lineTo(cx-r, cy+r*0.5);
+    } else if(h.shape === 'wedge'){
+      g.moveTo(cx, cy-r); g.lineTo(cx+r*0.9, cy+r*0.8); g.lineTo(cx-r*0.9, cy+r*0.8);
+    } else if(h.shape === 'hex'){
+      for(let k=0;k<6;k++){
+        const a = k*Math.PI/3 - Math.PI/2;
+        const px = cx + Math.cos(a)*r, py = cy + Math.sin(a)*r + (k>2?wob:0);
+        k ? g.lineTo(px,py) : g.moveTo(px,py);
+      }
+    } else {
+      g.moveTo(cx, cy-r); g.lineTo(cx+r*0.72, cy); g.lineTo(cx, cy+r+wob); g.lineTo(cx-r*0.72, cy);
+    }
+    g.closePath();
+    if(scared){ g.stroke(); g.setLineDash([]); } else { g.fill(); }
+    g.restore();
+  }
+
+  /* no eyes. A survey tick on the leading edge carries the heading instead,
+     which is the information the eyes were doing and none of the face. */
+  const d = DIRS[h.dir] || DIRS.up;
+  g.strokeStyle = scared ? col : '#0a0e14';
+  g.lineWidth = Math.max(1.4, C*0.07);
+  g.globalAlpha = scared ? 0.8 : 1;
+  g.beginPath();
+  g.moveTo(cx + d.x*r*0.30, cy + d.y*r*0.30);
+  g.lineTo(cx + d.x*r*0.86, cy + d.y*r*0.86);
+  g.stroke();
+  g.globalAlpha = 1;
+}
+
+function drawBonus(g, now){
+  if(!bonus) return;
+  const C = CELL, cx = bonus.x*C + C/2, cy = bonus.y*C + C/2;
+  g.save();
+  g.shadowColor = '#ff8a5c'; g.shadowBlur = C*0.6;
+  g.fillStyle = '#ff8a5c';
+  g.beginPath(); g.arc(cx, cy + C*0.06, C*0.26, 0, 6.2832); g.fill();
+  g.strokeStyle = '#a8e35c'; g.lineWidth = Math.max(1.4, C*0.07);
+  g.beginPath(); g.moveTo(cx, cy-C*0.16); g.lineTo(cx+C*0.16, cy-C*0.34); g.stroke();
+  g.restore();
+}
+
+function paint(){
+  const g = bx, now = performance.now()/1000;
+  g.setTransform(DPR,0,0,DPR,0,0);
+  g.clearRect(0,0,COLS*CELL,ROWS*CELL);
+  g.save();
+  if(shake > 0.01){
+    const s = shake*shake*4;
+    g.translate((Math.random()*2-1)*s, (Math.random()*2-1)*s);
+  }
+  drawMaze(g);
+  drawPellets(g, now);
+  drawBonus(g, now);
+  for(const h of hunters) drawHunter(g, h, now);
+  drawPlayer(g, now);
+
+  if(msg){
+    g.save();
+    g.globalAlpha = clamp(msgT, 0, 1);
+    g.font = '800 ' + Math.round(CELL*0.9) + 'px "Syne", sans-serif';
+    g.textAlign = 'center';
+    g.fillStyle = '#ffd23c';
+    g.fillText(msg, COLS*CELL/2, ROWS*CELL*0.42);
+    g.restore();
+  }
+  if(ready){
+    g.font = '800 ' + Math.round(CELL*0.8) + 'px "Syne", sans-serif';
+    g.textAlign = 'center';
+    g.fillStyle = '#ffd23c';
+    g.fillText('READY', COLS*CELL/2, ROWS*CELL*0.58);
+  }
+  g.restore();
+
+  $('score').textContent = score.toLocaleString();
+  $('level').textContent = level;
+  $('dots').textContent = pelletsLeft + ' LEFT';
+  $('phase').textContent = fright > 0 ? 'VULNERABLE ' + Math.ceil(fright) : phase.toUpperCase();
+  const lv = $('lives');
+  if(lv.childElementCount !== Math.max(0, lives-1)){
+    lv.innerHTML = '';
+    for(let i=0;i<Math.max(0, lives-1);i++) lv.appendChild(document.createElement('i'));
+  }
+}
+
+/* ---------------- loop ---------------- */
+const FIXED = 1/120;
+function loop(now){
+  if(last === undefined) last = now;
+  let dt = Math.min(0.05, (now - last)/1000);
+  last = now;
+  if(state === 'play'){
+    acc += dt;
+    let guard = 0;
+    while(acc >= FIXED && state === 'play' && guard++ < 8){ step(FIXED); acc -= FIXED; }
+  }
+  paint();
+  requestAnimationFrame(loop);
+}
+
+/* ---------------- input ---------------- */
+function face(d){ if(player) player.want = d; }
+
+let touchX = 0, touchY = 0, touching = false;
+board.addEventListener('pointerdown', e => {
+  e.preventDefault();
+  touching = true; touchX = e.clientX; touchY = e.clientY;
+}, {passive:false});
+board.addEventListener('pointermove', e => {
+  if(!touching) return;
+  e.preventDefault();
+  const dx = e.clientX - touchX, dy = e.clientY - touchY;
+  if(Math.abs(dx) < 18 && Math.abs(dy) < 18) return;
+  face(Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up'));
+  touching = false;
+}, {passive:false});
+const endTouch = () => { touching = false; };
+board.addEventListener('pointerup', endTouch);
+board.addEventListener('pointercancel', endTouch);
+board.addEventListener('contextmenu', e => e.preventDefault());
+
+const KEYS = {
+  ArrowUp:'up', ArrowDown:'down', ArrowLeft:'left', ArrowRight:'right',
+  w:'up', s:'down', a:'left', d:'right', W:'up', S:'down', A:'left', D:'right'
+};
+window.addEventListener('keydown', e => {
+  if(KEYS[e.key]){ e.preventDefault(); face(KEYS[e.key]); return; }
+  if((e.key === ' ' || e.key === 'Enter') && state !== 'play'){
+    const b = veilBody.querySelector('.btn'); if(b) b.click();
+  }
+});
+if(AR && AR.pad) AR.pad.onPress(name => {
+  if(AR.paused && AR.paused()) return;
+  if(state !== 'play'){
+    if(name === 'a' || name === 'start'){ const b = veilBody.querySelector('.btn'); if(b) b.click(); }
+    return;
+  }
+  if(DIRS[name]) face(name);
+});
+setInterval(() => {
+  if(state !== 'play' || !AR || !AR.pad || !AR.pad.connected()) return;
+  const ax = AR.pad.axis();
+  if(Math.abs(ax.x) > 0.5) face(ax.x > 0 ? 'right' : 'left');
+  else if(Math.abs(ax.y) > 0.5) face(ax.y > 0 ? 'down' : 'up');
+}, 90);
+
+/* ---------------- overlays ---------------- */
+function openVeil(html, go){
+  veilBody.innerHTML = html;
+  veil.classList.remove('hidden');
+  const b = veilBody.querySelector('.btn');
+  if(b) b.addEventListener('click', () => { veil.classList.add('hidden'); if(go) go(); });
+}
+function showTitle(){
+  const sv = AR && AR.save ? AR.save.get('pellet') : null;
+  best = (sv && sv.best) || 0;
+  openVeil(
+    '<div class="eyebrow">SHEET 01 \u00B7 CORRIDOR SURVEY</div>' +
+    '<h1>Pellet<em>FOUR OF THEM</em></h1>' +
+    '<div class="blurb">Clear the drawing. Four things want you, and each one wants a <b>different tile</b> \u2014 so they never arrive together by accident.</div>' +
+    '<div class="legend">' +
+      '<i style="color:#ff5c8a">\u25C6</i> comes straight at you<br>' +
+      '<i style="color:#a06cff">\u25C6</i> aims where you are going<br>' +
+      '<i style="color:#3fd6c8">\u25C6</i> works with the first to pincer<br>' +
+      '<i style="color:#a8e35c">\u25C6</i> guards whichever pellet would save you<br>' +
+      '<i style="color:#ffd23c">\u25CE</i> four survey stations void them for points' +
+    '</div>' +
+    (best ? '<div class="sub">BEST ' + best.toLocaleString() + '</div>' : '') +
+    '<button class="btn">SURVEY THE MAZE</button>',
+    () => { newGame(); fit(); }
+  );
+}
+function showOver(){
+  openVeil(
+    '<div class="eyebrow">SURVEY ABANDONED</div>' +
+    '<h1>' + score.toLocaleString() + '<em>FINAL SCORE</em></h1>' +
+    '<div class="grid2">' +
+      '<div class="gc"><span>LEVEL</span><b>' + level + '</b></div>' +
+      '<div class="gc"><span>BEST</span><b>' + best.toLocaleString() + '</b></div>' +
+    '</div>' +
+    '<button class="btn">RUN IT AGAIN</button>',
+    () => { newGame(); fit(); }
+  );
+}
+
+/* ---------------- boot ---------------- */
+buildMaze();
+resetActors();
+score = 0; level = 1; lives = 3; dotsEaten = 0; best = 0;
+bonus = null; msg = null; deathT = 0; acc = 0; shake = 0;
+fit();
+window.addEventListener('load', fit);
+showTitle();
+requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
