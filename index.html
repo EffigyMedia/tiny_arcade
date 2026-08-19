@@ -56,7 +56,7 @@ body{
 @keyframes hum{0%,100%{opacity:1}47%{opacity:.93}49%{opacity:1}}
 
 #cog{
-  position:fixed;z-index:860;right:62px;
+  position:fixed;z-index:860;right:12px;
   top:calc(env(safe-area-inset-top,0px) + 12px);
   width:42px;height:42px;border-radius:50%;cursor:pointer;padding:0;
   background:rgba(10,8,18,.82);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);
@@ -157,8 +157,8 @@ h1 .t2{
 }
 .tick{
   display:flex;align-items:center;justify-content:center;
-  height:46px;font-family:var(--px);
-  font-size:clamp(13px,4.2vw,19px);letter-spacing:.22em;
+  height:38px;font-family:var(--px);
+  font-size:clamp(11px,3.4vw,15px);letter-spacing:.20em;
   color:var(--gold);white-space:nowrap;
   text-shadow:0 0 3px rgba(255,194,60,.9),0 0 14px rgba(255,194,60,.5),
               0 0 32px rgba(255,194,60,.25);
@@ -268,7 +268,6 @@ footer{margin-top:30px;border-top:1px solid var(--line);padding-top:26px;text-al
 <body>
 <div id="crt"></div>
 <button id="cog" type="button" aria-label="Settings">⚙</button>
-<button id="snd" type="button" aria-label="Sound"><span>♪</span><span class="x">✕</span></button>
 <div id="sheet">
   <div class="sh">
     <h2>SETTINGS</h2>
@@ -338,6 +337,14 @@ var screens = [];
    point of a cabinet. They keep running, at a gentler rate. */
 var still = false;
 
+/* Every lookup goes through these. One stale id once blanked the whole
+   launcher — the cabinets, the buttons and the music — because a line that
+   only runs in a home-screen app touched an element the footer no longer
+   had, and everything after it stopped. */
+function el(id){ return document.getElementById(id); }
+function on(id, ev, fn){ var e = el(id); if(e) e.addEventListener(ev, fn); }
+function setText(id, t){ var e = el(id); if(e) e.textContent = t; }
+
 /* ---------- attract ticker ---------- */
 document.getElementById('tick').innerHTML = '<i></i><span>INSERT COIN</span><i></i>';
 
@@ -372,7 +379,6 @@ GAMES.forEach(function(g, i){
   screens.push({ cv:a.querySelector('canvas'), kind:g.attract, accent:g.accent, t:Math.random()*40 });
 });
 
-if (window.navigator.standalone) document.getElementById('tip').className = 'tip hide';
 
 /* ---------- house music ----------
    Am - F - C - G, 138bpm, the kind of loop a cabinet plays at nobody. */
@@ -423,24 +429,13 @@ function startTheme(){
   A.audio.init();
   if (!A.audio.ctx) return;
   if (!themeRunning){ A.music.start(138, 4, theme); themeRunning = true; }
-  paintSnd();
 }
 
-/* ---------- sound button ---------- */
-var snd = document.getElementById('snd');
-function paintSnd(){ snd.classList.toggle('off', !A.audio.anyOn()); }
-A.audio.onChange(paintSnd);
-paintSnd();
-snd.addEventListener('click', function(e){
-  e.stopPropagation();
-  A.audio.init();
-  if (A.audio.anyOn()) A.audio.allOff();
-  else { A.audio.allOn(); A.ui.ok(); }
-  startTheme();
-});
 
 /* the cabinet only wakes up once you have touched the room */
 document.addEventListener('pointerdown', startTheme, { once:true });
+
+requestAnimationFrame(paint);          /* cabinets first: nothing below can stop them */
 
 /* ---------- settings + offline catalogue ---------- */
 var sheet = document.getElementById('sheet');
@@ -497,22 +492,22 @@ window.addEventListener('load', function(){
 });
 
 function paintSheetAudio(){
-  document.getElementById('shSfx').textContent = 'SFX ' + (A.audio.get('sfx') ? 'ON' : 'OFF');
-  document.getElementById('shMus').textContent = 'MUSIC ' + (A.audio.get('music') ? 'ON' : 'OFF');
+  setText('shSfx', 'SFX ' + (A.audio.get('sfx') ? 'ON' : 'OFF'));
+  setText('shMus', 'MUSIC ' + (A.audio.get('music') ? 'ON' : 'OFF'));
 }
 A.audio.onChange(paintSheetAudio);
 paintSheetAudio();
 
-document.getElementById('cog').addEventListener('click', function(e){
+on('cog', 'click', function(e){
   e.stopPropagation(); A.audio.init(); paintSheetAudio(); sheet.classList.add('on');
 });
-document.getElementById('shClose').addEventListener('click', function(){ sheet.classList.remove('on'); });
+on('shClose', 'click', function(){ sheet.classList.remove('on'); });
 sheet.addEventListener('click', function(e){ if (e.target === sheet) sheet.classList.remove('on'); });
-fetchBtn.addEventListener('click', function(){ A.audio.init(); prefetch(false); });
-document.getElementById('shSfx').addEventListener('click', function(){ A.audio.init(); A.audio.toggle('sfx'); });
-document.getElementById('shMus').addEventListener('click', function(){ A.audio.init(); A.audio.toggle('music'); startTheme(); });
-document.getElementById('shPurge').addEventListener('click', function(){
-  var b = document.getElementById('shPurge');
+on('fetchAll', 'click', function(){ A.audio.init(); prefetch(false); });
+on('shSfx', 'click', function(){ A.audio.init(); A.audio.toggle('sfx'); });
+on('shMus', 'click', function(){ A.audio.init(); A.audio.toggle('music'); startTheme(); });
+on('shPurge', 'click', function(){
+  var b = el('shPurge');
   b.textContent = 'CLEARING';
   var done = function(){ location.reload(true); };
   if (navigator.serviceWorker && navigator.serviceWorker.controller){
@@ -525,8 +520,8 @@ document.getElementById('shPurge').addEventListener('click', function(){
     caches.keys().then(function(ks){ return Promise.all(ks.map(function(k){ return caches.delete(k); })); }).then(done);
   } else done();
 });
-document.getElementById('shWipe').addEventListener('click', function(){
-  var b = document.getElementById('shWipe');
+on('shWipe', 'click', function(){
+  var b = el('shWipe');
   if (b.dataset.sure !== '1'){ b.dataset.sure = '1'; b.textContent = 'SURE?'; return; }
   try {
     Object.keys(localStorage).forEach(function(k){
@@ -831,7 +826,6 @@ function onScroll(){
 window.addEventListener('scroll', onScroll, { passive:true });
 onScroll();
 
-requestAnimationFrame(paint);
 })();
 </script>
 </body>
