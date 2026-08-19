@@ -8,8 +8,20 @@
 <title>Derelict</title>
 <meta name="arcade-title" content="Derelict">
 <meta name="arcade-accent" content="#7fd8ff">
-<script src="../audio.js"></script>
-<script src="../arcade.js"></script>
+<script>
+/* Shared scripts are stamped with a slot that rolls over every ten minutes —
+   the same window GitHub Pages caches for — so a stale copy can never outlive
+   the CDN, and there is no version number for anyone to remember to bump.
+   document.write is used deliberately: it keeps these strictly in order, and
+   the game code below expects window.Arcade to already exist. */
+(function(d){
+  var v = '?v=' + Math.floor(Date.now() / 6e5);
+  var base = '../';
+  ['audio.js', 'arcade.js'].forEach(function(f){
+    d.write('<scr' + 'ipt src="' + base + f + v + '"></scr' + 'ipt>');
+  });
+})(document);
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Oxanium:wght@600;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -133,6 +145,8 @@ html,body{
 .kstats div{background:var(--panel);padding:8px 9px}
 .kstats span{display:block;font-size:8px;letter-spacing:.18em;color:var(--dim);margin-bottom:3px}
 .kstats b{font-size:13px;font-weight:600;font-variant-numeric:tabular-nums}
+.kend{position:sticky;bottom:-4px;padding-top:10px;
+  background:linear-gradient(180deg,rgba(6,8,10,0),rgba(6,8,10,.92) 40%)}
 
 /* ---------------- panel ---------------- */
 #panel{
@@ -168,12 +182,14 @@ button:focus-visible{outline:2px solid var(--ice);outline-offset:1px}
 
 /* ---------------- overlay ---------------- */
 #veil{
-  position:absolute;inset:0;z-index:70;display:grid;place-items:center;padding:26px 22px;
+  position:absolute;inset:0;z-index:70;display:flex;
+  padding:26px 22px calc(env(safe-area-inset-bottom,0px) + 30px);
+  overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;
   background:linear-gradient(180deg,rgba(6,8,10,.93),rgba(6,8,10,.985));
   text-align:center;
 }
 #veil.hidden{display:none}
-.vwrap{width:100%;max-width:340px}
+.vwrap{width:100%;max-width:340px;margin:auto}
 .veyebrow{font-size:9.5px;letter-spacing:.34em;color:var(--blood);margin-bottom:14px}
 .vtitle{
   font-family:var(--disp);font-weight:800;font-size:clamp(28px,9vw,42px);
@@ -385,7 +401,7 @@ for(const f in FRAMES){
     if(!GUN_NAMES[id]) continue;
     const F = FRAMES[f], L = LOADS[a];
     WEAPONS[id] = {
-      name:GUN_NAMES[id], kind:'ranged', ammo:L.pool, cost:F.cost, range:F.range,
+      name:GUN_NAMES[id], kind:'ranged', frame:f, load:a, ammo:L.pool, cost:F.cost, range:F.range,
       shots:F.shots, mul:F.mul * L.mul, tier:F.tier,
       pierce:L.pierce, burn:L.burn, splash:F.splash, pierceLine:F.pierceLine,
       note:GUN_NOTES[f]
@@ -483,49 +499,81 @@ const ix = i => i%COLS, iy = i => (i/COLS)|0;
    ================================================================ */
 const AR = window.Arcade;
 const snd = {
-  drone:null, room:null, armed:false,
+  drone:null, drone2:null, room:null, armed:false,
   arm(){
     if (snd.armed || !AR.audio.onReset) return;
     snd.armed = true;
-    AR.audio.onReset(() => { snd.drone = null; snd.room = null; snd.begin(); });
+    AR.audio.onReset(() => { snd.drone = null; snd.drone2 = null; snd.room = null; snd.begin(); });
   },
 
   begin(){
     if (!AR || !AR.audio.init()) return;
     snd.arm();
     if (!snd.drone){
-      snd.drone = AR.sfx.hold({ freq:36.7, type:'sawtooth', cutoff:190, q:3, verb:0.45, bus:'music' });
-      snd.room  = AR.sfx.holdNoise({ freq:340, q:0.6, bus:'music' });
+      /* two pedal tones a few cents apart. The beating between them is what
+         makes a room feel wrong without anything actually happening. */
+      snd.drone = AR.sfx.hold({ freq:36.71, type:'sawtooth', cutoff:150, q:4, verb:0.6, bus:'music' });
+      snd.drone2= AR.sfx.hold({ freq:36.94, type:'triangle', cutoff:190, q:3, verb:0.7, bus:'music' });
+      snd.room  = AR.sfx.holdNoise({ freq:300, q:0.5, bus:'music' });
     }
-    snd.drone.set(36.7, 0.16, 190, 2);
-    snd.room.set(340, 0.012, 2);
-    AR.music.start(40, 2, snd.bed);
+    snd.drone.set(36.71, 0.20, 150, 3);
+    snd.drone2.set(36.94, 0.13, 190, 3);
+    snd.room.set(300, 0.020, 3);
+    AR.music.start(24, 1, snd.bed);      // one step every two and a half seconds
   },
   deck(){
     if (!snd.drone) return;
     const d = Math.min(1, deck/12);
-    snd.drone.set(36.7 - d*7, 0.16 + d*0.04, 190 - d*70, 3);
-    snd.room.set(340 + d*260, 0.012 + d*0.010, 3);
+    snd.drone.set(36.71 - d*5.5, 0.20 + d*0.05, 150 - d*45, 6);
+    snd.drone2.set(36.94 - d*5.9 + d*0.6, 0.13 + d*0.04, 190 - d*60, 6);
+    snd.room.set(300 + d*220, 0.020 + d*0.012, 6);
   },
 
   bed(step, t){
     if (!AR) return;
-    const s = step % 16, d = Math.min(1, deck/12);
-    if (s === 0)
-      AR.sfx.tone({ t, freq:73.42, dur:3.4, type:'sine', gain:0.10, bus:'music', attack:0.4, verb:0.6 });
-    if (s === 6 || s === 11){
-      AR.sfx.tone({ t, freq:174.61, dur:2.6, type:'triangle', gain:0.045, bus:'music',
-                    attack:0.25, verb:0.8, detune:d*22 });
-      AR.sfx.tone({ t:t+0.9, freq:207.65, dur:2.2, type:'triangle', gain:0.035, bus:'music',
-                    attack:0.3, verb:0.85, detune:-d*18 });
+    const s = step % 32, d = Math.min(1, deck/12);
+
+    /* a slow swell every twenty seconds — the ship taking a breath */
+    if(s === 0 || s === 16){
+      const root = s === 0 ? 73.42 : 77.78;             // D, then a semitone up
+      AR.sfx.tone({ t, freq:root, dur:9, type:'sine', gain:0.085, attack:3.2, verb:0.7, bus:'music' });
+      AR.sfx.tone({ t:t+1.1, freq:root*1.5, dur:7.5, type:'sine', gain:0.038,
+                    attack:2.6, verb:0.85, bus:'music' });
     }
-    if (s === 13 && Math.random() < 0.6){          // something settling in the hull
-      AR.sfx.noise({ t, freq:900 + Math.random()*1600, dur:0.16, gain:0.03,
-                     filter:'bandpass', q:7, bus:'music', verb:0.7 });
+
+    /* a tritone against the pedal, deeper in. Unresolved on purpose. */
+    if(d > 0.25 && s === 9){
+      AR.sfx.tone({ t, freq:103.83, dur:8, type:'triangle', gain:0.045, attack:2.8,
+                    verb:0.9, detune:d*14, bus:'music' });
     }
-    if (d > 0.5 && s === 9)
-      AR.sfx.tone({ t, freq:49, dur:3, type:'sawtooth', gain:0.05, bus:'music',
-                    attack:0.6, cutoff:160, verb:0.5 });
+
+    /* high glints, barely there, long tails */
+    if(s === 5 || s === 21 || (d > 0.5 && s === 27)){
+      const glint = [587.33, 698.46, 880, 1046.5][(Math.random()*4)|0];
+      AR.sfx.tone({ t:t + Math.random()*1.2, freq:glint, dur:6, type:'sine',
+                    gain:0.022, attack:1.4, verb:0.95, bus:'music' });
+    }
+
+    /* the hull moving: a slow groan that sweeps down over several seconds */
+    if(s === 13 || (d > 0.4 && s === 29)){
+      AR.sfx.noise({ t, freq:340, to:110, dur:5.5, gain:0.030, filter:'bandpass',
+                     q:6, verb:0.8, bus:'music' });
+    }
+
+    /* something settling, far off */
+    if(s === 24 && Math.random() < 0.55){
+      AR.sfx.noise({ t, freq:1100 + Math.random()*1800, dur:0.22, gain:0.022,
+                     filter:'bandpass', q:9, verb:0.9, bus:'music' });
+    }
+
+    /* the drones drift against each other so the beat never settles */
+    if(snd.drone2){
+      const wob = Math.sin(step * 0.37) * 0.55;
+      snd.drone2.set(36.94 - d*5.9 + wob, undefined, undefined, 2.4);
+    }
+    if(snd.room){
+      snd.room.set(300 + d*220 + Math.sin(step*0.21)*70, undefined, 3);
+    }
   },
 
   step(){ if (AR) AR.sfx.noise({ freq:2600, dur:0.035, gain:0.028, filter:'highpass' }); },
@@ -610,7 +658,7 @@ const snd = {
     const t = AR.audio.now();
     AR.sfx.noise({ t, freq:600, to:60, dur:1.6, gain:0.24, filter:'lowpass', q:2 });
     AR.sfx.tone({ t, freq:110, to:28, dur:2.2, type:'sawtooth', gain:0.16, cutoff:500, verb:0.6 });
-    if (snd.drone){ snd.drone.set(26, 0.03, 90, 1.5); snd.room.set(200, 0.004, 1.5); }
+    if (snd.drone){ snd.drone.set(26, 0.04, 90, 1.5); snd.drone2.set(25.4, 0.03, 80, 1.5); snd.room.set(200, 0.006, 1.5); }
   }
 };
 
@@ -975,7 +1023,7 @@ function strike(m){
   const w = wep();
   if(w.ammo && !canFire(P.weapon)){
     say('The ' + w.name + ' is dry \u2014 no ' + AMMO[w.ammo].name.toLowerCase() + '.');
-    snd.denied(); render(); return;
+    snd.dry(); render(); return;
   }
   if(w.ammo) P.ammo[w.ammo] -= (w.cost || 1);
   const d = meleeDmg(m);
@@ -983,7 +1031,8 @@ function strike(m){
   P.surge = false;
   const first = m.type === 'husk';
   if(first){ if(hurtPlayer(m)) return; }
-  snd.strike(surged);
+  snd.swing(P.weapon, w);
+  if(surged) snd.strike(true);
   say(w.name + ' \u2192 ' + label(m) + ' \u2212' + d + (surged ? ' (SURGE)' : ''));
   hurtMob(m, d, w);
 
@@ -1005,12 +1054,12 @@ function fire(m){
   if(w.kind !== 'ranged' || !inShotRange(m)) return;
   if(!canFire(P.weapon)){
     say('Dry. No ' + AMMO[w.ammo].name.toLowerCase() + ' for the ' + w.name + '.');
-    snd.denied(); render(); return;
+    snd.dry(); render(); return;
   }
   P.ammo[w.ammo] -= (w.cost || 1);
   P.surge = false;
   const d = shotDmg(m);
-  snd.arc();
+  snd.shot(w);
   say(w.name + ' \u2192 ' + label(m) + ' \u2212' + d + ' (no reply)');
   hurtMob(m, d, w);
 
@@ -1136,7 +1185,7 @@ function useItem(id){
     P.items.grenade--;
     const base = Math.max(3, Math.round(3.2 * P.lvl * P.dmgMul));
     say('Charge thrown at ' + label(t) + '.');
-    snd.core();
+    snd.blast();
     for(const o of mobs.slice()){
       if(!o.alive) continue;
       const r = Math.max(Math.abs(o.x-t.x), Math.abs(o.y-t.y));
@@ -1156,11 +1205,11 @@ function useItem(id){
     snd.patch(); say('Med-gel \u2192 +' + h + ' integrity, suit clean.');
   } else if(id === 'trauma'){
     const h = 12 * P.lvl; heal(h); P.corroded = false; P.guardReady = !!P.guard;
-    snd.core(); say('Trauma kit \u2192 +' + h + ' integrity. Everything purged.');
+    snd.trauma(); say('Trauma kit \u2192 +' + h + ' integrity. Everything purged.');
   } else if(id === 'stim'){
-    P.buff.dmg = 6; snd.surge(); say('Stim \u2192 +60% damage for six turns.');
+    P.buff.dmg = 6; snd.stim(); say('Stim \u2192 +60% damage for six turns.');
   } else if(id === 'carapace'){
-    P.buff.res = 6; snd.patch(); say('Carapace \u2192 \u221235% incoming for six turns.');
+    P.buff.res = 6; snd.shell(); say('Carapace \u2192 \u221235% incoming for six turns.');
   }
   endTurn(null);
 }
@@ -1370,6 +1419,7 @@ function takeItem(t){
     const a = t.atype || 'slug';
     const n = a === 'slug' ? 14 : a === 'fuel' ? 6 : 8;
     P.ammo[a] = (P.ammo[a] || 0) + n;
+    snd.reload(a);
     say(AMMO[a].name.toUpperCase() + ' \u2192 +' + n + ', now ' + P.ammo[a] + '.');
   }
   if(USABLE[kind]){
@@ -2269,7 +2319,7 @@ function showKit(){
   for(const c of installed)
     html += '<div class="krow"><div class="kmid"><b>' + c.name + '</b><i>' + c.desc + '</i></div></div>';
 
-  html += '</div><button class="vbtn" data-act="close" style="margin-top:20px">BACK TO THE DECK</button>';
+  html += '</div><div class="kend"><button class="vbtn" data-act="close">BACK TO THE DECK</button></div>';
 
   openVeil(html, { close: ()=>{ render(); } });
   veilBody.querySelectorAll('[data-eq]').forEach(b => {

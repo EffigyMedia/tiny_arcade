@@ -8,8 +8,20 @@
 <title>Highway</title>
 <meta name="arcade-title" content="Highway">
 <meta name="arcade-accent" content="#ff8a3d">
-<script src="../audio.js"></script>
-<script src="../arcade.js"></script>
+<script>
+/* Shared scripts are stamped with a slot that rolls over every ten minutes —
+   the same window GitHub Pages caches for — so a stale copy can never outlive
+   the CDN, and there is no version number for anyone to remember to bump.
+   document.write is used deliberately: it keeps these strictly in order, and
+   the game code below expects window.Arcade to already exist. */
+(function(d){
+  var v = '?v=' + Math.floor(Date.now() / 6e5);
+  var base = '../';
+  ['audio.js', 'arcade.js'].forEach(function(f){
+    d.write('<scr' + 'ipt src="' + base + f + v + '"></scr' + 'ipt>');
+  });
+})(document);
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@600;800&family=Archivo:wght@500;700&display=swap" rel="stylesheet">
@@ -228,24 +240,24 @@ var snd = {
   bed: function(step, t){
     if (!AR) return;
     var s = step % 32, bar = Math.floor(step/32) % 4;
-    if (s % 4 === 0) AR.sfx.drum('kick', t, 0.6);
-    if (s === 8 || s === 24) AR.sfx.drum('snare', t, 0.34);
-    if (s % 4 === 2) AR.sfx.drum('hat', t, 0.26);
+    if (s % 4 === 0) AR.sfx.drum('kick', t, 0.92);
+    if (s === 8 || s === 24) AR.sfx.drum('snare', t, 0.56);
+    if (s % 4 === 2) AR.sfx.drum('hat', t, 0.34);
     if (s === 30) AR.sfx.drum('open', t, 0.22);
 
     var bf = BASS[(s >> 2) % BASS.length];
     if (s % 2 === 0)
-      AR.sfx.tone({ t:t, freq:bf, dur:0.13, type:'sawtooth', gain:0.20, bus:'music', cutoff:620, q:4 });
+      AR.sfx.tone({ t:t, freq:bf, dur:0.13, type:'sawtooth', gain:0.34, bus:'music', cutoff:620, q:4 });
 
     if (bar >= 1 && (s === 0 || s === 6 || s === 12 || s === 20 || s === 26)){
       var lf = LEAD[(s >> 2) % LEAD.length];
-      AR.sfx.tone({ t:t, freq:lf, dur:0.34, type:'sawtooth', gain:0.075, bus:'music',
+      AR.sfx.tone({ t:t, freq:lf, dur:0.34, type:'sawtooth', gain:0.145, bus:'music',
                     cutoff:2600, q:3, verb:0.35 });
       AR.sfx.tone({ t:t+0.02, freq:lf*1.005, dur:0.32, type:'sawtooth', gain:0.05,
                     bus:'music', cutoff:2400 });
     }
     if (s === 0 && bar % 2 === 0)
-      AR.sfx.tone({ t:t, freq:110, dur:1.5, type:'sawtooth', gain:0.035, bus:'music',
+      AR.sfx.tone({ t:t, freq:110, dur:1.5, type:'sawtooth', gain:0.055, bus:'music',
                     cutoff:800, attack:0.25, verb:0.4 });
   },
 
@@ -254,14 +266,14 @@ var snd = {
     if (!snd.eng) return;
     var r = spd / top;
     var rpm = 62 + r * 168 + (nos ? 26 : 0);
-    snd.eng.set(rpm, 0.11 + r*0.07, 420 + r*1500, 0.06);
-    snd.eng2.set(rpm*0.5, 0.05 + r*0.035, 300 + r*900, 0.06);
-    snd.wind.set(600 + r*2100, (off ? 0.075 : 0.016) + r*0.028, 0.10);
+    snd.eng.set(rpm, 0.055 + r*0.038, 420 + r*1500, 0.06);
+    snd.eng2.set(rpm*0.5, 0.026 + r*0.019, 300 + r*900, 0.06);
+    snd.wind.set(600 + r*2100, (off ? 0.045 : 0.009) + r*0.016, 0.10);
 
     if (copNear > 0){
       snd.sirenPhase += 0.055;
       var two = Math.sin(snd.sirenPhase) > 0 ? 760 : 560;
-      snd.siren.set(two, 0.055 * copNear, 2600, 0.02);
+      snd.siren.set(two, 0.048 * copNear, 2600, 0.02);
     } else {
       snd.siren.set(undefined, 0, undefined, 0.15);
     }
@@ -276,27 +288,27 @@ var snd = {
 
   nearMiss: function(){
     if (!AR) return;
-    AR.sfx.noise({ freq:400, to:2600, dur:0.24, gain:0.13, filter:'bandpass', q:1.1 });
+    AR.sfx.noise({ freq:400, to:2600, dur:0.24, gain:0.095, filter:'bandpass', q:1.1 });
   },
   nitro: function(){
     if (!AR) return;
     var t = AR.audio.now();
-    AR.sfx.noise({ t:t, freq:300, to:5200, dur:0.5, gain:0.15, filter:'bandpass', q:0.8 });
+    AR.sfx.noise({ t:t, freq:300, to:5200, dur:0.5, gain:0.11, filter:'bandpass', q:0.8 });
     AR.sfx.tone({ t:t, freq:180, to:900, dur:0.4, type:'sawtooth', gain:0.10, cutoff:2400 });
   },
   bump: function(hard){
     if (!AR) return;
     var t = AR.audio.now();
-    AR.sfx.noise({ t:t, freq:1600, to:120, dur:hard?0.5:0.28, gain:hard?0.34:0.22,
+    AR.sfx.noise({ t:t, freq:1600, to:120, dur:hard?0.5:0.28, gain:hard?0.26:0.17,
                    filter:'lowpass', q:1.6 });
     AR.sfx.tone({ t:t, freq:hard?140:190, to:48, dur:hard?0.42:0.24, type:'square',
-                  gain:hard?0.20:0.13, cutoff:800 });
+                  gain:hard?0.15:0.10, cutoff:800 });
     AR.sfx.noise({ t:t+0.04, freq:3400, dur:0.16, gain:hard?0.14:0.08, filter:'highpass' });
   },
   copDown: function(){
     if (!AR) return;
     var t = AR.audio.now();
-    AR.sfx.noise({ t:t, freq:2200, to:70, dur:0.85, gain:0.30, filter:'lowpass', q:1.2 });
+    AR.sfx.noise({ t:t, freq:2200, to:70, dur:0.85, gain:0.22, filter:'lowpass', q:1.2 });
     AR.sfx.tone({ t:t, freq:220, to:40, dur:0.9, type:'sawtooth', gain:0.16, cutoff:900 });
     AR.sfx.tone({ t:t+0.28, freq:1300, to:300, dur:0.5, type:'sine', gain:0.06, verb:0.5 });
   },
@@ -316,7 +328,7 @@ var snd = {
   dead: function(){
     if (!AR) return;
     var t = AR.audio.now();
-    AR.sfx.noise({ t:t, freq:2600, to:60, dur:1.5, gain:0.34, filter:'lowpass', q:1.4 });
+    AR.sfx.noise({ t:t, freq:2600, to:60, dur:1.5, gain:0.26, filter:'lowpass', q:1.4 });
     AR.sfx.tone({ t:t, freq:260, to:34, dur:1.7, type:'sawtooth', gain:0.18, cutoff:700, verb:0.5 });
     snd.quiet();
   }

@@ -8,8 +8,20 @@
 <title>Deep</title>
 <meta name="arcade-title" content="Deep">
 <meta name="arcade-accent" content="#4de0c8">
-<script src="../audio.js"></script>
-<script src="../arcade.js"></script>
+<script>
+/* Shared scripts are stamped with a slot that rolls over every ten minutes —
+   the same window GitHub Pages caches for — so a stale copy can never outlive
+   the CDN, and there is no version number for anyone to remember to bump.
+   document.write is used deliberately: it keeps these strictly in order, and
+   the game code below expects window.Arcade to already exist. */
+(function(d){
+  var v = '?v=' + Math.floor(Date.now() / 6e5);
+  var base = '../';
+  ['audio.js', 'arcade.js'].forEach(function(f){
+    d.write('<scr' + 'ipt src="' + base + f + v + '"></scr' + 'ipt>');
+  });
+})(document);
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
