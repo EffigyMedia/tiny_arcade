@@ -23,7 +23,7 @@ var A = window.Arcade = window.Arcade || {};
 
 var ctx = null, master = null, sfxBus = null, musBus = null, uiBus = null;
 var verb = null, noiseBuf = null, hushed = false;
-var listeners = [];
+var listeners = [], resetSubs = [];
 var gestured = false;      // a context built before a real gesture starts
 var pending = null;        // suspended and never recovers cleanly on iOS
 
@@ -42,6 +42,18 @@ function applyGains(t){
   sfxBus.gain.setTargetAtTime((pref.sfx   && !hushed) ? 1    : 0, now, k);
   musBus.gain.setTargetAtTime((pref.music && !hushed) ? 0.85 : 0, now, k);
   uiBus.gain.setTargetAtTime(pref.sfx ? 0.9 : 0, now, 0.01);
+}
+
+/* iOS will hand back a context that claims to be running but stays mute
+   until something has actually been played inside the gesture itself. */
+function unlockTap(){
+  try {
+    var b = ctx.createBuffer(1, 1, 22050);
+    var src = ctx.createBufferSource();
+    src.buffer = b;
+    src.connect(ctx.destination);
+    src.start(0);
+  } catch(e){}
 }
 
 /* called whenever the context might have come alive */
@@ -98,18 +110,25 @@ A.audio = {
     A.audio.ctx = ctx; A.audio.ready = true;
     applyGains(0);
     ctx.onstatechange = flush;
+    unlockTap();
     if (ctx.state === 'suspended') ctx.resume().then(flush, function(){});
     else flush();
+    startWatchdog();
     return ctx.state === 'running';
   },
 
   get: function(k){ return pref[k]; },
-  set: function(k, v){ pref[k] = !!v; save(); applyGains(); fire(); },
+  set: function(k, v){ pref[k] = !!v; save(); applyGains(); flush(); fire(); },
   toggle: function(k){ A.audio.set(k, !pref[k]); },
-  allOn:  function(){ pref.sfx = true;  pref.music = true;  save(); applyGains(); fire(); },
+  allOn:  function(){ pref.sfx = true;  pref.music = true;  save(); applyGains(); flush(); fire(); },
   allOff: function(){ pref.sfx = false; pref.music = false; save(); applyGains(); fire(); },
   anyOn:  function(){ return pref.sfx || pref.music; },
   onChange: function(fn){ listeners.push(fn); },
+
+  /* If the OS throws the context away entirely — a long spell in the
+     background — held voices like engines and drones die with it. Games
+     register here to rebuild them. */
+  onReset: function(fn){ resetSubs.push(fn); },
 
   /* silence everything without touching the user's preferences */
   hush: function(v){
@@ -338,6 +357,38 @@ A.note = function(name, oct){
   return 440 * Math.pow(2, (n - 9) / 12 + ((oct === undefined ? 4 : oct) - 4));
 };
 
+/* Everything above assumes the browser behaves. This is the net underneath:
+   twice a second, check that what should be audible actually is, and repair
+   it. It fixes a stalled start without the player having to touch the mute
+   toggle, which is the manual version of exactly this. */
+var wdTimer = null;
+function startWatchdog(){
+  if (wdTimer) return;
+  wdTimer = setInterval(function(){
+    if (!ctx) return;
+    if (ctx.state === 'closed'){
+      ctx = null; master = sfxBus = musBus = uiBus = verb = noiseBuf = null;
+      A.audio.ctx = null; A.audio.ready = false;
+      if (M.timer){ clearInterval(M.timer); M.timer = null; }
+      if (gestured && A.audio.init()){
+        for (var i=0;i<resetSubs.length;i++) try { resetSubs[i](); } catch(e){}
+      }
+      return;
+    }
+    if (ctx.state !== 'running'){
+      if (gestured) ctx.resume().then(flush, function(){});
+      return;
+    }
+    /* music was asked for but never actually got going */
+    if (pending && M.on && !M.paused && !M.timer) runMusic(pending);
+    /* a bus that should be open but is sitting at zero */
+    var wantMus = (pref.music && !hushed) ? 0.85 : 0;
+    var wantSfx = (pref.sfx   && !hushed) ? 1    : 0;
+    if (Math.abs(musBus.gain.value - wantMus) > 0.4 ||
+        Math.abs(sfxBus.gain.value - wantSfx) > 0.4) applyGains(0.05);
+  }, 500);
+}
+
 /* Any real gesture is our cue: build the context if we have not yet, resume
    it if the browser parked it, and release any music that was queued while
    we were not allowed to make a sound. Stays subscribed, because a tab can
@@ -345,8 +396,11 @@ A.note = function(name, oct){
 function wake(){
   gestured = true;
   A.audio.init();
-  if (ctx && ctx.state !== 'running') ctx.resume().then(flush, function(){});
+  if (!ctx) return;
+  unlockTap();
+  if (ctx.state !== 'running') ctx.resume().then(flush, function(){});
   else flush();
+  startWatchdog();
 }
 /* capture phase: a game's own pointerdown handler on its canvas would
    otherwise run first and find the engine still asleep */
