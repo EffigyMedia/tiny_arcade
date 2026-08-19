@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#06050a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Tiny Arcade">
+<link rel="apple-touch-icon" href="icon.png">
+<link rel="icon" href="icon.png">
+<title>Tiny Arcade</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#06050a;
+  --panel:#0d0c16;
+  --line:#241f38;
+  --text:#f2eefb;
+  --dim:#8d86a8;
+  --mag:#ff2d95;
+  --cyan:#00e5ff;
+  --gold:#ffc23c;
+  --px:"Press Start 2P","Courier New",monospace;
+  --crt:"VT323",ui-monospace,Menlo,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{
+  min-height:100%;background:var(--ink);color:var(--text);
+  font-family:var(--crt);overscroll-behavior-y:none;
+  -webkit-user-select:none;user-select:none;
+}
+body{
+  background:
+    radial-gradient(120% 46% at 50% 0%, #241134 0%, rgba(10,8,18,0) 62%),
+    radial-gradient(90% 40% at 50% 100%, #10203a 0%, rgba(10,8,18,0) 70%),
+    var(--ink);
+}
+
+/* ---------- CRT glass over the whole cabinet ---------- */
+#crt{
+  position:fixed;inset:0;pointer-events:none;z-index:900;
+  background:repeating-linear-gradient(to bottom,rgba(0,0,0,.20) 0 1px,transparent 1px 3px);
+  animation:hum 5.5s steps(60) infinite;
+}
+#crt::after{
+  content:"";position:absolute;inset:0;
+  background:radial-gradient(120% 80% at 50% 45%,rgba(0,0,0,0) 42%,rgba(0,0,0,.58) 100%);
+}
+@keyframes hum{0%,100%{opacity:1}47%{opacity:.93}49%{opacity:1}}
+
+#page{max-width:880px;margin:0 auto;padding:0 16px calc(env(safe-area-inset-bottom,0px) + 26px)}
+
+/* slim sign that drops in once the big one scrolls off */
+#mini{
+  position:fixed;top:0;left:0;right:0;z-index:850;
+  padding:calc(env(safe-area-inset-top,0px) + 9px) 14px 9px;
+  background:rgba(8,6,14,.92);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);
+  border-bottom:1px solid var(--line);
+  font-family:var(--px);font-size:9px;letter-spacing:.08em;text-align:center;
+  transform:translateY(-102%);transition:transform .22s ease;
+}
+#mini.on{transform:translateY(0)}
+#mini .a{color:var(--cyan);text-shadow:0 0 10px currentColor}
+#mini .b{color:var(--mag);text-shadow:0 0 10px currentColor;margin-left:7px}
+
+/* ---------- the sign ---------- */
+.sign{
+  padding:calc(env(safe-area-inset-top,0px) + 44px) 8px 24px;
+  text-align:center;position:relative;
+}
+.sign .rig{
+  position:absolute;left:26%;right:26%;top:calc(env(safe-area-inset-top,0px) + 10px);
+  height:18px;border-left:2px solid #2a2440;border-right:2px solid #2a2440;
+}
+h1{font-family:var(--px);line-height:1;letter-spacing:.02em}
+h1 .t1{
+  display:block;font-size:clamp(19px,6.8vw,32px);color:var(--cyan);
+  text-shadow:0 0 4px currentColor,0 0 14px currentColor,0 0 34px currentColor;
+  margin-bottom:clamp(11px,3.2vw,17px);
+}
+h1 .t2{
+  display:block;font-size:clamp(27px,9.8vw,48px);color:var(--mag);
+  text-shadow:0 0 4px currentColor,0 0 16px currentColor,0 0 42px currentColor,0 0 76px currentColor;
+  animation:tube 7s linear infinite;
+}
+@keyframes tube{
+  0%,17%,19%,21%,23%,63%,65%,100%{opacity:1}
+  18%,22%,64%{opacity:.42}
+}
+.tube{
+  height:2px;margin:24px auto 0;max-width:280px;
+  background:linear-gradient(90deg,transparent,var(--mag),var(--cyan),transparent);
+  box-shadow:0 0 12px rgba(255,45,149,.6);
+}
+
+/* ---------- attract ticker ---------- */
+.ticker{
+  overflow:hidden;white-space:nowrap;margin:14px -16px 24px;
+  border-top:1px solid var(--line);border-bottom:1px solid var(--line);
+  background:rgba(255,255,255,.02);
+}
+.tick{
+  display:inline-block;padding:7px 0;font-family:var(--px);font-size:8px;
+  color:var(--gold);animation:roll 26s linear infinite;
+}
+.tick span{padding:0 18px;opacity:.9}
+@keyframes roll{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+
+/* ---------- cabinets ---------- */
+.rack{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px}
+.cab{
+  display:block;text-decoration:none;color:inherit;position:relative;
+  background:linear-gradient(180deg,#12101c 0%,var(--panel) 100%);
+  border:1px solid var(--line);border-radius:4px;overflow:hidden;
+  box-shadow:0 0 0 1px rgba(0,0,0,.6), 0 14px 30px rgba(0,0,0,.5);
+  transition:transform .1s ease, box-shadow .1s ease;
+}
+.cab::before{
+  content:"";position:absolute;inset:0;pointer-events:none;opacity:.09;
+  background:linear-gradient(115deg,var(--a) 0%,transparent 46%);
+}
+.cab:active{transform:translateY(2px);box-shadow:0 0 0 1px rgba(0,0,0,.6),0 6px 14px rgba(0,0,0,.5)}
+.cab:focus-visible{outline:2px solid var(--a);outline-offset:3px}
+
+.marquee{
+  display:flex;align-items:center;gap:10px;padding:10px 11px;
+  border-bottom:2px solid var(--a);
+  box-shadow:0 6px 18px -6px var(--a);
+  position:relative;
+}
+.marquee::before{
+  content:"";position:absolute;inset:0;opacity:.15;
+  background:linear-gradient(180deg,var(--a) 0%,transparent 120%);
+}
+.mname{
+  font-family:var(--px);font-size:clamp(11px,3.5vw,15px);color:#fff;
+  text-shadow:0 0 8px var(--a),0 0 22px var(--a);position:relative;
+}
+.mno{
+  margin-left:auto;font-family:var(--px);font-size:9px;color:var(--a);position:relative;
+}
+
+.body{display:flex;gap:13px;padding:13px 11px 11px}
+.screen{
+  flex:none;width:88px;position:relative;align-self:flex-start;
+  background:#02040a;border:4px solid #1b1828;border-radius:3px;
+  box-shadow:inset 0 0 14px rgba(0,0,0,.9), 0 0 22px -6px var(--a);
+}
+.screen canvas{display:block;width:100%;height:100%}
+.screen::after{
+  content:"";position:absolute;inset:0;pointer-events:none;border-radius:2px;
+  background:
+    linear-gradient(115deg,rgba(255,255,255,.10) 0%,transparent 38%),
+    repeating-linear-gradient(to bottom,rgba(0,0,0,.30) 0 1px,transparent 1px 3px);
+}
+.meat{flex:1;min-width:0;display:flex;flex-direction:column}
+.genre{
+  font-family:var(--px);font-size:7px;letter-spacing:.06em;color:var(--dim);
+  margin-bottom:9px;line-height:1.7;
+}
+.hook{font-size:16px;line-height:1.22;color:#c6bfdb;
+  display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
+
+.deck{margin-top:auto;padding-top:12px;display:flex;align-items:center;gap:8px}
+.knob{
+  width:13px;height:13px;border-radius:50%;flex:none;
+  background:radial-gradient(circle at 34% 30%,#fff 0%,var(--a) 46%,rgba(0,0,0,.7) 100%);
+  box-shadow:0 0 10px var(--a);
+}
+.knob.b{background:radial-gradient(circle at 34% 30%,#fff 0%,#6a6480 46%,rgba(0,0,0,.7) 100%);box-shadow:none}
+.start{
+  margin-left:auto;font-family:var(--px);font-size:8px;color:var(--a);
+  text-shadow:0 0 10px var(--a);animation:blink 1.15s steps(2) infinite;
+}
+@keyframes blink{0%,49%{opacity:1}50%,100%{opacity:.18}}
+
+/* ---------- coin slot ---------- */
+footer{margin-top:28px;border-top:1px solid var(--line);padding-top:16px;text-align:center}
+.credit{font-family:var(--px);font-size:9px;color:var(--gold);margin-bottom:12px}
+.credit em{font-style:normal;color:var(--dim)}
+.tip{font-size:16.5px;line-height:1.35;color:var(--dim);max-width:34ch;margin:0 auto}
+.tip b{color:var(--text)}
+.tip.hide{display:none}
+.sig{margin-top:14px;font-family:var(--px);font-size:7px;color:#4a4463;line-height:2}
+.attrib{margin-top:26px;padding-top:22px;border-top:1px solid var(--line)}
+.attrib img{
+  display:block;width:126px;height:auto;margin:0 auto 12px;
+  opacity:.92;filter:drop-shadow(0 0 18px rgba(190,205,230,.13));
+}
+.copy{font-family:var(--px);font-size:7px;line-height:1.9;color:#6b6488;letter-spacing:.04em}
+
+@media (prefers-reduced-motion:reduce){
+  #crt,h1 .t2,.tick,.start{animation:none}
+}
+</style>
+</head>
+<body>
+<div id="crt"></div>
+<div id="mini"><span class="a">TINY</span><span class="b">ARCADE</span></div>
+
+<div id="page">
+
+  <div class="sign">
+    <div class="rig"></div>
+    <h1><span class="t1">TINY</span><span class="t2">ARCADE</span></h1>
+    <div class="tube"></div>
+  </div>
+
+  <div class="ticker"><div class="tick" id="tick"></div></div>
+
+  <div class="rack" id="rack"></div>
+
+  <footer>
+    <div class="credit" id="credit">CREDIT 99 <em>&nbsp;&nbsp;FREE PLAY</em></div>
+    <div class="tip" id="tip">Share &rarr; <b>Add to Home Screen</b> to play full screen, without the browser bars.</div>
+    <div class="sig">NO COINS &middot; NO SERVER &middot; HIGH SCORES KEPT IN YOUR HEAD</div>
+    <div class="attrib">
+      <img src="effigy.png" alt="Effigy Media" width="400" height="240">
+      <div class="copy">&copy; 2026 Effigy Media. All rights reserved.</div>
+    </div>
+  </footer>
+
+</div>
+
+<script src="games.js"></script>
+<script>
+(function(){
+"use strict";
+
+var GAMES = window.TINY_ARCADE || [];
+var rack = document.getElementById('rack');
+var screens = [];
+var still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/* ---------- attract ticker ---------- */
+var msgs = ['\u2605 SELECT YOUR MACHINE', '\u2605 FREE PLAY',
+            '\u2605 NO COINS NEEDED', '\u2605 PLAYED IN THE DARK',
+            '\u2605 INSERT NOTHING, PRESS START'];
+var line = msgs.map(function(m){ return '<span>' + m + '</span>'; }).join('');
+document.getElementById('tick').innerHTML = line + line;
+
+/* ---------- build the row of cabinets ---------- */
+GAMES.forEach(function(g, i){
+  var a = document.createElement('a');
+  a.className = 'cab';
+  a.href = g.file;
+  a.style.setProperty('--a', g.accent);
+  a.innerHTML =
+    '<div class="marquee"><span class="mname"></span><span class="mno">' +
+      String(i+1).padStart(2,'0') + '</span></div>' +
+    '<div class="body">' +
+      '<div class="screen"><canvas></canvas></div>' +
+      '<div class="meat">' +
+        '<div class="genre"></div>' +
+        '<div class="hook"></div>' +
+        '<div class="deck"><span class="knob"></span><span class="knob b"></span>' +
+          '<span class="start">PRESS START</span></div>' +
+      '</div>' +
+    '</div>';
+  a.querySelector('.mname').textContent = g.name.toUpperCase();
+  a.querySelector('.genre').textContent = g.genre;
+  a.querySelector('.hook').textContent  = g.hook;
+  rack.appendChild(a);
+  screens.push({ cv:a.querySelector('canvas'), kind:g.attract, accent:g.accent, t:Math.random()*40 });
+});
+
+if (window.navigator.standalone) document.getElementById('tip').className = 'tip hide';
+
+/* ---------- attract screens ---------- */
+function size(s){
+  var r = s.cv.parentNode.getBoundingClientRect();
+  if (!r.width) return false;
+  var w = r.width - 8, h = Math.round(w * 1.38);
+  s.cv.parentNode.style.height = (h + 8) + 'px';
+  var d = Math.min(2, window.devicePixelRatio || 1);
+  s.cv.width = Math.round(w*d); s.cv.height = Math.round(h*d);
+  s.ctx = s.cv.getContext('2d');
+  s.ctx.setTransform(d,0,0,d,0,0);
+  s.w = w; s.h = h;
+  return true;
+}
+
+function dive(g,s,t){
+  g.fillStyle='#061119'; g.fillRect(0,0,s.w,s.h);
+  var gap=s.w*0.34;
+  for(var i=0;i<4;i++){
+    var y=((t*22+i*s.h/4)%(s.h+18))-9;
+    var x=s.w*0.5+Math.sin(i*2.1+t*0.5)*s.w*0.22;
+    g.fillStyle='#17303c';
+    g.fillRect(0,y,x-gap/2,4); g.fillRect(x+gap/2,y,s.w-(x+gap/2),4);
+    g.fillStyle=s.accent; g.globalAlpha=.8;
+    g.fillRect(x-gap/2-2,y,2,4); g.fillRect(x+gap/2,y,2,4);
+    g.globalAlpha=1;
+  }
+  g.fillStyle='#eafff8';
+  g.beginPath(); g.arc(s.w/2+Math.sin(t*0.9)*s.w*0.2, s.h*0.3, 3, 0, 6.2832); g.fill();
+}
+
+function grid(g,s,t){
+  g.fillStyle='#05080c'; g.fillRect(0,0,s.w,s.h);
+  var c=6,r=8,cw=s.w/c,ch=s.h/r;
+  for(var y=0;y<r;y++) for(var x=0;x<c;x++){
+    var lit=(Math.sin(x*3.1+y*1.7)*0.5+0.5)>0.42;
+    var sweep=Math.max(0,1-Math.abs(((t*1.6)%(r+3))-y));
+    g.fillStyle=lit?'#16232e':'#0a0e14';
+    g.fillRect(x*cw+1,y*ch+1,cw-2,ch-2);
+    if(lit&&sweep>0){ g.globalAlpha=sweep*0.5; g.fillStyle=s.accent;
+      g.fillRect(x*cw+1,y*ch+1,cw-2,ch-2); g.globalAlpha=1; }
+  }
+  g.fillStyle='#ff3b5c'; g.fillRect(cw*4+cw*0.3,ch*2+ch*0.3,cw*0.4,ch*0.4);
+  g.fillStyle=s.accent;  g.fillRect(cw*2+cw*0.3,ch*5+ch*0.3,cw*0.4,ch*0.4);
+}
+
+function road(g,s,t){
+  var sky=g.createLinearGradient(0,0,0,s.h*0.42);
+  sky.addColorStop(0,'#140a1e'); sky.addColorStop(1,'#7a2f2a');
+  g.fillStyle=sky; g.fillRect(0,0,s.w,s.h*0.42);
+  g.fillStyle='#20202c'; g.fillRect(0,s.h*0.42,s.w,s.h*0.58);
+  var hz=s.h*0.42;
+  g.fillStyle='#14141d';
+  g.beginPath(); g.moveTo(s.w*0.44,hz); g.lineTo(s.w*0.56,hz);
+  g.lineTo(s.w*1.25,s.h); g.lineTo(-s.w*0.25,s.h); g.closePath(); g.fill();
+  for(var i=0;i<7;i++){
+    var p=((t*0.55+i/7)%1), yy=hz+p*p*(s.h-hz), half=(yy-hz)/(s.h-hz);
+    g.globalAlpha=0.25+half*0.75; g.fillStyle=s.accent;
+    g.fillRect(s.w/2-(1+half*2)/2, yy, 1+half*2, 2+half*7);
+    g.globalAlpha=1;
+  }
+  g.fillStyle='#e8eef7'; g.fillRect(s.w/2-5,s.h-16,10,7);
+  g.fillStyle='#ff3b5c'; g.fillRect(s.w/2-4,s.h-14,3,2); g.fillRect(s.w/2+1,s.h-14,3,2);
+}
+
+var draw = { dive:dive, grid:grid, road:road };
+
+function paint(now){
+  for(var i=0;i<screens.length;i++){
+    var s=screens[i];
+    if(s.off) continue;
+    if(!s.ctx && !size(s)) continue;
+    var fn=draw[s.kind];
+    if(!fn) continue;
+    fn(s.ctx, s, still ? 3+i : now/1000 + s.t);
+  }
+  if(!still) requestAnimationFrame(paint);
+}
+window.addEventListener('resize', function(){ screens.forEach(function(s){ s.ctx=null; }); });
+
+/* only the cabinets on screen run their attract loop */
+if (window.IntersectionObserver){
+  var io = new IntersectionObserver(function(entries){
+    entries.forEach(function(en){
+      for (var i=0;i<screens.length;i++)
+        if (screens[i].cv.parentNode === en.target) screens[i].off = !en.isIntersecting;
+    });
+  }, { rootMargin:'120px' });
+  screens.forEach(function(s){ io.observe(s.cv.parentNode); });
+}
+
+/* the slim sign appears once the marquee is out of the way */
+var mini = document.getElementById('mini');
+var sign = document.querySelector('.sign');
+function onScroll(){
+  mini.classList.toggle('on', window.scrollY > sign.offsetHeight - 56);
+}
+window.addEventListener('scroll', onScroll, { passive:true });
+onScroll();
+
+requestAnimationFrame(paint);
+})();
+</script>
+</body>
+</html>
