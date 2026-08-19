@@ -888,7 +888,9 @@ function step(dt){
     const wantDz = aggro ? 120 : 900;
     const want = spd + clamp((wantDz - dz)*2.2, -2600, 3400);
     k.spd += clamp(want - k.spd, -9000*dt, 9000*dt);
-    k.spd = Math.max(k.spd, 2000);
+    /* A cruiser will run you down at speed but it has no bottle. On the
+       boost you genuinely pull away, which is what the boost is for. */
+    k.spd = clamp(k.spd, 2000, MAX_SPD * 1.05);
     k.z += k.spd*dt;
     let aim = aggro ? playerX : clamp(playerX + (k.side||1)*0.55, -1.05, 1.05);
 

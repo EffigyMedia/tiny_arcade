@@ -1,3 +1,16 @@
+        (function(){
+          const w = wep();
+          const dist = Math.max(Math.abs(sel.x-P.x), Math.abs(sel.y-P.y));
+          const a = playerAtk(w, sel, dist);
+          const chance = Math.max(5, Math.min(95, Math.round(100 * hitOdds(a, sel.def))));
+          const lo = (w.shots||1) * (w.n * 1 + (w.bonus||0)) * P.lvl;
+          const hi = (w.shots||1) * (w.n * w.d + (w.bonus||0)) * P.lvl;
+          const pen = rangePenalty(w, dist);
+          return '<div class="aline">' + dieText(w) + ' \u00B7 <b>' + lo + '\u2013' + hi + '</b> dmg \u00B7 ' +
+                 '<b class="' + (chance >= 60 ? 'safe' : chance >= 40 ? 'warn' : 'risk') + '">' +
+                 chance + '% to land</b>' +
+                 (pen ? ' <b class="risk">' + pen + ' long shot</b>' : '') + '</div>';
+        })() +
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -87,6 +100,7 @@ html,body{
 #hpFill{background:linear-gradient(90deg,#8c1024,var(--blood))}
 #chFill{background:linear-gradient(90deg,#155e75,var(--ice))}
 #xpFill{background:linear-gradient(90deg,#3f3a18,var(--amber))}
+#stFill{background:linear-gradient(90deg,#1d5c2a,#5ce07a)}
 .mnum{font-size:10px;font-weight:500;width:52px;text-align:right;flex:none;font-variant-numeric:tabular-nums}
 .track.thin{height:4px}
 .status{display:flex;gap:6px;margin:6px 0 2px;min-height:14px;flex-wrap:wrap}
@@ -109,9 +123,9 @@ html,body{
 .c-warden{color:#8fa8bd}  .c-wraith{color:#dcb8ff} .c-gorger{color:#6f4bd8}
 .c-stalker{color:#e050ff} .c-skitter{color:#ff8fd8} .c-shrike{color:#c74bff}
 .c-apex{color:#f0e6ff}
-.tag.guard{color:var(--ice)} .tag.core{color:var(--core)} .tag.wep{color:var(--steel)}
+.tag.guard{color:var(--ice)} .tag.core{color:var(--core)} .tag.wep{color:var(--steel)} .tag.lamp{color:#ffe9a8}
 .c-wpn{color:var(--amber)} .c-ammo{color:var(--steel)}
-.c-trauma{color:var(--acid)} .c-grenade{color:var(--amber)}
+.c-trauma{color:var(--acid)} .c-grenade{color:var(--amber)} .c-lamp{color:#ffe9a8}
 .c-stim{color:var(--blood)} .c-carapace{color:var(--steel)}
 
 .vtitle.amberT{color:var(--core)}
@@ -137,8 +151,9 @@ html,body{
 .kstats div{background:var(--panel);padding:8px 9px}
 .kstats span{display:block;font-size:8px;letter-spacing:.18em;color:var(--dim);margin-bottom:3px}
 .kstats b{font-size:13px;font-weight:600;font-variant-numeric:tabular-nums}
-.kend{position:sticky;bottom:-4px;padding-top:10px;
-  background:linear-gradient(180deg,rgba(6,8,10,0),rgba(6,8,10,.92) 40%)}
+.kend{position:sticky;top:-2px;z-index:5;padding:10px 0 12px;
+  background:linear-gradient(180deg,rgba(6,8,10,.97) 66%,rgba(6,8,10,0))}
+.kend .vbtn{margin:0}
 
 /* ---------------- panel ---------------- */
 #panel{
@@ -159,9 +174,9 @@ html,body{
 .hint{font-size:9.5px;color:var(--dim);letter-spacing:.08em}
 
 /* ---------------- actions ---------------- */
-#acts{flex:none;display:grid;grid-template-columns:repeat(5,1fr);gap:5px;margin-top:8px}
+#acts{flex:none;display:grid;grid-template-columns:repeat(6,1fr);gap:4px;margin-top:8px}
 button{
-  font-family:var(--mono);font-weight:600;font-size:9.5px;letter-spacing:.06em;
+  font-family:var(--mono);font-weight:600;font-size:8.5px;letter-spacing:.02em;
   background:#0d141b;color:var(--text);border:1px solid var(--seam);
   padding:9px 2px 7px;cursor:pointer;position:relative;
 }
@@ -230,6 +245,11 @@ button:focus-visible{outline:2px solid var(--ice);outline-offset:1px}
     <div class="meter">
       <span class="mlabel">DATA</span>
       <span class="track thin"><span class="fill" id="xpFill"></span></span>
+    </div>
+    <div class="stat">
+      <span class="lbl">STAMINA</span>
+      <span class="track"><span class="fill" id="stFill"></span></span>
+      <span class="num" id="stNum">0/0</span>
       <span class="mnum" id="xpNum">0/2</span>
     </div>
     <div class="status" id="status"></div>
@@ -244,6 +264,7 @@ button:focus-visible{outline:2px solid var(--ice);outline-offset:1px}
     <button id="bArc">ARC<span class="cost">3 CH</span></button>
     <button id="bPatch">PATCH<span class="cost">4 CH</span></button>
     <button id="bSurge">SURGE<span class="cost">5 CH</span></button>
+    <button id="bRest">REST<span class="cost">+0</span></button>
     <button id="bGear">GEAR<span class="cost">KIT</span></button>
   </div>
 
@@ -274,25 +295,25 @@ function shuffled(a){ const c=a.slice(); for(let i=c.length-1;i>0;i--){ const j=
 
 /* ---------------- bestiary ---------------- */
 const SPECIES = {
-  crawler:{ name:'Crawler', g:'c', hp:1.0, dmg:1.0, trait:null, sight:3, spd:0.40, patrol:0.30,
+  crawler:{ name:'Crawler', g:'c', hp:1.0, dmg:1.0, trait:null, atk:1, def:1, dn:1, dd:4, sight:3, spd:0.40, patrol:0.30,
             desc:'Nothing clever. Short sight, slow legs, plenty of teeth.' },
-  husk:   { name:'Husk',    g:'h', hp:0.8, dmg:1.0, trait:'FIRST STRIKE', sight:4, spd:0.60, patrol:0.30,
+  husk:   { name:'Husk',    g:'h', hp:0.8, dmg:1.0, trait:'FIRST STRIKE', atk:2, def:1, dn:1, dd:6, sight:4, spd:0.60, patrol:0.30,
             desc:'Hits before you do, every exchange.' },
-  spitter:{ name:'Spitter', g:'s', hp:0.7, dmg:0.9, trait:'CORROSIVE', sight:5, spd:0.40, patrol:0.30,
+  spitter:{ name:'Spitter', g:'s', hp:0.7, dmg:0.9, trait:'CORROSIVE', atk:2, def:0, dn:1, dd:6, sight:5, spd:0.40, patrol:0.30,
             desc:'Sears your suit: scan repair drops to a third until purged.' },
-  warden: { name:'Warden',  g:'W', hp:1.3, dmg:1.0, trait:'PLATED', sight:3, spd:0.30, patrol:0.22,
+  warden: { name:'Warden',  g:'W', hp:1.3, dmg:1.0, trait:'PLATED', atk:2, def:6, dn:1, dd:8, sight:3, spd:0.30, patrol:0.22,
             desc:'Melee does 30% less. ARC ignores plating.' },
-  wraith: { name:'Wraith',  g:'w', hp:0.8, dmg:0.9, trait:'DRAIN', sight:6, spd:0.60, patrol:0.40,
+  wraith: { name:'Wraith',  g:'w', hp:0.8, dmg:0.9, trait:'DRAIN', atk:3, def:2, dn:1, dd:6, sight:6, spd:0.60, patrol:0.40,
             desc:'Every hit it lands strips 2 charge.' },
-  gorger: { name:'Gorger',  g:'g', hp:1.3, dmg:0.9, trait:'REGENERATES', sight:3, spd:0.30, patrol:0.22,
+  gorger: { name:'Gorger',  g:'g', hp:1.3, dmg:0.9, trait:'REGENERATES', atk:2, def:3, dn:1, dd:8, sight:3, spd:0.30, patrol:0.22,
             desc:'Knits back 12% of its mass each turn you spend elsewhere.' },
-  stalker:{ name:'Stalker', g:'t', hp:0.7, dmg:1.1, trait:'HUNTS', sight:7, spd:1.15, patrol:0.50,
+  stalker:{ name:'Stalker', g:'t', hp:0.7, dmg:1.1, trait:'HUNTS', atk:4, def:2, dn:1, dd:8, sight:7, spd:1.15, patrol:0.50,
             desc:'Sees furthest, moves fastest, and does not lose the scent.' },
-  skitter:{ name:'Skitter', g:'k', hp:0.30, dmg:0.50, trait:'PACK \u00B7 FAST', sight:6, spd:1.50, patrol:0.60, pack:4,
+  skitter:{ name:'Skitter', g:'k', hp:0.30, dmg:0.50, trait:'PACK \u00B7 FAST', atk:1, def:4, dn:1, dd:3, sight:6, spd:1.50, patrol:0.60, pack:4,
             desc:'Faster than you and never alone. Individually, almost nothing.' },
-  shrike: { name:'Shrike',  g:'y', hp:0.55, dmg:0.85, trait:'FAST', sight:8, spd:1.25, patrol:0.55, pack:2,
+  shrike: { name:'Shrike',  g:'y', hp:0.55, dmg:0.85, trait:'FAST', atk:3, def:3, dn:1, dd:6, sight:8, spd:1.25, patrol:0.55, pack:2,
             desc:'Crosses a compartment in the time you cross half of one.' },
-  apex:   { name:'Apex',    g:'\u03A9', hp:1.7, dmg:1.1, trait:'APEX', sight:4, spd:0.40, patrol:0.22,
+  apex:   { name:'Apex',    g:'\u03A9', hp:1.7, dmg:1.1, trait:'APEX', atk:4, def:5, dn:1, dd:10, sight:4, spd:0.40, patrol:0.22,
             desc:'Whatever the deck was built around. It is holding the salvage.' }
 };
 
@@ -321,10 +342,19 @@ const ROSTER = [
   ['husk','spitter','warden','wraith','gorger','stalker','skitter','shrike']
 ];
 
+/* ---------------- dice ---------------- */
+function roll(n, d){ let t = 0; for(let i=0;i<n;i++) t += 1 + ((Math.random()*d)|0); return t; }
+function d20(){ return 1 + ((Math.random()*20)|0); }
+function dieText(w){
+  const b = w.bonus ? '+' + w.bonus : '';
+  return (w.shots > 1 ? w.shots + '\u00D7' : '') + (w.n > 1 ? w.n : 1) + 'd' + w.d + b;
+}
+function avg(w){ return (w.shots||1) * (w.n * (w.d+1)/2 + (w.bonus||0)); }
+
 /* ---------------- armoury ----------------
-   Four things you can feed a weapon: slugs, cells, plasma, fuel. Melee
-   costs nothing but invites a counterattack. Everything else is quiet
-   about it. Tools were built for the hull and repurposed badly.        */
+   Every weapon rolls dice. Ranged weapons list an OPTIMAL range and may fire to
+   double it, taking (12 - die size) on the attack roll out there. Class traits
+   sit on the frame, not the ammunition.                                     */
 const AMMO = {
   slug:   { name:'Slugs',  c:'steel'  },
   cell:   { name:'Cells',  c:'ice'    },
@@ -333,88 +363,315 @@ const AMMO = {
 };
 
 const WEAPONS = {
-  /* --- melee --- */
-  knife:   { name:'Bone Knife',      kind:'melee', mul:1.00, tier:0,
-             note:'Silent, reliable, and far too short.' },
-  crowbar: { name:'Salvage Bar',     kind:'melee', mul:1.30, pry:true, tier:1,
-             note:'Levers plating apart \u2014 half again as much against PLATED.' },
-  baton:   { name:'Shock Baton',     kind:'melee', mul:1.15, stun:1, tier:1,
+  /* --- melee: costs nothing to feed, invites a counterattack --- */
+  fists:   { name:'Fists',           kind:'melee', n:1, d:4,  atk:0, tier:0, cls:'fist',
+             note:'Always there. Never enough.' },
+  knife:   { name:'Bone Knife',      kind:'melee', n:1, d:6,  atk:1, tier:0, cls:'blade',
+             note:'Quiet, quick, and far too short.' },
+  crowbar: { name:'Salvage Bar',     kind:'melee', n:1, d:8,  atk:0, tier:1, cls:'bar', pry:true,
+             note:'Levers plating apart \u2014 an extra 1d6 against PLATED.' },
+  baton:   { name:'Shock Baton',     kind:'melee', n:1, d:6,  bonus:2, atk:1, tier:1, cls:'baton', stun:1,
              note:'Staggers the target: it loses its next turn.' },
-  sword:   { name:'Bulkhead Sabre',  kind:'melee', mul:1.75, tier:2,
+  sword:   { name:'Bulkhead Sabre',  kind:'melee', n:2, d:6,  atk:2, tier:2, cls:'sabre',
              note:'Somebody aboard knew how to use one of these.' },
-  chainsaw:{ name:'Tooth Saw',       kind:'melee', mul:2.55, ammo:'fuel', cost:1,
-             cleave:true, tier:3,
-             note:'Cleaves everything adjacent at once. Drinks fuel.' },
+  chainsaw:{ name:'Tooth Saw',       kind:'melee', n:3, d:6,  atk:-1, tier:3, cls:'saw',
+             ammo:'fuel', cost:1, cleave:true,
+             note:'Cleaves everything adjacent. Drinks fuel, swings wide.' },
 
   /* --- tools, repurposed --- */
-  torch:   { name:'Cutting Torch',   kind:'tool', mul:1.20, ammo:'fuel', cost:1,
-             pierce:true, burn:2, tier:1,
-             note:'Ignores plating and leaves them burning.' },
-  welder:  { name:'Arc Welder',      kind:'tool', mul:1.35, ammo:'cell', cost:1,
-             stun:1, tier:2,
+  sampler: { name:'Core Sampler',    kind:'tool', n:1, d:6, atk:0, tier:1, cls:'drill', bleed:3,
+             note:'Leaves a wound that will not close. Bleed 1d4 for three turns.' },
+  torch:   { name:'Cutting Torch',   kind:'tool', n:1, d:8, atk:0, tier:1, cls:'torch',
+             ammo:'fuel', cost:1, pierce:true, burn:2,
+             note:'Ignores plating and sets them alight. Burn 1d6 for two turns.' },
+  welder:  { name:'Arc Welder',      kind:'tool', n:2, d:4, atk:1, tier:2, cls:'welder',
+             ammo:'cell', cost:1, stun:1,
              note:'Dumps a charge through them. They stop for a moment.' },
-  sampler: { name:'Core Sampler',    kind:'tool', mul:1.10, bleed:3, tier:1,
-             note:'Leaves a wound that will not close.' },
-  rivet:   { name:'Rivet Gun',       kind:'ranged', mul:0.80, ammo:'slug', cost:1,
-             range:2, tier:0,
-             note:'Two squares, cheap, and never meant for this.' }
+
+  flamer:  { name:'Flamethrower',    kind:'ranged', n:1, d:6, atk:0, tier:3, cls:'flamer',
+             ammo:'fuel', cost:1, opt:3, trait:'FIRE', cone:true, burn:3,
+             note:'FIRE \u00B7 a cone three wide, and every tile it sweeps keeps burning.' },
+  rivet:   { name:'Rivet Gun',       kind:'ranged', n:1, d:6, atk:1, tier:0, cls:'rivet',
+             ammo:'slug', cost:1, opt:2, scrapFed:true,
+             note:'SCRAP-FED \u00B7 out of slugs it will chew cells or plasma just the same.' }
 };
 
-/* firearms: five frames, each in the ammunition it was built for */
+/* firearms: a slug baseline, then two feeds that trade reach against power */
 const FRAMES = {
-  pistol:  { mul:0.90, range:4, cost:1, shots:1, tier:0 },
-  smg:     { mul:0.55, range:4, cost:2, shots:3, tier:1 },
-  shotgun: { mul:1.55, range:3, cost:1, shots:1, splash:true, tier:2 },
-  rifle:   { mul:1.70, range:9, cost:1, shots:1, pierceLine:true, tier:2 },
-  lmg:     { mul:0.60, range:6, cost:3, shots:5, tier:3 }
+  pistol:  { n:1, d:6, shots:1, opt:4, cost:1, atk:1, tier:0, trait:'QUICKDRAW',
+             note:'The only gun that does not flinch with something in your face.' },
+  smg:     { n:1, d:4, shots:3, opt:4, cost:2, atk:0, tier:1, trait:'SUPPRESSING',
+             note:'Every hit drops their attack by one next turn.' },
+  shotgun: { n:2, d:6, shots:1, opt:3, cost:1, atk:0, tier:2, trait:'KNOCKBACK', splash:true,
+             note:'Shoves them a square. The placement is the weapon.' },
+  rifle:   { n:2, d:8, shots:1, opt:9, cost:1, atk:1, tier:2, trait:'AIMED', pierceLine:true,
+             note:'Hold still a turn and the range penalty disappears.' },
+  lmg:     { n:1, d:4, shots:5, opt:6, cost:3, atk:-1, tier:3, trait:'SPRAY',
+             note:'Splits its burst across up to three of them.' }
 };
+/* laser: one step weaker, two squares further, pierces plating
+   plasma: one step harder, two squares nearer, sets them burning
+   multi-shot frames step the SHOT COUNT, because d4 has nothing below it   */
 const LOADS = {
-  slug:   { mul:1.00, pool:'slug'   },
-  laser:  { mul:0.90, pool:'cell', pierce:true },   // lasers run off cells
-  plasma: { mul:1.25, pool:'plasma', burn:2 }
+  slug:   { pool:'slug'   },
+  laser:  { pool:'cell',   step:-1, reach:+2, pierce:true },
+  plasma: { pool:'plasma', step:+1, reach:-2, burn:2 }
 };
+const DIE_UP = { 4:6, 6:8, 8:10, 10:12, 12:12 };
+const DIE_DN = { 12:10, 10:8, 8:6, 6:4, 4:4 };
 const GUN_NAMES = {
-  'pistol.slug':'Bolt Pistol',  'pistol.laser':'Beam Pistol',
-  'smg.slug':'Ripper SMG',      'smg.laser':'Lash SMG',
-  'shotgun.slug':'Breaker',     'shotgun.plasma':'Sunburst',
-  'rifle.slug':'Longshot',      'rifle.laser':'Lancet',      'rifle.plasma':'Starfall',
-  'lmg.slug':'Grinder',         'lmg.laser':'Cascade'
-};
-const GUN_NOTES = {
-  pistol:'One round, clean line, no reply.',
-  smg:'Three-round burst. Close work.',
-  shotgun:'Brutal up close, and it catches whatever stands beside them.',
-  rifle:'Reaches the length of the compartment and punches through.',
-  lmg:'Five rounds a pull. Bring a lot of them.'
+  'pistol.slug':'Bolt Pistol',   'pistol.laser':'Beam Pistol',   'pistol.plasma':'Ion Pistol',
+  'smg.slug':'Ripper SMG',       'smg.laser':'Lash SMG',         'smg.plasma':'Cinder SMG',
+  'shotgun.slug':'Breaker',      'shotgun.laser':'Splitbeam',    'shotgun.plasma':'Sunburst',
+  'rifle.slug':'Longshot',       'rifle.laser':'Lancet',         'rifle.plasma':'Starfall',
+  'lmg.slug':'Grinder',          'lmg.laser':'Cascade',          'lmg.plasma':'Emberfeed'
 };
 for(const f in FRAMES){
   for(const a in LOADS){
     const id = f + '.' + a;
     if(!GUN_NAMES[id]) continue;
     const F = FRAMES[f], L = LOADS[a];
+    const multi = F.shots > 1;
+    let n = F.n, d = F.d, shots = F.shots;
+    if(L.step === -1){ multi ? shots-- : d = DIE_DN[d]; }
+    if(L.step === +1){ multi ? shots++ : d = DIE_UP[d]; }
     WEAPONS[id] = {
-      name:GUN_NAMES[id], kind:'ranged', frame:f, load:a, ammo:L.pool, cost:F.cost, range:F.range,
-      shots:F.shots, mul:F.mul * L.mul, tier:F.tier,
+      name:GUN_NAMES[id], kind:'ranged', cls:f, frame:f, load:a, trait:F.trait,
+      n, d, shots, atk:F.atk, tier:F.tier,
+      ammo:L.pool, cost:F.cost,
+      opt:Math.max(2, F.opt + (L.reach || 0)),
       pierce:L.pierce, burn:L.burn, splash:F.splash, pierceLine:F.pierceLine,
-      note:GUN_NOTES[f]
+      note:F.note
     };
   }
 }
+const FINDABLE = Object.keys(WEAPONS).filter(id => id !== 'fists' && WEAPONS[id].tier > 0);
 
-/* what turns up in a weapon crate, roughly by how deep you are */
 const DROPS = [
   ['rivet','crowbar','baton','sampler','pistol.laser'],
-  ['torch','smg.slug','crowbar','baton','sampler'],
-  ['sword','welder','smg.laser','shotgun.slug','torch'],
-  ['shotgun.plasma','rifle.slug','sword','welder','lmg.slug'],
-  ['rifle.laser','rifle.plasma','chainsaw','lmg.laser','shotgun.plasma']
+  ['torch','smg.slug','crowbar','baton','sampler','pistol.plasma'],
+  ['sword','welder','smg.laser','shotgun.slug','torch','smg.plasma'],
+  ['shotgun.plasma','rifle.slug','sword','welder','lmg.slug','shotgun.laser'],
+  ['rifle.laser','rifle.plasma','chainsaw','lmg.laser','lmg.plasma','flamer']
 ];
+
+function wep(){ return WEAPONS[P.weapon] || WEAPONS.fists; }
+function hasWep(id){ return P.weapons.indexOf(id) >= 0; }
+function rounds(id){
+  const w = WEAPONS[id] || {};
+  if(!w.ammo) return Infinity;
+  if(w.scrapFed) return (P.ammo.slug||0) + (P.ammo.cell||0) + (P.ammo.plasma||0);
+  return P.ammo[w.ammo] || 0;
+}
+function canFire(id){ const w = WEAPONS[id] || {}; return !w.ammo || rounds(id) >= (w.cost || 1); }
+function spendAmmo(w){
+  if(!w.ammo) return;
+  const c = w.cost || 1;
+  if(!w.scrapFed || (P.ammo[w.ammo]||0) >= c){ P.ammo[w.ammo] -= c; return; }
+  for(const k of ['slug','cell','plasma']) if((P.ammo[k]||0) >= c){ P.ammo[k] -= c; return; }
+}
+function equip(id){
+  if(!hasWep(id)) return;
+  P.weapon = id;
+  say('Holding the ' + WEAPONS[id].name + '.');
+  snd.pickup();
+  render();
+}
+
+/* ---------------- reach ---------------- */
+function maxRange(w){ return w.opt ? w.opt * 2 : 1; }
+
+/* Stamina. A heavy swing costs more than a light one, and a long dash costs a
+   point a square past the sixth. Shooting costs nothing — that is the trade
+   the guns are making for their ammunition. */
+const FREE_STEPS = 6;
+function swingCost(w){ return Math.max(1, Math.round(avg(w) / 2)); }
+function sprintCost(len){ return Math.max(0, len - FREE_STEPS); }
+function spendStam(n){ P.stam = Math.max(0, P.stam - n); }
+function restGain(){ return Math.max(2, Math.round(P.maxStam * 0.28)); }
+function rangePenalty(w, dist){
+  if(!w.opt || dist <= w.opt) return 0;
+  if(w.trait === 'AIMED' && P.stillTurns > 0) return 0;   /* rifles: hold still */
+  return -(12 - w.d);
+}
+
+/* the corner rule: nothing swings diagonally past a bulkhead. If both squares
+   flanking the diagonal are solid there is no line through it, for anyone. */
+function cornerOpen(ax, ay, bx, by){
+  const dx = bx - ax, dy = by - ay;
+  if(!dx || !dy) return true;
+  const a = at(ax + dx, ay), b = at(ax, ay + dy);
+  const solidA = !a || a.wall || (a.door && !a.door.open);
+  const solidB = !b || b.wall || (b.door && !b.door.open);
+  return !(solidA && solidB);
+}
+
+/* ---------------- the roll ----------------
+   ATKR = ATK + 1d20 against DEFR = DEF + 1d20. Natural 20 is a critical
+   success, natural 1 a critical fail, and the two interact.                */
+function resolve(atk, def, dice, opts){
+  opts = opts || {};
+  const ra = d20(), rd = d20();
+  const A = atk + ra, D = def + rd;
+  const critA = ra === 20, failA = ra === 1;
+  const critD = rd === 20, failD = rd === 1;
+
+  /* A 20-against-a-1 is one roll in four hundred, which sounds rare until you
+     count the swings in a full run — a couple of hundred, so it would end
+     roughly half of them out of nowhere. It is a finisher instead: it only
+     kills something already under half, otherwise it is simply a brutal hit. */
+  if(critA && failD){
+    if(opts.frail) return { kind:'execute', dmg:9999, ra, rd };
+    return { kind:'crit', dmg:Math.max(1, dice() * 2 + 2), ra, rd };
+  }
+  if(failA && critD) return { kind:'reflect', dmg:dice(), ra, rd };
+  if(failA)          return { kind:'miss', dmg:0, ra, rd };
+  if(!critA && A <= D) return { kind:'miss', dmg:0, ra, rd };
+
+  let dmg = dice();
+  dmg += Math.floor(Math.max(0, A - D) / 5);      /* margin */
+  if(critA && !critD) dmg *= 2;
+  else if(critD && !critA) dmg = Math.max(1, Math.round(dmg / 2));
+  return { kind: critA ? 'crit' : 'hit', dmg:Math.max(1, Math.round(dmg)), ra, rd };
+}
+
+function playerAtk(w, m, dist){
+  let a = 3 + P.lvl + (w.atk || 0) + rangePenalty(w, dist || 1);
+  if(P.buff.dmg > 0) a += 1;
+  /* long guns are hopeless with something in your face; the pistol is not */
+  if(w.kind === 'ranged' && w.trait !== 'QUICKDRAW' && adjacentMob()) a -= 4;
+  if(m && !isLit(m.x, m.y)) a -= 4;               /* firing at a noise */
+  if(m && m.supp) a += 0;
+  return a;
+}
+function playerDef(){ return 3 + P.lvl + Math.round(P.resist * 10) + (P.buff.res > 0 ? 3 : 0); }
+
+function weaponDice(w, m, blind){
+  return () => {
+    let n = w.n, d = w.d, shots = w.shots || 1;
+    let total = 0;
+    for(let k=0;k<shots;k++) total += roll(n, d) + (w.bonus || 0);
+    /* Dice alone go flat while hostiles gain HP every deck, so the roll is
+       multiplied by calibration. A sabre stays twice a knife at any level,
+       which a flat per-level bonus would have quietly erased. */
+    total *= P.lvl;
+    if(w.pry && m && m.type === 'warden') total += roll(1, 6);
+    if(m && m.type === 'warden' && !w.pierce && !w.pry) total = Math.round(total * 0.7);
+    if(P.surge) total *= 2;
+    if(P.buff.dmg > 0) total = Math.round(total * 1.3);
+    if(blind) total = Math.max(1, Math.round(total / 2));
+    return total;
+  };
+}
+
+/* ---------------- thrown ----------------
+   You are throwing at a TILE, not at a creature — nothing dodges a grenade.
+   So it is a placement check against a flat 10, and a failure scatters and
+   bounces off the bulkheads rather than politely fizzling.               */
+const THROWN = {
+  grenade:  { name:'Charge',     heft:10, opt:4, blast:1,
+              centre:()=>roll(3,12), edge:()=>roll(1,12), stun:1 },
+  incend:   { name:'Incendiary', heft:10, opt:4, blast:1, fire:4,
+              centre:()=>roll(2,12), edge:()=>roll(1,12), burn:3 },
+  chem:     { name:'Chem Light', heft:6,  opt:5, light:3, lightFor:12 }
+};
+
+const DIRS8 = [[0,-1],[1,-1],[1,0],[1,1],[0,1],[-1,1],[-1,0],[-1,-1]];
+
+function solidAt(x,y){
+  if(!inB(x,y)) return true;
+  const t = at(x,y);
+  return t.wall || (t.door && !t.door.open);
+}
+
+/* 1d8 for a direction, 1d4 for distance, and it bounces: square on comes
+   straight back, a diagonal mirrors only the blocked component, an inside
+   corner reverses both. Four bounces and it gives up where it lies. */
+function scatterFrom(sx, sy, dirIdx, dist){
+  let [dx, dy] = DIRS8[dirIdx];
+  let x = sx, y = sy, left = dist, bounces = 0;
+  while(left > 0){
+    const nx = x + dx, ny = y + dy;
+    if(!solidAt(nx, ny)){ x = nx; y = ny; left--; continue; }
+    if(bounces >= 4) break;
+    bounces++;
+    if(dx !== 0 && dy !== 0){
+      const bx = solidAt(x + dx, y), by = solidAt(x, y + dy);
+      if(bx && by){ dx = -dx; dy = -dy; }
+      else if(bx){ dx = -dx; }
+      else if(by){ dy = -dy; }
+      else { dx = -dx; dy = -dy; }
+    } else { dx = -dx; dy = -dy; }
+  }
+  return { x, y, bounces };
+}
+
+function throwAt(kind, tx, ty){
+  const w = THROWN[kind];
+  if(!w || !P.items[kind] || busy || dead) return false;
+  const dist = Math.max(Math.abs(tx-P.x), Math.abs(ty-P.y));
+  if(dist > w.opt * 2){ say('Too far to throw.'); snd.denied(); render(); return false; }
+
+  P.items[kind]--;
+  const pen = dist > w.opt ? -(12 - w.heft) : 0;
+  const r = d20();
+  const total = r + 3 + P.lvl + pen;
+  let x = tx, y = ty;
+
+  if(r !== 20 && (r === 1 || total <= 10)){
+    const dir = (Math.random()*8)|0;
+    const hop = scatterFrom(tx, ty, dir, roll(1,4) + (r === 1 ? 2 : 0));
+    x = hop.x; y = hop.y;
+    say(w.name + ' goes wide [' + total + ' v 10]' + (hop.bounces ? ', bounces off the plate' : ''));
+  } else {
+    say(w.name + ' lands true [' + total + ' v 10]');
+  }
+  land(kind, x, y);
+  endTurn(null);
+  return true;
+}
+
+function land(kind, x, y){
+  const w = THROWN[kind];
+  if(w.light){
+    lights.push({ x, y, r:w.light, t:w.lightFor });
+    snd.reveal ? snd.reveal() : snd.pickup();
+    reveal(x, y);
+    render();
+    return;
+  }
+  snd.blast();
+  for(const m of mobs.slice()){
+    if(!m.alive) continue;
+    const d = Math.max(Math.abs(m.x-x), Math.abs(m.y-y));
+    if(d > w.blast) continue;
+    const dmg = (d === 0 ? w.centre() : w.edge()) * Math.max(1, Math.round(P.lvl/2));
+    say('  blast \u2192 ' + label(m) + ' \u2212' + dmg);
+    if(w.stun) m.stun = Math.max(m.stun||0, w.stun);
+    if(w.burn){ m.burn = Math.max(m.burn||0, w.burn); m.burnD = Math.max(1, roll(1,8)); }
+    m.hp -= dmg;
+    if(m.hp <= 0) killMob(m);
+  }
+  if(w.fire) for(let dy=-w.blast;dy<=w.blast;dy++) for(let dx=-w.blast;dx<=w.blast;dx++)
+    if(!solidAt(x+dx, y+dy)) blaze[idx(x+dx, y+dy)] = w.fire;
+  /* it can catch you too — an incendiary is a placement decision */
+  const pd = Math.max(Math.abs(P.x-x), Math.abs(P.y-y));
+  if(pd <= w.blast){
+    const dmg = (pd === 0 ? w.centre() : w.edge()) * Math.max(1, Math.round(P.lvl/2));
+    say('  the blast catches you \u2212' + dmg);
+    P.hp -= dmg;
+    if(P.hp <= 0){ die(); return; }
+  }
+  render();
+}
 
 /* ---------------- consumables ---------------- */
 const USABLE = {
   med:      { name:'Med-Gel',    note:'Seals the suit and repairs you.',          c:'acid'   },
   trauma:   { name:'Trauma Kit', note:'A serious repair. Purges everything.',     c:'acid'   },
-  grenade:  { name:'Charge',     note:'Thrown. Hurts everything around the spot.', c:'amber' },
+  grenade:  { name:'Charge',     note:'Thrown. 3d12 at the centre, and it stuns.',   c:'amber' },
+  incend:   { name:'Incendiary', note:'Thrown. Sets the whole blast alight.',        c:'blood' },
+  chem:     { name:'Chem Light', note:'Thrown. Lights three squares for twelve turns \u2014 and it sees round corners.', c:'acid' },
   stim:     { name:'Stim',       note:'+60% damage for six turns.',               c:'blood'  },
   carapace: { name:'Carapace',   note:'\u221235% incoming for six turns.',           c:'steel'  }
 };
@@ -430,13 +687,11 @@ function equip(id){
   snd.pickup();
   render();
 }
+/* average damage, for menus and comparisons — the real swing rolls dice */
 function wepDmg(id, m){
-  const w = WEAPONS[id] || WEAPONS.knife;
-  let d = P.dmg * P.dmgMul * w.mul * (w.shots || 1) * (P.buff.dmg > 0 ? 1.6 : 1) * (P.surge ? 2 : 1);
-  if(m && m.type === 'warden'){
-    if(w.pry) d *= 1.6;
-    else if(!w.pierce) d *= 0.7;
-  }
+  const w = WEAPONS[id] || WEAPONS.fists;
+  let d = avg(w) * P.lvl;
+  if(m && m.type === 'warden'){ if(w.pry) d += 3.5; else if(!w.pierce) d *= 0.7; }
   return Math.max(1, Math.round(d));
 }
 
@@ -448,6 +703,8 @@ const GEAR = {
   med:   { g:'+',        c:'acid',   name:'MED-GEL',    note:'field repair' },
   trauma:{ g:'\u2695',   c:'acid',   name:'TRAUMA KIT', note:'a serious repair' },
   grenade:{g:'\u25CF',   c:'amber',  name:'CHARGE',     note:'thrown explosive' },
+  incend: {g:'\u25C9',   c:'blood',  name:'INCENDIARY', note:'thrown, and it burns' },
+  chem:   {g:'\u25AB',   c:'acid',   name:'CHEM LIGHT', note:'thrown light' },
   stim:  { g:'\u2191',   c:'blood',  name:'STIM',       note:'damage, six turns' },
   carapace:{g:'\u25D3',  c:'steel',  name:'CARAPACE',   note:'armour, six turns' },
   cell:  { g:'\u25C6',   c:'ice',    name:'POWER CELL', note:'+3 charge' },
@@ -458,7 +715,8 @@ const GEAR = {
   key:   { g:'\u25AE',   c:'key',    name:'KEYCARD',    note:'opens a sealed door' },
   core:  { g:'\u2299',   c:'core',   name:'SALVAGE CORE', note:'a permanent system' },
   wpn:   { g:'\u2020',   c:'wpn',    name:'WEAPON',       note:'something better to hold' },
-  ammo:  { g:'\u2237',   c:'ammo',   name:'ROUNDS',       note:'+6 rounds' }
+  ammo:  { g:'\u2237',   c:'ammo',   name:'ROUNDS',       note:'+6 rounds' },
+  lamp:  { g:'\u2600',   c:'lamp',   name:'OPTIC',        note:'a better headlamp' }
 };
 
 // one per deck, shuffled per run, so no two ships pay out the same
@@ -976,7 +1234,7 @@ function assembleDeck(){
   spawnMob(ix(apexI), iy(apexI), 'apex', base + 1 + Math.floor(deck/5));
 
   /* --- gear strewn through the compartments --- */
-  const kinds = ['med','cell','med','plate','chip','cap','shard','ammo','ammo','ammo','grenade','stim','carapace','trauma'];
+  const kinds = ['med','cell','med','plate','chip','cap','shard','ammo','ammo','ammo','grenade','incend','chem','chem','stim','carapace','trauma','lamp'];
   const drops = 4 + Math.floor(deck/2);
   const shelf = roomTiles.filter(i => !used.has(i) && !map[i].door && !map[i].exit);
   for(let k=0;k<drops && shelf.length;k++){
@@ -988,6 +1246,14 @@ function assembleDeck(){
       const owned = P.weapons.map(id => WEAPONS[id].ammo).filter(Boolean);
       map[i].atype = owned.length && Math.random() < 0.75 ? pick(owned) : pick(['slug','cell','plasma','fuel']);
     }
+  }
+
+  // the first optic is guaranteed early: deck one is meant to be blind, the
+  // rest of the run is not
+  if(deck >= 2 && (P.lamp || 0) === 0 && shelf.length){
+    const i = shelf.splice((Math.random()*shelf.length)|0, 1)[0];
+    used.add(i);
+    map[i].item = 'lamp';
   }
 
   // one weapon crate every couple of decks
@@ -1006,15 +1272,19 @@ function assembleDeck(){
 }
 
 function buildDeck(){
+  blaze = new Uint8Array(N);
+  lights = [];
   let ok = false, guard = 0;
   while(!ok && guard++ < 30) ok = assembleDeck();
 }
 
 function spawnMob(x,y,type,lvl){
   const s = SPECIES[type];
-  const hp = Math.max(4, Math.round(10*lvl*s.hp));
+  const hp = Math.max(4, Math.round(5*lvl*s.hp));
   mobs.push({ x,y,type,lvl,alive:true, hp, maxHp:hp,
               dmg: Math.max(1, Math.round(2.5*lvl*s.dmg)), boss: type === 'apex',
+              atk: (s.atk||1) + Math.floor(lvl*0.8), def: (s.def||1) + Math.floor(lvl*0.7),
+              dn: (s.dn||1) + Math.floor(lvl/4), dd: s.dd||4, supp:0,
               alert:0, move:0, dir:null, stun:0, burn:0, bleed:0 });
 }
 
@@ -1023,14 +1293,14 @@ function spawnMob(x,y,type,lvl){
    ================================================================ */
 function newRun(){
   snd.begin();
-  P = { lvl:1, hp:26, maxHp:26, dmg:5, charge:4, maxCharge:10,
+  P = { lvl:1, hp:34, maxHp:34, dmg:5, charge:4, maxCharge:10, stam:14, maxStam:14,
         xp:0, xpNeed:2, x:0, y:0, corroded:false, surge:false,
-        revealed:0, kills:0, keys:[],
-        weapons:['knife','pistol.slug'], weapon:'knife',
+        revealed:0, kills:0, keys:[], stillTurns:0, movedThisTurn:false,
+        weapons:['fists','knife','pistol.slug'], weapon:'knife',
         ammo:{ slug:20, cell:0, plasma:0, fuel:0 },
-        items:{ med:1, trauma:0, grenade:1, stim:0, carapace:0 },
+        items:{ med:1, trauma:0, grenade:1, incend:0, chem:2, stim:0, carapace:0 },
         buff:{ dmg:0, res:0 },
-        dmgMul:1, arcMul:1, scanMul:1, resist:0, siphon:0, radius:1,
+        dmgMul:1, arcMul:1, scanMul:1, resist:0, siphon:0, radius:3, lamp:0,
         xpBonus:0, guard:false, guardReady:false };
   deck = 1; dead = false; logLines = [];
   installed = [];
@@ -1044,14 +1314,74 @@ function newRun(){
 function heal(n){ const a = Math.min(n, P.maxHp - P.hp); P.hp += a; return a; }
 function hasKey(c){ return P.keys.indexOf(c) >= 0; }
 
+/* ---------------- the lamp ----------------
+   A headlamp, not a keyhole: round, and it stops at bulkheads. Better
+   optics push it further out, which is the only way to see a room before
+   you are standing in it. */
+const LAMPS = [
+  { name:'Filament Lamp', r:0, note:'Standard issue. Three squares of murk.' },
+  { name:'Flood Lens',    r:3, note:'Six squares. Most compartments in one look.' },
+  { name:'Arc Lantern',   r:6, note:'Nine squares. You see the deck before it sees you.' }
+];
+function lamp(){ return LAMPS[Math.min(LAMPS.length-1, P.lamp || 0)]; }
+function lampRange(){ return P.radius + lamp().r; }
+
+/* `seen` is memory: terrain you have walked past and still remember. `lit` is
+   the beam this instant. Memory is drawn dim and holds no living thing —
+   anything that can move is only on the board while the light is on it. */
+let litMap = null, blaze = null, lights = [];
+function computeLit(){
+  if(!litMap || litMap.length !== N) litMap = new Uint8Array(N);
+  if(!blaze || blaze.length !== N) blaze = new Uint8Array(N);
+  litMap.fill(0);
+  const r = lampRange(), reach = r*r + r*0.7;
+  for(let dy=-r;dy<=r;dy++) for(let dx=-r;dx<=r;dx++){
+    if(dx*dx + dy*dy > reach) continue;
+    const x = P.x+dx, y = P.y+dy;
+    if(!inB(x,y)) continue;
+    if((dx || dy) && !lineClear(P.x, P.y, x, y)) continue;
+    litMap[idx(x,y)] = 1;
+  }
+  /* a dropped light casts from where it lies, not from you, so it sees round
+     corners you cannot — and anything standing in it becomes a target */
+  for(const L of lights){
+    for(let dy=-L.r;dy<=L.r;dy++) for(let dx=-L.r;dx<=L.r;dx++){
+      if(dx*dx + dy*dy > L.r*L.r + L.r*0.7) continue;
+      const x = L.x+dx, y = L.y+dy;
+      if(!inB(x,y)) continue;
+      if((dx || dy) && !lineClear(L.x, L.y, x, y)) continue;
+      litMap[idx(x,y)] = 1;
+      if(!at(x,y).seen) at(x,y).seen = true;
+    }
+  }
+  /* fire is its own lamp */
+  for(let i=0;i<N;i++) if(blaze[i]){ litMap[i] = 1; map[i].seen = true; }
+  return litMap;
+}
+function isLit(x,y){ return inB(x,y) && litMap && litMap[idx(x,y)] === 1; }
+
+/* Something hunting you, inside earshot, down a clear line but outside the
+   beam. You cannot see it — you can hear it, and you can fire at the noise. */
+function isContact(m){
+  if(!m || !m.alive || m.alert <= 0) return false;
+  if(isLit(m.x, m.y)) return false;
+  if(!at(m.x, m.y).seen) return false;
+  if(Math.max(Math.abs(m.x-P.x), Math.abs(m.y-P.y)) > lampRange() + 4) return false;
+  return lineClear(P.x, P.y, m.x, m.y);
+}
+
 function reveal(x,y){
-  const r = P.radius;
+  const r = lampRange();
+  const reach = r*r + r*0.7;         // round the beam off at the corners
   let fresh = 0;
   for(let dy=-r;dy<=r;dy++) for(let dx=-r;dx<=r;dx++){
+    if(dx*dx + dy*dy > reach) continue;
     const nx=x+dx, ny=y+dy;
     if(!inB(nx,ny)) continue;
     const t = at(nx,ny);
-    if(!t.seen){ t.seen = true; fresh++; }
+    if(t.seen) continue;
+    if((dx || dy) && !lineClear(x, y, nx, ny)) continue;   // light does not bend
+    t.seen = true; fresh++;
   }
   if(fresh){
     const before = Math.floor(P.revealed/5);
@@ -1071,6 +1401,7 @@ function gainXp(n){
     P.lvl++;
     P.xpNeed = P.lvl + 1;
     P.maxHp += 10; P.hp = P.maxHp;
+    P.maxStam += 3; P.stam = P.maxStam;
     P.dmg += 5;
     P.charge = Math.min(P.maxCharge, P.charge + 3);
     P.corroded = false;
@@ -1083,16 +1414,25 @@ function gainXp(n){
    COMBAT MATHS — deterministic, and shown before you commit
    ================================================================ */
 function meleeDmg(m){ return wepDmg(P.weapon, m); }
-function shotDmg(m){ return wepDmg(P.weapon, m); }
+function shotDmg(m){
+  const d = wepDmg(P.weapon, m);
+  return m && !isLit(m.x, m.y) ? Math.max(1, Math.round(d * 0.5)) : d;
+}
 function inShotRange(m){
   const w = wep();
   if(w.kind !== 'ranged' || !m || !m.alive) return false;
   const d = Math.max(Math.abs(m.x-P.x), Math.abs(m.y-P.y));
-  return d <= w.range && lineClear(P.x, P.y, m.x, m.y);
+  if(d > maxRange(w)) return false;
+  if(!cornerOpen(P.x, P.y, m.x, m.y)) return false;
+  /* a rifle reaches nine squares; the lamp decides how many of those you can
+     aim down properly. Beyond the beam you are shooting at a noise, which
+     works but wastes most of the round. */
+  return (isLit(m.x, m.y) || isContact(m));
 }
 function isMelee(){ return wep().kind !== 'ranged'; }
+/* what one of its swings averages, before the roll decides */
 function incoming(m){
-  return Math.max(1, Math.round(m.dmg * (1 - P.resist) * (P.buff.res > 0 ? 0.65 : 1)));
+  return Math.max(1, Math.round((m.dn || 1) * ((m.dd || 4) + 1) / 2 * Math.max(1, m.lvl)));
 }
 function applyPerks(w, m, d){
   if(w.stun)  m.stun  = Math.max(m.stun || 0,  w.stun);
@@ -1105,6 +1445,18 @@ function hurtMob(m, d, w){
   if(m.hp <= 0) killMob(m);
 }
 function arcDmg(){ return Math.max(1, Math.round(4 * P.lvl * P.arcMul)); }
+/* chance that ATK+d20 beats DEF+d20 */
+function hitOdds(a, d){
+  let win = 0;
+  for(let x=1;x<=20;x++) for(let y=1;y<=20;y++){
+    if(x === 20 && y !== 20){ win++; continue; }
+    if(x === 1) continue;
+    if(y === 20 && x !== 20) { if(a+x > d+y) win++; continue; }
+    if(a + x > d + y) win++;
+  }
+  return win / 400;
+}
+
 function project(m){
   let hpLeft = m.hp, taken = 0, swing = 0;
   const first = m.type === 'husk';
@@ -1136,32 +1488,60 @@ function label(m){ return SPECIES[m.type].name.toUpperCase() + ' L' + m.lvl; }
 
 function strike(m){
   if(!m || !m.alive || !adjacent(m) || busy || dead) return;
+  if(!cornerOpen(P.x, P.y, m.x, m.y)){
+    say('No angle \u2014 the bulkhead corner is in the way.');
+    snd.denied(); render(); return;
+  }
   const w = wep();
+  const cost = swingCost(w);
+  if(P.stam < cost){
+    say('Too spent to swing the ' + w.name + '. Rest, or shoot.');
+    snd.denied(); render(); return;
+  }
   if(w.ammo && !canFire(P.weapon)){
     say('The ' + w.name + ' is dry \u2014 no ' + AMMO[w.ammo].name.toLowerCase() + '.');
     snd.dry(); render(); return;
   }
-  if(w.ammo) P.ammo[w.ammo] -= (w.cost || 1);
-  const d = meleeDmg(m);
-  const surged = P.surge;
-  P.surge = false;
+  if(w.ammo) spendAmmo(w);
+  spendStam(cost);
+
   const first = m.type === 'husk';
   if(first){ if(hurtPlayer(m)) return; }
   snd.swing(P.weapon, w);
-  if(surged) snd.strike(true);
-  say(w.name + ' \u2192 ' + label(m) + ' \u2212' + d + (surged ? ' (SURGE)' : ''));
-  hurtMob(m, d, w);
+
+  const r = resolve(playerAtk(w, m, 1), m.def, weaponDice(w, m, false), { frail: m.hp < m.maxHp/2 });
+  P.surge = false;
+  reportPlayer(w, m, r);
+  if(r.kind === 'reflect'){ if(hurtPlayer(m, r.dmg, true)) return; }
+  else if(r.dmg > 0){
+    if(w.stun) m.stun = Math.max(m.stun||0, w.stun);
+    if(w.bleed){ m.bleed = Math.max(m.bleed||0, w.bleed); m.bleedD = Math.max(1, roll(1,4)); }
+    if(w.burn){ m.burn = Math.max(m.burn||0, w.burn); m.burnD = Math.max(1, roll(1,6)); }
+    m.hp -= r.dmg;
+    if(m.hp <= 0) killMob(m);
+  }
 
   if(w.cleave){
     for(const o of mobs){
-      if(o === m || !o.alive || !adjacent(o)) continue;
-      const dd = wepDmg(P.weapon, o);
-      say('  \u2026and through ' + label(o) + ' \u2212' + dd);
-      hurtMob(o, dd, w);
+      if(o === m || !o.alive || !adjacent(o) || !cornerOpen(P.x,P.y,o.x,o.y)) continue;
+      const rr = resolve(playerAtk(w, o, 1), o.def, weaponDice(w, o, false));
+      if(rr.dmg > 0 && rr.kind !== 'reflect'){
+        say('  \u2026and through ' + label(o) + ' \u2212' + rr.dmg);
+        o.hp -= rr.dmg;
+        if(o.hp <= 0) killMob(o);
+      }
     }
   }
   if(m.alive && !first){ if(hurtPlayer(m)) return; }
   endTurn(m);
+}
+
+function reportPlayer(w, m, r){
+  const tag = ' [' + r.ra + 'v' + r.rd + ']';
+  if(r.kind === 'execute'){ say(w.name + ' \u2192 ' + label(m) + ' DESTROYED' + tag); killMob(m); return; }
+  if(r.kind === 'reflect'){ say(w.name + ' slips \u2014 it turns on you \u2212' + r.dmg + tag); return; }
+  if(r.kind === 'miss'){ say(w.name + ' \u2192 ' + label(m) + ' miss' + tag); return; }
+  say(w.name + ' \u2192 ' + label(m) + ' \u2212' + r.dmg + (r.kind === 'crit' ? ' CRITICAL' : '') + tag);
 }
 
 function fire(m){
@@ -1172,34 +1552,84 @@ function fire(m){
     say('Dry. No ' + AMMO[w.ammo].name.toLowerCase() + ' for the ' + w.name + '.');
     snd.dry(); render(); return;
   }
-  P.ammo[w.ammo] -= (w.cost || 1);
-  P.surge = false;
-  const d = shotDmg(m);
+  const dist = Math.max(Math.abs(m.x-P.x), Math.abs(m.y-P.y));
+  if(!cornerOpen(P.x, P.y, m.x, m.y)){
+    say('No angle through that corner.'); snd.denied(); render(); return;
+  }
+  spendAmmo(w);
+  const blind = !isLit(m.x, m.y);
+
+  const targets = [m];
+  if(w.cone){
+    const ux = Math.sign(m.x - P.x), uy = Math.sign(m.y - P.y);
+    for(let dy=-w.opt;dy<=w.opt;dy++) for(let dx=-w.opt;dx<=w.opt;dx++){
+      if(!dx && !dy) continue;
+      if(Math.max(Math.abs(dx),Math.abs(dy)) > w.opt) continue;
+      /* inside the wedge pointing at the target */
+      if(ux && Math.sign(dx) !== ux) continue;
+      if(uy && Math.sign(dy) !== uy) continue;
+      if(ux && uy && Math.abs(Math.abs(dx) - Math.abs(dy)) > 1) continue;
+      const x = P.x+dx, y = P.y+dy;
+      if(!inB(x,y) || solidAt(x,y) || !lineClear(P.x,P.y,x,y)) continue;
+      blaze[idx(x,y)] = Math.max(blaze[idx(x,y)], 2);
+      const o = mobAt(x,y);
+      if(o && o.alive && targets.indexOf(o) < 0) targets.push(o);
+    }
+  }
+  if(w.trait === 'SPRAY'){
+    for(const o of mobs){
+      if(o === m || !o.alive || targets.length >= 3) continue;
+      if(inShotRange(o)) targets.push(o);
+    }
+  }
   snd.shot(w);
-  say(w.name + ' \u2192 ' + label(m) + ' \u2212' + d + ' (no reply)');
-  hurtMob(m, d, w);
+  P.surge = false;
+
+  for(const t of targets){
+    const d = Math.max(Math.abs(t.x-P.x), Math.abs(t.y-P.y));
+    const r = resolve(playerAtk(w, t, d), t.def, weaponDice(w, t, blind), { frail: t.hp < t.maxHp/2 });
+    if(t === m) reportPlayer(w, t, r);
+    else if(r.dmg > 0) say('  spray \u2192 ' + label(t) + ' \u2212' + r.dmg);
+    if(r.kind === 'reflect') continue;          /* a gun cannot cut you */
+    if(r.dmg <= 0) continue;
+    if(w.trait === 'SUPPRESSING') t.supp = 1;
+    if(w.trait === 'KNOCKBACK') shove(t);
+    if(w.burn){ t.burn = Math.max(t.burn||0, w.burn); t.burnD = Math.max(1, roll(1,6)); }
+    t.hp -= r.dmg;
+    if(t.hp <= 0) killMob(t);
+  }
 
   if(w.splash){
     for(const o of mobs){
       if(o === m || !o.alive) continue;
       if(Math.max(Math.abs(o.x-m.x), Math.abs(o.y-m.y)) > 1) continue;
-      const dd = Math.max(1, Math.round(wepDmg(P.weapon, o) * 0.5));
+      const dd = Math.max(1, Math.round(roll(w.n, w.d) * 0.5));
       say('  spread \u2192 ' + label(o) + ' \u2212' + dd);
-      hurtMob(o, dd, w);
+      o.hp -= dd; if(o.hp <= 0) killMob(o);
     }
   }
   if(w.pierceLine){
     for(const o of mobs){
       if(o === m || !o.alive) continue;
       const dm = Math.max(Math.abs(o.x-P.x), Math.abs(o.y-P.y));
-      if(dm > w.range || !lineClear(P.x, P.y, o.x, o.y)) continue;
+      if(dm > maxRange(w) || !lineClear(P.x, P.y, o.x, o.y)) continue;
       if(!onSegment(P.x, P.y, m.x, m.y, o.x, o.y)) continue;
-      const dd = Math.max(1, Math.round(wepDmg(P.weapon, o) * 0.7));
+      const dd = Math.max(1, Math.round(roll(w.n, w.d) * 0.7));
       say('  through \u2192 ' + label(o) + ' \u2212' + dd);
-      hurtMob(o, dd, w);
+      o.hp -= dd; if(o.hp <= 0) killMob(o);
     }
   }
   endTurn(m);
+}
+
+/* shotgun: push it one square directly away */
+function shove(m){
+  const dx = Math.sign(m.x - P.x), dy = Math.sign(m.y - P.y);
+  const nx = m.x + dx, ny = m.y + dy;
+  if(!inB(nx,ny)) return;
+  const t = at(nx,ny);
+  if(t.wall || (t.door && !t.door.open) || mobAt(nx,ny)) return;
+  m.x = nx; m.y = ny;
 }
 
 /* is (px,py) roughly on the line from a to b — used for punch-through */
@@ -1229,6 +1659,16 @@ function arc(m){
   endTurn(m);
 }
 
+function rest(){
+  if(busy || dead) return;
+  const g = restGain();
+  P.stam = Math.min(P.maxStam, P.stam + g);
+  P.rested = true;
+  say('You catch your breath +' + g + ' stamina.');
+  snd.patch();
+  endTurn(null);
+}
+
 function patch(){
   if(P.charge < 4 || busy || dead) return;
   P.charge -= 4;
@@ -1250,23 +1690,41 @@ function surge(){
   endTurn(null);
 }
 
-function hurtPlayer(m){
-  if(P.guardReady){
-    P.guardReady = false;
-    snd.guard();
-    say('SERVO GUARD absorbs ' + label(m) + '\u2019s first hit.');
-    flashHurt();
-    return false;
+function hurtPlayer(m, forced, reflected){
+  if(reflected){
+    P.hp -= forced;
+    snd.hurt();
+    if(P.hp <= 0){ die(); return true; }
+    render(); return false;
   }
-  const amount = incoming(m);
-  P.hp -= amount;
+  if(!cornerOpen(m.x, m.y, P.x, P.y)) return false;   /* no swing past a corner */
+
+  const atkPen = m.supp ? -1 : 0;
+  const r = resolve(m.atk + atkPen, playerDef(), () => {
+    let t = roll(m.dn || 1, m.dd || 4) * Math.max(1, m.lvl);
+    if(P.guard && P.guardReady){ P.guardReady = false; t = Math.round(t/2); say('SERVO GUARD absorbs half.'); }
+    return t;
+  }, { frail: P.hp < P.maxHp/2 });
+  m.supp = 0;
+  const tag = ' [' + r.ra + 'v' + r.rd + ']';
+
+  if(r.kind === 'miss'){ say(label(m) + ' misses' + tag); render(); return false; }
+  if(r.kind === 'reflect'){
+    say(label(m) + ' overreaches \u2014 you turn it back \u2212' + r.dmg + tag);
+    m.hp -= r.dmg; if(m.hp <= 0) killMob(m);
+    render(); return false;
+  }
+  if(r.kind === 'execute'){
+    say(label(m) + ' finds the seam. ' + tag);
+    P.hp = 0; die(); return true;
+  }
+  P.hp -= r.dmg;
+  say(label(m) + ' \u2192 you \u2212' + r.dmg + (r.kind === 'crit' ? ' CRITICAL' : '') + tag);
   if(m.type === 'spitter') P.corroded = true;
-  if(m.type === 'wraith')  P.charge = Math.max(0, P.charge - 2);
+  if(m.type === 'wraith') P.charge = Math.max(0, P.charge - 1);
   snd.hurt();
-  say(label(m) + ' \u2192 you \u2212' + amount +
-      (m.type==='spitter' ? ' [SEARED]' : m.type==='wraith' ? ' [\u22122 CHARGE]' : ''));
-  flashHurt();
-  if(P.hp <= 0){ P.hp = 0; die(); return true; }
+  if(P.hp <= 0){ die(); return true; }
+  render();
   return false;
 }
 
@@ -1291,6 +1749,7 @@ function killMob(m){
 function useItem(id){
   if(busy || dead) return;
   if(!P.items[id]){ snd.denied(); return; }
+  const kind = id;
 
   if(id === 'grenade'){
     const t = targetMob() || nearestVisible();
@@ -1344,6 +1803,23 @@ function nearestVisible(){
    ENEMY TURN
    ================================================================ */
 function endTurn(actedOn){
+  if(!P.rested) P.stam = Math.min(P.maxStam, P.stam + 1);
+  P.rested = false;
+  /* fire burns down, and burns whatever is standing in it */
+  if(blaze){
+    for(let i=0;i<N;i++) if(blaze[i]) blaze[i]--;
+    const pi = idx(P.x, P.y);
+    if(blaze[pi]){
+      const d = roll(1,6) * Math.max(1, Math.round(P.lvl/2));
+      say('You are standing in fire \u2212' + d);
+      P.burn = Math.max(P.burn||0, 1);
+      P.hp -= d;
+      if(P.hp <= 0){ die(); return; }
+    }
+  }
+  for(let i=lights.length-1;i>=0;i--) if(--lights[i].t <= 0) lights.splice(i,1);
+  P.stillTurns = P.movedThisTurn ? 0 : (P.stillTurns || 0) + 1;
+  P.movedThisTurn = false;
   if(P.buff.dmg > 0) P.buff.dmg--;
   if(P.buff.res > 0) P.buff.res--;
   const field = playerField();
@@ -1353,6 +1829,10 @@ function endTurn(actedOn){
     if(m.type === 'gorger' && m !== actedOn && m.hp < m.maxHp)
       m.hp = Math.min(m.maxHp, m.hp + Math.max(1, Math.round(m.maxHp*0.12)));
 
+    if(blaze && blaze[idx(m.x,m.y)]){
+      m.hp -= roll(1,6) * Math.max(1, Math.round(m.lvl/2));
+      if(m.hp <= 0){ say(label(m) + ' burns up.'); killMob(m); continue; }
+    }
     if(m.burn > 0){
       m.burn--; m.hp -= (m.burnD || 1);
       if(m.hp <= 0){ say(label(m) + ' burns out.'); killMob(m); continue; }
@@ -1531,6 +2011,17 @@ function takeItem(t){
   if(kind === 'chip'){ P.dmg += 2; say('FOCUS CHIP \u2192 +2 melee damage.'); }
   if(kind === 'cap'){ P.maxCharge += 2; P.charge = Math.min(P.maxCharge, P.charge+2); say('CAPACITOR \u2192 +2 max charge.'); }
   if(kind === 'shard'){ say('DATA SHARD \u2192 +2 data.'); gainXp(2); }
+  if(kind === 'lamp'){
+    if((P.lamp || 0) >= LAMPS.length - 1){
+      P.items.stim = (P.items.stim||0) + 1;
+      say('Optics already at their best \u2014 traded off for a stim.');
+    } else {
+      P.lamp = (P.lamp || 0) + 1;
+      snd.pickup();
+      say(lamp().name.toUpperCase() + ' fitted. ' + lamp().note);
+      reveal(P.x, P.y);
+    }
+  }
   if(kind === 'ammo'){
     const a = t.atype || 'slug';
     const n = a === 'slug' ? 14 : a === 'fuel' ? 6 : 8;
@@ -1557,6 +2048,7 @@ function takeItem(t){
 }
 
 function stepInto(x,y){
+  P.movedThisTurn = true;
   P.x = x; P.y = y;
   const t = at(x,y);
   if(t.door && !t.door.open){
@@ -1580,6 +2072,15 @@ function reportScan(){
 
 function walk(path){
   if(!path || !path.length) return;
+  const dash = sprintCost(path.length);
+  if(dash > 0){
+    if(P.stam < dash){
+      say('That is a run, and you have not the wind for it \u2014 ' + dash + ' stamina.');
+      snd.denied(); render(); return;
+    }
+    spendStam(dash);
+    say('Breaking into a run \u2212' + dash + ' stamina.');
+  }
   busy = true;
   scanTally = { tiles:0, hp:0 };
   let i = 0;
@@ -1682,10 +2183,13 @@ function loadRun(){
     logLines = r.logLines || [];
     P = r.P; map = r.map; mobs = r.mobs;
     if(typeof P.ammo === 'number' || !P.ammo) P.ammo = { slug:20, cell:0, plasma:0, fuel:0 };
-    P.items  = P.items  || { med:1, trauma:0, grenade:1, stim:0, carapace:0 };
+    P.items  = P.items  || { med:1, trauma:0, grenade:1, incend:0, chem:2, stim:0, carapace:0 };
     P.buff   = P.buff   || { dmg:0, res:0 };
-    P.weapons = (P.weapons || ['knife','pistol.slug']).filter(id => WEAPONS[id]);
-    if(!P.weapons.length) P.weapons = ['knife'];
+    if(typeof P.lamp !== 'number') P.lamp = 0;
+    if(typeof P.maxStam !== 'number'){ P.maxStam = 14 + (P.lvl-1)*3; P.stam = P.maxStam; }
+    if(!P.radius || P.radius < 3) P.radius = 3;
+    P.weapons = (P.weapons || ['fists','knife','pistol.slug']).filter(id => WEAPONS[id]);
+    if(P.weapons.indexOf('fists') < 0) P.weapons.unshift('fists');
     if(!WEAPONS[P.weapon]) P.weapon = P.weapons[0];
     installed = (r.installed || []).map(coreByName).filter(Boolean);
     corePool  = (r.pool || []).map(coreByName).filter(Boolean);
@@ -1815,7 +2319,8 @@ function drawExit(g, x, y, open){
 function drawItem(g, x, y, kind, extra){
   const C = CELL, cx = x+C/2, cy = y+C/2;
   const col = {
-    med:'#a3e635', trauma:'#a3e635', grenade:'#ffb347', stim:'#ff3b5c',
+    med:'#a3e635', trauma:'#a3e635', grenade:'#ffb347', incend:'#ff6a3d', chem:'#a3e635',
+    stim:'#ff3b5c', lamp:'#ffe9a8',
     carapace:'#93a7b5', cell:'#7fd8ff', plate:'#93a7b5', chip:'#ff3b5c',
     cap:'#b79cf0', shard:'#ffb347', ammo:'#93a7b5', wpn:'#ffb347',
     key:DOORCOL[extra]||'#4da3ff', core:'#ffd479'
@@ -1875,6 +2380,17 @@ function drawItem(g, x, y, kind, extra){
       k ? g.lineTo(px,py) : g.moveTo(px,py);
     }
     g.closePath(); g.fill(); outline(g);
+  } else if(kind === 'lamp'){
+    g.fillStyle = col;
+    g.beginPath(); g.arc(cx, cy, C*0.16, 0, 6.2832); g.fill();
+    g.strokeStyle = col; g.lineWidth = Math.max(1.1, C*0.045);
+    for(let k=0;k<8;k++){
+      const a = k*Math.PI/4;
+      g.beginPath();
+      g.moveTo(cx+Math.cos(a)*C*0.22, cy+Math.sin(a)*C*0.22);
+      g.lineTo(cx+Math.cos(a)*C*0.32, cy+Math.sin(a)*C*0.32);
+      g.stroke();
+    }
   } else if(kind === 'ammo'){
     g.fillStyle = '#2a3742';
     rr(g, cx-C*0.24, cy-C*0.16, C*0.48, C*0.32, C*0.04); g.fill(); outline(g);
@@ -2022,6 +2538,12 @@ function drawMob(g, x, y, m){
     g.fillStyle = '#ffb347';
     g.beginPath(); g.arc(x+C*0.13, y+C*0.13, C*0.075, 0, 6.2832); g.fill();
   }
+  if(m.burn > 0){
+    g.fillStyle = '#ff8a3d';
+    const fx = x + C*0.84, fy = y + C*0.62;
+    g.beginPath(); g.moveTo(fx, fy - C*0.12); g.lineTo(fx - C*0.06, fy + C*0.06);
+    g.lineTo(fx + C*0.06, fy + C*0.06); g.closePath(); g.fill();
+  }
   if(m.hp < m.maxHp){
     const w = C*0.62, h = Math.max(2, C*0.07);
     g.fillStyle = 'rgba(0,0,0,.7)'; g.fillRect(x+(C-w)/2, y+C*0.86, w, h);
@@ -2061,15 +2583,41 @@ function drawBoard(){
   g.fillStyle = PAL.void;
   g.fillRect(0, 0, COLS*C, ROWS*C);
 
+  computeLit();
   for(let i=0;i<N;i++){
     const t = map[i];
     if(!t.seen) continue;
     const x = ix(i)*C, y = iy(i)*C;
-    if(t.wall){ drawWall(g, x, y, t.organic); continue; }
+    g.globalAlpha = litMap[i] ? 1 : 0.42;      // remembered, not lit
+    if(t.wall){ drawWall(g, x, y, t.organic); g.globalAlpha = 1; continue; }
     drawFloor(g, x, y, (ix(i)+iy(i)) % 2 === 0);
     if(t.door) drawDoor(g, x, y, t.door.colour, t.door.open);
     if(t.exit) drawExit(g, x, y, exitOpen);
     if(t.item) drawItem(g, x, y, t.item, t.key);
+    g.globalAlpha = 1;
+  }
+
+  /* the ground you can cross without spending wind: a breath of green, the
+     same idea as the red firing envelope but for your legs */
+  if(!dead && P.stam >= 0){
+    const seen = new Uint8Array(N);
+    let frontier = [idx(P.x, P.y)];
+    seen[frontier[0]] = 1;
+    for(let step=0; step<FREE_STEPS && frontier.length; step++){
+      const next = [];
+      for(const i of frontier){
+        for(const j of neighbours(i)){
+          if(seen[j]) continue;
+          const t = map[j];
+          if(t.wall || (t.door && !t.door.open && !hasKey(t.door.colour))) continue;
+          if(!t.seen) continue;
+          seen[j] = 1; next.push(j);
+        }
+      }
+      frontier = next;
+    }
+    g.fillStyle = 'rgba(92,224,122,0.075)';
+    for(let i=0;i<N;i++) if(seen[i] && i !== idx(P.x,P.y)) g.fillRect(ix(i)*C, iy(i)*C, C, C);
   }
 
   /* holding something ranged: shade every square you could actually shoot,
@@ -2085,15 +2633,70 @@ function drawBoard(){
         if(!inB(x,y)) continue;
         const t = at(x,y);
         if(!t.seen || t.wall || (t.door && !t.door.open)) continue;
-        if(!lineClear(P.x, P.y, x, y)) continue;
+        if(!isLit(x, y)) continue;
         g.fillRect(x*C, y*C, C, C);
       }
     }
     g.restore();
   }
 
+  /* fire: drawn under the actors so the plating still reads through it */
+  if(blaze){
+    const now = performance.now()/1000;
+    for(let i=0;i<N;i++){
+      if(!blaze[i] || !map[i].seen) continue;
+      const x = ix(i)*C, y = iy(i)*C;
+      const f = 0.55 + Math.sin(now*7 + i*1.7)*0.22;
+      g.save();
+      g.globalAlpha = Math.min(1, f) * (blaze[i] > 1 ? 1 : 0.6);
+      const grd = g.createLinearGradient(x, y+C, x, y);
+      grd.addColorStop(0, 'rgba(255,196,64,.95)');
+      grd.addColorStop(0.55, 'rgba(255,96,28,.72)');
+      grd.addColorStop(1, 'rgba(180,26,20,.12)');
+      g.fillStyle = grd;
+      g.fillRect(x, y, C, C);
+      g.globalAlpha = 1;
+      g.fillStyle = '#fff3c4';
+      for(let k=0;k<3;k++){
+        const px = x + C*(0.28 + k*0.22) + Math.sin(now*9 + k + i)*C*0.05;
+        const py = y + C*0.62 - Math.abs(Math.sin(now*6 + k*2 + i)) * C*0.10;
+        g.beginPath();
+        g.moveTo(px, py);
+        g.lineTo(px - C*0.06, py + C*0.16);
+        g.lineTo(px + C*0.06, py + C*0.16);
+        g.closePath(); g.fill();
+      }
+      g.restore();
+    }
+  }
+  for(const L of lights){
+    const x = L.x*C, y = L.y*C;
+    g.save();
+    g.shadowColor = '#a3e635'; g.shadowBlur = C*0.9;
+    g.fillStyle = '#a3e635';
+    g.globalAlpha = L.t > 3 ? 1 : 0.35 + Math.abs(Math.sin(performance.now()/160))*0.5;
+    g.beginPath(); g.arc(x+C/2, y+C/2, C*0.16, 0, 6.2832); g.fill();
+    g.restore();
+  }
+
+  /* Contacts. Something hunting you inside earshot but outside the beam gets
+     a faint pulse — no species, no level, no health. You know it is coming,
+     not what it is. Without this the dark just kills you with no tell. */
+  const hear = lampRange() + 4;
   for(const m of mobs){
-    if(!m.alive || !at(m.x,m.y).seen) continue;
+    if(!m.alive || m.alert <= 0 || isLit(m.x, m.y)) continue;
+    if(Math.max(Math.abs(m.x-P.x), Math.abs(m.y-P.y)) > hear) continue;
+    if(!at(m.x,m.y).seen) continue;
+    const pulse = 0.30 + Math.abs(Math.sin(performance.now()/380 + m.x + m.y)) * 0.35;
+    g.save();
+    g.globalAlpha = pulse;
+    g.strokeStyle = '#ffb347'; g.lineWidth = Math.max(1.1, C*0.05);
+    g.beginPath(); g.arc(m.x*C + C/2, m.y*C + C/2, C*0.26, 0, 6.2832); g.stroke();
+    g.restore();
+  }
+
+  for(const m of mobs){
+    if(!m.alive || !isLit(m.x, m.y)) continue;   // out of the beam, out of sight
     drawMob(g, m.x*C, m.y*C, m);
     /* and mark the ones actually in the firing solution */
     if(rw.kind === 'ranged' && !dead && inShotRange(m)){
@@ -2108,7 +2711,7 @@ function drawBoard(){
   }
   drawPlayer(g, P.x*C, P.y*C);
 
-  if(sel && sel.alive && at(sel.x,sel.y).seen){
+  if(sel && sel.alive && isLit(sel.x, sel.y)){
     const x = sel.x*C, y = sel.y*C, k = C*0.26;
     g.strokeStyle = '#7fd8ff'; g.lineWidth = Math.max(1.6, C*0.07);
     for(const [ox,oy,dx,dy] of [[0,0,1,1],[1,0,-1,1],[0,1,1,-1],[1,1,-1,-1]]){
@@ -2120,7 +2723,24 @@ function drawBoard(){
   }
 }
 
+let fxRAF = null;
+function fxActive(){
+  if(lights.length) return true;
+  if(blaze) for(let i=0;i<N;i++) if(blaze[i]) return true;
+  return false;
+}
+function pumpFx(){
+  if(fxRAF) return;
+  const tick = () => {
+    if(!dead && fxActive()){ drawBoard(); fxRAF = requestAnimationFrame(tick); }
+    else fxRAF = null;
+  };
+  fxRAF = requestAnimationFrame(tick);
+}
+
 function render(){
+  computeLit();
+  if(sel && (!sel.alive || !isLit(sel.x, sel.y))) sel = null;
   const info = deckInfo();
   $('deckno').textContent = 'DECK ' + String(deck).padStart(2,'0');
   $('deckname').textContent = info[0];
@@ -2128,6 +2748,8 @@ function render(){
 
   $('hpFill').style.width = (100*P.hp/P.maxHp) + '%';
   $('hpNum').textContent = P.hp + '/' + P.maxHp;
+  $('stFill').style.width = Math.round(100 * P.stam / Math.max(1, P.maxStam)) + '%';
+  $('stNum').textContent = P.stam + '/' + P.maxStam;
   $('chFill').style.width = (100*P.charge/P.maxCharge) + '%';
   $('chNum').textContent = P.charge + '/' + P.maxCharge;
   $('xpFill').style.width = (100*P.xp/P.xpNeed) + '%';
@@ -2140,13 +2762,15 @@ function render(){
   if(P.surge) tag('SURGE ARMED','surge');
   if(P.guardReady) tag('GUARD READY','guard');
   const w = wep();
-  tag(w.name.toUpperCase() + (w.kind === 'ranged' ? ' \u00B7 ' + w.range + 'SQ' : '') +
+  tag(w.name.toUpperCase() + (w.kind === 'ranged' ? ' \u00B7 ' + w.opt + 'SQ' : '') +
       (w.ammo ? ' \u00B7 ' + (P.ammo[w.ammo]||0) : ''), 'wep');
   if(P.buff.dmg > 0) tag('STIM ' + P.buff.dmg, 'surge');
   if(P.buff.res > 0) tag('CARAPACE ' + P.buff.res, 'guard');
+  if(P.lamp) tag('LAMP ' + lampRange() + 'SQ', 'lamp');
   if(installed.length) tag(installed.length + ' SYSTEM' + (installed.length>1?'S':''),'core');
 
   drawBoard();
+  if(fxActive()) pumpFx();
 
   renderPanel();
   renderActions();
@@ -2164,20 +2788,21 @@ function renderPanel(){
         '<div class="arow">' +
           '<span class="aname c-'+sel.type+'">'+s.name+'</span>' +
           '<span class="atrait">'+(s.trait||'\u2014')+'</span>' +
-          '<span class="astat">LV'+sel.lvl+' \u00B7 '+sel.hp+'/'+sel.maxHp+' \u00B7 HITS '+incoming(sel)+'</span>' +
+          '<span class="astat">LV'+sel.lvl+' \u00B7 '+sel.hp+'/'+sel.maxHp+
+            ' \u00B7 ATK '+sel.atk+' DEF '+sel.def+' \u00B7 '+(sel.dn||1)+'d'+(sel.dd||4)+'</span>' +
         '</div>' +
         '<div class="hint">'+s.desc+'</div>' +
         (wep().kind === 'ranged'
           ? '<div class="aline">'+wep().name.toUpperCase()+' \u00B7 <b>'+
-              Math.ceil(sel.hp/Math.max(1,shotDmg(sel)))+'</b> shots \u00B7 <b>'+
-              (Math.ceil(sel.hp/Math.max(1,shotDmg(sel)))*(wep().cost||1))+'</b> rounds \u00B7 '+
+              Math.ceil(sel.hp/Math.max(1,shotDmg(sel)))+'</b> to drop \u00B7 '+
               '<b class="'+(inShotRange(sel)?'safe':'risk')+'">'+
               (inShotRange(sel) ? 'CLEAR SHOT' : 'NO LINE')+'</b></div>'
           : '<div class="aline">MELEE \u00B7 <b>'+pr.swings+'</b> hits \u00B7 you take <b>'+pr.taken+
             '</b> \u00B7 <b class="'+stt+'">'+(pr.survive>0? pr.survive+' left \u00B7 '+verdict : verdict)+'</b></div>') +
         '<div class="hint">'+
           (wep().kind === 'ranged'
-            ? (inShotRange(sel) ? 'Tap it again or press FIRE.' : 'Needs clear line within '+wep().range+' squares.')
+            ? (inShotRange(sel) ? 'Tap it again or press FIRE.'
+               : 'Needs light and a clear line inside ' + maxRange(wep()) + ' squares.')
             : (adjacent(sel) ? 'Tap it again or press STRIKE.' : 'Closing in\u2026'))+'</div>' +
       '</div>';
   } else {
@@ -2199,14 +2824,17 @@ function renderActions(){
   const b = $('bStrike');
   b.firstChild.nodeValue = w.kind === 'ranged' ? 'FIRE' : 'STRIKE';
   b.querySelector('.cost').textContent = w.kind === 'ranged'
-    ? w.range + 'SQ \u00B7 ' + (sel && sel.alive ? shotDmg(sel) : Math.round(P.dmg*P.dmgMul*w.mul*(w.shots||1)))
-    : 'MELEE \u00B7 ' + (sel && sel.alive ? meleeDmg(sel) : Math.round(P.dmg*P.dmgMul*w.mul));
+    ? w.opt + 'SQ \u00B7 ' + dieText(w) + '\u00D7' + P.lvl
+    : dieText(w) + '\u00D7' + P.lvl + ' \u00B7 ' + swingCost(w) + 'ST';
   b.disabled = !canHit || busy || dead ||
                (w.kind === 'ranged' && P.ammo < (w.cost || 1));
   $('bArc').disabled = !adj || P.charge < 3 || busy || dead;
   $('bPatch').disabled = P.charge < 4 || busy || dead || (P.hp === P.maxHp && !P.corroded);
   $('bSurge').disabled = P.charge < 5 || P.surge || busy || dead;
   $('bGear').disabled = busy || dead;
+  $('bRest').disabled = busy || dead || P.stam >= P.maxStam;
+  $('bRest').querySelector('.cost').textContent = '+' + restGain();
+  b.disabled = b.disabled || (w.kind !== 'ranged' && P.stam < swingCost(w));
   $('bArc').querySelector('.cost').textContent = adj ? arcDmg() + ' DMG \u00B7 3' : '3 CH';
   $('bPatch').querySelector('.cost').textContent = '+' + (5*P.lvl) + ' \u00B7 4';
 }
@@ -2223,6 +2851,11 @@ board.addEventListener('click', e => {
   const x = Math.floor((e.clientX - r.left) / (r.width / COLS));
   const y = Math.floor((e.clientY - r.top)  / (r.height / ROWS));
   if(!inB(x,y)) return;
+  if(aiming){
+    const what = aiming; aiming = null;
+    throwAt(what, x, y);
+    return;
+  }
   const i = idx(x,y);
   const t = at(x,y);
   if(!t.seen || t.wall) return;
@@ -2267,7 +2900,8 @@ $('bStrike').addEventListener('click', ()=>attack(sel));
 $('bArc').addEventListener('click', ()=>arc(sel));
 $('bPatch').addEventListener('click', patch);
 $('bSurge').addEventListener('click', surge);
-$('bGear').addEventListener('click', ()=>{ if(!busy && !dead) showKit(); });
+$('bRest').addEventListener('click', rest);
+$('bGear').addEventListener('click', ()=>{ if(!busy && !dead){ kitOwed = true; showKit(); } });
 
 /* ---------------- keyboard & gamepad ----------------
    Bump into something to hit it, which is how a crawler should read. */
@@ -2332,7 +2966,7 @@ window.addEventListener('keydown', ev => {
   if(ev.key === '1'){ const m = targetMob(); if(m){ sel = m; arc(m); } }
   else if(ev.key === '2') patch();
   else if(ev.key === '3') surge();
-  else if(ev.key === 'i' || ev.key === 'I' || ev.key === 'Tab'){ ev.preventDefault(); showKit(); }
+  else if(ev.key === 'i' || ev.key === 'I' || ev.key === 'Tab'){ ev.preventDefault(); if(!busy && !dead){ kitOwed = true; showKit(); } }
   else if(ev.key === ' ' || ev.key === 'Enter'){
     const m = targetMob(); if(m){ sel = m; attack(m); }
   }
@@ -2354,7 +2988,7 @@ if(AR && AR.pad) AR.pad.onPress(name => {
   else if(name === 'x'){ const m = adjacentMob(); if(m){ sel = m; arc(m); } }
   else if(name === 'y') patch();
   else if(name === 'rb') surge();
-  else if(name === 'back' || name === 'lb') showKit();
+  else if(name === 'back' || name === 'lb'){ if(!busy && !dead){ kitOwed = true; showKit(); } }
 });
 
 /* ================================================================
@@ -2399,6 +3033,9 @@ function systemsList(){
     '<div><b>'+c.name+'</b><span>'+c.desc+'</span></div>').join('') + '</div>';
 }
 
+let kitOwed = false;
+let aiming = null;      /* a thrown item waiting for you to pick a tile */
+
 function showKit(){
   const KIND = { melee:'MELEE', tool:'TOOL', ranged:'RANGED' };
   let html =
@@ -2408,11 +3045,17 @@ function showKit(){
       '<div class="kstats">' +
         '<div><span>INTEGRITY</span><b>' + P.hp + '/' + P.maxHp + '</b></div>' +
         '<div><span>CHARGE</span><b>' + P.charge + '/' + P.maxCharge + '</b></div>' +
+        '<div><span>STAMINA</span><b>' + P.stam + '/' + P.maxStam + '</b></div>' +
+        '<div><span>SWING COSTS</span><b>' + swingCost(wep()) + '</b></div>' +
         '<div><span>CALIBRATION</span><b>LV ' + P.lvl + '</b></div>' +
         '<div><span>DATA</span><b>' + P.xp + '/' + P.xpNeed + '</b></div>' +
-        '<div><span>BASE DAMAGE</span><b>' + Math.round(P.dmg * P.dmgMul) + '</b></div>' +
+        '<div><span>DAMAGE</span><b>' + dieText(wep()) + ' \u00D7' + P.lvl + '</b></div>' +
         '<div><span>RESIST</span><b>' + Math.round((P.resist + (P.buff.res>0?0.35:0))*100) + '%</b></div>' +
-      '</div>';
+        '<div><span>LAMP</span><b>' + lampRange() + ' SQ</b></div>' +
+        '<div><span>OPTIC</span><b style="font-size:11px">' + lamp().name.toUpperCase() + '</b></div>' +
+      '</div>' +
+      '<div class="kend"><button class="vbtn" data-act="close">EXIT INVENTORY' +
+        (kitOwed ? ' \u00B7 COSTS A TURN' : '') + '</button></div>';
 
   if(P.buff.dmg > 0 || P.buff.res > 0 || P.corroded){
     html += '<div class="kithead">ACTIVE</div>';
@@ -2425,16 +3068,16 @@ function showKit(){
   const order = P.weapons.slice().sort((a,b) => (WEAPONS[a].tier||0) - (WEAPONS[b].tier||0));
   for(const id of order){
     const k = WEAPONS[id];
-    const dmg = wepDmg(id, null);
     const spec = k.kind === 'ranged'
-      ? dmg + ' \u00B7 ' + k.range + 'sq' + (k.shots > 1 ? ' \u00B7 x' + k.shots : '')
-      : dmg + ' \u00B7 ' + KIND[k.kind].toLowerCase();
+      ? dieText(k) + '\u00D7' + P.lvl + ' \u00B7 ' + k.opt + '\u2013' + maxRange(k) + 'sq'
+      : dieText(k) + '\u00D7' + P.lvl + ' \u00B7 ' + KIND[k.kind].toLowerCase();
     const feed = k.ammo ? (k.cost||1) + ' ' + AMMO[k.ammo].name.toLowerCase() + ' (' + (P.ammo[k.ammo]||0) + ')' : 'no ammunition';
     const dry = k.ammo && !canFire(id);
     html +=
       '<div class="krow">' +
         '<div class="kmid"><b>' + k.name + (dry ? ' \u00B7 DRY' : '') + '</b>' +
-          '<i>' + k.note + '<br>' + feed + '</i></div>' +
+          '<i>' + (k.trait ? '<b style="color:var(--ice)">' + k.trait + '</b> \u00B7 ' : '') +
+            k.note + '<br>ATK ' + (k.atk >= 0 ? '+' : '') + (k.atk||0) + ' \u00B7 ' + feed + '</i></div>' +
         '<div class="kdmg">' + spec + '</div>' +
         '<button class="kbtn' + (id === P.weapon ? ' on' : '') + '" data-eq="' + id + '">' +
           (id === P.weapon ? 'HELD' : 'HOLD') + '</button>' +
@@ -2449,8 +3092,10 @@ function showKit(){
     any = true;
     html +=
       '<div class="krow">' +
-        '<div class="kmid"><b>' + USABLE[id].name + ' \u00D7' + n + '</b><i>' + USABLE[id].note + '</i></div>' +
-        '<button class="kbtn" data-use="' + id + '">USE</button>' +
+        '<div class="kmid"><b>' + USABLE[id].name + ' \u00D7' + n + '</b><i>' + USABLE[id].note +
+          (THROWN[id] ? '<br>throw ' + THROWN[id].opt + '\u2013' + (THROWN[id].opt*2) + ' squares' : '') +
+        '</i></div>' +
+        '<button class="kbtn" data-use="' + id + '">' + (THROWN[id] ? 'THROW' : 'USE') + '</button>' +
       '</div>';
   }
   if(!any) html += '<div class="krow"><div class="kmid"><i>Pockets empty.</i></div></div>';
@@ -2468,9 +3113,17 @@ function showKit(){
   for(const c of installed)
     html += '<div class="krow"><div class="kmid"><b>' + c.name + '</b><i>' + c.desc + '</i></div></div>';
 
-  html += '</div><div class="kend"><button class="vbtn" data-act="close">BACK TO THE DECK</button></div>';
+  html += '</div>';
 
-  openVeil(html, { close: ()=>{ render(); } });
+  openVeil(html, { close: ()=>{
+    if(kitOwed && !dead && !busy){
+      kitOwed = false;
+      say('You look up from the kit.');
+      endTurn(null);
+    }
+    kitOwed = false;
+    render();
+  } });
   veilBody.querySelectorAll('[data-eq]').forEach(b => {
     b.addEventListener('click', e => { e.stopPropagation(); equip(b.getAttribute('data-eq')); showKit(); });
   });
@@ -2478,6 +3131,7 @@ function showKit(){
     b.addEventListener('click', e => {
       e.stopPropagation();
       veil.classList.add('hidden');
+      kitOwed = false;              // the item itself is the turn
       useItem(b.getAttribute('data-use'));
     });
   });

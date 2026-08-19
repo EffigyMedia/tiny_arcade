@@ -72,7 +72,9 @@ html,body{
 #boardwrap{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;margin:4px 0}
 #board{display:block}
 
-#foot{flex:none;height:26px;display:flex;align-items:center;gap:10px;
+#sheet{color:var(--amber);letter-spacing:.20em}
+#dots{margin-left:14px}
+#foot{flex:none;height:26px;display:flex;align-items:center;gap:0;
   border-top:1px solid var(--line);padding-top:6px;
   font-size:9px;letter-spacing:.16em;color:var(--dim)}
 #phase{margin-left:auto;color:var(--ink)}
@@ -121,6 +123,7 @@ h1 em{display:block;font-style:normal;font-size:.26em;letter-spacing:.24em;
   <div id="boardwrap"><canvas id="board"></canvas></div>
 
   <div id="foot">
+    <span id="sheet">CLASSIC</span>
     <span id="dots">240 LEFT</span>
     <span id="phase">SCATTER</span>
   </div>
@@ -145,27 +148,246 @@ const board = $('board'), bx = board.getContext('2d');
 const frame = $('frame'), veil = $('veil'), veilBody = $('veilBody');
 
 /* '#' hull  '.' pellet  'o' power  '-' gate  'C' core  'T' tunnel  ' ' void */
-const MAZE = [
-  '###############',
-  '#......#......#',
-  '#.###.#.#.###.#',
-  '#.###.#.#.###.#',
-  '#.............#',
-  '#.###.###.###.#',
-  '#o..#.....#..o#',
-  '###.#.#-#.#.###',
-  'T.....#C#.....T',
-  '###.#.###.#.###',
-  '#o..#.....#..o#',
-  '#.###.###.###.#',
-  '#.............#',
-  '#.###.#.#.###.#',
-  '#.###.#.#.###.#',
-  '#......#......#',
-  '#.###########.#',
-  '#.............#',
-  '###############'
+const STAGES = [
+  /* 01 */ ['###############',
+            '#.............#',
+            '#.##.##.##.##.#',
+            '#o##.##.##.##o#',
+            '#.............#',
+            '#.##.#.#.#.##.#',
+            '#.............#',
+            '#.#.###-###.#.#',
+            'T.....#C#.....T',
+            '#.#.#.###.#.#.#',
+            '#.............#',
+            '#.##.##.##.##.#',
+            '#.............#',
+            '#.##.##.##.##.#',
+            '#o...........o#',
+            '#.##.#.#.#.##.#',
+            '#....#...#....#',
+            '#.............#',
+            '###############'],
+  /* 02 */ ['###############',
+            '#.............#',
+            '#.###.###.###.#',
+            '#o###.###.###o#',
+            '#.............#',
+            '#.#.#.###.#.#.#',
+            '#.............#',
+            '#.#.###-###.#.#',
+            'T.....#C#.....T',
+            '#.#.#.###.#.#.#',
+            '#.............#',
+            '#.#.#.###.#.#.#',
+            '#.#.#.....#.#.#',
+            '#.#.#.###.#.#.#',
+            '#o...........o#',
+            '#.###.###.###.#',
+            '#.............#',
+            '#.............#',
+            '###############'],
+  /* 03 */ ['###############',
+            '#.............#',
+            '#.#.#.#.#.#.#.#',
+            '#o#.#.#.#.#.#o#',
+            '#.............#',
+            '#.###.###.###.#',
+            '#.............#',
+            '#.#.###-###.#.#',
+            'T.....#C#.....T',
+            '#.#.#.###.#.#.#',
+            '#.............#',
+            '#.###.###.###.#',
+            '#.............#',
+            '#.#.#.#.#.#.#.#',
+            '#o#.#.#.#.#.#o#',
+            '#.............#',
+            '#.###.###.###.#',
+            '#.............#',
+            '###############'],
+  /* 04 */ ['###############',
+            '#.............#',
+            '#.###########.#',
+            '#o...........o#',
+            '#.###########.#',
+            '#.............#',
+            '#.............#',
+            '#.#.###-###.#.#',
+            'T.....#C#.....T',
+            '#.#.#.###.#.#.#',
+            '#.............#',
+            '#.####...####.#',
+            '#.............#',
+            '#.###########.#',
+            '#o...........o#',
+            '#.###########.#',
+            '#.............#',
+            '#.............#',
+            '###############'],
+  /* 05 */ ['###############',
+            '#.............#',
+            '#.###.#.#.###.#',
+            'o.#...#.#...#.o',
+            '#.#.###.###.#.#',
+            '#.#...#.#...#.#',
+            '#.............#',
+            '#.#.###-###.#.#',
+            'T.....#C#.....T',
+            '#.#.#.###.#.#.#',
+            '#.............#',
+            '#.#.#.#.#.#.#.#',
+            '#.#...#.#...#.#',
+            '#.#####.#####.#',
+            '#o...........o#',
+            '#.###.###.###.#',
+            '#.............#',
+            '#.............#',
+            '###############'],
+  /* 06 */ ['###############',
+            '#.............#',
+            '#.##.##.##.##.#',
+            '#o#..#...#..#o#',
+            '#.#..#...#..#.#',
+            '#.##.##.##.##.#',
+            '#.............#',
+            '#.#.###-###.#.#',
+            'T.....#C#.....T',
+            '#.#.#.###.#.#.#',
+            '#.............#',
+            '#.#..#...#..#.#',
+            '#.#..#...#..#.#',
+            '#.##.##.##.##.#',
+            '#o...........o#',
+            '#.###.#.#.###.#',
+            '#.............#',
+            '#.............#',
+            '###############'],
+  /* 07 */ ['###############',
+            '#.............#',
+            '#.####.#.####.#',
+            '#o####.#.####o#',
+            '#.............#',
+            '#.####.#.####.#',
+            '#.............#',
+            '#.#.###-###.#.#',
+            'T.....#C#.....T',
+            '#.#.#.###.#.#.#',
+            '#.............#',
+            '#.####.#.####.#',
+            '#.............#',
+            '#.####.#.####.#',
+            '#o####.#.####o#',
+            '#.............#',
+            '#.###.###.###.#',
+            '#.............#',
+            '###############'],
+  /* 08 */ ['###############',
+            '#.............#',
+            '#.##.##.##.##.#',
+            '#o...........o#',
+            '#.##.##.##.##.#',
+            '#.....#.#.....#',
+            '#.............#',
+            '#.#.###-###.#.#',
+            'T.....#C#.....T',
+            '#.#.#.###.#.#.#',
+            '#.............#',
+            '#.##..#.#..##.#',
+            '#.....#.#.....#',
+            '#.##.##.##.##.#',
+            '#o...........o#',
+            '#.##.##.##.##.#',
+            '#.............#',
+            '#.............#',
+            '###############'],
+  /* 09 */ ['###############',
+            '#.............#',
+            '#.#.#.#.#.#.#.#',
+            '#o...........o#',
+            '#.###.###.###.#',
+            '#.............#',
+            '#.............#',
+            '#.#.###-###.#.#',
+            'T.....#C#.....T',
+            '#.#.#.###.#.#.#',
+            '#.............#',
+            '#.###.###.###.#',
+            '#.............#',
+            '#.#.#.#.#.#.#.#',
+            '#o...........o#',
+            '#.###.###.###.#',
+            '#.............#',
+            '#.............#',
+            '###############'],
+  /* 10 */ ['###############',
+            '#.............#',
+            '#.###.#.#.###.#',
+            '#o#...#.#...#o#',
+            '#.#.###.###.#.#',
+            '#.#...#.#...#.#',
+            '#.............#',
+            '#.#.###-###.#.#',
+            'T.....#C#.....T',
+            '#.#.#.###.#.#.#',
+            '#.............#',
+            '#.#.#.#.#.#.#.#',
+            '#.#...#.#...#.#',
+            '#.#####.#####.#',
+            '#o...........o#',
+            '#.###.###.###.#',
+            '#.............#',
+            '#.............#',
+            '###############'],
+  /* 11 */ ['###############',
+            '#.............#',
+            '#.#.##.#.##.#.#',
+            '#o#.........#o#',
+            '#.##.##.##.##.#',
+            '#.............#',
+            '#.............#',
+            '#.#.###-###.#.#',
+            'T.....#C#.....T',
+            '#.#.#.###.#.#.#',
+            '#.............#',
+            '#.............#',
+            '#.##.##.##.##.#',
+            '#o#.........#o#',
+            '#.#.##.#.##.#.#',
+            '#.............#',
+            '#.###.###.###.#',
+            '#.............#',
+            '###############'],
+  /* 12 */ ['###############',
+            '#.............#',
+            '#.###.###.###.#',
+            '#o...........o#',
+            '#.#.#######.#.#',
+            '#.#.........#.#',
+            '#.............#',
+            '#.#.###-###.#.#',
+            'T.....#C#.....T',
+            '#.#.#.###.#.#.#',
+            '#.............#',
+            '#.#.#######.#.#',
+            '#.#.........#.#',
+            '#.#.#.#.#.#.#.#',
+            '#o...........o#',
+            '#.###.###.###.#',
+            '#.............#',
+            '#.............#',
+            '###############']
 ];
+let MAZE = STAGES[0];
+
+/* Each sheet is drawn to a shape, so each sheet gets its name on the plate */
+const SHEET_NAMES = [
+  'Classic', 'Twin Spires', 'The Comb', 'The Ladder',
+  'Concentric', 'Four Chambers', 'The Cross', 'Staggered',
+  'The Aisles', 'The Vault', 'Tight Weave', 'The Long Run'
+];
+function sheetNo(){ return ((level - 1) % STAGES.length); }
+function sheetName(){ return SHEET_NAMES[sheetNo()] || 'Sheet ' + (sheetNo()+1); }
 const COLS = MAZE[0].length, ROWS = MAZE.length;
 
 const WALL = 1, OPEN = 0, GATE = 2;
@@ -241,6 +463,7 @@ function resetActors(){
 
 function newGame(){
   score = 0; level = 1; lives = 3;
+  MAZE = STAGES[0];
   dotsEaten = 0; bonus = null; bonusT = 0;
   msg = null; msgT = 0; shake = 0;
   buildMaze(); resetActors();
@@ -250,6 +473,7 @@ function newGame(){
 }
 function nextLevel(){
   level++;
+  MAZE = STAGES[(level - 1) % STAGES.length];
   buildMaze();
   resetActors();
   dotsEaten = 0; bonus = null;
@@ -501,9 +725,25 @@ function eatAt(x, y){
     snd.power();
   }
   if(dotsEaten === 60 || dotsEaten === 150){
-    bonus = { x:SPAWN.x, y:SPAWN.y - 4, value: 100 * level };
-    bonusT = 9;
+    /* SPAWN.y-4 lands inside the hunter house, which the player cannot enter.
+       Put it on a tile you can actually stand on. */
+    const spot = bonusSpot();
+    if(spot){ bonus = { x:spot.x, y:spot.y, value: 100 * level }; bonusT = 9; }
   }
+}
+
+/* an open, pellet-free tile near the middle of the sheet that is not the house */
+function bonusSpot(){
+  let best = null, bd = Infinity;
+  const tx = SPAWN.x, ty = SPAWN.y - 3;
+  for(let y=0;y<ROWS;y++) for(let x=0;x<COLS;x++){
+    if(grid[y][x] !== OPEN) continue;
+    if(MAZE[y][x] === 'C') continue;
+    if(Math.abs(x-CORE.x) <= 1 && Math.abs(y-CORE.y) <= 1) continue;
+    const d = (x-tx)*(x-tx) + (y-ty)*(y-ty);
+    if(d < bd){ bd = d; best = { x, y }; }
+  }
+  return best;
 }
 
 function collide(){
@@ -860,16 +1100,33 @@ function paint(){
     g.restore();
   }
   if(ready){
-    g.font = '800 ' + Math.round(CELL*0.8) + 'px "Syne", sans-serif';
+    const cx = COLS*CELL/2, w = COLS*CELL*0.78, h = CELL*2.5;
+    const y0 = ROWS*CELL*0.40;
+    g.save();
+    g.fillStyle = 'rgba(8,12,18,.88)';
+    g.fillRect(cx - w/2, y0, w, h);
+    g.strokeStyle = '#ffd23c'; g.lineWidth = Math.max(1.4, CELL*0.06);
+    g.strokeRect(cx - w/2, y0, w, h);
+    g.fillStyle = '#5fc9d8';
+    g.fillRect(cx - w/2, y0, w, Math.max(2, CELL*0.10));
     g.textAlign = 'center';
+    g.font = '600 ' + Math.round(CELL*0.36) + 'px "Chivo Mono", monospace';
+    g.fillStyle = '#5d7f8c';
+    g.fillText('SHEET ' + String(sheetNo()+1).padStart(2,'0'), cx, y0 + h*0.30);
+    g.font = '800 ' + Math.round(CELL*0.78) + 'px "Syne", sans-serif';
     g.fillStyle = '#ffd23c';
-    g.fillText('READY', COLS*CELL/2, ROWS*CELL*0.58);
+    g.fillText(sheetName().toUpperCase(), cx, y0 + h*0.64);
+    g.font = '600 ' + Math.round(CELL*0.34) + 'px "Chivo Mono", monospace';
+    g.fillStyle = '#dfeef2';
+    g.fillText('READY', cx, y0 + h*0.90);
+    g.restore();
   }
   g.restore();
 
   $('score').textContent = score.toLocaleString();
-  $('level').textContent = level;
+  $('level').textContent = level + (level > STAGES.length ? ' \u21BB' : '');
   $('dots').textContent = pelletsLeft + ' LEFT';
+  $('sheet').textContent = String(sheetNo()+1).padStart(2,'0') + ' \u00B7 ' + sheetName().toUpperCase();
   $('phase').textContent = fright > 0 ? 'VULNERABLE ' + Math.ceil(fright) : phase.toUpperCase();
   const lv = $('lives');
   if(lv.childElementCount !== Math.max(0, lives-1)){
@@ -970,7 +1227,7 @@ function showOver(){
     '<div class="eyebrow">SURVEY ABANDONED</div>' +
     '<h1>' + score.toLocaleString() + '<em>FINAL SCORE</em></h1>' +
     '<div class="grid2">' +
-      '<div class="gc"><span>LEVEL</span><b>' + level + '</b></div>' +
+      '<div class="gc"><span>SHEET</span><b style="font-size:14px">' + sheetName().toUpperCase() + '</b></div>' +
       '<div class="gc"><span>BEST</span><b>' + best.toLocaleString() + '</b></div>' +
     '</div>' +
     '<button class="btn">RUN IT AGAIN</button>',
