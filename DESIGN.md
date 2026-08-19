@@ -102,7 +102,8 @@ arrives**, not before — but design them for the second and third.
 - [ ] **`Arcade.sticks`** — on-screen twin-stick overlay. Grid Riot needs it;
       Shards may want it.
 - [ ] **`Arcade.tilt`** — device orientation, including the iOS
-      `requestPermission()` gesture dance. Only Tilt needs it. Park until then.
+      `requestPermission()` gesture dance. Only Tilt needs it, and Tilt is held
+      for last, so this is the final piece of engine work.
 - [ ] **Landscape support** in `arcade.js` — a few of these want a wide board.
       Currently the shell assumes portrait.
 - [ ] **Attract-loop kit** — the launcher's cabinet animations are hand-written
@@ -770,7 +771,7 @@ graph paper, flow as a spreading ink stain, leaks as blots.
 ---
 
 #### 22 · TILT — *gyro roller*
-**Status:** ⊘ parked until `Arcade.tilt` exists **Size:** L **Accent:** `#a8e10c`
+**Status:** ⊘ parked — held for last **Size:** L **Accent:** `#a8e10c`
 
 **The idea.** Tilt the phone, roll the ball. The physical one. Nothing else on
 the floor uses the device this way.
@@ -804,7 +805,7 @@ fallback first.
 ---
 
 #### 23 · HORDE — *arena crawler*
-**Status:** ⊘ parked — overlaps Derelict **Size:** L **Accent:** `#c99bff`
+**Status:** ⊘ parked — held for last **Size:** L **Accent:** `#c99bff`
 
 **The idea.** Spawners, not enemies, are the problem. Kill the source or drown.
 
@@ -848,8 +849,13 @@ Three at a time, always mixed so no two consecutive builds feel the same.
 - **Batch G** — ☐ Fuse · ☐ Southpaw
   *The two biggest. Southpaw is the flagship — give it room.*
 
-- **Batch H** — ☐ Grid Riot · ☐ Tilt
-  *Both need new input systems. Do last, or when the mood takes you.*
+- **Batch H** — ☐ Grid Riot
+  *Needs the twin-stick overlay, and possibly landscape support in the shell.*
+
+- **Batch I — last, by decision** — ⊘ Tilt · ⊘ Horde
+  *Both parked until everything else is on the floor. Tilt carries the most
+  technical risk on the list and Horde has to prove it is not just Derelict
+  in real time. Revisit only when the rest is done.*
 
 ---
 
@@ -858,7 +864,9 @@ Three at a time, always mixed so no two consecutive builds feel the same.
 The clones are the floor. These are the reason for the arcade.
 
 - ☑ **Deep** — one-thumb descent
-- ☑ **Derelict** — turn-based ship crawler
+- ☑ **Derelict** — turn-based ship crawler: line-of-sight pursuit, patrols, fast
+  pack hunters, a twenty-piece armoury with four ammunition types, consumables,
+  a gear screen, and drawn sprites in place of glyphs
 - ☑ **Highway** — pseudo-3D pursuit
 - ☐ *next original* — no brief yet. Keep a slot open in every other batch so
   the floor never becomes only clones.

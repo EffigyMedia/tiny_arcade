@@ -97,12 +97,12 @@ body{
 h1{font-family:var(--px);line-height:1;letter-spacing:.02em}
 h1 .t1{
   display:block;font-size:clamp(19px,6.8vw,32px);color:var(--cyan);
-  text-shadow:0 0 4px currentColor,0 0 14px currentColor,0 0 34px currentColor;
+  text-shadow:0 0 2px rgba(0,229,255,.85),0 0 9px rgba(0,229,255,.45),0 0 22px rgba(0,229,255,.22);
   margin-bottom:clamp(11px,3.2vw,17px);
 }
 h1 .t2{
   display:block;font-size:clamp(27px,9.8vw,48px);color:var(--mag);
-  text-shadow:0 0 4px currentColor,0 0 16px currentColor,0 0 42px currentColor,0 0 76px currentColor;
+  text-shadow:0 0 2px rgba(255,45,149,.9),0 0 11px rgba(255,45,149,.42),0 0 28px rgba(255,45,149,.20);
   animation:tube 7s linear infinite;
 }
 @keyframes tube{
@@ -112,7 +112,7 @@ h1 .t2{
 .tube{
   height:2px;margin:24px auto 0;max-width:280px;
   background:linear-gradient(90deg,transparent,var(--mag),var(--cyan),transparent);
-  box-shadow:0 0 12px rgba(255,45,149,.6);
+  box-shadow:0 0 9px rgba(255,45,149,.45);
 }
 
 /* ---------- attract ticker ---------- */
@@ -125,7 +125,12 @@ h1 .t2{
   display:inline-block;padding:7px 0;font-family:var(--px);font-size:8px;
   color:var(--gold);animation:roll 26s linear infinite;
 }
-.tick span{padding:0 18px;opacity:.9}
+.tick span{opacity:.9}
+.tick i{
+  display:inline-block;width:7px;height:7px;background:currentColor;
+  margin:0 16px;vertical-align:middle;position:relative;top:-1px;
+  clip-path:polygon(50% 0%,61% 35%,98% 35%,68% 57%,79% 91%,50% 70%,21% 91%,32% 57%,2% 35%,39% 35%);
+}
 @keyframes roll{from{transform:translateX(0)}to{transform:translateX(-50%)}}
 
 /* ---------- cabinets ---------- */
@@ -263,10 +268,8 @@ var screens = [];
 var still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 /* ---------- attract ticker ---------- */
-var msgs = ['\u2605 SELECT YOUR MACHINE', '\u2605 FREE PLAY',
-            '\u2605 NO COINS NEEDED', '\u2605 PLAYED IN THE DARK',
-            '\u2605 INSERT NOTHING, PRESS START'];
-var line = msgs.map(function(m){ return '<span>' + m + '</span>'; }).join('');
+var unit = '<span>INSERT COIN</span><i></i><span>PRESS START</span><i></i>';
+var line = unit + unit + unit;
 document.getElementById('tick').innerHTML = line + line;
 
 /* ---------- build the row of cabinets ---------- */
@@ -400,20 +403,27 @@ function size(s){
 
 function dive(g,s,t){
   g.fillStyle='#061119'; g.fillRect(0,0,s.w,s.h);
-  var gap=s.w*0.34;
+  var gap=s.w*0.34, span=s.h+18, py=s.h*0.30, bars=[];
   for(var i=0;i<4;i++){
     // the diver descends, so the ledges rise past her — same sign as the game
-    var span=s.h+18;
     var y=span-((t*22+i*s.h/4)%span)-9;
     var x=s.w*0.5+Math.sin(i*2.1+t*0.5)*s.w*0.22;
+    bars.push({y:y,x:x});
     g.fillStyle='#17303c';
     g.fillRect(0,y,x-gap/2,4); g.fillRect(x+gap/2,y,s.w-(x+gap/2),4);
     g.fillStyle=s.accent; g.globalAlpha=.8;
     g.fillRect(x-gap/2-2,y,2,4); g.fillRect(x+gap/2,y,2,4);
     g.globalAlpha=1;
   }
+  // steer toward the gap of whichever ledge is nearest, weighted by how close
+  // it is, so she is always dead centre of a gap at the moment she passes it
+  var xs=0, ws=0;
+  for(var j=0;j<bars.length;j++){
+    var d=Math.abs(bars[j].y-py)+7, w=1/(d*d);
+    xs+=bars[j].x*w; ws+=w;
+  }
   g.fillStyle='#eafff8';
-  g.beginPath(); g.arc(s.w/2+Math.sin(t*0.9)*s.w*0.2, s.h*0.3, 3, 0, 6.2832); g.fill();
+  g.beginPath(); g.arc(ws?xs/ws:s.w/2, py, 3, 0, 6.2832); g.fill();
 }
 
 function grid(g,s,t){

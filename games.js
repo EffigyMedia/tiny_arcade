@@ -35,7 +35,7 @@ window.TINY_ARCADE = [
     name:  'Highway',
     accent:'#ff8a3d',
     genre: 'DRIVING \u00B7 ENDLESS',
-    hook:  'Thread traffic at 280km/h with the county behind you. Cruisers meet semi-trailers too.',
+    hook:  'Thread traffic at 180mph with the county behind you. Cruisers meet semi-trailers too.',
     attract:'road'
   }
 ];
