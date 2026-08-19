@@ -31,6 +31,20 @@
 
 var A = window.Arcade = window.Arcade || {};
 
+/* ---- 0. offline. Registering here covers the launcher and every game,
+   since arcade.js is the one file all of them load. ---- */
+if ('serviceWorker' in navigator && location.protocol.slice(0,4) === 'http'){
+  window.addEventListener('load', function(){
+    /* this file runs from <head>, so the body does not exist yet — the
+       launcher/game test has to wait until load or it always says launcher
+       and registers games/sw.js, which does not exist. */
+    var root = document.getElementById('stage') ? '../' : './';
+    navigator.serviceWorker.register(root + 'sw.js').then(null, function(err){
+      if (window.console && console.warn) console.warn('arcade: offline cache unavailable', err);
+    });
+  });
+}
+
 /* ---- 1. frame gate. Installed immediately, before the game boots ---- */
 var paused = false, held = null;
 var raf = window.requestAnimationFrame && window.requestAnimationFrame.bind(window);

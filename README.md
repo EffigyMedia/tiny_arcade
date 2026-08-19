@@ -3,6 +3,7 @@
 A tiny arcade cabinet that lives in a browser tab. Runs offline, no build step.
 
     DESIGN.md           the work queue: what is built, what is next
+    sw.js               service worker: offline play, no stale files
     sync.sh             pushes this folder to the GitHub repo
     index.html          the launcher (the arcade floor)
     audio.js            shared synth engine — every sound is generated
@@ -38,23 +39,34 @@ nothing is force-pushed, and a second run with no changes does nothing.
 
 Override the target with `TINY_ARCADE_REPO=...` if the repo ever moves.
 
-## Cache busting
+## Offline
 
-Shared scripts are not loaded with plain `<script>` tags. A small inline loader
-in each page writes them with a stamp that rolls over every ten minutes:
+`sw.js` is a service worker. It registers from `arcade.js`, so the launcher and
+every game get it without any per-page setup.
 
-    audio.js?v=2978594
+Two rules, pulling in opposite directions:
 
-Ten minutes is the same window GitHub Pages caches for, so a stale copy can
-never outlive the CDN, and **there is no version number to remember to bump**.
-Within a slot the files still cache normally; when the slot rolls, every cache
-fetches fresh.
+- **pages and scripts** — network first with a 2.5s timeout, falling back to
+  cache. Online you always get the newest file; offline you get the last one
+  that worked.
+- **art, icons and fonts** — served from cache instantly, refreshed in the
+  background for next time.
 
-The loader uses `document.write` on purpose — it keeps `audio.js` and
-`arcade.js` in strict order ahead of the game code, which expects
-`window.Arcade` to already exist.
+There is **no version number to bump**. Freshness comes from asking the network
+first, not from a cache name.
 
-## Adding a game
+One subtlety worth knowing if you ever touch it: the worker fetches with
+`cache: 'reload'`. The browser keeps its own HTTP cache *in front of* the
+worker and will otherwise hand it a stale script it decided was still fresh.
+With `reload`, the Cache API is the only cache in play, which is the point.
+
+On a first visit the launcher quietly asks the worker to pull the **whole
+catalogue** down in the background, so even a machine you have never opened
+works with no signal. Settings (the cog, top right) has a **FETCH ALL** button
+to do it again on command, with a progress bar, plus the sound toggles and an
+erase-saved-data option.
+
+## Adding a game## Adding a game
 
 1. Drop `yourgame.html` into `games/`.
 

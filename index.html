@@ -55,6 +55,40 @@ body{
 }
 @keyframes hum{0%,100%{opacity:1}47%{opacity:.93}49%{opacity:1}}
 
+#cog{
+  position:fixed;z-index:860;right:62px;
+  top:calc(env(safe-area-inset-top,0px) + 12px);
+  width:42px;height:42px;border-radius:50%;cursor:pointer;padding:0;
+  background:rgba(10,8,18,.82);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);
+  border:1px solid var(--line);color:var(--cyan);
+  font-family:var(--px);font-size:12px;line-height:1;display:grid;place-items:center;
+}
+#cog:active{background:rgba(0,229,255,.16)}
+#cog:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+
+#sheet{
+  position:fixed;inset:0;z-index:880;display:none;place-items:center;padding:26px 20px;
+  background:rgba(4,3,8,.92);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);
+  overflow-y:auto;
+}
+#sheet.on{display:grid}
+.sh{width:100%;max-width:330px;margin:auto;text-align:left}
+.sh h2{font-family:var(--px);font-size:14px;color:var(--mag);letter-spacing:.06em;
+  margin-bottom:6px;text-shadow:0 0 10px rgba(255,45,149,.5)}
+.sh p{font-size:16px;line-height:1.35;color:var(--dim);margin-bottom:18px}
+.shrow{display:flex;align-items:center;gap:10px;padding:12px 0;border-top:1px solid var(--line)}
+.shrow b{font-family:var(--px);font-size:9px;letter-spacing:.1em;flex:1}
+.shrow span{font-size:15px;color:var(--dim)}
+.shbtn{
+  font-family:var(--px);font-size:9px;letter-spacing:.12em;padding:10px 12px;cursor:pointer;
+  background:transparent;border:1px solid var(--line);color:var(--text);
+}
+.shbtn.key{border-color:var(--cyan);color:var(--cyan)}
+.shbtn:disabled{opacity:.4}
+.shbar{height:6px;background:rgba(255,255,255,.08);margin-top:10px;overflow:hidden}
+.shbar i{display:block;height:100%;width:0;background:var(--cyan);transition:width .2s}
+.shnote{font-size:14px;line-height:1.4;color:#6b6488;margin-top:10px}
+
 #snd{
   position:fixed;z-index:860;right:12px;
   top:calc(env(safe-area-inset-top,0px) + 12px);
@@ -228,7 +262,31 @@ footer{margin-top:28px;border-top:1px solid var(--line);padding-top:16px;text-al
 </head>
 <body>
 <div id="crt"></div>
+<button id="cog" type="button" aria-label="Settings">⚙</button>
 <button id="snd" type="button" aria-label="Sound"><span>♪</span><span class="x">✕</span></button>
+<div id="sheet">
+  <div class="sh">
+    <h2>SETTINGS</h2>
+    <p>Everything here happens on this device.</p>
+    <div class="shrow">
+      <b>OFFLINE CATALOGUE</b>
+      <button class="shbtn key" id="fetchAll">FETCH ALL</button>
+    </div>
+    <div class="shbar"><i id="fetchBar"></i></div>
+    <div class="shnote" id="fetchNote">Downloads every machine so the whole arcade works with no signal.</div>
+    <div class="shrow">
+      <b>SOUND</b>
+      <button class="shbtn" id="shSfx">SFX</button>
+      <button class="shbtn" id="shMus">MUSIC</button>
+    </div>
+    <div class="shrow">
+      <b>SAVED DATA</b>
+      <button class="shbtn" id="shWipe">ERASE</button>
+    </div>
+    <div class="shnote">Erasing clears high scores and any run in progress.</div>
+    <div class="shrow"><button class="shbtn key" id="shClose" style="flex:1">CLOSE</button></div>
+  </div>
+</div>
 <div id="mini"><span class="a">TINY</span><span class="b">ARCADE</span></div>
 
 <div id="page">
@@ -255,20 +313,9 @@ footer{margin-top:28px;border-top:1px solid var(--line);padding-top:16px;text-al
 
 </div>
 
-<script>
-/* Shared scripts are stamped with a slot that rolls over every ten minutes —
-   the same window GitHub Pages caches for — so a stale copy can never outlive
-   the CDN, and there is no version number for anyone to remember to bump.
-   document.write is used deliberately: it keeps these strictly in order, and
-   the game code below expects window.Arcade to already exist. */
-(function(d){
-  var v = '?v=' + Math.floor(Date.now() / 6e5);
-  var base = '';
-  ['audio.js', 'arcade.js', 'games.js'].forEach(function(f){
-    d.write('<scr' + 'ipt src="' + base + f + v + '"></scr' + 'ipt>');
-  });
-})(document);
-</script>
+<script src="audio.js"></script>
+<script src="arcade.js"></script>
+<script src="games.js"></script>
 <script>
 (function(){
 "use strict";
@@ -382,6 +429,87 @@ snd.addEventListener('click', function(e){
 
 /* the cabinet only wakes up once you have touched the room */
 document.addEventListener('pointerdown', startTheme, { once:true });
+
+/* ---------- settings + offline catalogue ---------- */
+var sheet = document.getElementById('sheet');
+var bar = document.getElementById('fetchBar');
+var note = document.getElementById('fetchNote');
+var fetchBtn = document.getElementById('fetchAll');
+var PREFETCHED = 'tinyarcade.prefetched.v1';
+
+function catalogue(){
+  var list = ['./', './index.html', './audio.js', './arcade.js', './games.js',
+              './sw.js', './manifest.webmanifest', './icon.png', './icon-512.png',
+              './effigy.png'];
+  GAMES.forEach(function(g){ list.push('./' + g.file); });
+  return list;
+}
+
+function prefetch(quiet){
+  if (!('serviceWorker' in navigator)) return;
+  navigator.serviceWorker.ready.then(function(reg){
+    var target = reg.active;
+    if (!target) return;
+    if (!quiet){
+      fetchBtn.disabled = true;
+      fetchBtn.textContent = 'FETCHING';
+      note.textContent = 'Downloading the catalogue\u2026';
+    }
+    target.postMessage({ type:'prefetch', urls: catalogue() });
+  });
+}
+
+navigator.serviceWorker && navigator.serviceWorker.addEventListener('message', function(e){
+  var d = e.data || {};
+  if (d.type === 'prefetch'){
+    bar.style.width = Math.round(100 * d.done / d.total) + '%';
+    note.textContent = 'Downloading\u2026 ' + d.done + ' of ' + d.total;
+  } else if (d.type === 'prefetch-done'){
+    bar.style.width = '100%';
+    fetchBtn.disabled = false;
+    fetchBtn.textContent = 'FETCH AGAIN';
+    note.textContent = d.failed
+      ? d.failed + ' file' + (d.failed>1?'s':'') + ' could not be reached. Try again on a better connection.'
+      : 'The whole arcade is on this device. It will play with no signal.';
+    try { localStorage.setItem(PREFETCHED, String(Date.now())); } catch(err){}
+  }
+});
+
+/* first ever visit: pull the catalogue down quietly in the background */
+window.addEventListener('load', function(){
+  setTimeout(function(){
+    var done = null;
+    try { done = localStorage.getItem(PREFETCHED); } catch(e){}
+    if (!done) prefetch(true);
+  }, 2500);
+});
+
+function paintSheetAudio(){
+  document.getElementById('shSfx').textContent = 'SFX ' + (A.audio.get('sfx') ? 'ON' : 'OFF');
+  document.getElementById('shMus').textContent = 'MUSIC ' + (A.audio.get('music') ? 'ON' : 'OFF');
+}
+A.audio.onChange(paintSheetAudio);
+paintSheetAudio();
+
+document.getElementById('cog').addEventListener('click', function(e){
+  e.stopPropagation(); A.audio.init(); paintSheetAudio(); sheet.classList.add('on');
+});
+document.getElementById('shClose').addEventListener('click', function(){ sheet.classList.remove('on'); });
+sheet.addEventListener('click', function(e){ if (e.target === sheet) sheet.classList.remove('on'); });
+fetchBtn.addEventListener('click', function(){ A.audio.init(); prefetch(false); });
+document.getElementById('shSfx').addEventListener('click', function(){ A.audio.init(); A.audio.toggle('sfx'); });
+document.getElementById('shMus').addEventListener('click', function(){ A.audio.init(); A.audio.toggle('music'); startTheme(); });
+document.getElementById('shWipe').addEventListener('click', function(){
+  var b = document.getElementById('shWipe');
+  if (b.dataset.sure !== '1'){ b.dataset.sure = '1'; b.textContent = 'SURE?'; return; }
+  try {
+    Object.keys(localStorage).forEach(function(k){
+      if (k.indexOf('tinyarcade.save') === 0) localStorage.removeItem(k);
+    });
+  } catch(e){}
+  b.textContent = 'ERASED';
+  setTimeout(function(){ location.reload(); }, 600);
+});
 
 /* ---------- coin-op launch ---------- */
 rack.addEventListener('click', function(e){
