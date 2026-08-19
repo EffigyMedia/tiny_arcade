@@ -1,0 +1,1510 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#06080a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Derelict</title>
+<meta name="arcade-title" content="Derelict">
+<meta name="arcade-accent" content="#7fd8ff">
+<script src="../audio.js"></script>
+<script src="../arcade.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Oxanium:wght@600;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+    --stage-h:100dvh;
+    --safe-top:env(safe-area-inset-top,0px);
+  --cell:34px;
+  --void:#06080a;
+  --hull:#101820;
+  --seam:#1b2833;
+  --panel:#0b1117;
+  --text:#cfe0e6;
+  --dim:#63798a;
+  --ice:#7fd8ff;
+  --blood:#ff3b5c;
+  --acid:#a3e635;
+  --steel:#93a7b5;
+  --violet:#b79cf0;
+  --amber:#ffb347;
+  --kblue:#4da3ff;
+  --kamber:#ffb347;
+  --kred:#ff5470;
+  --core:#ffd479;
+  --disp:"Oxanium","Arial Narrow",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{
+  height:100%;width:100%;position:fixed;overflow:hidden;
+  background:#000;color:var(--text);font-family:var(--mono);
+  overscroll-behavior:none;touch-action:manipulation;
+  -webkit-user-select:none;user-select:none;
+}
+#stage{position:absolute;inset:0;display:grid;place-items:center;background:#000}
+#frame{
+  position:relative;
+  width:min(100dvw, calc(var(--stage-h) * 0.52));height:var(--stage-h);
+  display:flex;flex-direction:column;
+  padding:calc(var(--safe-top, env(safe-area-inset-top,0px)) + 10px) 12px calc(env(safe-area-inset-bottom,0px) + 10px);
+  background:
+    radial-gradient(120% 60% at 50% 0%,#0d1620 0%,var(--void) 60%),
+    var(--void);
+  overflow:hidden;
+}
+#frame::after{ /* scanline haze */
+  content:"";position:absolute;inset:0;pointer-events:none;z-index:60;
+  background:repeating-linear-gradient(to bottom,rgba(255,255,255,.022) 0 1px,transparent 1px 3px);
+  mix-blend-mode:overlay;
+}
+#frame.hurt{animation:hurt .32s steps(2) 1}
+@keyframes hurt{
+  0%{filter:none;transform:translateX(0)}
+  25%{filter:brightness(1.5) saturate(1.6) hue-rotate(-12deg);transform:translateX(-4px)}
+  60%{transform:translateX(3px)}
+  100%{filter:none;transform:translateX(0)}
+}
+@media (prefers-reduced-motion:reduce){#frame.hurt{animation:none}}
+
+/* ---------------- header ---------------- */
+#head{flex:none}
+.deckline{
+  display:flex;align-items:baseline;gap:8px;
+  font-family:var(--disp);font-weight:800;letter-spacing:.04em;
+  border-bottom:1px solid var(--seam);padding-bottom:7px;margin-bottom:9px;
+}
+.deckno{font-size:11px;color:var(--blood);letter-spacing:.2em;font-family:var(--mono);font-weight:600}
+.deckname{font-size:15px;text-transform:uppercase;flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.lvl{font-family:var(--mono);font-size:11px;font-weight:600;color:var(--ice);letter-spacing:.1em}
+
+.meter{display:flex;align-items:center;gap:8px;margin-bottom:5px}
+.mlabel{font-size:8.5px;letter-spacing:.18em;color:var(--dim);width:62px;flex:none}
+.track{flex:1;height:9px;background:#0a0f14;border:1px solid var(--seam);position:relative;overflow:hidden}
+.fill{position:absolute;inset:0;width:0;transition:width .18s ease}
+#hpFill{background:linear-gradient(90deg,#8c1024,var(--blood))}
+#chFill{background:linear-gradient(90deg,#155e75,var(--ice))}
+#xpFill{background:linear-gradient(90deg,#3f3a18,var(--amber))}
+.mnum{font-size:10px;font-weight:500;width:52px;text-align:right;flex:none;font-variant-numeric:tabular-nums}
+.track.thin{height:4px}
+.status{display:flex;gap:6px;margin:6px 0 2px;min-height:14px;flex-wrap:wrap}
+.tag{
+  font-size:8.5px;letter-spacing:.14em;padding:2px 6px;border:1px solid currentColor;
+  color:var(--acid);opacity:.9;
+}
+.tag.surge{color:var(--amber)}
+
+/* ---------------- grid ---------------- */
+#gridwrap{
+  flex:1;min-height:0;overflow:hidden;margin:8px 0;
+  display:flex;align-items:center;justify-content:center;
+}
+#grid{
+  display:grid;grid-template-columns:repeat(10,var(--cell));grid-auto-rows:var(--cell);
+  gap:2px;background:var(--seam);border:1px solid var(--seam);
+}
+.cell{
+  width:var(--cell);height:var(--cell);
+  position:relative;background:#05070a;
+  display:grid;place-items:center;overflow:hidden;
+}
+.cell.seen{background:#1c2c39}
+.cell.seen::before{
+  content:"";position:absolute;inset:0;
+  background:linear-gradient(135deg,rgba(255,255,255,.03),transparent 60%);
+}
+.cell.wall{background:#0a0e12}
+.cell.wall.seen{background:#080c11;box-shadow:inset 0 0 0 1px rgba(147,167,181,.16)}
+.cell.wall.seen.organic{background:#180d13;box-shadow:inset 0 0 0 1px rgba(255,59,92,.30)}
+.cell.wall.seen.organic::after{
+  content:"";position:absolute;inset:0;opacity:.5;
+  background:repeating-linear-gradient(45deg,rgba(255,59,92,.16) 0 2px,transparent 2px 5px);
+}
+.g{
+  font-family:var(--mono);font-weight:600;
+  font-size:calc(var(--cell)*0.5);line-height:1;position:relative;z-index:2;
+}
+.badge{
+  position:absolute;right:1px;bottom:0;z-index:3;
+  font-size:calc(var(--cell)*0.26);font-weight:600;color:var(--text);opacity:.8;
+  text-shadow:0 0 3px #000,0 0 3px #000;
+}
+.cell.mob .g{text-shadow:0 0 8px currentColor}
+.cell.sel{outline:1px solid var(--ice);outline-offset:-1px;background:#16232e}
+.cell.reach{box-shadow:inset 0 0 0 1px rgba(127,216,255,.20)}
+.c-crawler{color:var(--blood)} .c-husk{color:#ff7a6e}
+.c-spitter{color:var(--acid)} .c-warden{color:var(--steel)}
+.c-wraith{color:var(--violet)} .c-gorger{color:var(--amber)}
+.c-stalker{color:#ff1f4a} .c-apex{color:#fff}
+.cell.apex{background:#1a0d13}
+.c-player{color:var(--ice)}
+.cell.player .g{text-shadow:0 0 10px var(--ice),0 0 22px rgba(127,216,255,.4)}
+.c-med{color:var(--acid)} .c-cell{color:var(--ice)}
+.c-exit{color:#4a5c68}
+.c-exit.open{color:var(--acid);animation:beat 1.4s ease-in-out infinite}
+@keyframes beat{0%,100%{opacity:.55}50%{opacity:1}}
+@media (prefers-reduced-motion:reduce){.c-exit.open{animation:none}}
+
+/* doors */
+.cell.door.seen{background:#0c141c}
+.cell.door.locked.b-blue  { background:rgba(77,163,255,.20); box-shadow:inset 0 0 0 2px var(--kblue) }
+.cell.door.locked.b-amber { background:rgba(255,179,71,.20); box-shadow:inset 0 0 0 2px var(--kamber) }
+.cell.door.locked.b-red   { background:rgba(255,84,112,.20); box-shadow:inset 0 0 0 2px var(--kred) }
+.cell.door.open.b-blue  { box-shadow:inset 0 -2px 0 0 rgba(77,163,255,.55), inset 0 2px 0 0 rgba(77,163,255,.55) }
+.cell.door.open.b-amber { box-shadow:inset 0 -2px 0 0 rgba(255,179,71,.55), inset 0 2px 0 0 rgba(255,179,71,.55) }
+.cell.door.open.b-red   { box-shadow:inset 0 -2px 0 0 rgba(255,84,112,.55), inset 0 2px 0 0 rgba(255,84,112,.55) }
+.cell.door.locked .g{font-size:calc(var(--cell)*0.62);opacity:.55}
+.c-door{color:#0c141c}
+.cell.door.locked.b-blue  .g{color:var(--kblue)}
+.cell.door.locked.b-amber .g{color:var(--kamber)}
+.cell.door.locked.b-red   .g{color:var(--kred)}
+
+/* gear */
+.c-med{color:var(--acid)} .c-cell{color:var(--ice)}
+.c-plate{color:var(--steel)} .c-chip{color:var(--blood)}
+.c-cap{color:var(--violet)} .c-shard{color:var(--amber)}
+.c-key.k-blue{color:var(--kblue)} .c-key.k-amber{color:var(--kamber)} .c-key.k-red{color:var(--kred)}
+.c-core{color:var(--core);text-shadow:0 0 10px rgba(255,212,121,.7)}
+.cell.corecell{background:#241d10;box-shadow:inset 0 0 0 1px rgba(255,212,121,.4)}
+
+/* status tags */
+.tag.k-blue{color:var(--kblue)} .tag.k-amber{color:var(--kamber)} .tag.k-red{color:var(--kred)}
+.tag.guard{color:var(--ice)} .tag.core{color:var(--core)}
+
+.vtitle.amberT{color:var(--core)}
+.vbtn.amberB{border-color:var(--core);color:var(--core);background:#241c0c}
+.syslist{text-align:left;margin-bottom:6px}
+.syslist div{padding:6px 0;border-top:1px solid var(--seam)}
+.syslist b{display:block;font-family:var(--mono);font-size:11px;font-weight:600;letter-spacing:.12em;color:var(--core)}
+.syslist span{display:block;font-size:10px;line-height:1.5;color:var(--dim);margin-top:2px}
+
+/* ---------------- panel ---------------- */
+#panel{
+  flex:none;height:clamp(94px,15.5vh,128px);border:1px solid var(--seam);background:var(--panel);
+  padding:8px 10px;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-end;
+}
+#log{font-size:10.5px;line-height:1.65;color:var(--dim)}
+#log div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#log div:last-child{color:var(--text)}
+.assess{display:flex;flex-direction:column;gap:5px}
+.arow{display:flex;align-items:baseline;gap:8px}
+.aname{font-family:var(--disp);font-weight:800;font-size:14px;letter-spacing:.06em;text-transform:uppercase}
+.astat{font-size:10px;color:var(--dim);letter-spacing:.06em;margin-left:auto;font-variant-numeric:tabular-nums}
+.atrait{font-size:9px;letter-spacing:.1em;color:var(--amber)}
+.aline{font-size:11px;font-variant-numeric:tabular-nums}
+.aline b{font-weight:600}
+.safe{color:var(--acid)} .risk{color:var(--amber)} .lethal{color:var(--blood)}
+.hint{font-size:9.5px;color:var(--dim);letter-spacing:.08em}
+
+/* ---------------- actions ---------------- */
+#acts{flex:none;display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:8px}
+button{
+  font-family:var(--mono);font-weight:600;font-size:10px;letter-spacing:.1em;
+  background:#0d141b;color:var(--text);border:1px solid var(--seam);
+  padding:9px 2px 7px;cursor:pointer;position:relative;
+}
+button .cost{display:block;font-size:8px;color:var(--ice);opacity:.8;margin-top:3px;letter-spacing:.1em}
+button:disabled{opacity:.32;cursor:default}
+button.strike{border-color:var(--blood);color:#fff;background:#1c0d13}
+button.strike .cost{color:var(--blood)}
+button:not(:disabled):active{background:#16222c}
+button:focus-visible{outline:2px solid var(--ice);outline-offset:1px}
+
+/* ---------------- overlay ---------------- */
+#veil{
+  position:absolute;inset:0;z-index:70;display:grid;place-items:center;padding:26px 22px;
+  background:linear-gradient(180deg,rgba(6,8,10,.93),rgba(6,8,10,.985));
+  text-align:center;
+}
+#veil.hidden{display:none}
+.vwrap{width:100%;max-width:340px}
+.veyebrow{font-size:9.5px;letter-spacing:.34em;color:var(--blood);margin-bottom:14px}
+.vtitle{
+  font-family:var(--disp);font-weight:800;font-size:clamp(28px,9vw,42px);
+  line-height:.95;letter-spacing:.02em;text-transform:uppercase;margin-bottom:12px;
+}
+.vtitle.ice{color:var(--ice)}
+.vflavor{font-size:11.5px;line-height:1.75;color:var(--dim);margin-bottom:20px}
+.vgrid{
+  display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--seam);
+  border:1px solid var(--seam);margin-bottom:22px;
+}
+.vcell{background:var(--panel);padding:9px 8px;text-align:left}
+.vcell span{display:block;font-size:8.5px;letter-spacing:.18em;color:var(--dim);margin-bottom:3px}
+.vcell b{font-size:15px;font-weight:600;font-variant-numeric:tabular-nums}
+.vbtn{
+  width:100%;padding:14px;font-size:12px;letter-spacing:.24em;
+  border-color:var(--ice);color:var(--ice);background:#0b1a22;
+}
+.vbtn.red{border-color:var(--blood);color:var(--blood);background:#180b10}
+.vbtn.ghost{border-color:var(--seam);color:var(--dim);background:transparent}
+.vsub{margin-top:14px;font-size:9.5px;letter-spacing:.14em;color:var(--dim)}
+.legend{margin-top:18px;text-align:left;font-size:10px;line-height:1.9;color:var(--dim)}
+.legend b{color:var(--text);font-weight:600}
+.legend i{font-style:normal;font-weight:600}
+</style>
+</head>
+<body>
+<div id="stage"><div id="frame">
+
+  <div id="head">
+    <div class="deckline">
+      <span class="deckno" id="deckno">DECK 01</span>
+      <span class="deckname" id="deckname">Cargo Hold</span>
+      <span class="lvl" id="lvlTag">LV 1</span>
+    </div>
+    <div class="meter">
+      <span class="mlabel">INTEGRITY</span>
+      <span class="track"><span class="fill" id="hpFill"></span></span>
+      <span class="mnum" id="hpNum">20/20</span>
+    </div>
+    <div class="meter">
+      <span class="mlabel">CHARGE</span>
+      <span class="track"><span class="fill" id="chFill"></span></span>
+      <span class="mnum" id="chNum">2/10</span>
+    </div>
+    <div class="meter">
+      <span class="mlabel">DATA</span>
+      <span class="track thin"><span class="fill" id="xpFill"></span></span>
+      <span class="mnum" id="xpNum">0/2</span>
+    </div>
+    <div class="status" id="status"></div>
+  </div>
+
+  <div id="gridwrap"><div id="grid"></div></div>
+
+  <div id="panel"><div id="log"></div></div>
+
+  <div id="acts">
+    <button id="bStrike" class="strike">STRIKE<span class="cost">MELEE</span></button>
+    <button id="bArc">ARC<span class="cost">3 CH</span></button>
+    <button id="bPatch">PATCH<span class="cost">4 CH</span></button>
+    <button id="bSurge">SURGE<span class="cost">5 CH</span></button>
+  </div>
+
+  <div id="veil"><div class="vwrap" id="veilBody"></div></div>
+
+</div></div>
+
+<script>
+(function(){
+"use strict";
+
+/* ================================================================
+   DERELICT — a one-screen puzzle crawler.
+   Compartments, sealed doors, and an apex sitting on the only
+   piece of salvage worth having. Combat is fully deterministic.
+   ================================================================ */
+
+const COLS = 10, ROWS = 13, N = COLS*ROWS;
+
+const $ = id => document.getElementById(id);
+const gridEl = $('grid'), panelEl = $('panel');
+const veil = $('veil'), veilBody = $('veilBody'), frame = $('frame');
+
+const clamp = (v,a,b) => v<a?a:v>b?b:v;
+const pick = a => a[(Math.random()*a.length)|0];
+const ri = (a,b) => a + ((Math.random()*(b-a+1))|0);
+function shuffled(a){ const c=a.slice(); for(let i=c.length-1;i>0;i--){ const j=(Math.random()*(i+1))|0; [c[i],c[j]]=[c[j],c[i]]; } return c; }
+
+/* ---------------- bestiary ---------------- */
+const SPECIES = {
+  crawler:{ name:'Crawler', g:'c', hp:1.0, dmg:1.0, trait:null,
+            desc:'Nothing clever. Just teeth.' },
+  husk:   { name:'Husk',    g:'h', hp:0.8, dmg:1.0, trait:'FIRST STRIKE',
+            desc:'Hits before you do, every exchange.' },
+  spitter:{ name:'Spitter', g:'s', hp:0.7, dmg:0.9, trait:'CORROSIVE',
+            desc:'Sears your suit: scan repair drops to a third until purged.' },
+  warden: { name:'Warden',  g:'W', hp:1.3, dmg:1.0, trait:'PLATED',
+            desc:'Melee does 30% less. ARC ignores plating.' },
+  wraith: { name:'Wraith',  g:'w', hp:0.8, dmg:0.9, trait:'DRAIN',
+            desc:'Every hit it lands strips 2 charge.' },
+  gorger: { name:'Gorger',  g:'g', hp:1.3, dmg:0.9, trait:'REGENERATES',
+            desc:'Knits back 12% of its mass each turn you spend elsewhere.' },
+  stalker:{ name:'Stalker', g:'t', hp:0.7, dmg:1.1, trait:'HUNTS',
+            desc:'Moves toward you. Lunges on any turn you do not strike it.' },
+  apex:   { name:'Apex',    g:'\u03A9', hp:1.7, dmg:1.1, trait:'APEX',
+            desc:'Whatever the deck was built around. It is holding the salvage.' }
+};
+
+const DECKS = [
+  ['Cargo Hold',    'Something got into the crates.'],
+  ['Hydroponics',   'The vines are the wrong colour.'],
+  ['Medical Bay',   'Every bed empty. Every restraint torn outward.'],
+  ['Reactor Ring',  'The shielding hums. So does everything else.'],
+  ['Cryo Stacks',   'Ninety pods. Ninety open lids.'],
+  ['The Spine',     'The corridor breathes when you do.'],
+  ['Hatchery',      'It was a mess hall once.'],
+  ['Comms Array',   'The distress signal is still going out. It is not yours.'],
+  ['The Choir',     'They have learned your name. They are practising it.'],
+  ['Core',          'You are the last unopened thing aboard.']
+];
+const ROSTER = [
+  ['crawler'],
+  ['crawler','husk'],
+  ['crawler','husk','spitter'],
+  ['crawler','husk','spitter','warden'],
+  ['husk','spitter','warden','stalker'],
+  ['spitter','warden','wraith','stalker'],
+  ['warden','wraith','gorger','stalker'],
+  ['husk','spitter','wraith','gorger','stalker'],
+  ['spitter','warden','wraith','gorger','stalker'],
+  ['husk','spitter','warden','wraith','gorger','stalker']
+];
+
+/* ---------------- doors, gear, salvage ---------------- */
+const DOOR_ORDER = ['blue','amber','red'];
+const DOOR_NAME  = { blue:'BLUE', amber:'AMBER', red:'RED' };
+
+const GEAR = {
+  med:   { g:'+',        c:'acid',   name:'MED-GEL',    note:'field repair' },
+  cell:  { g:'\u25C6',   c:'ice',    name:'POWER CELL', note:'+3 charge' },
+  plate: { g:'\u25A3',   c:'steel',  name:'HULL PLATE', note:'+8 max integrity' },
+  chip:  { g:'\u25B2',   c:'blood',  name:'FOCUS CHIP', note:'+2 melee damage' },
+  cap:   { g:'\u25C8',   c:'violet', name:'CAPACITOR',  note:'+2 max charge' },
+  shard: { g:'\u2726',   c:'amber',  name:'DATA SHARD', note:'+2 data' },
+  key:   { g:'\u25AE',   c:'key',    name:'KEYCARD',    note:'opens a sealed door' },
+  core:  { g:'\u2299',   c:'core',   name:'SALVAGE CORE', note:'a permanent system' }
+};
+
+// one per deck, shuffled per run, so no two ships pay out the same
+const CORES = [
+  { name:'MAG-COIL',          desc:'Melee strikes land 30% harder.',            apply:P=>{ P.dmgMul += 0.30; } },
+  { name:'REBREATHER',        desc:'Scanning new sectors repairs 60% more.',    apply:P=>{ P.scanMul += 0.60; } },
+  { name:'CAPACITOR BANK',    desc:'Maximum charge raised by 5.',               apply:P=>{ P.maxCharge += 5; P.charge += 5; } },
+  { name:'ABLATIVE PLATE',    desc:'All incoming damage reduced by 20%.',       apply:P=>{ P.resist += 0.20; } },
+  { name:'ARC AMPLIFIER',     desc:'ARC discharges hit 60% harder.',            apply:P=>{ P.arcMul += 0.60; } },
+  { name:'SIPHON',            desc:'Every kill returns 4 charge.',              apply:P=>{ P.siphon += 4; } },
+  { name:'WIDE-BAND SENSOR',  desc:'Your scan reaches one sector further.',     apply:P=>{ P.radius += 1; } },
+  { name:'ADRENAL SHUNT',     desc:'Maximum integrity raised by 25.',           apply:P=>{ P.maxHp += 25; P.hp += 25; } },
+  { name:'SERVO GUARD',       desc:'Negates the first hit you take on a deck.', apply:P=>{ P.guard = true; P.guardReady = true; } },
+  { name:'RECURSION',         desc:'Every kill yields one extra data.',         apply:P=>{ P.xpBonus += 1; } }
+];
+
+/* ---------------- state ---------------- */
+let map, mobs, rooms, P, deck, sel, busy, dead, exitOpen, coreDrop;
+let best = 0, runDeaths = 0, corePool = [], installed = [];
+let logLines = [], scanTally = null, stopWalk = false;
+
+const at = (x,y) => map[y*COLS+x];
+const inB = (x,y) => x>=0 && y>=0 && x<COLS && y<ROWS;
+const mobAt = (x,y) => mobs.find(m => m.alive && m.x===x && m.y===y);
+const idx = (x,y) => y*COLS+x;
+const ix = i => i%COLS, iy = i => (i/COLS)|0;
+
+/* ================================================================
+   SOUND — a dead ship makes almost no noise, and that is the point
+   ================================================================ */
+const AR = window.Arcade;
+const snd = {
+  drone:null, room:null,
+
+  begin(){
+    if (!AR || !AR.audio.init()) return;
+    if (!snd.drone){
+      snd.drone = AR.sfx.hold({ freq:36.7, type:'sawtooth', cutoff:190, q:3, verb:0.45, bus:'music' });
+      snd.room  = AR.sfx.holdNoise({ freq:340, q:0.6, bus:'music' });
+    }
+    snd.drone.set(36.7, 0.16, 190, 2);
+    snd.room.set(340, 0.012, 2);
+    AR.music.start(40, 2, snd.bed);
+  },
+  deck(){
+    if (!snd.drone) return;
+    const d = Math.min(1, deck/12);
+    snd.drone.set(36.7 - d*7, 0.16 + d*0.04, 190 - d*70, 3);
+    snd.room.set(340 + d*260, 0.012 + d*0.010, 3);
+  },
+
+  bed(step, t){
+    if (!AR) return;
+    const s = step % 16, d = Math.min(1, deck/12);
+    if (s === 0)
+      AR.sfx.tone({ t, freq:73.42, dur:3.4, type:'sine', gain:0.10, bus:'music', attack:0.4, verb:0.6 });
+    if (s === 6 || s === 11){
+      AR.sfx.tone({ t, freq:174.61, dur:2.6, type:'triangle', gain:0.045, bus:'music',
+                    attack:0.25, verb:0.8, detune:d*22 });
+      AR.sfx.tone({ t:t+0.9, freq:207.65, dur:2.2, type:'triangle', gain:0.035, bus:'music',
+                    attack:0.3, verb:0.85, detune:-d*18 });
+    }
+    if (s === 13 && Math.random() < 0.6){          // something settling in the hull
+      AR.sfx.noise({ t, freq:900 + Math.random()*1600, dur:0.16, gain:0.03,
+                     filter:'bandpass', q:7, bus:'music', verb:0.7 });
+    }
+    if (d > 0.5 && s === 9)
+      AR.sfx.tone({ t, freq:49, dur:3, type:'sawtooth', gain:0.05, bus:'music',
+                    attack:0.6, cutoff:160, verb:0.5 });
+  },
+
+  step(){ if (AR) AR.sfx.noise({ freq:2600, dur:0.035, gain:0.028, filter:'highpass' }); },
+  strike(big){
+    if (!AR) return;
+    const t = AR.audio.now();
+    AR.sfx.noise({ t, freq:1500, to:280, dur:0.13, gain:big?0.26:0.18, filter:'bandpass', q:0.8 });
+    AR.sfx.tone({ t, freq:150, to:62, dur:0.16, type:'square', gain:big?0.20:0.13, cutoff:900 });
+  },
+  arc(){
+    if (!AR) return;
+    const t = AR.audio.now();
+    AR.sfx.tone({ t, freq:2400, to:180, dur:0.26, type:'sawtooth', gain:0.16, cutoff:4000, cutoffTo:400 });
+    AR.sfx.noise({ t, freq:5000, to:900, dur:0.22, gain:0.11, filter:'highpass' });
+  },
+  patch(){
+    if (!AR) return;
+    const t = AR.audio.now();
+    AR.sfx.chord([392, 523.25, 659.25], { t, dur:0.5, type:'sine', gain:0.09,
+                                          attack:0.05, spread:0.05, verb:0.5 });
+  },
+  surge(){
+    if (!AR) return;
+    AR.sfx.tone({ freq:180, to:1100, dur:0.5, type:'sawtooth', gain:0.11, cutoff:1400, verb:0.3 });
+  },
+  hurt(){
+    if (!AR) return;
+    const t = AR.audio.now();
+    AR.sfx.noise({ t, freq:420, to:90, dur:0.3, gain:0.24, filter:'lowpass', q:2.4 });
+    AR.sfx.tone({ t, freq:117, dur:0.34, type:'sawtooth', gain:0.13, cutoff:600 });
+    AR.sfx.tone({ t, freq:123.5, dur:0.34, type:'sawtooth', gain:0.09, cutoff:600 });
+  },
+  guard(){ if (AR) AR.sfx.tone({ freq:1400, to:2100, dur:0.16, type:'sine', gain:0.13, verb:0.4 }); },
+  kill(){
+    if (!AR) return;
+    const t = AR.audio.now();
+    AR.sfx.noise({ t, freq:700, to:110, dur:0.32, gain:0.20, filter:'lowpass', q:1.6 });
+    AR.sfx.tone({ t:t+0.03, freq:98, to:44, dur:0.4, type:'triangle', gain:0.10 });
+  },
+  level(){
+    if (!AR) return;
+    const t = AR.audio.now();
+    [523.25, 659.25, 783.99, 1046.5].forEach((f,i) =>
+      AR.sfx.tone({ t:t+i*0.075, freq:f, dur:0.3, type:'square', gain:0.10, cutoff:3000, verb:0.4 }));
+  },
+  pickup(){ if (AR) AR.sfx.tone({ freq:700, to:1050, dur:0.14, type:'square', gain:0.11, cutoff:3000 }); },
+  key(){
+    if (!AR) return;
+    const t = AR.audio.now();
+    AR.sfx.tone({ t, freq:1046.5, dur:0.2, type:'sine', gain:0.13, verb:0.5 });
+    AR.sfx.tone({ t:t+0.09, freq:1568, dur:0.28, type:'sine', gain:0.11, verb:0.6 });
+  },
+  door(){
+    if (!AR) return;
+    const t = AR.audio.now();
+    AR.sfx.noise({ t, freq:300, to:1500, dur:0.42, gain:0.13, filter:'bandpass', q:1.6 });
+    AR.sfx.tone({ t, freq:70, dur:0.5, type:'square', gain:0.08, cutoff:400 });
+    AR.sfx.tone({ t:t+0.36, freq:900, dur:0.09, type:'sine', gain:0.08 });
+  },
+  denied(){
+    if (!AR) return;
+    const t = AR.audio.now();
+    AR.sfx.tone({ t, freq:150, dur:0.1, type:'square', gain:0.13, cutoff:700 });
+    AR.sfx.tone({ t:t+0.13, freq:120, dur:0.14, type:'square', gain:0.13, cutoff:600 });
+  },
+  core(){
+    if (!AR) return;
+    const t = AR.audio.now();
+    [261.63, 329.63, 392, 523.25, 659.25].forEach((f,i) =>
+      AR.sfx.tone({ t:t+i*0.09, freq:f, dur:1.1, type:'triangle', gain:0.11,
+                    attack:0.02, cutoff:3600, verb:0.7 }));
+    AR.sfx.noise({ t, freq:4000, dur:0.7, gain:0.05, filter:'highpass' });
+  },
+  descend(){
+    if (!AR) return;
+    const t = AR.audio.now();
+    AR.sfx.noise({ t, freq:1400, to:90, dur:1.1, gain:0.16, filter:'lowpass', q:1.4 });
+    AR.sfx.tone({ t, freq:220, to:55, dur:1.2, type:'sawtooth', gain:0.10, cutoff:800, verb:0.5 });
+  },
+  die(){
+    if (!AR) return;
+    const t = AR.audio.now();
+    AR.sfx.noise({ t, freq:600, to:60, dur:1.6, gain:0.24, filter:'lowpass', q:2 });
+    AR.sfx.tone({ t, freq:110, to:28, dur:2.2, type:'sawtooth', gain:0.16, cutoff:500, verb:0.6 });
+    if (snd.drone){ snd.drone.set(26, 0.03, 90, 1.5); snd.room.set(200, 0.004, 1.5); }
+  }
+};
+
+/* ================================================================
+   FLOORPLAN
+   BSP the hull into compartments, run corridors between them, then
+   find the corridor tiles that genuinely gate the route and seal
+   those. Keys always land in reachable ground.
+   ================================================================ */
+function neighbours(i){
+  const out = [], x = ix(i), y = iy(i);
+  for(let dy=-1;dy<=1;dy++) for(let dx=-1;dx<=1;dx++){
+    if(!dx && !dy) continue;
+    const nx=x+dx, ny=y+dy;
+    if(inB(nx,ny)) out.push(idx(nx,ny));
+  }
+  return out;
+}
+
+function flood(start, blocked){
+  const dist = new Array(N).fill(-1);
+  dist[start] = 0;
+  const q = [start];
+  for(let h=0; h<q.length; h++){
+    const c = q[h];
+    for(const n of neighbours(c)){
+      if(dist[n] >= 0 || map[n].wall || (blocked && blocked.has(n))) continue;
+      dist[n] = dist[c] + 1;
+      q.push(n);
+    }
+  }
+  return dist;
+}
+
+function carveRect(x,y,w,h,room){
+  for(let j=y;j<y+h;j++) for(let i=x;i<x+w;i++){
+    const t = map[idx(i,j)];
+    t.wall = false;
+    if(room !== undefined && t.room < 0) t.room = room;
+  }
+}
+
+function buildTree(x,y,w,h,d,joins){
+  const canH = h >= 6, canV = w >= 6;
+  if(d >= 3 || (!canH && !canV)){
+    const mw = w-1, mh = h-1;
+    const rw = clamp(ri(Math.max(2, mw-2), mw), 2, mw);
+    const rh = clamp(ri(Math.max(2, mh-2), mh), 2, mh);
+    const rx = x + ri(0, mw-rw), ry = y + ri(0, mh-rh);
+    const r = { x:rx, y:ry, w:rw, h:rh, id:rooms.length,
+                cx:(rx + ((rw/2)|0)), cy:(ry + ((rh/2)|0)) };
+    rooms.push(r);
+    return [r];
+  }
+  const horiz = (canH && canV) ? (h > w || (h===w && Math.random()<0.5)) : canH;
+  let A, B;
+  if(horiz){ const c = ri(3, h-3); A = buildTree(x,y,w,c,d+1,joins); B = buildTree(x,y+c,w,h-c,d+1,joins); }
+  else     { const c = ri(3, w-3); A = buildTree(x,y,c,h,d+1,joins); B = buildTree(x+c,y,w-c,h,d+1,joins); }
+  joins.push([pick(A), pick(B)]);
+  return A.concat(B);
+}
+
+function carveCorridor(a,b){
+  let x = a.cx, y = a.cy;
+  const stepTo = (tx,ty) => {
+    while(x !== tx){ x += Math.sign(tx-x); map[idx(x,y)].wall = false; }
+    while(y !== ty){ y += Math.sign(ty-y); map[idx(x,y)].wall = false; }
+  };
+  map[idx(x,y)].wall = false;
+  if(Math.random() < 0.5) stepTo(b.cx, b.cy);
+  else { const t = y; y = a.cy; while(y !== b.cy){ y += Math.sign(b.cy-y); map[idx(x,y)].wall=false; }
+         while(x !== b.cx){ x += Math.sign(b.cx-x); map[idx(x,y)].wall=false; } void t; }
+}
+
+function attemptFloorplan(){
+  map = new Array(N);
+  for(let i=0;i<N;i++)
+    map[i] = { wall:true, organic:false, seen:false, item:null, key:null,
+               exit:false, door:null, room:-1 };
+  rooms = [];
+  const joins = [];
+  buildTree(0,0,COLS,ROWS,0,joins);
+  if(rooms.length < 4) return null;
+  rooms.forEach(r => carveRect(r.x,r.y,r.w,r.h,r.id));
+  for(const [a,b] of joins) carveCorridor(a,b);
+
+  const floor = [];
+  for(let i=0;i<N;i++) if(!map[i].wall) floor.push(i);
+  if(floor.length < 52 || floor.length > 100) return null;
+
+  // a little organic creep on the walls that touch open space
+  for(let i=0;i<N;i++){
+    if(!map[i].wall) continue;
+    if(neighbours(i).some(n => !map[n].wall) && Math.random() < Math.min(0.55, 0.10 + deck*0.06))
+      map[i].organic = true;
+  }
+  return floor;
+}
+
+function assembleDeck(){
+  let floor = null, guard = 0;
+  while(!floor && guard++ < 80) floor = attemptFloorplan();
+  if(!floor){                              // fallback: one open compartment
+    map = new Array(N);
+    for(let i=0;i<N;i++) map[i]={wall:false,organic:false,seen:false,item:null,key:null,exit:false,door:null,room:0};
+    rooms=[{x:0,y:0,w:COLS,h:ROWS,id:0,cx:COLS>>1,cy:ROWS>>1}];
+    floor = map.map((_,i)=>i);
+  }
+
+  const roomTiles = floor.filter(i => map[i].room >= 0);
+  const hallTiles = floor.filter(i => map[i].room < 0);
+
+  // start somewhere with room to breathe, exit as far from it as the hull allows
+  const startI = pick(roomTiles.length ? roomTiles : floor);
+  P.x = ix(startI); P.y = iy(startI);
+  let dist = flood(startI, null);
+  let exitI = startI, bd = -1;
+  for(const i of floor) if(dist[i] > bd){ bd = dist[i]; exitI = i; }
+  map[exitI].exit = true;
+
+  /* --- sealed doors: only corridor tiles that actually gate the route --- */
+  const gates = [];
+  for(const c of hallTiles){
+    if(c === startI || c === exitI) continue;
+    const blocked = new Set([c]);
+    const d2 = flood(startI, blocked);
+    if(d2[exitI] < 0){
+      let cut = 0;
+      for(const i of floor) if(d2[i] < 0 && i !== c) cut++;
+      if(cut >= 5) gates.push({ i:c, d:dist[c], cut });
+    }
+  }
+  gates.sort((a,b) => a.d - b.d);
+
+  const want = clamp(1 + Math.floor((deck-1)/2), 1, 3);
+  const chosen = [];
+  if(gates.length){
+    const n = Math.min(want, gates.length);
+    for(let k=0;k<n;k++){
+      const g = gates[Math.round((k+1) * (gates.length-1) / (n+1))] || gates[k];
+      if(!chosen.includes(g)) chosen.push(g);
+    }
+  }
+  chosen.sort((a,b)=>a.d-b.d);
+
+  const used = new Set([startI, exitI]);
+  const keyPlacements = [];
+  for(let k=0;k<chosen.length;k++){
+    const colour = DOOR_ORDER[k];
+    // everything still reachable while this door and the ones past it stay shut
+    const blocked = new Set(chosen.slice(k).map(g=>g.i));
+    const reach = flood(startI, blocked);
+    const spots = floor.filter(i => reach[i] > 1 && !used.has(i) && !blocked.has(i) && map[i].room>=0);
+    const alt   = floor.filter(i => reach[i] > 1 && !used.has(i) && !blocked.has(i));
+    const spot  = spots.length ? pick(spots) : (alt.length ? pick(alt) : null);
+    if(spot === null) return false;
+    used.add(spot);
+    keyPlacements.push({ spot, colour });
+    map[chosen[k].i].door = { colour, open:false };
+    used.add(chosen[k].i);
+  }
+  for(const kp of keyPlacements){ map[kp.spot].key = kp.colour; map[kp.spot].item = 'key'; }
+
+  /* --- the apex sits on the salvage, beside the hatch --- */
+  const near = floor.filter(i => !used.has(i) && !map[i].door &&
+                Math.abs(ix(i)-ix(exitI)) + Math.abs(iy(i)-iy(exitI)) <= 2);
+  const apexI = near.length ? pick(near) : pick(floor.filter(i => !used.has(i) && !map[i].door));
+  used.add(apexI);
+
+  mobs = [];
+  const roster = ROSTER[Math.min(ROSTER.length-1, deck-1)];
+  // hostiles track how strong you have actually become, not just how deep
+  // you are — so salvage buys you depth rather than a free ride
+  const base = Math.max(1, P.lvl + Math.floor(deck/6));
+  const count = Math.min(15, 6 + deck);
+  const pool = [Math.max(1, base-1), base, base, base+1];
+  const spots = floor.filter(i => !used.has(i) && !map[i].door && dist[i] >= 4);
+  for(let k=0;k<count && spots.length;k++){
+    const j = (Math.random()*spots.length)|0;
+    const i = spots.splice(j,1)[0];
+    used.add(i);
+    spawnMob(ix(i), iy(i), pick(roster), Math.max(1, pick(pool)));
+  }
+  spawnMob(ix(apexI), iy(apexI), 'apex', base + 1 + Math.floor(deck/5));
+
+  /* --- gear strewn through the compartments --- */
+  const kinds = ['med','cell','med','cell','plate','chip','cap','shard'];
+  const drops = 4 + Math.floor(deck/2);
+  const shelf = roomTiles.filter(i => !used.has(i) && !map[i].door && !map[i].exit);
+  for(let k=0;k<drops && shelf.length;k++){
+    const j = (Math.random()*shelf.length)|0;
+    const i = shelf.splice(j,1)[0];
+    used.add(i);
+    map[i].item = k < 2 ? (k===0?'med':'cell') : pick(kinds);
+  }
+
+  exitOpen = false; coreDrop = null; sel = null;
+  P.guardReady = !!P.guard;
+  reveal(P.x, P.y);
+  return true;
+}
+
+function buildDeck(){
+  let ok = false, guard = 0;
+  while(!ok && guard++ < 30) ok = assembleDeck();
+}
+
+function spawnMob(x,y,type,lvl){
+  const s = SPECIES[type];
+  const hp = Math.max(4, Math.round(10*lvl*s.hp));
+  mobs.push({ x,y,type,lvl,alive:true, hp, maxHp:hp,
+              dmg: Math.max(1, Math.round(5*lvl*s.dmg)), boss: type === 'apex' });
+}
+
+/* ================================================================
+   PLAYER
+   ================================================================ */
+function newRun(){
+  snd.begin();
+  P = { lvl:1, hp:26, maxHp:26, dmg:5, charge:4, maxCharge:10,
+        xp:0, xpNeed:2, x:0, y:0, corroded:false, surge:false,
+        revealed:0, kills:0, keys:[],
+        dmgMul:1, arcMul:1, scanMul:1, resist:0, siphon:0, radius:1,
+        xpBonus:0, guard:false, guardReady:false };
+  deck = 1; dead = false; logLines = [];
+  installed = [];
+  corePool = shuffled(CORES);
+  buildDeck();
+  say('Airlock cycles shut behind you.');
+  snd.deck();
+  render();
+}
+
+function heal(n){ const a = Math.min(n, P.maxHp - P.hp); P.hp += a; return a; }
+function hasKey(c){ return P.keys.indexOf(c) >= 0; }
+
+function reveal(x,y){
+  const r = P.radius;
+  let fresh = 0;
+  for(let dy=-r;dy<=r;dy++) for(let dx=-r;dx<=r;dx++){
+    const nx=x+dx, ny=y+dy;
+    if(!inB(nx,ny)) continue;
+    const t = at(nx,ny);
+    if(!t.seen){ t.seen = true; fresh++; }
+  }
+  if(fresh){
+    const before = Math.floor(P.revealed/5);
+    P.revealed += fresh;
+    P.charge = Math.min(P.maxCharge, P.charge + (Math.floor(P.revealed/5) - before));
+    const amount = fresh * P.lvl * P.scanMul * (P.corroded ? 0.34 : 1);
+    const got = heal(Math.max(1, Math.round(amount)));
+    if(scanTally){ scanTally.tiles += fresh; scanTally.hp += got; }
+  }
+  return fresh;
+}
+
+function gainXp(n){
+  P.xp += n;
+  while(P.xp >= P.xpNeed){
+    P.xp -= P.xpNeed;
+    P.lvl++;
+    P.xpNeed = P.lvl + 1;
+    P.maxHp += 10; P.hp = P.maxHp;
+    P.dmg += 5;
+    P.charge = Math.min(P.maxCharge, P.charge + 3);
+    P.corroded = false;
+    snd.level();
+    say('CALIBRATION ' + P.lvl + '. Suit purged and restored.');
+  }
+}
+
+/* ================================================================
+   COMBAT MATHS — deterministic, and shown before you commit
+   ================================================================ */
+function meleeDmg(m){
+  let d = P.dmg * P.dmgMul * (P.surge ? 2 : 1);
+  if(m.type === 'warden') d *= 0.7;
+  return Math.max(1, Math.round(d));
+}
+function arcDmg(){ return Math.max(1, Math.round(4 * P.lvl * P.arcMul)); }
+function incoming(m){ return Math.max(1, Math.round(m.dmg * (1 - P.resist))); }
+
+function project(m){
+  let hpLeft = m.hp, taken = 0, swing = 0;
+  const first = m.type === 'husk';
+  const inc = incoming(m);
+  let guard = P.guardReady;
+  while(hpLeft > 0 && swing < 60){
+    if(first){ if(guard) guard = false; else taken += inc; }
+    let d = P.dmg * P.dmgMul * (swing === 0 && P.surge ? 2 : 1);
+    if(m.type === 'warden') d *= 0.7;
+    hpLeft -= Math.max(1, Math.round(d));
+    swing++;
+    if(hpLeft > 0 && !first){ if(guard) guard = false; else taken += inc; }
+  }
+  return { swings: swing, taken, survive: P.hp - taken };
+}
+function statusOf(m){
+  const pr = project(m);
+  if(pr.survive > P.maxHp*0.4) return 'safe';
+  if(pr.survive > 0) return 'risk';
+  return 'lethal';
+}
+
+/* ================================================================
+   ACTIONS
+   ================================================================ */
+function adjacent(m){ return Math.abs(m.x-P.x) <= 1 && Math.abs(m.y-P.y) <= 1; }
+function label(m){ return SPECIES[m.type].name.toUpperCase() + ' L' + m.lvl; }
+
+function strike(m){
+  if(!m || !m.alive || !adjacent(m) || busy || dead) return;
+  const d = meleeDmg(m);
+  const surged = P.surge;
+  P.surge = false;
+  const first = m.type === 'husk';
+  if(first){ if(hurtPlayer(m)) return; }
+  m.hp -= d;
+  snd.strike(surged);
+  say('Strike \u2192 ' + label(m) + ' \u2212' + d + (surged ? ' (SURGE)' : ''));
+  if(m.hp <= 0) killMob(m);
+  else if(!first){ if(hurtPlayer(m)) return; }
+  endTurn(m);
+}
+
+function arc(m){
+  if(!m || !m.alive || !adjacent(m) || P.charge < 3 || busy || dead) return;
+  P.charge -= 3;
+  const d = arcDmg();
+  m.hp -= d;
+  snd.arc();
+  say('ARC \u2192 ' + label(m) + ' \u2212' + d + ' (no counter)');
+  if(m.hp <= 0) killMob(m);
+  endTurn(m);
+}
+
+function patch(){
+  if(P.charge < 4 || busy || dead) return;
+  P.charge -= 4;
+  const h = 5 * P.lvl;
+  const was = P.corroded;
+  P.corroded = false;
+  heal(h);
+  snd.patch();
+  say('PATCH \u2192 +' + h + ' integrity' + (was ? ', suit clean' : ''));
+  endTurn(null);
+}
+
+function surge(){
+  if(P.charge < 5 || P.surge || busy || dead) return;
+  P.charge -= 5;
+  P.surge = true;
+  snd.surge();
+  say('SURGE armed. Next strike doubles.');
+  endTurn(null);
+}
+
+function hurtPlayer(m){
+  if(P.guardReady){
+    P.guardReady = false;
+    snd.guard();
+    say('SERVO GUARD absorbs ' + label(m) + '\u2019s first hit.');
+    flashHurt();
+    return false;
+  }
+  const amount = incoming(m);
+  P.hp -= amount;
+  if(m.type === 'spitter') P.corroded = true;
+  if(m.type === 'wraith')  P.charge = Math.max(0, P.charge - 2);
+  snd.hurt();
+  say(label(m) + ' \u2192 you \u2212' + amount +
+      (m.type==='spitter' ? ' [SEARED]' : m.type==='wraith' ? ' [\u22122 CHARGE]' : ''));
+  flashHurt();
+  if(P.hp <= 0){ P.hp = 0; die(); return true; }
+  return false;
+}
+
+function killMob(m){
+  m.alive = false;
+  const xp = Math.max(1, m.lvl - P.lvl + 1) + (m.boss ? 2 : 0) + P.xpBonus;
+  P.kills++;
+  if(P.siphon) P.charge = Math.min(P.maxCharge, P.charge + P.siphon);
+  snd.kill();
+  say(label(m) + ' stops moving. +' + xp + ' data');
+  if(m.boss){
+    const t = at(m.x, m.y);
+    t.item = 'core';
+    coreDrop = { x:m.x, y:m.y };
+    say('It comes apart around something intact. SALVAGE CORE exposed.');
+  }
+  if(sel === m) sel = null;
+  gainXp(xp);
+}
+
+/* ================================================================
+   ENEMY TURN
+   ================================================================ */
+function endTurn(actedOn){
+  for(const m of mobs){
+    if(!m.alive) continue;
+    if(m.type === 'gorger' && m !== actedOn && m.hp < m.maxHp)
+      m.hp = Math.min(m.maxHp, m.hp + Math.max(1, Math.round(m.maxHp*0.12)));
+    if(m.type === 'stalker' && at(m.x,m.y).seen){
+      const d = Math.abs(m.x-P.x) + Math.abs(m.y-P.y);
+      if(adjacent(m)){
+        if(m !== actedOn){ say(label(m) + ' lunges.'); if(hurtPlayer(m)) return; }
+      } else if(d <= 6) stepToward(m);
+    }
+  }
+  render();
+}
+
+function stepToward(m){
+  const opts = [];
+  for(let dy=-1;dy<=1;dy++) for(let dx=-1;dx<=1;dx++){
+    if(!dx && !dy) continue;
+    const nx=m.x+dx, ny=m.y+dy;
+    if(!inB(nx,ny)) continue;
+    const t = at(nx,ny);
+    if(t.wall || (t.door && !t.door.open) || mobAt(nx,ny)) continue;
+    if(nx===P.x && ny===P.y) continue;
+    opts.push({nx,ny,d:Math.abs(nx-P.x)+Math.abs(ny-P.y)});
+  }
+  if(!opts.length) return;
+  opts.sort((a,b)=>a.d-b.d);
+  if(opts[0].d < Math.abs(m.x-P.x)+Math.abs(m.y-P.y)){ m.x=opts[0].nx; m.y=opts[0].ny; }
+}
+
+/* ================================================================
+   MOVEMENT & DOORS
+   ================================================================ */
+function passable(x,y){
+  const t = at(x,y);
+  if(t.wall) return false;
+  if(t.door && !t.door.open && !hasKey(t.door.colour)) return false;
+  return true;
+}
+function walkable(x,y){ return at(x,y).seen && passable(x,y) && !mobAt(x,y); }
+
+function pathTo(tx,ty){
+  const start = idx(P.x,P.y), goal = idx(tx,ty);
+  if(start === goal) return [];
+  const prev = new Array(N).fill(-1), seen = new Array(N).fill(false);
+  seen[start] = true;
+  const q = [start];
+  for(let h=0; h<q.length; h++){
+    const c = q[h];
+    for(const n of neighbours(c)){
+      if(seen[n] || !walkable(ix(n), iy(n))) continue;
+      seen[n] = true; prev[n] = c;
+      if(n === goal){
+        const path=[]; let k=n;
+        while(k !== start){ path.push(k); k = prev[k]; }
+        return path.reverse();
+      }
+      q.push(n);
+    }
+  }
+  return null;
+}
+
+function takeItem(t){
+  const kind = t.item;
+  if(!kind) return;
+  if(kind === 'key'){
+    const c = t.key;
+    if(!hasKey(c)) P.keys.push(c);
+    t.item = null; t.key = null;
+    snd.key();
+    say(DOOR_NAME[c] + ' KEYCARD recovered.');
+    return;
+  }
+  if(kind === 'core'){
+    t.item = null; coreDrop = null;
+    const core = corePool.length ? corePool.shift() : pick(CORES);
+    core.apply(P);
+    installed.push(core);
+    exitOpen = true; stopWalk = true;
+    snd.core();
+    say('SALVAGE CORE installed: ' + core.name + '. Hatch seal released.');
+    render();
+    showCore(core);
+    return;
+  }
+  t.item = null;
+  snd.pickup();
+  const g = GEAR[kind];
+  if(kind === 'med'){ const h = 5*P.lvl; heal(h); P.corroded = false; say('MED-GEL \u2192 +' + h + ', suit clean.'); }
+  if(kind === 'cell'){ P.charge = Math.min(P.maxCharge, P.charge+3); say('POWER CELL \u2192 +3 charge.'); }
+  if(kind === 'plate'){ P.maxHp += 8; heal(8); say('HULL PLATE welded on \u2192 +8 max integrity.'); }
+  if(kind === 'chip'){ P.dmg += 2; say('FOCUS CHIP \u2192 +2 melee damage.'); }
+  if(kind === 'cap'){ P.maxCharge += 2; P.charge = Math.min(P.maxCharge, P.charge+2); say('CAPACITOR \u2192 +2 max charge.'); }
+  if(kind === 'shard'){ say('DATA SHARD \u2192 +2 data.'); gainXp(2); }
+  void g;
+}
+
+function stepInto(x,y){
+  P.x = x; P.y = y;
+  const t = at(x,y);
+  if(t.door && !t.door.open){
+    t.door.open = true;
+    snd.door();
+    say(DOOR_NAME[t.door.colour] + ' door cycles open.');
+  }
+  reveal(x,y);
+  takeItem(t);
+  if(t.exit && exitOpen){ descend(); return true; }
+  if(t.exit && !exitOpen) say('Hatch sealed. The apex still has the core.');
+  return false;
+}
+
+function reportScan(){
+  if(!scanTally || !scanTally.tiles){ scanTally = null; return; }
+  if(scanTally.hp) say('Scanned ' + scanTally.tiles + ' sectors \u00B7 +' + scanTally.hp + ' integrity');
+  else if(scanTally.tiles >= 5) say('Scanned ' + scanTally.tiles + ' sectors.');
+  scanTally = null;
+}
+
+function walk(path){
+  if(!path || !path.length) return;
+  busy = true;
+  scanTally = { tiles:0, hp:0 };
+  let i = 0;
+  const tick = () => {
+    if(dead || i >= path.length){ busy = false; reportScan(); render(); return; }
+    const c = path[i++];
+    snd.step();
+    if(stepInto(ix(c), iy(c))){ busy = false; scanTally = null; return; }
+    if(stopWalk){ stopWalk = false; busy = false; reportScan(); render(); return; }
+    endTurn(null);
+    if(dead){ busy = false; return; }
+    const threat = mobs.some(m => m.alive && adjacent(m) && at(m.x,m.y).seen);
+    render();
+    if(threat && i < path.length){ busy=false; reportScan(); say('Contact. Holding position.'); render(); return; }
+    setTimeout(tick, 70);
+  };
+  tick();
+}
+
+/* ================================================================
+   DECK FLOW
+   ================================================================ */
+function descend(){
+  best = Math.max(best, deck);
+  deck++;
+  P.hp = Math.max(P.hp, Math.round(P.maxHp*0.6));
+  P.charge = Math.min(P.maxCharge, P.charge + 3);
+  P.corroded = false;
+  P.keys = [];
+  snd.descend();
+  buildDeck();
+  snd.deck();
+  render();
+  showDeckCard();
+}
+
+function die(){
+  dead = true; busy = false;
+  live = false;
+  snd.die();
+  dropSave();
+  if(AR && AR.save) AR.save.merge(SAVE_ID, { best: Math.max(best, deck), label: 'DEEPEST DECK ' + String(Math.max(best, deck)).padStart(2,'0') });
+  best = Math.max(best, deck);
+  runDeaths++;
+  render();
+  setTimeout(showDeath, 420);
+}
+
+function deckInfo(){
+  const i = deck-1;
+  if(i < DECKS.length) return DECKS[i];
+  return ['Deeper \u2014 sector ' + deck, 'There should not be a deck this far down.'];
+}
+
+/* ================================================================
+   SAVING — a run is a lot of state, but all of it is plain data.
+   Cores hold functions, so they travel by name and are re-linked.
+   ================================================================ */
+const SAVE_ID = 'derelict';
+let saveT = null;
+let live = false;   // only a run the player has actually started gets written
+
+function coreByName(n){ for(const c of CORES) if(c.name === n) return c; return null; }
+
+function saveRun(){
+  if(!AR || !AR.save || dead) return;
+  AR.save.merge(SAVE_ID, {
+    best: best,
+    label: 'DEEPEST DECK ' + String(best || deck).padStart(2,'0'),
+    resume: true,
+    run: {
+      deck, exitOpen, coreDrop, runDeaths,
+      logLines: logLines.slice(-8),
+      P, map, mobs,
+      installed: installed.map(c => c.name),
+      pool: corePool.map(c => c.name)
+    }
+  });
+}
+function queueSave(){
+  if(!live || !AR || !AR.save) return;
+  clearTimeout(saveT);
+  saveT = setTimeout(saveRun, 400);
+}
+function dropSave(){
+  clearTimeout(saveT);
+  if(AR && AR.save) AR.save.merge(SAVE_ID, { resume:false, run:null });
+}
+function savedRun(){
+  const sv = AR && AR.save ? AR.save.get(SAVE_ID) : null;
+  return (sv && sv.resume && sv.run) ? sv : null;
+}
+function loadRun(){
+  const sv = savedRun();
+  if(!sv) return false;
+  const r = sv.run;
+  try {
+    deck = r.deck; exitOpen = r.exitOpen; coreDrop = r.coreDrop;
+    runDeaths = r.runDeaths || 0;
+    logLines = r.logLines || [];
+    P = r.P; map = r.map; mobs = r.mobs;
+    installed = (r.installed || []).map(coreByName).filter(Boolean);
+    corePool  = (r.pool || []).map(coreByName).filter(Boolean);
+    live = true;
+    best = sv.best || deck;
+    rooms = []; sel = null; dead = false; busy = false; scanTally = null;
+    say('Suit log restored. You were on deck ' + deck + '.');
+    snd.begin(); snd.deck();
+    render();
+    return true;
+  } catch(e){ return false; }
+}
+
+/* ================================================================
+   RENDER
+   ================================================================ */
+const cells = [];
+for(let i=0;i<N;i++){
+  const d = document.createElement('div');
+  d.className = 'cell'; d.dataset.i = i;
+  const g = document.createElement('span'); g.className='g';
+  const b = document.createElement('span'); b.className='badge';
+  d.appendChild(g); d.appendChild(b);
+  gridEl.appendChild(d);
+  cells.push({el:d, g, b});
+}
+
+function render(){
+  const info = deckInfo();
+  $('deckno').textContent = 'DECK ' + String(deck).padStart(2,'0');
+  $('deckname').textContent = info[0];
+  $('lvlTag').textContent = 'LV ' + P.lvl;
+
+  $('hpFill').style.width = (100*P.hp/P.maxHp) + '%';
+  $('hpNum').textContent = P.hp + '/' + P.maxHp;
+  $('chFill').style.width = (100*P.charge/P.maxCharge) + '%';
+  $('chNum').textContent = P.charge + '/' + P.maxCharge;
+  $('xpFill').style.width = (100*P.xp/P.xpNeed) + '%';
+  $('xpNum').textContent = P.xp + '/' + P.xpNeed;
+
+  const st = $('status'); st.innerHTML = '';
+  const tag = (txt, cls) => { const s=document.createElement('span'); s.className='tag '+(cls||''); s.textContent=txt; st.appendChild(s); };
+  for(const k of P.keys) tag(DOOR_NAME[k], 'k-'+k);
+  if(P.corroded) tag('SUIT SEARED \u00B7 SCAN \u2153');
+  if(P.surge) tag('SURGE ARMED','surge');
+  if(P.guardReady) tag('GUARD READY','guard');
+  if(installed.length) tag(installed.length + ' SYSTEM' + (installed.length>1?'S':''),'core');
+
+  for(let i=0;i<N;i++){
+    const t = map[i], c = cells[i];
+    const x = ix(i), y = iy(i);
+    let cls = 'cell';
+    let glyph='', gcls='', badge='';
+
+    if(t.seen) cls += ' seen';
+    if(t.wall) cls += ' wall' + (t.organic ? ' organic' : '');
+
+    if(t.seen && !t.wall){
+      if(t.door){
+        cls += ' door b-' + t.door.colour + (t.door.open ? ' open' : ' locked');
+        if(!t.door.open){ glyph = '\u2588'; gcls = 'c-door'; }
+      }
+      const m = mobAt(x,y);
+      if(x===P.x && y===P.y){ glyph='@'; gcls='c-player'; cls += ' player'; }
+      else if(m){
+        glyph = SPECIES[m.type].g; gcls = 'c-' + m.type; badge = m.lvl;
+        cls += ' mob' + (m.boss ? ' apex' : '');
+        if(m === sel) cls += ' sel';
+      }
+      else if(t.exit){ glyph='\u25BC'; gcls = 'c-exit' + (exitOpen ? ' open' : ''); }
+      else if(t.item){
+        const g = GEAR[t.item];
+        glyph = g.g;
+        gcls = 'c-' + (t.item==='key' ? 'key k-'+t.key : t.item);
+        if(t.item === 'core') cls += ' corecell';
+      }
+    }
+    c.el.className = cls;
+    c.g.className = 'g ' + gcls;
+    c.g.textContent = glyph;
+    c.b.textContent = badge;
+  }
+  renderPanel();
+  renderActions();
+  queueSave();
+}
+
+function renderPanel(){
+  if(sel && sel.alive){
+    const s = SPECIES[sel.type];
+    const pr = project(sel);
+    const stt = statusOf(sel);
+    const verdict = stt==='safe' ? 'CLEAR' : stt==='risk' ? 'COSTLY' : 'LETHAL';
+    panelEl.innerHTML =
+      '<div class="assess">' +
+        '<div class="arow">' +
+          '<span class="aname c-'+sel.type+'">'+s.name+'</span>' +
+          '<span class="atrait">'+(s.trait||'\u2014')+'</span>' +
+          '<span class="astat">LV'+sel.lvl+' \u00B7 '+sel.hp+'/'+sel.maxHp+' \u00B7 HITS '+incoming(sel)+'</span>' +
+        '</div>' +
+        '<div class="hint">'+s.desc+'</div>' +
+        '<div class="aline">MELEE \u00B7 <b>'+pr.swings+'</b> hits \u00B7 you take <b>'+pr.taken+
+          '</b> \u00B7 <b class="'+stt+'">'+(pr.survive>0? pr.survive+' left \u00B7 '+verdict : verdict)+'</b></div>' +
+        '<div class="hint">'+(adjacent(sel) ? 'Tap it again or press STRIKE.' : 'Closing in\u2026')+'</div>' +
+      '</div>';
+  } else {
+    panelEl.innerHTML = '<div id="log"></div>';
+    const l = panelEl.firstChild;
+    for(const line of logLines.slice(-5)){
+      const d = document.createElement('div');
+      d.textContent = '\u203A ' + line;
+      l.appendChild(d);
+    }
+  }
+}
+
+function renderActions(){
+  const adj = sel && sel.alive && adjacent(sel);
+  $('bStrike').disabled = !adj || busy || dead;
+  $('bArc').disabled = !adj || P.charge < 3 || busy || dead;
+  $('bPatch').disabled = P.charge < 4 || busy || dead || (P.hp === P.maxHp && !P.corroded);
+  $('bSurge').disabled = P.charge < 5 || P.surge || busy || dead;
+  $('bArc').querySelector('.cost').textContent = adj ? arcDmg() + ' DMG \u00B7 3' : '3 CH';
+  $('bPatch').querySelector('.cost').textContent = '+' + (5*P.lvl) + ' \u00B7 4';
+}
+
+function say(t){ logLines.push(t); if(logLines.length > 40) logLines.shift(); }
+function flashHurt(){ frame.classList.remove('hurt'); void frame.offsetWidth; frame.classList.add('hurt'); }
+
+/* ================================================================
+   INPUT
+   ================================================================ */
+gridEl.addEventListener('click', e => {
+  if(busy || dead) return;
+  const cell = e.target.closest('.cell');
+  if(!cell) return;
+  const i = +cell.dataset.i, x = ix(i), y = iy(i);
+  const t = at(x,y);
+  if(!t.seen || t.wall) return;
+
+  if(t.door && !t.door.open && !hasKey(t.door.colour)){
+    sel = null;
+    snd.denied();
+    say('SEALED. ' + DOOR_NAME[t.door.colour] + ' KEYCARD REQUIRED.');
+    render();
+    return;
+  }
+
+  const m = mobAt(x,y);
+  if(m){
+    if(sel === m && adjacent(m)){ strike(m); return; }
+    sel = m;
+    if(!adjacent(m)){
+      let bestPath = null, bl = 1e9;
+      for(let dy=-1;dy<=1;dy++) for(let dx=-1;dx<=1;dx++){
+        const nx=m.x+dx, ny=m.y+dy;
+        if(!inB(nx,ny) || !walkable(nx,ny)) continue;
+        const p = pathTo(nx,ny);
+        if(p && p.length < bl){ bl = p.length; bestPath = p; }
+      }
+      render();
+      if(bestPath) walk(bestPath); else say('No route.');
+    }
+    render();
+    return;
+  }
+
+  sel = null;
+  if(x===P.x && y===P.y){ render(); return; }
+  const path = pathTo(x,y);
+  if(!path){ say('No route there.'); render(); return; }
+  walk(path);
+});
+
+$('bStrike').addEventListener('click', ()=>strike(sel));
+$('bArc').addEventListener('click', ()=>arc(sel));
+$('bPatch').addEventListener('click', patch);
+$('bSurge').addEventListener('click', surge);
+
+/* ---------------- keyboard & gamepad ----------------
+   Bump into something to hit it, which is how a crawler should read. */
+function adjacentMob(){
+  if(sel && sel.alive && adjacent(sel)) return sel;
+  for(const m of mobs) if(m.alive && adjacent(m)) return m;
+  return null;
+}
+
+function nudge(dx, dy){
+  if(busy || dead || veilOpen()) return;
+  const nx = P.x + dx, ny = P.y + dy;
+  if(!inB(nx, ny)) return;
+  const t = at(nx, ny);
+  const m = mobAt(nx, ny);
+  if(m && m.alive){ sel = m; render(); strike(m); return; }
+  if(t.wall) return;
+  if(t.door && !t.door.open && !hasKey(t.door.colour)){
+    snd.denied();
+    say('SEALED. ' + DOOR_NAME[t.door.colour] + ' KEYCARD REQUIRED.');
+    render();
+    return;
+  }
+  sel = null;
+  walk([idx(nx, ny)]);
+}
+
+const KEYMAP = {
+  ArrowUp:[0,-1], ArrowDown:[0,1], ArrowLeft:[-1,0], ArrowRight:[1,0],
+  w:[0,-1], s:[0,1], a:[-1,0], d:[1,0],
+  W:[0,-1], S:[0,1], A:[-1,0], D:[1,0],
+  q:[-1,-1], e:[1,-1], z:[-1,1], c:[1,1],
+  Q:[-1,-1], E:[1,-1], Z:[-1,1], C:[1,1]
+};
+
+window.addEventListener('keydown', ev => {
+  if(veilOpen()){
+    if(ev.key === 'Enter' || ev.key === ' '){
+      const b = veilBody.querySelector('.vbtn');
+      if(b){ ev.preventDefault(); b.click(); }
+    }
+    return;
+  }
+  if(busy || dead) return;
+  const d = KEYMAP[ev.key];
+  if(d){ ev.preventDefault(); nudge(d[0], d[1]); return; }
+  if(ev.key === '1'){ const m = adjacentMob(); if(m){ sel = m; arc(m); } }
+  else if(ev.key === '2') patch();
+  else if(ev.key === '3') surge();
+  else if(ev.key === ' ' || ev.key === 'Enter'){
+    const m = adjacentMob(); if(m){ sel = m; strike(m); }
+  }
+});
+
+if(AR && AR.pad) AR.pad.onPress(name => {
+  if(AR.paused && AR.paused()) return;
+  if(veilOpen()){
+    if(name === 'a' || name === 'start'){
+      const b = veilBody.querySelector('.vbtn');
+      if(b) b.click();
+    }
+    return;
+  }
+  if(busy || dead) return;
+  const d = { up:[0,-1], down:[0,1], left:[-1,0], right:[1,0] }[name];
+  if(d){ nudge(d[0], d[1]); return; }
+  if(name === 'a'){ const m = adjacentMob(); if(m){ sel = m; strike(m); } }
+  else if(name === 'x'){ const m = adjacentMob(); if(m){ sel = m; arc(m); } }
+  else if(name === 'y') patch();
+  else if(name === 'rb') surge();
+});
+
+/* ================================================================
+   FIT
+   ================================================================ */
+function fit(){
+  const wrap = $('gridwrap');
+  const w = wrap.clientWidth, h = wrap.clientHeight;
+  if(!w || !h) return;
+  const cell = Math.max(15, Math.floor(Math.min(
+    (w - 2 - (COLS-1)*2)/COLS, (h - 2 - (ROWS-1)*2)/ROWS)));
+  document.documentElement.style.setProperty('--cell', cell + 'px');
+}
+window.addEventListener('resize', fit);
+window.addEventListener('orientationchange', ()=>setTimeout(fit,150));
+
+/* ================================================================
+   OVERLAYS
+   ================================================================ */
+function openVeil(html, go){
+  veilBody.innerHTML = html;
+  veil.classList.remove('hidden');
+  const acts = typeof go === 'function' ? { go } : (go || {});
+  veilBody.querySelectorAll('.vbtn').forEach(b => {
+    const key = b.getAttribute('data-act') || 'go';
+    b.addEventListener('click', () => {
+      veil.classList.add('hidden');
+      const f = acts[key];
+      if(f) f();
+    });
+  });
+}
+const veilOpen = () => !veil.classList.contains('hidden');
+
+function systemsList(){
+  if(!installed.length) return '<div class="vflavor">No systems recovered yet.</div>';
+  return '<div class="syslist">' + installed.map(c =>
+    '<div><b>'+c.name+'</b><span>'+c.desc+'</span></div>').join('') + '</div>';
+}
+
+function showTitle(){
+  openVeil(
+    '<div class="veyebrow">SALVAGE LOG \u00B7 VESSEL "ORISON"</div>' +
+    '<div class="vtitle">Derelict</div>' +
+    '<div class="vflavor">One suit, and the ship keeps going down. Scanning empty sectors is the only thing that repairs you \u2014 the map is your medkit, and you only get to spend it once.</div>' +
+    '<div class="legend">' +
+      '<b>Tap</b> a tile to move. <b>Tap</b> a hostile to read it, again to strike.<br>' +
+      'Sealed doors need the matching <i class="c-key k-blue">keycard</i> \u2014 they are always aboard.<br>' +
+      '<i class="c-apex">\u03A9</i> guards a <i class="c-core">salvage core</i>. Take it and the hatch releases.<br>' +
+      'Every ship carries a different core. They stack for the whole run.' +
+    '</div>' +
+    (savedRun()
+      ? '<button class="vbtn" data-act="resume" style="margin-top:22px">CONTINUE \u00B7 DECK ' +
+          String(savedRun().run.deck).padStart(2,'0') + '</button>' +
+        '<button class="vbtn ghost" data-act="fresh" style="margin-top:10px">START A NEW RUN</button>'
+      : '<button class="vbtn" data-act="fresh" style="margin-top:22px">BOARD</button>'),
+    {
+      resume: ()=>{ if(!loadRun()){ dropSave(); newRun(); live = true; } fit(); showDeckCard(); },
+      fresh:  ()=>{ dropSave(); newRun(); live = true; fit(); showDeckCard(); }
+    });
+}
+
+function showDeckCard(){
+  const info = deckInfo();
+  const hostiles = mobs.filter(m=>m.alive && !m.boss).length;
+  const apex = mobs.find(m=>m.boss);
+  const locks = map.filter(t=>t.door).length;
+  openVeil(
+    '<div class="veyebrow">DECK ' + String(deck).padStart(2,'0') + ' \u00B7 PRESSURE OK</div>' +
+    '<div class="vtitle ice">' + info[0] + '</div>' +
+    '<div class="vflavor">' + info[1] + '</div>' +
+    '<div class="vgrid">' +
+      '<div class="vcell"><span>HOSTILES</span><b>' + hostiles + '</b></div>' +
+      '<div class="vcell"><span>APEX</span><b>LV ' + (apex?apex.lvl:'?') + '</b></div>' +
+      '<div class="vcell"><span>SEALED DOORS</span><b>' + locks + '</b></div>' +
+      '<div class="vcell"><span>INTEGRITY</span><b>' + P.hp + '/' + P.maxHp + '</b></div>' +
+    '</div>' +
+    systemsList() +
+    '<button class="vbtn" style="margin-top:18px">CYCLE HATCH</button>');
+}
+
+function showCore(core){
+  openVeil(
+    '<div class="veyebrow">SALVAGE CORE \u00B7 DECK ' + String(deck).padStart(2,'0') + '</div>' +
+    '<div class="vtitle amberT">' + core.name + '</div>' +
+    '<div class="vflavor">' + core.desc + '</div>' +
+    '<div class="vflavor" style="color:var(--dim)">The hatch below you unseals.</div>' +
+    '<button class="vbtn amberB">INSTALL</button>');
+}
+
+function showDeath(){
+  openVeil(
+    '<div class="veyebrow">BIOSIGN \u2014 FLAT</div>' +
+    '<div class="vtitle">Signal Lost</div>' +
+    '<div class="vflavor">The suit keeps transmitting for a while after you stop.</div>' +
+    '<div class="vgrid">' +
+      '<div class="vcell"><span>REACHED</span><b>DECK ' + String(deck).padStart(2,'0') + '</b></div>' +
+      '<div class="vcell"><span>CALIBRATION</span><b>LV ' + P.lvl + '</b></div>' +
+      '<div class="vcell"><span>KILLS</span><b>' + P.kills + '</b></div>' +
+      '<div class="vcell"><span>DEEPEST</span><b>DECK ' + String(best).padStart(2,'0') + '</b></div>' +
+    '</div>' +
+    systemsList() +
+    '<button class="vbtn red" data-act="go" style="margin-top:18px">BOARD AGAIN</button>' +
+    '<div class="vsub">ATTEMPT ' + (runDeaths+1) + '</div>',
+    ()=>{ dropSave(); newRun(); live = true; fit(); showDeckCard(); });
+}
+
+/* ================================================================
+   BOOT
+   ================================================================ */
+fit();
+window.addEventListener('load', fit);
+newRun();
+fit();
+showTitle();
+})();
+</script>
+</body>
+</html>
