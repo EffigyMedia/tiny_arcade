@@ -402,7 +402,9 @@ function dive(g,s,t){
   g.fillStyle='#061119'; g.fillRect(0,0,s.w,s.h);
   var gap=s.w*0.34;
   for(var i=0;i<4;i++){
-    var y=((t*22+i*s.h/4)%(s.h+18))-9;
+    // the diver descends, so the ledges rise past her — same sign as the game
+    var span=s.h+18;
+    var y=span-((t*22+i*s.h/4)%span)-9;
     var x=s.w*0.5+Math.sin(i*2.1+t*0.5)*s.w*0.22;
     g.fillStyle='#17303c';
     g.fillRect(0,y,x-gap/2,4); g.fillRect(x+gap/2,y,s.w-(x+gap/2),4);

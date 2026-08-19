@@ -24,6 +24,8 @@ var A = window.Arcade = window.Arcade || {};
 var ctx = null, master = null, sfxBus = null, musBus = null, uiBus = null;
 var verb = null, noiseBuf = null, hushed = false;
 var listeners = [];
+var gestured = false;      // a context built before a real gesture starts
+var pending = null;        // suspended and never recovers cleanly on iOS
 
 var pref = { sfx:true, music:true };
 try {
@@ -40,6 +42,14 @@ function applyGains(t){
   sfxBus.gain.setTargetAtTime((pref.sfx   && !hushed) ? 1    : 0, now, k);
   musBus.gain.setTargetAtTime((pref.music && !hushed) ? 0.85 : 0, now, k);
   uiBus.gain.setTargetAtTime(pref.sfx ? 0.9 : 0, now, 0.01);
+}
+
+/* called whenever the context might have come alive */
+function flush(){
+  if (!ctx || ctx.state !== 'running') return;
+  A.audio.ready = true;
+  applyGains(0.05);
+  if (pending && !M.timer && M.on) runMusic(pending);
 }
 
 function buildVerb(){
@@ -62,7 +72,11 @@ A.audio = {
   ctx:null,
 
   init: function(){
-    if (ctx){ if (ctx.state === 'suspended') ctx.resume(); return true; }
+    if (ctx){
+      if (ctx.state === 'suspended' && gestured) ctx.resume().then(flush, function(){});
+      return ctx.state === 'running';
+    }
+    if (!gestured) return false;          // wait for a gesture; music will be queued
     var C = window.AudioContext || window.webkitAudioContext;
     if (!C) return false;
     try { ctx = new C(); } catch(e){ return false; }
@@ -83,8 +97,10 @@ A.audio = {
 
     A.audio.ctx = ctx; A.audio.ready = true;
     applyGains(0);
-    if (ctx.state === 'suspended') ctx.resume();
-    return true;
+    ctx.onstatechange = flush;
+    if (ctx.state === 'suspended') ctx.resume().then(flush, function(){});
+    else flush();
+    return ctx.state === 'running';
   },
 
   get: function(k){ return pref[k]; },
@@ -277,25 +293,32 @@ A.ui = {
    ------------------------------------------------------------------ */
 var M = { bpm:120, div:4, step:0, next:0, tickFn:null, timer:null, on:false, paused:false };
 
+function runMusic(spec){
+  if (M.timer){ clearInterval(M.timer); M.timer = null; }
+  M.bpm = spec.bpm; M.div = spec.div; M.tickFn = spec.tickFn;
+  M.step = 0; M.next = ctx.currentTime + 0.1; M.on = true; M.paused = false;
+  M.timer = setInterval(function(){
+    if (!M.on || M.paused || !ctx || ctx.state !== 'running') return;
+    var spb = 60 / M.bpm / M.div;
+    /* if the clock jumped — tab restored, context resumed — do not try to
+       replay the gap, just pick up from now */
+    if (M.next < ctx.currentTime - 0.3) M.next = ctx.currentTime + 0.05;
+    var horizon = ctx.currentTime + 0.14, guard = 0;
+    while (M.next < horizon && guard++ < 32){
+      try { M.tickFn(M.step, M.next); } catch(e){}
+      M.step++; M.next += spb;
+    }
+  }, 25);
+}
+
 A.music = {
   start: function(bpm, div, tickFn){
-    if (!ctx) return;
-    A.music.stop();
-    M.bpm = bpm; M.div = div; M.tickFn = tickFn;
-    M.step = 0; M.next = ctx.currentTime + 0.1; M.on = true; M.paused = false;
-    M.timer = setInterval(function(){
-      if (!M.on || M.paused || !ctx) return;
-      var horizon = ctx.currentTime + 0.14;
-      var spb = 60 / M.bpm / M.div;
-      var guard = 0;
-      while (M.next < horizon && guard++ < 64){
-        try { M.tickFn(M.step, M.next); } catch(e){}
-        M.step++; M.next += spb;
-      }
-    }, 25);
+    pending = { bpm:bpm, div:div, tickFn:tickFn };
+    M.on = true;
+    if (ctx && ctx.state === 'running') runMusic(pending);
   },
   stop: function(){
-    M.on = false; M.tickFn = null;
+    M.on = false; M.tickFn = null; pending = null;
     if (M.timer){ clearInterval(M.timer); M.timer = null; }
   },
   pause:  function(){ M.paused = true; },
@@ -315,8 +338,23 @@ A.note = function(name, oct){
   return 440 * Math.pow(2, (n - 9) / 12 + ((oct === undefined ? 4 : oct) - 4));
 };
 
-/* first touch anywhere wakes the engine up */
-function wake(){ A.audio.init(); }
-document.addEventListener('pointerdown', wake, { once:false, passive:true });
-document.addEventListener('keydown', wake, { passive:true });
+/* Any real gesture is our cue: build the context if we have not yet, resume
+   it if the browser parked it, and release any music that was queued while
+   we were not allowed to make a sound. Stays subscribed, because a tab can
+   be suspended again at any time. */
+function wake(){
+  gestured = true;
+  A.audio.init();
+  if (ctx && ctx.state !== 'running') ctx.resume().then(flush, function(){});
+  else flush();
+}
+/* capture phase: a game's own pointerdown handler on its canvas would
+   otherwise run first and find the engine still asleep */
+document.addEventListener('pointerdown', wake, { capture:true, passive:true });
+document.addEventListener('touchstart',  wake, { capture:true, passive:true });
+document.addEventListener('keydown',     wake, { capture:true, passive:true });
+document.addEventListener('click',       wake, { capture:true, passive:true });
+document.addEventListener('visibilitychange', function(){
+  if (!document.hidden && gestured) wake();
+});
 })();
