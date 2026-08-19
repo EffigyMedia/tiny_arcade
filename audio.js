@@ -39,9 +39,9 @@ function fire(){ for (var i=0;i<listeners.length;i++) try { listeners[i](pref); 
 function applyGains(t){
   if (!ctx) return;
   var now = ctx.currentTime, k = Math.max(0.004, (t === undefined ? 0.09 : t) / 3);
-  sfxBus.gain.setTargetAtTime((pref.sfx   && !hushed) ? 1    : 0, now, k);
-  musBus.gain.setTargetAtTime((pref.music && !hushed) ? 0.85 : 0, now, k);
-  uiBus.gain.setTargetAtTime(pref.sfx ? 0.9 : 0, now, 0.01);
+  sfxBus.gain.setTargetAtTime((pref.sfx   && !hushed) ? 0.62 : 0, now, k);
+  musBus.gain.setTargetAtTime((pref.music && !hushed) ? 1.00 : 0, now, k);
+  uiBus.gain.setTargetAtTime(pref.sfx ? 0.55 : 0, now, 0.01);
 }
 
 /* iOS will hand back a context that claims to be running but stays mute
@@ -382,8 +382,8 @@ function startWatchdog(){
     /* music was asked for but never actually got going */
     if (pending && M.on && !M.paused && !M.timer) runMusic(pending);
     /* a bus that should be open but is sitting at zero */
-    var wantMus = (pref.music && !hushed) ? 0.85 : 0;
-    var wantSfx = (pref.sfx   && !hushed) ? 1    : 0;
+    var wantMus = (pref.music && !hushed) ? 1.00 : 0;
+    var wantSfx = (pref.sfx   && !hushed) ? 0.62 : 0;
     if (Math.abs(musBus.gain.value - wantMus) > 0.4 ||
         Math.abs(sfxBus.gain.value - wantSfx) > 0.4) applyGains(0.05);
   }, 500);
@@ -400,6 +400,13 @@ function wake(){
   unlockTap();
   if (ctx.state !== 'running') ctx.resume().then(flush, function(){});
   else flush();
+  /* re-assert every time: if a bus is sitting at zero when the player has
+     not asked for silence, open it now rather than waiting on the watchdog */
+  if (!hushed){
+    if (pref.music && musBus.gain.value < 0.05) applyGains(0);
+    if (pref.sfx   && sfxBus.gain.value < 0.05) applyGains(0);
+  }
+  if (pending && M.on && !M.timer && ctx.state === 'running') runMusic(pending);
   startWatchdog();
 }
 /* capture phase: a game's own pointerdown handler on its canvas would

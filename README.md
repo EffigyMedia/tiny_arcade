@@ -38,6 +38,22 @@ nothing is force-pushed, and a second run with no changes does nothing.
 
 Override the target with `TINY_ARCADE_REPO=...` if the repo ever moves.
 
+## Cache busting
+
+Shared scripts are not loaded with plain `<script>` tags. A small inline loader
+in each page writes them with a stamp that rolls over every ten minutes:
+
+    audio.js?v=2978594
+
+Ten minutes is the same window GitHub Pages caches for, so a stale copy can
+never outlive the CDN, and **there is no version number to remember to bump**.
+Within a slot the files still cache normally; when the slot rolls, every cache
+fetches fresh.
+
+The loader uses `document.write` on purpose — it keeps `audio.js` and
+`arcade.js` in strict order ahead of the game code, which expects
+`window.Arcade` to already exist.
+
 ## Adding a game
 
 1. Drop `yourgame.html` into `games/`.

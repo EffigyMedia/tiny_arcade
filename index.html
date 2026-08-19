@@ -255,9 +255,20 @@ footer{margin-top:28px;border-top:1px solid var(--line);padding-top:16px;text-al
 
 </div>
 
-<script src="audio.js"></script>
-<script src="arcade.js"></script>
-<script src="games.js"></script>
+<script>
+/* Shared scripts are stamped with a slot that rolls over every ten minutes —
+   the same window GitHub Pages caches for — so a stale copy can never outlive
+   the CDN, and there is no version number for anyone to remember to bump.
+   document.write is used deliberately: it keeps these strictly in order, and
+   the game code below expects window.Arcade to already exist. */
+(function(d){
+  var v = '?v=' + Math.floor(Date.now() / 6e5);
+  var base = '';
+  ['audio.js', 'arcade.js', 'games.js'].forEach(function(f){
+    d.write('<scr' + 'ipt src="' + base + f + v + '"></scr' + 'ipt>');
+  });
+})(document);
+</script>
 <script>
 (function(){
 "use strict";
