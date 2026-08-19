@@ -121,7 +121,7 @@ Portrait, one thumb, no new engine work beyond the shared backlog.
 ---
 
 #### 01 · PELLET — *maze chase*
-**Status:** ☐ **Size:** L **Accent:** `#ffd23c`
+**Status:** ☑ shipped **Size:** L **Accent:** `#ffd23c`
 
 **The idea.** Four hunters, and the only thing that makes them prey is a
 resource you have four of.
@@ -133,9 +133,15 @@ slightly early still registers at the junction. D-pad / left stick / arrows.
 - [ ] Tall maze, roughly 19×23, hand-authored not generated — a good maze is a
       designed object. Side tunnels that wrap.
 - [ ] Movement locked to corridors, cornering that forgives an early input.
-- [ ] Four hunters with genuinely different target rules: one chases your tile,
-      one aims where you're heading, one is erratic, one patrols and only
-      commits when you're close.
+- [x] Four hunters with genuinely different target rules: one chases your tile,
+      one aims where you're heading, one pincers with the first, and one
+      **guards the power pellets** rather than chasing at all. The classic
+      "loses its nerve up close" rule is tuned for a 28-wide maze; at 15 wide
+      the scared radius covers the board and it just looks broken.
+      Two rules keep guarding fair: it stands *beside* the pellet rather than
+      on it, and it rotates its post every twelve seconds or so. A guard that
+      camps the tile denies the resource outright, which is a lock, not a
+      threat — the same trap applies to any future guard behaviour.
 - [ ] Scatter / hunt phase timer — they periodically break off, which is what
       gives the maze its rhythm.
 - [ ] Power pellet → vulnerable phase, escalating chain score, flashing warning
@@ -149,9 +155,17 @@ power (descending arpeggio), hunter eaten (rising sweep), death (long fall).
 
 **Save.** `{best, label:'BEST 12,400', level}`
 
-**Look.** Not blue-on-black with a yellow disc. Proposal: **blueprint** — pale
-cyan maze lines on dark drafting paper, hunters as different geometric glyphs
-rather than ghosts, player as a solid wedge.
+**Look.** Shipped as **blueprint**: pale cyan maze lines on dark drafting
+paper. The specific things kept clear of the original, because the first build
+drifted straight back into them:
+- player is a **drafting nib**, not a disc with a chomping mouth
+- hunters have **no faces** — a survey tick on the leading edge carries heading
+- frightened is **voided**: hollow, dashed, drained. Not blue.
+- eaten is a **dashed wireframe** being redrawn. Not a pair of eyes.
+- power marks are **survey stations** on the mid-flanks, not fat dots in the
+  four corners
+- cleared squares **ink in**, so the sheet fills up as you survey it rather
+  than emptying out
 
 **Watch out.** The hunter AI *is* the game. Budget most of the time there.
 Uniform-random hunters feel terrible; the personalities are the point.
@@ -827,7 +841,7 @@ food. If that separation doesn't hold, cut it.
 
 Three at a time, always mixed so no two consecutive builds feel the same.
 
-- **Batch A** — ☐ Pellet · ☐ Soviet Blocks · ☐ Ricochet
+- **Batch A** — ☑ Pellet · ☐ Soviet Blocks · ☐ Ricochet
   *A chase, a stacker, a paddle game. Three different muscles, all one-thumb,
   none overlapping anything on the floor. Ships the `gesture` helper.*
 
@@ -868,6 +882,7 @@ The clones are the floor. These are the reason for the arcade.
   pack hunters, a twenty-piece armoury with four ammunition types, consumables,
   a gear screen, and drawn sprites in place of glyphs
 - ☑ **Highway** — pseudo-3D pursuit
+- ☑ **Pellet** — maze chase (first of the clone floor)
 - ☐ *next original* — no brief yet. Keep a slot open in every other batch so
   the floor never becomes only clones.
 

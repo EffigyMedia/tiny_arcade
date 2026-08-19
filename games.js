@@ -12,6 +12,15 @@
    ===================================================================== */
 window.TINY_ARCADE = [
   {
+    file:  'games/pellet.html',
+    id:    'pellet',
+    name:  'Pellet',
+    accent:'#ffd23c',
+    genre: 'ARCADE \u00B7 MAZE CHASE',
+    hook:  'Four hunters, and each one wants a different tile. Clear the drawing before they work together.',
+    attract:'maze'
+  },
+  {
     file:  'games/deep.html',
     id:    'deep',
     name:  'Deep',
