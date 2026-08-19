@@ -880,7 +880,7 @@ The clones are the floor. These are the reason for the arcade.
 - ☑ **Deep** — one-thumb descent
 - ☑ **Derelict** — turn-based ship crawler: line-of-sight pursuit, patrols, fast
   pack hunters, a twenty-piece armoury with four ammunition types, consumables,
-  a gear screen, and drawn sprites in place of glyphs
+  a gear screen, drawn sprites, and a headlamp that stops at bulkheads
 - ☑ **Highway** — pseudo-3D pursuit
 - ☑ **Pellet** — maze chase (first of the clone floor)
 - ☐ *next original* — no brief yet. Keep a slot open in every other batch so
@@ -906,5 +906,298 @@ Ideas parked for later:
 - [ ] Per-game credits line on the game-over screen.
 
 ---
+
+---
+
+## 7. Derelict — combat rework (BUILT — melee, ranged, corner rule)
+
+Nothing below is built yet. Sign it off or mark it up and it goes in.
+
+### Resolution
+
+    ATKR = ATK + 1d20        DEFR = DEF + 1d20
+    hit if ATKR > DEFR, otherwise a miss
+
+| roll | outcome |
+|---|---|
+| attacker nat 20, defender not nat 20 | damage **doubled** |
+| defender nat 20, attacker not nat 20 | damage **halved** (a graze) |
+| attacker nat 20 **and** defender nat 1 | **instant kill** |
+| attacker nat 1 **and** defender nat 20 | full damage **reflected onto the attacker** |
+| attacker nat 1 otherwise | clean miss, no damage |
+
+Margin matters too: every 5 points of `ATKR − DEFR` above the hit adds **+1**
+damage, so a big swing against something slow is worth more than a scrape past
+something quick.
+
+### Player
+
+    ATK = 3 + level + weapon bonus
+    DEF = 3 + level + plating
+
+### Damage dice
+
+**Melee** — costs stamina, invites a counterattack
+
+| weapon | damage | ATK | notes |
+|---|---|---|---|
+| Fists | 1d4 | +0 | always available, never dropped |
+| Bone Knife | 1d6 | +1 | quiet |
+| Salvage Bar | 1d8 | +0 | +1d6 against PLATED |
+| Shock Baton | 1d6+2 | +1 | stuns one turn |
+| Bulkhead Sabre | 2d6 | +2 | |
+| Tooth Saw | 3d6 | −1 | 1 fuel, cleaves everything adjacent |
+
+**Tools** — repurposed, and it shows
+
+| tool | damage | ATK | notes |
+|---|---|---|---|
+| Core Sampler | 1d6 | +0 | bleed 1d4 for 3 turns |
+| Cutting Torch | 1d8 | +0 | 1 fuel, ignores plating, burn 1d6 ×2 |
+| Arc Welder | 2d4 | +1 | 1 cell, stuns one turn |
+| Rivet Gun | 1d6 | +1 | ranged 2 |
+
+**Firearms** — no counterattack, but the lamp decides your reach
+
+Every frame has a slug baseline. The other two feeds trade reach against power
+in opposite directions, which is what makes carrying the right one a decision:
+
+    laser   one die weaker  ·  +2 squares  ·  pierces plating
+    plasma  one die harder  ·  −2 squares  ·  sets the target burning
+
+For the multi-shot frames the die stays at d4 and the **shot count** steps
+instead, since d4 has nothing below it.
+
+| frame | slug | laser · +2 sq | plasma · −2 sq |
+|---|---|---|---|
+| Rivet Gun | 1d6 · 2 sq | — | — |
+| Pistol | 1d6 · 4 sq | 1d4 · 6 sq | 1d8 · 2 sq |
+| SMG | 3 × 1d4 · 4 sq | 2 × 1d4 · 6 sq | 4 × 1d4 · 2 sq |
+| Shotgun | 2d6 · 3 sq | 2d4 · 5 sq | 2d8 · 2 sq |
+| Rifle | 2d8 · 9 sq | 2d6 · 11 sq | 2d10 · 7 sq |
+| LMG | 5 × 1d4 · 6 sq | 4 × 1d4 · 8 sq | 6 × 1d4 · 4 sq |
+
+Optimal range floors at 2, so nothing ends up as a gun you must be standing on
+top of. The **Rivet Gun is slug only** — it is a hull tool with a hopper, not a
+weapons platform.
+
+### Class traits
+
+One per class, so the choice is never only about numbers. All of these are on
+the **frame**, not the ammunition.
+
+| class | trait | what it does |
+|---|---|---|
+| Rivet Gun | **SCRAP-FED** | out of slugs, it will chew cells or plasma as improvised slugs — same 1d6, no penalty. It never truly runs dry. |
+| Pistol | **QUICKDRAW** | the only gun with no close-quarters penalty. Every other firearm takes **ATK −4** with a hostile adjacent; this one does not. That is why you keep it. |
+| SMG | **SUPPRESSING** | each projectile that lands drops the target's ATK by 1 for its next turn. A full burst makes the thing in front of you much worse at hitting back. |
+| Shotgun | **KNOCKBACK** | shoves the target one tile directly away. Into a wall, off a ledge, into fire — the placement is the weapon. |
+| Rifle | **AIMED** | if you did not move on your previous turn, it ignores the range falloff entirely. Set up and it reaches eighteen squares at full accuracy. |
+| LMG | **SPRAY** | splits its five shots across up to three targets in the beam, rather than dumping all of them into one. |
+| Flamethrower | **FIRE** | cone, and everything it touches burns. See below. |
+
+The adjacency penalty is new and load-bearing: it is what stops a rifle being
+strictly better than everything, and it gives the pistol a permanent job as
+your second slot.
+
+### Range falloff
+
+The listed range is the **optimal** range. You may fire out to **double** it and
+no further.
+
+    beyond optimal, up to 2× :  ATK penalty = 12 − (size of the damage die)
+    beyond 2×                :  no shot
+
+So the penalty falls straight out of the die, and big dice shoot long:
+
+| die | d4 | d6 | d8 | d10 | d12 |
+|---|---|---|---|---|---|
+| **penalty past optimal** | −8 | −6 | −4 | −2 | **−0** |
+
+Which means the feed choice moves your accuracy as well as your reach. A plasma
+pistol is 1d10 at 2 squares but only −2 out to 4, so it stays usable past its
+band; an SMG is −8 the moment you step outside four squares and turns into
+noise. The rifle keeps −4 all the way to eighteen, where the lamp stops you long
+before the barrel does.
+
+### Incendiary
+
+| weapon | feed | damage | optimal | max | falloff |
+|---|---|---|---|---|---|
+| Flamethrower | fuel | 1d6 **+ burn 1d6 × 3** | 3 sq | 6 sq | −6 |
+| Charge (frag) | thrown | 3d12 centre / 1d12 splash, stuns | 4 sq | 8 sq | **−0** |
+| Incendiary | thrown | 2d12 centre / 1d12 splash **+ burn 1d8 × 3** | 4 sq | 8 sq | **−0** |
+| **Chem Light** | thrown | none — it is a light | 5 sq | 10 sq | −6 |
+
+The flamethrower fires a **cone** — three tiles wide at full reach — and every
+tile it sweeps catches fire for 2 turns. An incendiary sets its whole blast
+radius alight for 4.
+
+### Throwing
+
+You are not throwing *at* a creature, you are throwing *at a tile* — nothing
+dodges a grenade, it just goes off. So thrown objects roll a **placement check**
+against a flat target rather than against DEF:
+
+    ATK + 1d20  vs  10          (range falloff applies as a penalty)
+
+Falloff uses a **heft die** in place of the damage die, because how an object
+flies has nothing to do with what it does on landing. A charge is dense and
+throws true; a light stick tumbles.
+
+| thrown | heft | past-optimal penalty |
+|---|---|---|
+| Charge, Incendiary | d10 | −2 |
+| Chem Light | d6 | −6 |
+
+Landing odds, worked through:
+
+| | within optimal | past optimal |
+|---|---|---|
+| Charge, level 1 / 5 / 10 | 75% / 95% / 100% | 65% / 85% / 100% |
+| Chem Light, level 1 / 5 / 10 | 75% / 95% / 100% | **45% / 65% / 90%** |
+
+*(This supersedes the earlier note about d12 explosives having no falloff. That
+was a tidy observation but it left max range doing nothing, which was the whole
+problem — a range band with no roll attached is just an arbitrary cutoff.)*
+
+### Scatter and bounce
+
+A failed placement check does not fizzle. The object goes somewhere:
+
+    1d8  direction   (N NE E SE S SW W NW)
+    1d4  distance    in squares
+
+If the path meets a bulkhead it **bounces**, keeping whatever distance it had
+left. Three cases:
+
+| it hits | what happens |
+|---|---|
+| a wall square on | straight back the way it came |
+| a wall on one side of a diagonal | mirror **only the blocked component** — NE off a wall to the east becomes NW |
+| an inside corner, both sides blocked | reverse both components, straight back along the diagonal |
+
+A diagonal that clips only the corner tile — both orthogonal neighbours open —
+also reverses, because there is nothing to deflect off.
+
+After four bounces it stops caring and drops where it is, so a grenade cannot
+ping-pong forever in a one-tile pocket.
+
+**Verified** across 4,832 throws on a test chamber with flat walls, a pillar and
+an inside corner: nothing ever ended inside a bulkhead, nothing left the board,
+and no step of any path clipped a wall. 37% of throws bounced at least once.
+
+Worked examples:
+
+    from 5,1 heading N  3 sq  ->  5,4   ceiling, straight back
+    from 10,3 heading E 4 sq  ->  6,3   notch wall, straight back
+    from 5,5 heading SE 4 sq  ->  1,1   clipped the pillar corner, reversed
+
+### Chem Light
+
+A throwable that does nothing but see for you.
+
+- Lands where you aim; no attack roll. A bad throw just rolls a tile.
+- Lights a **radius 3** patch for **12 turns**, and the light is cast **from the
+  stick**, not from you — so it sees round corners you cannot.
+- Chem-lit tiles count as lit for everything: you see hostiles standing in them,
+  and because `inShotRange` needs a lit target, **you can shoot into the patch**.
+  Throw one down a corridor and the corridor becomes a firing lane.
+- It reveals terrain permanently the way your own lamp does, so it doubles as a
+  scout — and scanning new sectors is what repairs you.
+
+This is the answer to the Filament Lamp being deliberately feeble. You are not
+stuck with three squares; you are stuck with three squares **unless you spend
+something**. It also gives the Arc Lantern a rival rather than an obsolescence:
+lantern is passive and permanent, chem lights are burst and disposable.
+
+### Burning
+
+**Burn N** — the target takes the burn die at the end of each of its turns for
+N turns. Re-applying does not stack the duration; it refreshes it and keeps the
+larger die.
+
+**Fire tiles** — a new board state, and it needs art:
+
+- Anything **ending its turn on a burning tile** takes 1d6 and catches burn 1.
+  That includes you. Incendiaries are a positioning decision, not a free nuke.
+- Fire **lights the tile**. A burning square is visible through the fog even
+  outside your lamp, so an incendiary is also a flare — it shows you the room
+  it is cooking. This falls out of the lamp system for free and is worth having.
+- Overlay: animated flicker under the actors, amber through to red, with the
+  floor plating still readable underneath. Plus a small flame glyph so it reads
+  at a glance on a phone. Burning **actors** get the same glyph pinned to their
+  sprite, next to the health pip.
+
+Blind fire at a heard contact rolls at **ATK −4** and halves the dice. It
+**stacks** with the falloff penalty, so a long blind shot with an SMG is ATK −12
+and half damage — technically legal, practically a waste of ammunition. That is
+the correct answer for spraying into the dark.
+
+**Thrown and carried**
+
+| item | effect |
+|---|---|
+| Charge | 4d6 at the centre, 2d6 to everything adjacent, stuns |
+| Med-gel | heals 2d6 |
+| Trauma Kit | heals 4d8, purges corrosion |
+
+### Hostiles
+
+Scaled by deck tier: `ATK`, `DEF` and damage dice all step up every third deck.
+
+| species | ATK | DEF | damage | trait |
+|---|---|---|---|---|
+| Crawler | 1 | 1 | 1d4 | — |
+| Skitter | 1 | 4 | 1d3 | fast, packs of four |
+| Husk | 2 | 1 | 1d6 | strikes first |
+| Spitter | 2 | 0 | 1d6 | corrodes the suit |
+| Gorger | 2 | 3 | 1d8 | regenerates |
+| Warden | 2 | 6 | 1d8 | plated |
+| Wraith | 3 | 2 | 1d6 | drains charge |
+| Shrike | 3 | 3 | 1d6 | fast, pairs |
+| Stalker | 4 | 2 | 1d8 | hunts across the deck |
+| Apex | 5 | 5 | 2d8 | guards the hatch |
+
+---
+
+## 8. Derelict — queued, in order
+
+0. ~~**Dice combat**~~ — built. Two things had to change from the paper design:
+   the **execute is now a finisher** (a nat-20 against a nat-1 only kills a
+   target already under half, otherwise it is a brutal crit) because at 1-in-400
+   per swing and ~240 swings a run it would have ended 45% of runs out of
+   nowhere; and **damage is multiplied by calibration level**, because flat dice
+   go stale against hostiles that gain HP every deck and a flat per-level bonus
+   would have made every weapon converge. All of section 7 is now built: throwing with the
+   flat-10 placement check and bouncing scatter, fire tiles that burn and
+   light, chem lights that see round corners, the flamethrower cone, and
+   incendiaries that can catch you as well.
+1. **Stamina** — green bar. Melee costs stamina in proportion to its dice;
+   sprinting more than six tiles in one move costs stamina. Under six tiles is
+   free and shown with a pale green tint, the way the firing envelope is shown
+   in red. A REST action recovers it.
+2. **Two weapon slots** — primary and secondary, either kind, fists always
+   available. Picking something up means dropping something, with a prompt
+   showing both slots. Needs drawn art for all twenty weapons.
+3. **Corner rule** — no diagonal attack, by anyone, through a blocked corner.
+4. **Dice combat** — section 7 above, once signed off.
+5. **Zoned levels** — a level is a chain of restricted zones: the card for the
+   next zone lives inside the previous one, and the hatch is always beyond the
+   final zone. No two card doors adjacent. Four card colours.
+6. **Bigger decks with a scrolling camera** — later decks larger, more zones,
+   more cards, more and stronger hostiles.
+7. **Bestiary ×4** — around forty species and several apex types, drawn from
+   pools by difficulty tier.
+8. **Bulkhead facing** — the lit edge of a hull tile faces the room, so a tile
+   can carry an edge on two, three or four sides.
+9. **Organic walls** — currently they do not read as organic. Redraw or animate,
+   or cut them.
+10. **Pathing** — better routes for long-distance clicks and for hostiles.
+
+## 9. Highway — queued
+
+- Always leave a legitimate line through traffic, without making it soft.
+
 
 © 2026 Effigy Media. All rights reserved.

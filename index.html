@@ -156,16 +156,19 @@ h1 .t2{
   background:rgba(255,255,255,.02);
 }
 .tick{
-  display:inline-block;padding:7px 0;font-family:var(--px);font-size:8px;
-  color:var(--gold);animation:roll 26s linear infinite;
+  display:flex;align-items:center;justify-content:center;gap:14px;
+  height:26px;font-family:var(--px);font-size:9px;letter-spacing:.30em;
+  color:var(--amber);white-space:nowrap;
+  animation:coin 1.5s steps(1,end) infinite;
 }
+@keyframes coin{0%,58%{opacity:1}59%,100%{opacity:.12}}
 .tick span{opacity:.9}
 .tick i{
   display:inline-block;width:7px;height:7px;background:currentColor;
   margin:0 16px;vertical-align:middle;position:relative;top:-1px;
   clip-path:polygon(50% 0%,61% 35%,98% 35%,68% 57%,79% 91%,50% 70%,21% 91%,32% 57%,2% 35%,39% 35%);
 }
-@keyframes roll{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+to{transform:translateX(-50%)}}
 
 /* ---------- cabinets ---------- */
 .rack{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px}
@@ -302,9 +305,6 @@ footer{margin-top:28px;border-top:1px solid var(--line);padding-top:16px;text-al
   <div class="rack" id="rack"></div>
 
   <footer>
-    <div class="credit" id="credit">CREDIT 99 <em>&nbsp;&nbsp;FREE PLAY</em></div>
-    <div class="tip" id="tip">Share &rarr; <b>Add to Home Screen</b> to play full screen, without the browser bars.</div>
-    <div class="sig">NO COINS &middot; NO SERVER &middot; HIGH SCORES KEPT IN YOUR HEAD</div>
     <div class="attrib">
       <img src="effigy.png" alt="Effigy Media" width="400" height="240">
       <div class="copy">&copy; 2026 Effigy Media. All rights reserved.</div>
@@ -326,9 +326,7 @@ var screens = [];
 var still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 /* ---------- attract ticker ---------- */
-var unit = '<span>INSERT COIN</span><i></i><span>PRESS START</span><i></i>';
-var line = unit + unit + unit;
-document.getElementById('tick').innerHTML = line + line;
+document.getElementById('tick').innerHTML = '<i></i><span>INSERT COIN</span><i></i>';
 
 /* ---------- build the row of cabinets ---------- */
 GAMES.forEach(function(g, i){
@@ -582,46 +580,123 @@ function grid(g,s,t){
 }
 
 function road(g,s,t){
-  var sky=g.createLinearGradient(0,0,0,s.h*0.42);
-  sky.addColorStop(0,'#140a1e'); sky.addColorStop(1,'#7a2f2a');
-  g.fillStyle=sky; g.fillRect(0,0,s.w,s.h*0.42);
-  g.fillStyle='#20202c'; g.fillRect(0,s.h*0.42,s.w,s.h*0.58);
-  var hz=s.h*0.42;
-  g.fillStyle='#14141d';
-  g.beginPath(); g.moveTo(s.w*0.44,hz); g.lineTo(s.w*0.56,hz);
-  g.lineTo(s.w*1.25,s.h); g.lineTo(-s.w*0.25,s.h); g.closePath(); g.fill();
-  for(var i=0;i<7;i++){
-    var p=((t*0.55+i/7)%1), yy=hz+p*p*(s.h-hz), half=(yy-hz)/(s.h-hz);
-    g.globalAlpha=0.25+half*0.75; g.fillStyle=s.accent;
-    g.fillRect(s.w/2-(1+half*2)/2, yy, 1+half*2, 2+half*7);
-    g.globalAlpha=1;
+  /* the white coupe threading traffic, with a cruiser weaving behind it */
+  var horizon = s.h*0.30;
+  var sky = g.createLinearGradient(0,0,0,horizon);
+  sky.addColorStop(0,'#1a0b16'); sky.addColorStop(1,'#3a1220');
+  g.fillStyle = sky; g.fillRect(0,0,s.w,horizon);
+  g.fillStyle = '#0d0e12'; g.fillRect(0,horizon,s.w,s.h-horizon);
+
+  function lane(u, y){                     // perspective: u in -1..1
+    var k = (y - horizon) / (s.h - horizon);
+    return s.w/2 + u * (s.w*0.10 + k*k*s.w*0.62);
   }
-  g.fillStyle='#e8eef7'; g.fillRect(s.w/2-5,s.h-16,10,7);
-  g.fillStyle='#ff3b5c'; g.fillRect(s.w/2-4,s.h-14,3,2); g.fillRect(s.w/2+1,s.h-14,3,2);
+  g.strokeStyle = '#2b3040'; g.lineWidth = 1.4;
+  [-1,1].forEach(function(u){
+    g.beginPath();
+    for(var y=horizon; y<=s.h; y+=6){ var x=lane(u,y); y===horizon?g.moveTo(x,y):g.lineTo(x,y); }
+    g.stroke();
+  });
+  g.strokeStyle = 'rgba(255,190,120,.55)'; g.lineWidth = 2;
+  for(var i=0;i<7;i++){
+    var f = ((t*0.55 + i/7) % 1), y = horizon + f*f*(s.h-horizon);
+    if(y < horizon+3) continue;
+    g.beginPath(); g.moveTo(lane(0,y), y); g.lineTo(lane(0,y+f*10), y+f*10); g.stroke();
+  }
+
+  function car(u, y, w, body, roof){
+    var k = (y-horizon)/(s.h-horizon), sc = 0.18 + k*k*1.5;
+    var cw = w*sc*s.w*0.30, ch = cw*0.62, x = lane(u,y);
+    g.fillStyle='rgba(0,0,0,.45)';
+    g.beginPath(); g.ellipse(x, y+ch*0.44, cw*0.56, ch*0.16, 0,0,6.2832); g.fill();
+    g.fillStyle = body;
+    g.beginPath();
+    g.moveTo(x-cw/2, y+ch/2); g.lineTo(x-cw*0.42, y-ch*0.34);
+    g.lineTo(x+cw*0.42, y-ch*0.34); g.lineTo(x+cw/2, y+ch/2);
+    g.closePath(); g.fill();
+    g.fillStyle = roof;
+    g.fillRect(x-cw*0.28, y-ch*0.30, cw*0.56, ch*0.34);
+    return {x:x, w:cw, h:ch};
+  }
+
+  // traffic coming back toward us
+  var TR = [[-0.62,'#2f6b5e','#1c4139'],[0.58,'#6b4a2f','#3d2a1a'],[-0.20,'#42506b','#26303f']];
+  for(var n=0;n<TR.length;n++){
+    var f2 = ((t*0.30 + n*0.37) % 1);
+    var ty = horizon + 6 + f2*f2*(s.h-horizon-10);
+    car(TR[n][0], ty, 1, TR[n][1], TR[n][2]);
+  }
+
+  // the cruiser, weaving
+  var cy = s.h*0.62 + Math.sin(t*1.5)*s.h*0.04;
+  var c = car(Math.sin(t*0.9)*0.66, cy, 1.02, '#20242e', '#141821');
+  var blue = (Math.floor(t*5)%2)===0;
+  g.fillStyle = blue ? '#4da3ff' : '#ff3b5c';
+  g.fillRect(c.x-c.w*0.22, cy-c.h*0.42, c.w*0.44, Math.max(1.4, c.h*0.10));
+
+  // the player: white coupe, dodging
+  var px = Math.sin(t*1.25+1.9)*0.52;
+  var pc = car(px, s.h*0.85, 1.16, '#eef2f7', '#b9c4d2');
+  g.fillStyle = '#ff8a3d';
+  g.fillRect(pc.x-pc.w*0.34, s.h*0.85+pc.h*0.34, pc.w*0.18, Math.max(1.4,pc.h*0.12));
+  g.fillRect(pc.x+pc.w*0.16, s.h*0.85+pc.h*0.34, pc.w*0.18, Math.max(1.4,pc.h*0.12));
 }
 
 function maze(g,s,t){
+  /* An abstract survey: a lattice of corridors, a nib inking a route through
+     it, and a chaser cutting a different line. No discs, no mouths, no faces.
+     It plays a short loop of the real thing rather than a cartoon of it. */
   g.fillStyle='#0a0e14'; g.fillRect(0,0,s.w,s.h);
-  var C=s.w/7;
-  g.strokeStyle='#2b5d६b'.replace('६','6'); g.lineWidth=1;
-  g.strokeStyle='#24505e';
-  for(var i=1;i<7;i++){
-    g.beginPath(); g.moveTo(i*C,0); g.lineTo(i*C,s.h); g.stroke();
-    g.beginPath(); g.moveTo(0,i*C); g.lineTo(s.w,i*C); g.stroke();
+  var cw=s.w/9, ch=s.h/9;
+
+  g.strokeStyle='#14313c'; g.lineWidth=1;
+  for(var i=1;i<9;i++){
+    g.beginPath(); g.moveTo(i*cw,0); g.lineTo(i*cw,s.h); g.stroke();
+    g.beginPath(); g.moveTo(0,i*ch); g.lineTo(s.w,i*ch); g.stroke();
   }
-  g.strokeStyle=s.accent; g.lineWidth=Math.max(1.4,C*0.16);
-  [[1,1,3,1],[5,1,5,3],[1,3,1,6],[3,3,3,5],[5,5,3,5],[3,7,6,7]].forEach(function(w){
-    g.beginPath(); g.moveTo(w[0]*C,w[1]*C); g.lineTo(w[2]*C,w[3]*C); g.stroke();
-  });
-  g.fillStyle='#9fc7d8';
-  for(var k=0;k<8;k++) g.fillRect((0.5+k%4*2)*C-1,(0.5+Math.floor(k/4)*4)*C-1,2,2);
-  var p=(t*0.9)%6;
+
+  /* corridor walls, drawn as one continuous line like the game does */
+  g.strokeStyle=s.accent; g.globalAlpha=.55; g.lineWidth=Math.max(1.2,cw*0.13);
+  g.lineCap='round';
+  var W=[[1,1,1,7],[1,1,8,1],[8,1,8,7],[1,8,8,8],[3,3,3,5],[5,3,5,5],[3,3,5,3]];
+  for(var k=0;k<W.length;k++){
+    g.beginPath(); g.moveTo(W[k][0]*cw,W[k][1]*ch); g.lineTo(W[k][2]*cw,W[k][3]*ch); g.stroke();
+  }
+  g.globalAlpha=1;
+
+  /* the route: a closed loop, so the pair actually chase rather than drift */
+  var LOOP=[[2,2],[6,2],[6,4],[7,4],[7,6],[4,6],[4,4],[2,4]];
+  function at(u){
+    var n=LOOP.length, f=(u%n+n)%n, i=Math.floor(f), a=LOOP[i], b=LOOP[(i+1)%n], m=f-i;
+    return [(a[0]+(b[0]-a[0])*m+0.5)*cw, (a[1]+(b[1]-a[1])*m+0.5)*ch];
+  }
+
+  /* marks still standing on the route ahead of the nib */
+  var head=t*0.62;
+  g.strokeStyle='#9fc7d8'; g.lineWidth=Math.max(1,cw*0.07);
+  for(var m=0;m<LOOP.length;m++){
+    var lead=(m-head)%LOOP.length; if(lead<0) lead+=LOOP.length;
+    if(lead<0.6) continue;
+    var q=at(m), r=cw*0.10;
+    g.beginPath(); g.moveTo(q[0]-r,q[1]); g.lineTo(q[0]+r,q[1]);
+    g.moveTo(q[0],q[1]-r); g.lineTo(q[0],q[1]+r); g.stroke();
+  }
+
+  var p=at(head), pn=at(head+0.08);
+  var ang=Math.atan2(pn[1]-p[1], pn[0]-p[0]);
+  g.save(); g.translate(p[0],p[1]); g.rotate(ang);
   g.fillStyle=s.accent;
-  g.beginPath(); g.arc((0.6+p)*C, 2.1*C, C*0.32, 0.5, 5.78); g.lineTo((0.6+p)*C, 2.1*C);
+  g.beginPath();
+  g.moveTo(cw*0.30,0); g.lineTo(cw*0.02,-cw*0.20); g.lineTo(-cw*0.17,-cw*0.13);
+  g.lineTo(-cw*0.17,cw*0.13); g.lineTo(cw*0.02,cw*0.20);
   g.closePath(); g.fill();
+  g.restore();
+
+  var c=at(head-1.7);
   g.fillStyle='#ff5c8a';
-  var q=(t*0.75+2)%6;
-  g.beginPath(); g.moveTo((0.6+q)*C,1.7*C); g.lineTo((0.95+q)*C,2.5*C); g.lineTo((0.25+q)*C,2.5*C);
+  g.beginPath();
+  g.moveTo(c[0],c[1]-cw*0.22); g.lineTo(c[0]+cw*0.20,c[1]+cw*0.16);
+  g.lineTo(c[0]-cw*0.20,c[1]+cw*0.16);
   g.closePath(); g.fill();
 }
 
