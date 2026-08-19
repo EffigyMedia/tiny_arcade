@@ -12,8 +12,9 @@
    ===================================================================== */
 window.TINY_ARCADE = [
   {
-    file:  'games/sounding.html',
-    name:  'Sounding',
+    file:  'games/deep.html',
+    id:    'deep',
+    name:  'Deep',
     accent:'#4de0c8',
     genre: 'ARCADE \u00B7 ONE THUMB',
     hook:  'A one-thumb dive into the abyss. Thread the ledges and mind what swims across your line.',
@@ -21,6 +22,7 @@ window.TINY_ARCADE = [
   },
   {
     file:  'games/derelict.html',
+    id:    'derelict',
     name:  'Derelict',
     accent:'#7fd8ff',
     genre: 'ROGUELIKE \u00B7 TURN-BASED',
@@ -28,8 +30,9 @@ window.TINY_ARCADE = [
     attract:'grid'
   },
   {
-    file:  'games/sodium.html',
-    name:  'Sodium',
+    file:  'games/highway.html',
+    id:    'highway',
+    name:  'Highway',
     accent:'#ff8a3d',
     genre: 'DRIVING \u00B7 ENDLESS',
     hook:  'Thread traffic at 280km/h with the county behind you. Cruisers meet semi-trailers too.',

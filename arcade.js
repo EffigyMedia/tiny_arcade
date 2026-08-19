@@ -16,11 +16,20 @@
      --safe-top   top safe-area inset to apply        (default env(...))
      #stage       an absolutely-positioned inset:0 root element
 
+   Also provides, to games and to the launcher alike:
+
+     Arcade.pad    Xbox / PlayStation / any standard gamepad
+     Arcade.save   namespaced localStorage, one slot per game
+
    Pausing works by gating requestAnimationFrame, so nothing here needs
    to know anything about how a particular game is built.
+
+   © 2026 Effigy Media. All rights reserved.
    ===================================================================== */
 (function(){
 "use strict";
+
+var A = window.Arcade = window.Arcade || {};
 
 /* ---- 1. frame gate. Installed immediately, before the game boots ---- */
 var paused = false, held = null;
@@ -34,15 +43,121 @@ if (raf) {
   };
 }
 
+/* ---- 2. saving ------------------------------------------------------
+   One slot per game id. Anything JSON-serialisable. If a game writes a
+   `label`, the launcher prints it on that machine's cabinet card.      */
+var SKEY = 'tinyarcade.save.v1.';
+A.save = {
+  get: function(id){
+    try { var r = localStorage.getItem(SKEY + id); return r ? JSON.parse(r) : null; }
+    catch(e){ return null; }
+  },
+  set: function(id, obj){
+    try { localStorage.setItem(SKEY + id, JSON.stringify(obj)); return true; }
+    catch(e){ return false; }
+  },
+  merge: function(id, obj){
+    var cur = A.save.get(id) || {};
+    for (var k in obj) cur[k] = obj[k];
+    return A.save.set(id, cur);
+  },
+  clear: function(id){ try { localStorage.removeItem(SKEY + id); } catch(e){} }
+};
+
+/* ---- 3. gamepad -----------------------------------------------------
+   Standard mapping, so an Xbox pad and a DualSense land on the same
+   names. Directions auto-repeat, which suits both menus and a grid
+   crawler. Polled off the raw rAF so Start still works while paused.  */
+var NAMES = ['a','b','x','y','lb','rb','lt','rt','back','start','l3','r3','up','down','left','right','home'];
+var padState = {}, padPrev = {}, padRepeat = {}, padSubs = [], padAxis = {x:0,y:0};
+var padOn = false, DEAD = 0.28;
+var REPEAT_DIRS = { up:1, down:1, left:1, right:1 };
+
+function pollPad(){
+  var list = navigator.getGamepads ? navigator.getGamepads() : [];
+  var gp = null;
+  for (var i=0;i<list.length;i++) if (list[i] && list[i].connected){ gp = list[i]; break; }
+  padOn = !!gp;
+  var now = performance.now();
+
+  for (var n=0;n<NAMES.length;n++) padPrev[NAMES[n]] = padState[NAMES[n]];
+
+  if (gp){
+    for (var b=0;b<NAMES.length;b++){
+      var btn = gp.buttons[b];
+      padState[NAMES[b]] = !!(btn && (btn.pressed || btn.value > 0.5));
+    }
+    var ax = gp.axes[0] || 0, ay = gp.axes[1] || 0;
+    padAxis.x = Math.abs(ax) > DEAD ? ax : 0;
+    padAxis.y = Math.abs(ay) > DEAD ? ay : 0;
+    /* stick doubles as the d-pad for menus */
+    if (padAxis.x < -0.6) padState.left = true;
+    if (padAxis.x >  0.6) padState.right = true;
+    if (padAxis.y < -0.6) padState.up = true;
+    if (padAxis.y >  0.6) padState.down = true;
+  } else {
+    for (var c=0;c<NAMES.length;c++) padState[NAMES[c]] = false;
+    padAxis.x = padAxis.y = 0;
+  }
+
+  for (var k=0;k<NAMES.length;k++){
+    var name = NAMES[k], is = padState[name], was = padPrev[name];
+    var fire = false;
+    if (is && !was){ fire = true; padRepeat[name] = now + 380; }
+    else if (is && was && REPEAT_DIRS[name] && now > (padRepeat[name] || 0)){
+      fire = true; padRepeat[name] = now + 150;
+    }
+    if (fire) for (var q=0;q<padSubs.length;q++) try { padSubs[q](name); } catch(e){}
+  }
+  if (raf) raf(pollPad);
+}
+
+A.paused = function(){ return paused; };
+
+A.pad = {
+  connected: function(){ return padOn; },
+  axis: function(){ return padAxis; },
+  down: function(name){ return !!padState[name]; },
+  onPress: function(fn){ padSubs.push(fn); },
+  /* the two face buttons everyone means by "confirm" and "back" */
+  confirm: function(name){ return name === 'a' || name === 'start'; },
+  cancel:  function(name){ return name === 'b'; }
+};
+if (raf) raf(pollPad);
+
 function meta(name, fallback){
   var el = document.querySelector('meta[name="' + name + '"]');
   return (el && el.getAttribute('content')) || fallback;
 }
 
 function boot(){
+  /* no #stage means we are on the launcher: skip the shell, keep the rest */
+  if (!document.getElementById('stage')) return;
+
   var title  = meta('arcade-title', document.title || 'Untitled');
   var accent = meta('arcade-accent', '#e9e9f2');
   var home   = meta('arcade-home', '../index.html');
+  var root   = home.replace(/index\.html$/, '');
+
+  /* Add to Home Screen from inside a game should still install the arcade,
+     under the arcade's name and icon, opening on the launcher. */
+  function head(tag, attrs){
+    var el = document.createElement(tag);
+    for (var k in attrs) el.setAttribute(k, attrs[k]);
+    document.head.appendChild(el);
+    return el;
+  }
+  var appName = document.querySelector('meta[name="apple-mobile-web-app-title"]');
+  if (appName) appName.setAttribute('content', 'TINY ARCADE');
+  else head('meta', { name:'apple-mobile-web-app-title', content:'TINY ARCADE' });
+  if (!document.querySelector('meta[name="application-name"]'))
+    head('meta', { name:'application-name', content:'TINY ARCADE' });
+  if (!document.querySelector('link[rel="manifest"]'))
+    head('link', { rel:'manifest', href: root + 'manifest.webmanifest' });
+  if (!document.querySelector('link[rel="apple-touch-icon"]')){
+    head('link', { rel:'apple-touch-icon', href: root + 'icon.png' });
+    head('link', { rel:'icon', href: root + 'icon.png' });
+  }
 
   var css = document.createElement('style');
   css.textContent = [
@@ -94,7 +209,9 @@ function boot(){
     '.ark-act.tog{display:flex;align-items:center;justify-content:space-between;',
     '  padding:12px 13px;letter-spacing:.16em}',
     '.ark-act.tog b{font-weight:600;color:#565a70}',
-    '.ark-act.tog.on b{color:var(--ark)}'
+    '.ark-act.tog.on b{color:var(--ark)}',
+    '.ark-act.cursor{border-color:var(--ark);box-shadow:0 0 0 1px var(--ark) inset}',
+    '.ark-hint{margin-top:10px;font-size:9px;letter-spacing:.14em;color:#565a70}'
   ].join('\n');
   document.head.appendChild(css);
 
@@ -122,6 +239,7 @@ function boot(){
       '</div>' +
       '<button class="ark-act" type="button" data-a="all">MUTE ALL</button>' +
       '<div class="ark-note">Restarting throws away the current run.</div>' +
+      '<div class="ark-hint" id="ark-pad"></div>' +
     '</div>';
   veil.querySelector('.ark-title').textContent = title;
   document.body.appendChild(veil);
@@ -153,6 +271,52 @@ function boot(){
   bar.querySelector('.ark-btn').addEventListener('click', function(){
     if (AU) AU.init();
     setPaused(!paused);
+  });
+
+  /* ---- pad-driven pause menu ---- */
+  var acts = [], cursor = 0;
+  function refreshActs(){
+    acts = [].slice.call(veil.querySelectorAll('.ark-act'));
+    paintCursor();
+  }
+  function paintCursor(){
+    for (var i=0;i<acts.length;i++) acts[i].classList.toggle('cursor', i === cursor && A.pad.connected());
+  }
+  function moveCursor(d){
+    if (!acts.length) refreshActs();
+    cursor = (cursor + d + acts.length) % acts.length;
+    paintCursor();
+  }
+  refreshActs();
+
+  A.pad.onPress(function(name){
+    if (name === 'start'){ if (AU) AU.init(); setPaused(!paused); return; }
+    if (!paused){
+      if (name === 'back'){ if (AU) AU.init(); setPaused(true); }
+      return;
+    }
+    if (name === 'up')   return moveCursor(-1);
+    if (name === 'down') return moveCursor(1);
+    if (name === 'b')    return setPaused(false);
+    if (name === 'a'){
+      if (!acts.length) refreshActs();
+      var el = acts[cursor];
+      if (el) el.click();
+      setTimeout(refreshActs, 0);
+    }
+  });
+
+  var padHint = document.getElementById('ark-pad');
+  function padWatch(){
+    var on = A.pad.connected();
+    if (padHint) padHint.textContent = on ? 'PAD \u00B7 D-PAD MOVE \u00B7 A SELECT \u00B7 B RESUME \u00B7 START PAUSE' : '';
+    if (on) paintCursor();
+    setTimeout(padWatch, 700);
+  }
+  padWatch();
+  window.addEventListener('gamepadconnected', function(){
+    tag.textContent = 'PAD READY';
+    setTimeout(function(){ tag.textContent = paused ? 'PAUSED' : 'RUNNING'; }, 1600);
   });
   veil.addEventListener('click', function(e){
     var el = e.target.closest ? e.target.closest('[data-a]') : e.target;

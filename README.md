@@ -4,6 +4,7 @@ A tiny arcade cabinet that lives in a browser tab. Runs offline, no build step.
 
     index.html          the launcher (the arcade floor)
     audio.js            shared synth engine — every sound is generated
+    manifest.webmanifest  installs as TINY ARCADE on Android/Chrome
     effigy.png          attribution mark shown in the footer
     games.js            the catalogue — one entry per machine
     arcade.js           shared pause / restart / exit header
@@ -18,6 +19,12 @@ To play it like an app on a phone or tablet, put the folder somewhere with a
 URL — https://app.netlify.com/drop takes a drag-and-drop folder and gives you
 one in about a minute — then open it in Safari and use
 **Share → Add to Home Screen**. It launches full screen with no browser bars.
+
+The name comes up pre-filled as **TINY ARCADE** with the cabinet icon, and it
+does so even if you happen to be inside a game when you hit Share — `arcade.js`
+puts the arcade's name, icon and manifest on every page, and the manifest's
+`start_url` sends the installed app back to the launcher rather than whichever
+machine you were standing at.
 
 ## Adding a game
 
@@ -92,6 +99,44 @@ Useful pieces:
 
 A music bed is just a `tick(step, t)` that schedules notes at the times it is
 handed. Put drones and pads on `bus:'music'` so the music toggle governs them.
+
+## Controls
+
+Touch, mouse and keyboard work everywhere. Any standard gamepad — Xbox,
+DualShock/DualSense, 8BitDo — is picked up automatically by `arcade.js` and
+mapped to common names, so a game never has to care which pad it is.
+
+    Arcade.pad.connected()      is one plugged in
+    Arcade.pad.axis()           {x, y} from the left stick, dead-zoned
+    Arcade.pad.down('rt')       held state
+    Arcade.pad.onPress(fn)      fires on press; directions auto-repeat
+
+Names: `a b x y lb rb lt rt back start l3 r3 up down left right`. The stick
+also reports as d-pad presses, so menus work either way.
+
+**Start** pauses from anywhere, **B** resumes, and the pause menu is
+navigable with the d-pad and **A**.
+
+## Saving
+
+`Arcade.save` is namespaced localStorage — one slot per game id, holding
+anything JSON-serialisable.
+
+    Arcade.save.get(id)         -> object or null
+    Arcade.save.set(id, obj)
+    Arcade.save.merge(id, obj)
+    Arcade.save.clear(id)
+
+If a game writes a `label`, the launcher prints it on that machine's cabinet
+card, so high scores show up on the arcade floor. Write `resume: true` and the
+card also shows RUN IN PROGRESS.
+
+Deep and Highway keep a best score. Derelict saves the **whole run** — map,
+fog, inventory, installed cores, the lot — after every turn, and offers
+CONTINUE on its title screen. Cores hold functions so they travel by name and
+are re-linked on load. Dying clears the slot.
+
+Nothing leaves the device. There is no account and no server.
 
 ## How pausing works
 

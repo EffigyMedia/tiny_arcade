@@ -7,7 +7,9 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Tiny Arcade">
+<meta name="apple-mobile-web-app-title" content="TINY ARCADE">
+<meta name="application-name" content="TINY ARCADE">
+<link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icon.png">
 <link rel="apple-touch-icon" sizes="512x512" href="icon-512.png">
 <link rel="icon" href="icon.png">
@@ -178,6 +180,11 @@ h1 .t2{
   font-family:var(--px);font-size:7px;letter-spacing:.06em;color:var(--dim);
   margin-bottom:9px;line-height:1.7;
 }
+.score{
+  font-family:var(--px);font-size:7px;letter-spacing:.1em;color:var(--gold);
+  margin-bottom:7px;min-height:9px;
+}
+.score .rs{color:var(--mag);margin-left:8px}
 .hook{font-size:16px;line-height:1.22;color:#c6bfdb;
   display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
 
@@ -244,6 +251,7 @@ footer{margin-top:28px;border-top:1px solid var(--line);padding-top:16px;text-al
 </div>
 
 <script src="audio.js"></script>
+<script src="arcade.js"></script>
 <script src="games.js"></script>
 <script>
 (function(){
@@ -274,6 +282,7 @@ GAMES.forEach(function(g, i){
       '<div class="screen"><canvas></canvas></div>' +
       '<div class="meat">' +
         '<div class="genre"></div>' +
+        '<div class="score"></div>' +
         '<div class="hook"></div>' +
         '<div class="deck"><span class="knob"></span><span class="knob b"></span>' +
           '<span class="start">PRESS START</span></div>' +
@@ -282,6 +291,11 @@ GAMES.forEach(function(g, i){
   a.querySelector('.mname').textContent = g.name.toUpperCase();
   a.querySelector('.genre').textContent = g.genre;
   a.querySelector('.hook').textContent  = g.hook;
+  var sv = (window.Arcade && window.Arcade.save && g.id) ? window.Arcade.save.get(g.id) : null;
+  if (sv && sv.label){
+    a.querySelector('.score').innerHTML =
+      sv.label + (sv.resume ? '<span class="rs">RUN IN PROGRESS</span>' : '');
+  }
   rack.appendChild(a);
   screens.push({ cv:a.querySelector('canvas'), kind:g.attract, accent:g.accent, t:Math.random()*40 });
 });
