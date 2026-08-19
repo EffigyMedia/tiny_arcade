@@ -105,6 +105,10 @@ html,body{
 
 /* status tags */
 .tag.k-blue{color:var(--kblue)} .tag.k-amber{color:var(--kamber)} .tag.k-red{color:var(--kred)}
+.c-crawler{color:#a06cff} .c-husk{color:#c58cff} .c-spitter{color:#7f5cff}
+.c-warden{color:#8fa8bd}  .c-wraith{color:#dcb8ff} .c-gorger{color:#6f4bd8}
+.c-stalker{color:#e050ff} .c-skitter{color:#ff8fd8} .c-shrike{color:#c74bff}
+.c-apex{color:#f0e6ff}
 .tag.guard{color:var(--ice)} .tag.core{color:var(--core)} .tag.wep{color:var(--steel)}
 .c-wpn{color:var(--amber)} .c-ammo{color:var(--steel)}
 .c-trauma{color:var(--acid)} .c-grenade{color:var(--amber)}
@@ -352,13 +356,13 @@ const WEAPONS = {
   sampler: { name:'Core Sampler',    kind:'tool', mul:1.10, bleed:3, tier:1,
              note:'Leaves a wound that will not close.' },
   rivet:   { name:'Rivet Gun',       kind:'ranged', mul:0.80, ammo:'slug', cost:1,
-             range:3, tier:0,
-             note:'Short range, cheap, and never meant for this.' }
+             range:2, tier:0,
+             note:'Two squares, cheap, and never meant for this.' }
 };
 
 /* firearms: five frames, each in the ammunition it was built for */
 const FRAMES = {
-  pistol:  { mul:0.90, range:5, cost:1, shots:1, tier:0 },
+  pistol:  { mul:0.90, range:4, cost:1, shots:1, tier:0 },
   smg:     { mul:0.55, range:4, cost:2, shots:3, tier:1 },
   shotgun: { mul:1.55, range:3, cost:1, shots:1, splash:true, tier:2 },
   rifle:   { mul:1.70, range:9, cost:1, shots:1, pierceLine:true, tier:2 },
@@ -1709,13 +1713,13 @@ let CELL = 30, BDPR = 1;
 const PAL = {
   void:'#04060a', floor:'#20323f', floorAlt:'#1c2c38', seam:'#2f4a5f',
   wall:'#070b11', wallLip:'#31485f', wallDark:'#03060a',
-  organic:'#1d0e15', organicLip:'#5d2032', vein:'#8a2b45',
+  organic:'#180e22', organicLip:'#4a2168', vein:'#8a4bc8',
   ink:'#04070a', text:'#dfeaf0'
 };
 const MOBCOL = {
-  crawler:'#ff3b5c', husk:'#ff8a72', spitter:'#a3e635', warden:'#93a7b5',
-  wraith:'#b79cf0', gorger:'#ffb347', stalker:'#ff1f4a',
-  skitter:'#ff8fa8', shrike:'#ff5f8f', apex:'#ffffff'
+  crawler:'#a06cff', husk:'#c58cff', spitter:'#7f5cff', warden:'#8fa8bd',
+  wraith:'#dcb8ff', gorger:'#6f4bd8', stalker:'#e050ff',
+  skitter:'#ff8fd8', shrike:'#c74bff', apex:'#f0e6ff'
 };
 const DOORCOL = { blue:'#4da3ff', amber:'#ffb347', red:'#ff5470' };
 
@@ -1911,7 +1915,7 @@ function legs(g, cx, cy, C, n, spread, len, col){
 
 function drawMob(g, x, y, m){
   const C = CELL, cx = x+C/2, cy = y+C/2;
-  const col = MOBCOL[m.type] || '#ff3b5c';
+  const col = MOBCOL[m.type] || '#a06cff';
   const t = m.type;
   g.save();
   if(m.stun > 0) g.globalAlpha = 0.55;
@@ -1946,6 +1950,8 @@ function drawMob(g, x, y, m){
     g.fillRect(cx-C*0.28, cy-C*0.06, C*0.56, C*0.09);
     g.fillStyle = '#0b1218';
     g.fillRect(cx-C*0.16, cy-C*0.17, C*0.32, C*0.07);
+    g.fillStyle = '#7fd8ff';
+    g.fillRect(cx-C*0.13, cy-C*0.155, C*0.26, C*0.035);
     g.fillStyle = 'rgba(255,255,255,.30)';
     g.fillRect(cx-C*0.24, cy-C*0.22, C*0.10, C*0.40);
     g.fillRect(cx+C*0.14, cy-C*0.22, C*0.10, C*0.40);
@@ -1999,12 +2005,12 @@ function drawMob(g, x, y, m){
     g.fillStyle = '#fff';
     g.beginPath(); g.arc(cx, cy-C*0.13, C*0.04, 0, 6.2832); g.fill();
   } else if(t === 'apex'){
-    g.fillStyle = '#2a1018';
+    g.fillStyle = '#1d1030';
     g.beginPath(); g.arc(cx, cy, C*0.42, 0, 6.2832); g.fill();
-    legs(g, cx, cy, C, 8, 0.86, 0.34, '#ff3b5c');
+    legs(g, cx, cy, C, 8, 0.86, 0.34, '#a06cff');
     g.fillStyle = col;
     g.beginPath(); g.ellipse(cx, cy, C*0.30, C*0.26, 0, 0, 6.2832); g.fill(); outline(g);
-    g.fillStyle = '#ff3b5c';
+    g.fillStyle = '#b06cff';
     g.beginPath(); g.arc(cx, cy, C*0.13, 0, 6.2832); g.fill();
     g.fillStyle = '#fff';
     g.beginPath(); g.arc(cx, cy, C*0.06, 0, 6.2832); g.fill();
@@ -2013,7 +2019,7 @@ function drawMob(g, x, y, m){
 
   /* hunting marker, level, and a bar once it is hurt */
   if(m.alert > 0){
-    g.fillStyle = '#ff3b5c';
+    g.fillStyle = '#ffb347';
     g.beginPath(); g.arc(x+C*0.13, y+C*0.13, C*0.075, 0, 6.2832); g.fill();
   }
   if(m.hp < m.maxHp){
@@ -2071,7 +2077,7 @@ function drawBoard(){
   const rw = wep();
   if(rw.kind === 'ranged' && !dead){
     g.save();
-    g.fillStyle = 'rgba(127,216,255,0.075)';
+    g.fillStyle = 'rgba(255,58,90,0.115)';
     for(let dy=-rw.range; dy<=rw.range; dy++){
       for(let dx=-rw.range; dx<=rw.range; dx++){
         if(!dx && !dy) continue;
@@ -2092,7 +2098,7 @@ function drawBoard(){
     /* and mark the ones actually in the firing solution */
     if(rw.kind === 'ranged' && !dead && inShotRange(m)){
       const x = m.x*C, y = m.y*C, r = C*0.16;
-      g.strokeStyle = '#7fd8ff'; g.lineWidth = Math.max(1.3, C*0.055);
+      g.strokeStyle = '#ff5a72'; g.lineWidth = Math.max(1.4, C*0.06);
       g.beginPath(); g.arc(x+C/2, y+C/2, r, 0, 6.2832); g.stroke();
       g.beginPath();
       g.moveTo(x+C/2-r*1.9, y+C/2); g.lineTo(x+C/2-r*0.7, y+C/2);
