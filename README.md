@@ -3,6 +3,7 @@
 A tiny arcade cabinet that lives in a browser tab. Runs offline, no build step.
 
     index.html          the launcher (the arcade floor)
+    audio.js            shared synth engine — every sound is generated
     effigy.png          attribution mark shown in the footer
     games.js            the catalogue — one entry per machine
     arcade.js           shared pause / restart / exit header
@@ -22,10 +23,11 @@ one in about a minute — then open it in Safari and use
 
 1. Drop `yourgame.html` into `games/`.
 
-2. Put three lines in its `<head>`:
+2. Put four lines in its `<head>`:
 
        <meta name="arcade-title"  content="Your Game">
        <meta name="arcade-accent" content="#4de0c8">
+       <script src="../audio.js"></script>
        <script src="../arcade.js"></script>
 
 3. Add one entry to `games.js`:
@@ -62,6 +64,36 @@ smaller by firing a `resize` event. For that to land correctly a game needs:
 
 All three variables have standalone defaults, so a game still works when you
 open its file directly without the launcher.
+
+## Sound
+
+Nothing is sampled — `audio.js` synthesises every note and every effect from
+oscillators and filtered noise, so the whole arcade weighs nothing and works
+with no network.
+
+Three buses: **sfx**, **music**, and **ui**. The player's mute choices live in
+`localStorage` and follow them from the launcher into a game and back. The
+pause menu carries SFX / MUSIC toggles and a MUTE ALL; the launcher has a
+speaker button in the corner.
+
+Browsers refuse to make noise until the user has touched something, so call
+`Arcade.audio.init()` from a real gesture handler — the title screen tap is
+usually the right place.
+
+Useful pieces:
+
+    Arcade.sfx.tone({freq, to, dur, type, gain, cutoff, verb})
+    Arcade.sfx.noise({freq, to, dur, gain, filter, q})
+    Arcade.sfx.drum('kick'|'snare'|'hat'|'open'|'tom'|'clap', t, gain)
+    Arcade.sfx.hold({...})        a held voice you drive yourself
+    Arcade.sfx.holdNoise({...})   wind, tyres, water
+    Arcade.music.start(bpm, stepsPerBeat, function(step, t){ ... })
+    Arcade.note('C#', 4)
+
+A music bed is just a `tick(step, t)` that schedules notes at the times it is
+handed. Put drones and pads on `bus:'music'` so the music toggle governs them.
+
+## How pausing works
 
 Pausing is done by gating `requestAnimationFrame` — a paused loop never gets to
 schedule its next frame — so `arcade.js` needs to know nothing about a game's

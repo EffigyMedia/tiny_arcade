@@ -3,6 +3,7 @@
    Drop this one line into any game's <head> and it gains a title bar,
    a pause menu, and a way back to the launcher:
 
+     <script src="../audio.js"></script>
      <script src="../arcade.js"></script>
      <meta name="arcade-title"  content="Sounding">
      <meta name="arcade-accent" content="#4de0c8">
@@ -84,7 +85,16 @@ function boot(){
     '.ark-act.key{border-color:var(--ark);color:var(--ark);background:rgba(255,255,255,.04)}',
     '.ark-act:active{background:rgba(255,255,255,.08)}',
     '.ark-act:focus-visible{outline:2px solid var(--ark);outline-offset:2px}',
-    '.ark-note{margin-top:14px;font-size:9.5px;line-height:1.7;color:#7c7f95}'
+    '.ark-note{margin-top:14px;font-size:9.5px;line-height:1.7;color:#7c7f95}',
+    '.ark-sep{display:flex;align-items:center;gap:8px;margin:20px 0 12px;',
+    '  font-size:8px;letter-spacing:.3em;color:#7c7f95}',
+    '.ark-sep::before,.ark-sep::after{content:"";flex:1;height:1px;background:#20212c}',
+    '.ark-row{display:flex;gap:8px;margin-bottom:9px}',
+    '.ark-row .ark-act{margin-bottom:0}',
+    '.ark-act.tog{display:flex;align-items:center;justify-content:space-between;',
+    '  padding:12px 13px;letter-spacing:.16em}',
+    '.ark-act.tog b{font-weight:600;color:#565a70}',
+    '.ark-act.tog.on b{color:var(--ark)}'
   ].join('\n');
   document.head.appendChild(css);
 
@@ -105,25 +115,59 @@ function boot(){
       '<button class="ark-act key" type="button" data-a="resume">RESUME</button>' +
       '<button class="ark-act" type="button" data-a="restart">RESTART</button>' +
       '<a class="ark-act" href="' + home + '">EXIT TO ARCADE</a>' +
+      '<div class="ark-sep">AUDIO</div>' +
+      '<div class="ark-row">' +
+        '<button class="ark-act tog" type="button" data-a="sfx">SFX<b>ON</b></button>' +
+        '<button class="ark-act tog" type="button" data-a="music">MUSIC<b>ON</b></button>' +
+      '</div>' +
+      '<button class="ark-act" type="button" data-a="all">MUTE ALL</button>' +
       '<div class="ark-note">Restarting throws away the current run.</div>' +
     '</div>';
   veil.querySelector('.ark-title').textContent = title;
   document.body.appendChild(veil);
 
   var tag = bar.querySelector('.ark-tag');
+  var AU = (window.Arcade && window.Arcade.audio) || null;
+
+  function paintAudio(){
+    if (!AU) return;
+    var t = veil.querySelectorAll('.ark-act.tog');
+    for (var i=0;i<t.length;i++){
+      var k = t[i].getAttribute('data-a'), on = AU.get(k);
+      t[i].classList.toggle('on', on);
+      t[i].querySelector('b').textContent = on ? 'ON' : 'OFF';
+    }
+    veil.querySelector('[data-a="all"]').textContent = AU.anyOn() ? 'MUTE ALL' : 'UNMUTE ALL';
+  }
+  if (AU){ AU.onChange(paintAudio); paintAudio(); }
+
   function setPaused(v){
     if (v === paused) return;
     if (!v) { var cb = held; held = null; if (cb) { try { cb(performance.now()); } catch(e){} } }
     paused = v;
     veil.classList.toggle('on', v);
     tag.textContent = v ? 'PAUSED' : 'RUNNING';
+    if (AU){ AU.init(); AU.hush(v); if (v) paintAudio(); }
   }
 
-  bar.querySelector('.ark-btn').addEventListener('click', function(){ setPaused(!paused); });
+  bar.querySelector('.ark-btn').addEventListener('click', function(){
+    if (AU) AU.init();
+    setPaused(!paused);
+  });
   veil.addEventListener('click', function(e){
-    var a = e.target.getAttribute && e.target.getAttribute('data-a');
+    var el = e.target.closest ? e.target.closest('[data-a]') : e.target;
+    var a = el && el.getAttribute('data-a');
     if (a === 'resume') setPaused(false);
-    if (a === 'restart') location.reload();
+    else if (a === 'restart') location.reload();
+    else if (a === 'sfx' || a === 'music'){
+      if (!AU) return;
+      AU.init(); AU.toggle(a);
+      (AU.get(a) ? window.Arcade.ui.ok : window.Arcade.ui.off)();
+    } else if (a === 'all'){
+      if (!AU) return;
+      AU.init();
+      if (AU.anyOn()){ AU.allOff(); } else { AU.allOn(); window.Arcade.ui.ok(); }
+    }
   });
   document.addEventListener('keydown', function(e){
     if (e.key === 'Escape'){ e.preventDefault(); setPaused(!paused); }

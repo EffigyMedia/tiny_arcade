@@ -9,6 +9,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Tiny Arcade">
 <link rel="apple-touch-icon" href="icon.png">
+<link rel="apple-touch-icon" sizes="512x512" href="icon-512.png">
 <link rel="icon" href="icon.png">
 <title>Tiny Arcade</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -51,6 +52,21 @@ body{
   background:radial-gradient(120% 80% at 50% 45%,rgba(0,0,0,0) 42%,rgba(0,0,0,.58) 100%);
 }
 @keyframes hum{0%,100%{opacity:1}47%{opacity:.93}49%{opacity:1}}
+
+#snd{
+  position:fixed;z-index:860;right:12px;
+  top:calc(env(safe-area-inset-top,0px) + 12px);
+  width:42px;height:42px;border-radius:50%;cursor:pointer;padding:0;
+  background:rgba(10,8,18,.82);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);
+  border:1px solid var(--line);color:var(--gold);
+  font-family:var(--px);font-size:13px;line-height:1;
+  display:grid;place-items:center;
+}
+#snd.off{color:#5b5573}
+#snd:active{background:rgba(255,194,60,.16)}
+#snd:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+#snd .x{position:absolute;font-size:20px;color:#ff2d95;opacity:0}
+#snd.off .x{opacity:.9}
 
 #page{max-width:880px;margin:0 auto;padding:0 16px calc(env(safe-area-inset-bottom,0px) + 26px)}
 
@@ -200,6 +216,7 @@ footer{margin-top:28px;border-top:1px solid var(--line);padding-top:16px;text-al
 </head>
 <body>
 <div id="crt"></div>
+<button id="snd" type="button" aria-label="Sound"><span>♪</span><span class="x">✕</span></button>
 <div id="mini"><span class="a">TINY</span><span class="b">ARCADE</span></div>
 
 <div id="page">
@@ -226,6 +243,7 @@ footer{margin-top:28px;border-top:1px solid var(--line);padding-top:16px;text-al
 
 </div>
 
+<script src="audio.js"></script>
 <script src="games.js"></script>
 <script>
 (function(){
@@ -269,6 +287,88 @@ GAMES.forEach(function(g, i){
 });
 
 if (window.navigator.standalone) document.getElementById('tip').className = 'tip hide';
+
+/* ---------- house music ----------
+   Am - F - C - G, 138bpm, the kind of loop a cabinet plays at nobody. */
+var A = window.Arcade;
+var CH = [
+  { bass:['A',1], notes:[['A',4],['C',5],['E',5],['A',5]] },
+  { bass:['F',1], notes:[['F',4],['A',4],['C',5],['F',5]] },
+  { bass:['C',2], notes:[['C',5],['E',5],['G',5],['C',6]] },
+  { bass:['G',1], notes:[['G',4],['B',4],['D',5],['G',5]] }
+];
+var LEAD = [0,null,2,null, 1,null,3,2, null,1,null,0, 2,3,1,null];
+var LEAD2= [3,null,2,1,  null,0,null,2, 1,null,3,null, 2,null,1,0];
+
+function theme(step, t){
+  var s16 = step % 16, bar = Math.floor(step/16) % 4, phrase = Math.floor(step/64) % 2;
+  var ch = CH[bar];
+
+  if (s16 % 2 === 0) A.sfx.drum('hat', t, s16 % 4 === 0 ? 0.5 : 0.3);
+  if (s16 === 0 || s16 === 6 || s16 === 8) A.sfx.drum('kick', t, 0.62);
+  if (s16 === 4 || s16 === 12) A.sfx.drum('snare', t, 0.42);
+  if (s16 === 14 && bar === 3) A.sfx.drum('clap', t, 0.4);
+
+  /* bass: root, root, fifth-ish bounce */
+  if (s16 % 2 === 0){
+    var bf = A.note(ch.bass[0], ch.bass[1] + (s16 % 8 === 4 ? 1 : 0));
+    A.sfx.tone({ t:t, freq:bf, dur:0.15, type:'triangle', gain:0.30, bus:'music', cutoff:900 });
+  }
+
+  /* lead */
+  var pat = phrase ? LEAD2 : LEAD;
+  var n = pat[s16];
+  if (n !== null && n !== undefined){
+    var nf = A.note(ch.notes[n][0], ch.notes[n][1]);
+    A.sfx.tone({ t:t, freq:nf, dur:0.16, type:'square', gain:0.115, bus:'music',
+                 cutoff:3200, verb:0.10 });
+    A.sfx.tone({ t:t+0.012, freq:nf*2, dur:0.09, type:'square', gain:0.035, bus:'music' });
+  }
+  /* pad stab on the bar */
+  if (s16 === 0){
+    for (var i=0;i<3;i++)
+      A.sfx.tone({ t:t, freq:A.note(ch.notes[i][0], ch.notes[i][1]-1), dur:0.55,
+                   type:'sawtooth', gain:0.032, bus:'music', cutoff:1100, verb:0.3 });
+  }
+}
+
+var themeRunning = false;
+function startTheme(){
+  if (!A.audio.init()) return;
+  if (!themeRunning){ A.music.start(138, 4, theme); themeRunning = true; }
+  paintSnd();
+}
+
+/* ---------- sound button ---------- */
+var snd = document.getElementById('snd');
+function paintSnd(){ snd.classList.toggle('off', !A.audio.anyOn()); }
+A.audio.onChange(paintSnd);
+paintSnd();
+snd.addEventListener('click', function(e){
+  e.stopPropagation();
+  A.audio.init();
+  if (A.audio.anyOn()) A.audio.allOff();
+  else { A.audio.allOn(); A.ui.ok(); }
+  startTheme();
+});
+
+/* the cabinet only wakes up once you have touched the room */
+document.addEventListener('pointerdown', startTheme, { once:true });
+
+/* ---------- coin-op launch ---------- */
+rack.addEventListener('click', function(e){
+  var cab = e.target.closest && e.target.closest('.cab');
+  if (!cab || e.defaultPrevented) return;
+  e.preventDefault();
+  A.audio.init();
+  var t = A.audio.now();
+  A.sfx.tone({ t:t,       freq:880,  to:1320, dur:0.07, type:'square', gain:0.16 });
+  A.sfx.tone({ t:t+0.075, freq:1320, to:1760, dur:0.10, type:'square', gain:0.16 });
+  A.sfx.tone({ t:t+0.075, freq:660,  to:880,  dur:0.14, type:'square', gain:0.07 });
+  A.sfx.noise({ t:t, freq:5200, dur:0.05, gain:0.08, filter:'highpass' });
+  var href = cab.getAttribute('href');
+  setTimeout(function(){ location.href = href; }, 210);
+});
 
 /* ---------- attract screens ---------- */
 function size(s){
