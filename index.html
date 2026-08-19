@@ -156,16 +156,19 @@ h1 .t2{
   background:rgba(255,255,255,.02);
 }
 .tick{
-  display:flex;align-items:center;justify-content:center;gap:14px;
-  height:26px;font-family:var(--px);font-size:9px;letter-spacing:.30em;
-  color:var(--amber);white-space:nowrap;
-  animation:coin 1.5s steps(1,end) infinite;
+  display:flex;align-items:center;justify-content:center;
+  height:46px;font-family:var(--px);
+  font-size:clamp(13px,4.2vw,19px);letter-spacing:.22em;
+  color:var(--gold);white-space:nowrap;
+  text-shadow:0 0 3px rgba(255,194,60,.9),0 0 14px rgba(255,194,60,.5),
+              0 0 32px rgba(255,194,60,.25);
+  animation:coin 1.4s steps(1,end) infinite;
 }
-@keyframes coin{0%,58%{opacity:1}59%,100%{opacity:.12}}
-.tick span{opacity:.9}
+@keyframes coin{0%,72%{opacity:1}73%,100%{opacity:.30}}
+.tick span{opacity:1}
 .tick i{
-  display:inline-block;width:7px;height:7px;background:currentColor;
-  margin:0 16px;vertical-align:middle;position:relative;top:-1px;
+  display:inline-block;width:.62em;height:.62em;background:currentColor;
+  margin:0 .62em;vertical-align:middle;position:relative;top:-.04em;
   clip-path:polygon(50% 0%,61% 35%,98% 35%,68% 57%,79% 91%,50% 70%,21% 91%,32% 57%,2% 35%,39% 35%);
 }
 to{transform:translateX(-50%)}}
@@ -244,23 +247,22 @@ to{transform:translateX(-50%)}}
 @keyframes blink{0%,49%{opacity:1}50%,100%{opacity:.18}}
 
 /* ---------- coin slot ---------- */
-footer{margin-top:28px;border-top:1px solid var(--line);padding-top:16px;text-align:center}
+footer{margin-top:30px;border-top:1px solid var(--line);padding-top:26px;text-align:center}
 .credit{font-family:var(--px);font-size:9px;color:var(--gold);margin-bottom:12px}
 .credit em{font-style:normal;color:var(--dim)}
 .tip{font-size:16.5px;line-height:1.35;color:var(--dim);max-width:34ch;margin:0 auto}
 .tip b{color:var(--text)}
 .tip.hide{display:none}
 .sig{margin-top:14px;font-family:var(--px);font-size:7px;color:#4a4463;line-height:2}
-.attrib{margin-top:26px;padding-top:22px;border-top:1px solid var(--line)}
+.attrib{margin-top:0;padding-top:0}
 .attrib img{
   display:block;width:126px;height:auto;margin:0 auto 12px;
   opacity:.92;filter:drop-shadow(0 0 18px rgba(190,205,230,.13));
 }
 .copy{font-family:var(--px);font-size:7px;line-height:1.9;color:#6b6488;letter-spacing:.04em}
 
-@media (prefers-reduced-motion:reduce){
-  #crt,h1 .t2,.tick,.start{animation:none}
-}
+/* The arcade always moves. A cabinet that has stopped looks broken, and every
+   loop here is small, contained and inside a bezel. */
 </style>
 </head>
 <body>
@@ -282,6 +284,7 @@ footer{margin-top:28px;border-top:1px solid var(--line);padding-top:16px;text-al
       <button class="shbtn" id="shSfx">SFX</button>
       <button class="shbtn" id="shMus">MUSIC</button>
     </div>
+
     <div class="shrow">
       <b>SAVED DATA</b>
       <button class="shbtn" id="shWipe">ERASE</button>
@@ -323,7 +326,10 @@ footer{margin-top:28px;border-top:1px solid var(--line);padding-top:16px;text-al
 var GAMES = window.TINY_ARCADE || [];
 var rack = document.getElementById('rack');
 var screens = [];
-var still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+/* Reduce Motion should quieten the chrome — the flicker, the neon pulse, the
+   blinking coin slot — but freezing the cabinet screens removes the whole
+   point of a cabinet. They keep running, at a gentler rate. */
+var still = false;
 
 /* ---------- attract ticker ---------- */
 document.getElementById('tick').innerHTML = '<i></i><span>INSERT COIN</span><i></i>';
@@ -580,124 +586,182 @@ function grid(g,s,t){
 }
 
 function road(g,s,t){
-  /* the white coupe threading traffic, with a cruiser weaving behind it */
+  /* Everything lives on one z axis and is drawn far-to-near, so nothing can
+     appear in front of something it is behind. The cruiser follows the
+     player's own line a beat later, which is why it threads the same gaps
+     instead of driving through the traffic. */
   var horizon = s.h*0.30;
   var sky = g.createLinearGradient(0,0,0,horizon);
   sky.addColorStop(0,'#1a0b16'); sky.addColorStop(1,'#3a1220');
   g.fillStyle = sky; g.fillRect(0,0,s.w,horizon);
   g.fillStyle = '#0d0e12'; g.fillRect(0,horizon,s.w,s.h-horizon);
 
-  function lane(u, y){                     // perspective: u in -1..1
-    var k = (y - horizon) / (s.h - horizon);
-    return s.w/2 + u * (s.w*0.10 + k*k*s.w*0.62);
-  }
+  function screenY(z){ return horizon + (1-z)*(1-z)*(s.h - horizon); }   /* z: 1 far, 0 near */
+  function laneX(u, z){ return s.w/2 + u * (s.w*0.10 + (1-z)*(1-z)*s.w*0.62); }
+  function scale(z){ return 0.15 + (1-z)*(1-z)*1.05; }
+
   g.strokeStyle = '#2b3040'; g.lineWidth = 1.4;
   [-1,1].forEach(function(u){
     g.beginPath();
-    for(var y=horizon; y<=s.h; y+=6){ var x=lane(u,y); y===horizon?g.moveTo(x,y):g.lineTo(x,y); }
+    for(var z=1; z>=0; z-=0.03){ var y=screenY(z), x=laneX(u,z); z===1?g.moveTo(x,y):g.lineTo(x,y); }
     g.stroke();
   });
   g.strokeStyle = 'rgba(255,190,120,.55)'; g.lineWidth = 2;
   for(var i=0;i<7;i++){
-    var f = ((t*0.55 + i/7) % 1), y = horizon + f*f*(s.h-horizon);
-    if(y < horizon+3) continue;
-    g.beginPath(); g.moveTo(lane(0,y), y); g.lineTo(lane(0,y+f*10), y+f*10); g.stroke();
+    var f = ((t*0.5 + i/7) % 1), z = 1-f, y = screenY(z);
+    g.beginPath(); g.moveTo(laneX(0,z), y); g.lineTo(laneX(0,z-0.03), screenY(z-0.03)); g.stroke();
   }
 
-  function car(u, y, w, body, roof){
-    var k = (y-horizon)/(s.h-horizon), sc = 0.18 + k*k*1.5;
-    var cw = w*sc*s.w*0.30, ch = cw*0.62, x = lane(u,y);
+  /* the line the player takes, and the same line delayed for the cruiser */
+  function playerU(time){ return Math.sin(time*0.85)*0.58; }
+  var PZ = 0.15, CZ = 0.42;                    /* cruiser is further away, so behind */
+
+  /* Traffic is placed in whichever lane is furthest from the player's line at
+     the moment it reaches him, so it is threadable by construction. */
+  var TR = [
+    { off:0.00, body:'#2f6b5e', roof:'#1c4139' },
+    { off:0.33, body:'#6b4a2f', roof:'#3d2a1a' },
+    { off:0.66, body:'#42506b', roof:'#26303f' }
+  ];
+  var cars = [];
+  for(var n=0;n<TR.length;n++){
+    var f2 = ((t*0.22 + TR[n].off) % 1);
+    var z = 1 - f2;
+    var meet = t + (z - PZ)/0.22;              /* when this car reaches the player */
+    var pu = playerU(meet);
+    var u = pu > 0 ? -0.60 : 0.60;             /* sit on the far side of his line */
+    cars.push({ z:z, u:u, body:TR[n].body, roof:TR[n].roof, kind:'t' });
+  }
+  cars.push({ z:CZ, u:playerU(t - 1.15), body:'#20242e', roof:'#141821', kind:'c' });
+  cars.push({ z:PZ, u:playerU(t),        body:'#eef2f7', roof:'#b9c4d2', kind:'p' });
+
+  cars.sort(function(a,b){ return b.z - a.z; });   /* far first, near last */
+
+  for(var k=0;k<cars.length;k++){
+    var c = cars[k], sc = scale(c.z);
+    var cw = sc*s.w*0.30*(c.kind==='p'?1.14:c.kind==='c'?1.02:1);
+    var ch = cw*0.62, x = laneX(c.u, c.z), y = screenY(c.z);
     g.fillStyle='rgba(0,0,0,.45)';
     g.beginPath(); g.ellipse(x, y+ch*0.44, cw*0.56, ch*0.16, 0,0,6.2832); g.fill();
-    g.fillStyle = body;
+    g.fillStyle = c.body;
     g.beginPath();
     g.moveTo(x-cw/2, y+ch/2); g.lineTo(x-cw*0.42, y-ch*0.34);
     g.lineTo(x+cw*0.42, y-ch*0.34); g.lineTo(x+cw/2, y+ch/2);
     g.closePath(); g.fill();
-    g.fillStyle = roof;
+    g.fillStyle = c.roof;
     g.fillRect(x-cw*0.28, y-ch*0.30, cw*0.56, ch*0.34);
-    return {x:x, w:cw, h:ch};
+    if(c.kind === 'c'){
+      g.fillStyle = (Math.floor(t*5)%2)===0 ? '#4da3ff' : '#ff3b5c';
+      g.fillRect(x-cw*0.22, y-ch*0.42, cw*0.44, Math.max(1.4, ch*0.10));
+    }
+    if(c.kind === 'p'){
+      g.fillStyle = '#ff8a3d';
+      g.fillRect(x-cw*0.34, y+ch*0.34, cw*0.18, Math.max(1.4, ch*0.12));
+      g.fillRect(x+cw*0.16, y+ch*0.34, cw*0.18, Math.max(1.4, ch*0.12));
+    }
   }
-
-  // traffic coming back toward us
-  var TR = [[-0.62,'#2f6b5e','#1c4139'],[0.58,'#6b4a2f','#3d2a1a'],[-0.20,'#42506b','#26303f']];
-  for(var n=0;n<TR.length;n++){
-    var f2 = ((t*0.30 + n*0.37) % 1);
-    var ty = horizon + 6 + f2*f2*(s.h-horizon-10);
-    car(TR[n][0], ty, 1, TR[n][1], TR[n][2]);
-  }
-
-  // the cruiser, weaving
-  var cy = s.h*0.62 + Math.sin(t*1.5)*s.h*0.04;
-  var c = car(Math.sin(t*0.9)*0.66, cy, 1.02, '#20242e', '#141821');
-  var blue = (Math.floor(t*5)%2)===0;
-  g.fillStyle = blue ? '#4da3ff' : '#ff3b5c';
-  g.fillRect(c.x-c.w*0.22, cy-c.h*0.42, c.w*0.44, Math.max(1.4, c.h*0.10));
-
-  // the player: white coupe, dodging
-  var px = Math.sin(t*1.25+1.9)*0.52;
-  var pc = car(px, s.h*0.85, 1.16, '#eef2f7', '#b9c4d2');
-  g.fillStyle = '#ff8a3d';
-  g.fillRect(pc.x-pc.w*0.34, s.h*0.85+pc.h*0.34, pc.w*0.18, Math.max(1.4,pc.h*0.12));
-  g.fillRect(pc.x+pc.w*0.16, s.h*0.85+pc.h*0.34, pc.w*0.18, Math.max(1.4,pc.h*0.12));
 }
 
 function maze(g,s,t){
-  /* An abstract survey: a lattice of corridors, a nib inking a route through
-     it, and a chaser cutting a different line. No discs, no mouths, no faces.
-     It plays a short loop of the real thing rather than a cartoon of it. */
-  g.fillStyle='#0a0e14'; g.fillRect(0,0,s.w,s.h);
-  var cw=s.w/9, ch=s.h/9;
+  /* A real little maze, drawn the way the game draws one, with the nib
+     running a corridor loop and a hunter chasing it round. Marks vanish as
+     the nib takes them and come back when it completes the circuit. */
+  var M = [
+    '#########',
+    '#.......#',
+    '#.##.##.#',
+    '#.......#',
+    '#.##.##.#',
+    '#.......#',
+    '#.##.##.#',
+    '#.......#',
+    '#########'
+  ];
+  var N = M.length, C = Math.min(s.w, s.h) / N;
+  var ox = (s.w - C*N)/2, oy = (s.h - C*N)/2;
 
-  g.strokeStyle='#14313c'; g.lineWidth=1;
-  for(var i=1;i<9;i++){
-    g.beginPath(); g.moveTo(i*cw,0); g.lineTo(i*cw,s.h); g.stroke();
-    g.beginPath(); g.moveTo(0,i*ch); g.lineTo(s.w,i*ch); g.stroke();
+  g.fillStyle = '#0a0e14'; g.fillRect(0,0,s.w,s.h);
+
+  /* the corridor circuit both of them run */
+  var LOOP = [[1,1],[7,1],[7,7],[1,7]];
+  function along(u){
+    var per = 0, segs = [];
+    for(var i=0;i<LOOP.length;i++){
+      var a = LOOP[i], b = LOOP[(i+1)%LOOP.length];
+      var len = Math.abs(b[0]-a[0]) + Math.abs(b[1]-a[1]);
+      segs.push({a:a,b:b,len:len}); per += len;
+    }
+    var d = ((u % per) + per) % per;
+    for(var k=0;k<segs.length;k++){
+      if(d > segs[k].len){ d -= segs[k].len; continue; }
+      var f = d / segs[k].len, A = segs[k].a, B = segs[k].b;
+      return { x:A[0] + (B[0]-A[0])*f, y:A[1] + (B[1]-A[1])*f,
+               dx:Math.sign(B[0]-A[0]), dy:Math.sign(B[1]-A[1]), d:d, seg:k, per:per };
+    }
+    return { x:LOOP[0][0], y:LOOP[0][1], dx:1, dy:0, d:0, seg:0, per:per };
   }
 
-  /* corridor walls, drawn as one continuous line like the game does */
-  g.strokeStyle=s.accent; g.globalAlpha=.55; g.lineWidth=Math.max(1.2,cw*0.13);
-  g.lineCap='round';
-  var W=[[1,1,1,7],[1,1,8,1],[8,1,8,7],[1,8,8,8],[3,3,3,5],[5,3,5,5],[3,3,5,3]];
-  for(var k=0;k<W.length;k++){
-    g.beginPath(); g.moveTo(W[k][0]*cw,W[k][1]*ch); g.lineTo(W[k][2]*cw,W[k][3]*ch); g.stroke();
-  }
-  g.globalAlpha=1;
-
-  /* the route: a closed loop, so the pair actually chase rather than drift */
-  var LOOP=[[2,2],[6,2],[6,4],[7,4],[7,6],[4,6],[4,4],[2,4]];
-  function at(u){
-    var n=LOOP.length, f=(u%n+n)%n, i=Math.floor(f), a=LOOP[i], b=LOOP[(i+1)%n], m=f-i;
-    return [(a[0]+(b[0]-a[0])*m+0.5)*cw, (a[1]+(b[1]-a[1])*m+0.5)*ch];
-  }
-
-  /* marks still standing on the route ahead of the nib */
-  var head=t*0.62;
-  g.strokeStyle='#9fc7d8'; g.lineWidth=Math.max(1,cw*0.07);
-  for(var m=0;m<LOOP.length;m++){
-    var lead=(m-head)%LOOP.length; if(lead<0) lead+=LOOP.length;
-    if(lead<0.6) continue;
-    var q=at(m), r=cw*0.10;
-    g.beginPath(); g.moveTo(q[0]-r,q[1]); g.lineTo(q[0]+r,q[1]);
-    g.moveTo(q[0],q[1]-r); g.lineTo(q[0],q[1]+r); g.stroke();
+  /* walls, as one continuous drawn line */
+  g.strokeStyle = '#5fc9d8'; g.lineWidth = Math.max(1.1, C*0.15); g.lineCap = 'round';
+  /* in-bounds only: reaching toward the void draws a comb of spikes round the
+     outside, which is what the game's own maze did before it was fixed */
+  var solid = function(x,y){ return x>=0 && y>=0 && x<N && y<N && M[y][x] === '#'; };
+  for(var y=0;y<N;y++) for(var x=0;x<N;x++){
+    if(M[y][x] !== '#') continue;
+    var cx = ox + x*C + C/2, cy = oy + y*C + C/2, drew = false;
+    if(solid(x+1,y)){ g.beginPath(); g.moveTo(cx,cy); g.lineTo(cx+C*0.5,cy); g.stroke(); drew = true; }
+    if(solid(x,y+1)){ g.beginPath(); g.moveTo(cx,cy); g.lineTo(cx,cy+C*0.5); g.stroke(); drew = true; }
+    if(solid(x-1,y)){ g.beginPath(); g.moveTo(cx,cy); g.lineTo(cx-C*0.5,cy); g.stroke(); drew = true; }
+    if(solid(x,y-1)){ g.beginPath(); g.moveTo(cx,cy); g.lineTo(cx,cy-C*0.5); g.stroke(); drew = true; }
+    if(!drew){ g.beginPath(); g.arc(cx,cy,C*0.14,0,6.2832); g.stroke(); }
   }
 
-  var p=at(head), pn=at(head+0.08);
-  var ang=Math.atan2(pn[1]-p[1], pn[0]-p[0]);
-  g.save(); g.translate(p[0],p[1]); g.rotate(ang);
-  g.fillStyle=s.accent;
+  var nib = along(t*2.2);
+  var lap = Math.floor((t*2.2) / nib.per);
+
+  /* marks on the circuit, cleared behind the nib */
+  g.strokeStyle = '#9fc7d8'; g.lineWidth = Math.max(0.9, C*0.09);
+  for(var i=0;i<LOOP.length;i++){
+    var a = LOOP[i], b = LOOP[(i+1)%LOOP.length];
+    var len = Math.abs(b[0]-a[0]) + Math.abs(b[1]-a[1]);
+    for(var q=0;q<len;q++){
+      var px = a[0] + Math.sign(b[0]-a[0])*q, py = a[1] + Math.sign(b[1]-a[1])*q;
+      var before = 0;
+      for(var j=0;j<i;j++){
+        var aa = LOOP[j], bb = LOOP[(j+1)%LOOP.length];
+        before += Math.abs(bb[0]-aa[0]) + Math.abs(bb[1]-aa[1]);
+      }
+      if(before + q < nib.d) continue;          /* already collected this lap */
+      var mx = ox + px*C + C/2, my = oy + py*C + C/2, r = C*0.13;
+      g.beginPath(); g.moveTo(mx-r,my); g.lineTo(mx+r,my);
+      g.moveTo(mx,my-r); g.lineTo(mx,my+r); g.stroke();
+    }
+  }
+
+  /* the hunter, a little way back down the same corridor */
+  var h = along(t*2.2 - 3.4);
+  var hx = ox + h.x*C + C/2, hy = oy + h.y*C + C/2;
+  g.fillStyle = '#ff5c8a';
   g.beginPath();
-  g.moveTo(cw*0.30,0); g.lineTo(cw*0.02,-cw*0.20); g.lineTo(-cw*0.17,-cw*0.13);
-  g.lineTo(-cw*0.17,cw*0.13); g.lineTo(cw*0.02,cw*0.20);
+  g.moveTo(hx, hy - C*0.34); g.lineTo(hx + C*0.30, hy + C*0.26);
+  g.lineTo(hx - C*0.30, hy + C*0.26);
+  g.closePath(); g.fill();
+
+  /* the nib, pointed where it is going */
+  var nx = ox + nib.x*C + C/2, ny = oy + nib.y*C + C/2;
+  g.save();
+  g.translate(nx, ny);
+  g.rotate(Math.atan2(nib.dy, nib.dx));
+  g.fillStyle = s.accent;
+  g.beginPath();
+  g.moveTo(C*0.40, 0); g.lineTo(C*0.02, -C*0.26); g.lineTo(-C*0.22, -C*0.17);
+  g.lineTo(-C*0.22, C*0.17); g.lineTo(C*0.02, C*0.26);
+  g.closePath(); g.fill();
+  g.fillStyle = '#0a0e14';
+  g.beginPath();
+  g.moveTo(C*0.38, 0); g.lineTo(C*0.08, -C*0.06); g.lineTo(C*0.08, C*0.06);
   g.closePath(); g.fill();
   g.restore();
-
-  var c=at(head-1.7);
-  g.fillStyle='#ff5c8a';
-  g.beginPath();
-  g.moveTo(c[0],c[1]-cw*0.22); g.lineTo(c[0]+cw*0.20,c[1]+cw*0.16);
-  g.lineTo(c[0]-cw*0.20,c[1]+cw*0.16);
-  g.closePath(); g.fill();
 }
 
 var draw = { dive:dive, grid:grid, road:road, maze:maze };
@@ -709,9 +773,9 @@ function paint(now){
     if(!s.ctx && !size(s)) continue;
     var fn=draw[s.kind];
     if(!fn) continue;
-    fn(s.ctx, s, still ? 3+i : now/1000 + s.t);
+    fn(s.ctx, s, now/1000 + s.t);
   }
-  if(!still) requestAnimationFrame(paint);
+  requestAnimationFrame(paint);
 }
 window.addEventListener('resize', function(){ screens.forEach(function(s){ s.ctx=null; }); });
 
