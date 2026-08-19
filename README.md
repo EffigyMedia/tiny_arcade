@@ -4,6 +4,7 @@ A tiny arcade cabinet that lives in a browser tab. Runs offline, no build step.
 
     DESIGN.md           the work queue: what is built, what is next
     sw.js               service worker: offline play, no stale files
+    pack.sh             builds the zip from a whitelist
     sync.sh             pushes this folder to the GitHub repo
     index.html          the launcher (the arcade floor)
     audio.js            shared synth engine — every sound is generated
@@ -28,6 +29,21 @@ does so even if you happen to be inside a game when you hit Share — `arcade.js
 puts the arcade's name, icon and manifest on every page, and the manifest's
 `start_url` sends the installed app back to the launcher rather than whichever
 machine you were standing at.
+
+## Packing
+
+    ./pack.sh
+
+Builds `tiny-arcade.zip` from an explicit list of files rather than from
+whatever happens to be in the folder. It also checks that every game named in
+`games.js` is present and that no game is shipped which the catalogue does not
+list, and it refuses to run if anything scratch (`_*`, dotfiles, `.py`) made it
+into the staging area.
+
+This exists because four instrumented debug builds — `_n.html`, `_s.html`,
+`_st.html`, `_x.html` — once reached the public zip. Cleanup had been tacked
+onto the end of shell lines that sometimes never ran. A whitelist cannot fail
+that way.
 
 ## Pushing to GitHub
 

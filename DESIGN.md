@@ -1173,7 +1173,7 @@ Scaled by deck tier: `ATK`, `DEF` and damage dice all step up every third deck.
    flat-10 placement check and bouncing scatter, fire tiles that burn and
    light, chem lights that see round corners, the flamethrower cone, and
    incendiaries that can catch you as well.
-1. **Stamina** — green bar. Melee costs stamina in proportion to its dice;
+1. ~~**Stamina**~~ — built. Green bar. Melee costs stamina in proportion to its dice;
    sprinting more than six tiles in one move costs stamina. Under six tiles is
    free and shown with a pale green tint, the way the firing envelope is shown
    in red. A REST action recovers it.
