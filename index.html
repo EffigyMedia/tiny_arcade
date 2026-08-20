@@ -95,6 +95,48 @@ body{
 .shbtn:disabled{opacity:.4}
 .shbar{height:6px;background:rgba(255,255,255,.08);margin-top:10px;overflow:hidden}
 .shbar i{display:block;height:100%;width:0;background:var(--cyan);transition:width .2s}
+.shvol{
+  display:flex;align-items:center;gap:11px;margin:9px 0;
+}
+.shvol label{
+  font-family:var(--px);font-size:8px;letter-spacing:.12em;color:var(--dim);
+  width:56px;flex:none;
+}
+/* the mute sits at the low end of its own slider: one control per channel,
+   and no separate row of toggles taking up a third of the sheet */
+.shmute{
+  flex:none;width:22px;height:22px;border-radius:50%;padding:0;cursor:pointer;
+  border:1px solid var(--line);background:rgba(255,255,255,.05);
+  color:var(--cyan);display:grid;place-items:center;font-size:11px;line-height:1;
+  -webkit-tap-highlight-color:transparent;
+}
+.shmute::before{content:"\25CF"}          /* on: a filled dot */
+.shmute.off{color:#5a5f74;border-color:#2a2d3c}
+.shmute.off::before{content:"\2715"}      /* muted: a cross */
+.shmute:active{background:rgba(0,229,255,.18)}
+.shvol span{
+  font-family:var(--crt);font-size:14px;color:var(--text);
+  width:34px;flex:none;text-align:right;font-variant-numeric:tabular-nums;
+}
+.shvol input[type=range]{
+  flex:1;-webkit-appearance:none;appearance:none;height:22px;background:none;
+}
+.shvol input[type=range]::-webkit-slider-runnable-track{
+  height:4px;border-radius:2px;
+  background:linear-gradient(90deg,var(--cyan) var(--fill,100%),rgba(255,255,255,.14) var(--fill,100%));
+}
+.shvol input[type=range]::-moz-range-track{
+  height:4px;border-radius:2px;background:rgba(255,255,255,.14);
+}
+.shvol input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;appearance:none;width:18px;height:18px;margin-top:-7px;
+  border-radius:50%;background:var(--cyan);border:0;
+  box-shadow:0 0 8px var(--cyan),0 0 18px rgba(0,229,255,.45);
+}
+.shvol input[type=range]::-moz-range-thumb{
+  width:18px;height:18px;border-radius:50%;background:var(--cyan);border:0;
+}
+.shvol.off input[type=range]{opacity:.35}
 .shnote{font-size:14px;line-height:1.4;color:#6b6488;margin-top:10px}
 
 #snd{
@@ -360,11 +402,18 @@ footer{margin-top:30px;border-top:1px solid var(--line);padding-top:26px;text-al
     </div>
     <div class="shbar"><i id="fetchBar"></i></div>
     <div class="shnote" id="fetchNote">Downloads every machine so the whole arcade works with no signal.</div>
-    <div class="shrow">
-      <b>SOUND</b>
-      <button class="shbtn" id="shSfx">SFX</button>
-      <button class="shbtn" id="shMus">MUSIC</button>
-    </div>
+    <div class="shrow"><b>SOUND</b></div>
+
+    <div class="shvol"><label for="volMaster">MASTER</label>
+      <button class="shmute" id="shAll" type="button" aria-label="Mute everything"></button>
+      <input type="range" id="volMaster" min="0" max="100" step="1"><span id="volMasterN">100</span></div>
+    <div class="shvol"><label for="volMusic">MUSIC</label>
+      <button class="shmute" id="shMus" type="button" aria-label="Mute music"></button>
+      <input type="range" id="volMusic" min="0" max="100" step="1"><span id="volMusicN">100</span></div>
+    <div class="shvol"><label for="volSfx">SFX</label>
+      <button class="shmute" id="shSfx" type="button" aria-label="Mute effects"></button>
+      <input type="range" id="volSfx" min="0" max="100" step="1"><span id="volSfxN">100</span></div>
+    <div class="shnote">Carries into every cabinet &mdash; the arcade shares one set of levels.</div>
 
     <div class="shrow">
       <b>FORCE UPDATE</b>
@@ -649,29 +698,29 @@ var UI = {
   tap: function(){
     if (!UI.ready()) return;
     var t = A.audio.now();
-    A.sfx.tone({ t, freq:520, to:700, dur:0.045, type:'triangle', gain:0.055, cutoff:2600 });
-    A.sfx.noise({ t, freq:3200, dur:0.022, gain:0.030, filter:'highpass' });
+    A.sfx.tone({ t, freq:520, to:700, dur:0.045, type:'triangle', gain:0.345, cutoff:2600 });
+    A.sfx.noise({ t, freq:3200, dur:0.022, gain:0.186, filter:'highpass' });
   },
   /* opening a shelf: the same contact with a lift under it */
   open: function(){
     if (!UI.ready()) return;
     var t = A.audio.now();
-    A.sfx.tone({ t, freq:380, to:620, dur:0.11, type:'triangle', gain:0.065, cutoff:2800 });
-    A.sfx.tone({ t:t+0.045, freq:760, to:920, dur:0.10, type:'sine', gain:0.038, verb:0.25 });
+    A.sfx.tone({ t, freq:380, to:620, dur:0.11, type:'triangle', gain:0.405, cutoff:2800 });
+    A.sfx.tone({ t:t+0.045, freq:760, to:920, dur:0.10, type:'sine', gain:0.240, verb:0.25 });
   },
   /* going back: the same shape, falling */
   back: function(){
     if (!UI.ready()) return;
     var t = A.audio.now();
-    A.sfx.tone({ t, freq:620, to:380, dur:0.11, type:'triangle', gain:0.060, cutoff:2400 });
+    A.sfx.tone({ t, freq:620, to:380, dur:0.11, type:'triangle', gain:0.375, cutoff:2400 });
   },
   /* starting a cabinet: a coin going in */
   launch: function(){
     if (!UI.ready()) return;
     var t = A.audio.now();
-    A.sfx.tone({ t, freq:880, dur:0.055, type:'square', gain:0.070, cutoff:3400 });
-    A.sfx.tone({ t:t+0.055, freq:1320, dur:0.075, type:'square', gain:0.060, cutoff:3600 });
-    A.sfx.noise({ t:t+0.02, freq:5200, dur:0.05, gain:0.035, filter:'highpass' });
+    A.sfx.tone({ t, freq:880, dur:0.055, type:'square', gain:0.435, cutoff:3400 });
+    A.sfx.tone({ t:t+0.055, freq:1320, dur:0.075, type:'square', gain:0.375, cutoff:3600 });
+    A.sfx.noise({ t:t+0.02, freq:5200, dur:0.05, gain:0.216, filter:'highpass' });
   },
   /* FAVOURITED: a rising major third that resolves upward and rings.
      It should feel like a small reward, so it is the only sound here with
@@ -683,9 +732,9 @@ var UI = {
      [0.06, 988],     /* B5  */
      [0.12,1175]      /* D6  */].forEach(function(n){
       A.sfx.tone({ t:t+n[0], freq:n[1], dur:0.20, type:'triangle',
-                   gain:0.075, cutoff:4200, verb:0.35 });
+                   gain:0.465, cutoff:4200, verb:0.35 });
     });
-    A.sfx.tone({ t:t+0.18, freq:1568, dur:0.42, type:'sine', gain:0.045, verb:0.5 });
+    A.sfx.tone({ t:t+0.18, freq:1568, dur:0.42, type:'sine', gain:0.282, verb:0.5 });
   },
   /* UNFAVOURITED: the same shape inverted and flattened into a minor fall,
      shorter and duller. Not a buzzer — just a small disappointment. */
@@ -696,9 +745,9 @@ var UI = {
      [0.06, 784],     /* G5  */
      [0.12, 622]      /* Eb5 */].forEach(function(n){
       A.sfx.tone({ t:t+n[0], freq:n[1], dur:0.16, type:'triangle',
-                   gain:0.060, cutoff:2200, verb:0.15 });
+                   gain:0.375, cutoff:2200, verb:0.15 });
     });
-    A.sfx.tone({ t:t+0.16, freq:311, dur:0.26, type:'sine', gain:0.035, cutoff:1400 });
+    A.sfx.tone({ t:t+0.16, freq:311, dur:0.26, type:'sine', gain:0.216, cutoff:1400 });
   }
 };
 var CH = [
@@ -722,7 +771,7 @@ function theme(step, t){
   /* bass: root, root, fifth-ish bounce */
   if (s16 % 2 === 0){
     var bf = A.note(ch.bass[0], ch.bass[1] + (s16 % 8 === 4 ? 1 : 0));
-    A.sfx.tone({ t:t, freq:bf, dur:0.15, type:'triangle', gain:0.30, bus:'music', cutoff:900 });
+    A.sfx.tone({ t:t, freq:bf, dur:0.15, type:'triangle', gain:0.105, bus:'music', cutoff:900 });
   }
 
   /* lead */
@@ -730,15 +779,15 @@ function theme(step, t){
   var n = pat[s16];
   if (n !== null && n !== undefined){
     var nf = A.note(ch.notes[n][0], ch.notes[n][1]);
-    A.sfx.tone({ t:t, freq:nf, dur:0.16, type:'square', gain:0.115, bus:'music',
+    A.sfx.tone({ t:t, freq:nf, dur:0.16, type:'square', gain:0.040, bus:'music',
                  cutoff:3200, verb:0.10 });
-    A.sfx.tone({ t:t+0.012, freq:nf*2, dur:0.09, type:'square', gain:0.035, bus:'music' });
+    A.sfx.tone({ t:t+0.012, freq:nf*2, dur:0.09, type:'square', gain:0.012, bus:'music' });
   }
   /* pad stab on the bar */
   if (s16 === 0){
     for (var i=0;i<3;i++)
       A.sfx.tone({ t:t, freq:A.note(ch.notes[i][0], ch.notes[i][1]-1), dur:0.55,
-                   type:'sawtooth', gain:0.032, bus:'music', cutoff:1100, verb:0.3 });
+                   type:'sawtooth', gain:0.011, bus:'music', cutoff:1100, verb:0.3 });
   }
 }
 
@@ -746,12 +795,29 @@ var themeRunning = false;
 function startTheme(){
   A.audio.init();
   if (!A.audio.ctx) return;
-  if (!themeRunning){ A.music.start(138, 4, theme); themeRunning = true; }
+  if (!themeRunning){
+    A.music.start(138, 4, theme);
+    themeRunning = true;
+    /* The attract bed is background: it should sit under a button press, not
+       compete with it. Trimming the note gains alone barely moved the meter
+       because the music bus is limited downstream, so trim the bus itself. */
+    if (A.music.trim) A.music.trim(0.40);
+  }
 }
 
 
 /* the cabinet only wakes up once you have touched the room */
-document.addEventListener('pointerdown', startTheme, { once:true });
+/* Audio cannot start before a real gesture. A synthetic event carries
+   isTrusted:false and iOS Safari refuses it outright — headless Chromium is
+   lenient about this and will happily unlock on a dispatched click, which makes
+   it a trap to test against.
+
+   So the best available is to catch whatever the player does FIRST, whatever it
+   happens to be, rather than waiting for a particular button. Every plausible
+   first contact is wired, all one-shot. */
+['pointerdown','touchstart','mousedown','keydown','click'].forEach(function(ev){
+  document.addEventListener(ev, startTheme, { once:true, passive:true });
+});
 
 requestAnimationFrame(paint);          /* cabinets first: nothing below can stop them */
 
@@ -809,21 +875,66 @@ window.addEventListener('load', function(){
   }, 2500);
 });
 
-function paintSheetAudio(){
-  setText('shSfx', 'SFX ' + (A.audio.get('sfx') ? 'ON' : 'OFF'));
-  setText('shMus', 'MUSIC ' + (A.audio.get('music') ? 'ON' : 'OFF'));
-}
-A.audio.onChange(paintSheetAudio);
-paintSheetAudio();
+/* the mute dots live beside their sliders now and are painted by paintVol,
+   which knows about all three including the master */
 
 on('cog', 'click', function(e){
-  e.stopPropagation(); A.audio.init(); paintSheetAudio(); sheet.classList.add('on');
+  e.stopPropagation(); A.audio.init(); UI.tap(); paintVol(); sheet.classList.add('on');
 });
 on('shClose', 'click', function(){ sheet.classList.remove('on'); });
 sheet.addEventListener('click', function(e){ if (e.target === sheet) sheet.classList.remove('on'); });
 on('fetchAll', 'click', function(){ A.audio.init(); prefetch(false); });
-on('shSfx', 'click', function(){ A.audio.init(); A.audio.toggle('sfx'); });
-on('shMus', 'click', function(){ A.audio.init(); A.audio.toggle('music'); startTheme(); });
+on('shSfx', 'click', function(){ A.audio.init(); A.audio.toggle('sfx'); UI.tap(); });
+
+/* MASTER has no pref of its own — it mutes and unmutes both channels together,
+   which is what "everything off" means to a player. */
+on('shAll', 'click', function(){
+  A.audio.init();
+  var anyOn = A.audio.get('sfx') || A.audio.get('music');
+  A.audio.set('sfx',   !anyOn);
+  A.audio.set('music', !anyOn);
+  if (!anyOn) startTheme();
+  UI.tap();
+});
+
+/* ---- volume sliders -----------------------------------------------------
+   Levels live in the same persisted record as the mute switches, so they are
+   already in force inside a cabinet — the games do not need to know they
+   exist. The mutes stay: a slider at zero and a mute are different intents.
+   -------------------------------------------------------------------------- */
+var VOLS = [['volMaster','vMaster'], ['volMusic','vMusic'], ['volSfx','vSfx']];
+function paintVol(){
+  if (!A || !A.audio || !A.audio.level) return;
+  VOLS.forEach(function(v){
+    var el = document.getElementById(v[0]);
+    if (!el) return;
+    var pct = Math.round(A.audio.level(v[1]) * 100);
+    if (document.activeElement !== el) el.value = pct;
+    el.style.setProperty('--fill', pct + '%');
+    setText(v[0] + 'N', pct);
+    /* a muted channel greys its own slider, so the two controls agree */
+    var music = A.audio.get('music'), sfx = A.audio.get('sfx');
+    var live = v[1] === 'vMusic' ? music
+             : v[1] === 'vSfx'   ? sfx
+             : (music || sfx);            /* master is live if anything is */
+    var row = el.closest('.shvol');
+    if (row) row.classList.toggle('off', !live);
+    var mute = row && row.querySelector('.shmute');
+    if (mute) mute.classList.toggle('off', !live);
+  });
+}
+VOLS.forEach(function(v){
+  on(v[0], 'input', function(){
+    A.audio.init();
+    A.audio.setLevel(v[1], (+this.value || 0) / 100);
+    paintVol();
+  });
+  /* a nudge you can hear, so the slider proves itself while you drag */
+  on(v[0], 'change', function(){ UI.tap(); });
+});
+if (A && A.audio && A.audio.onChange) A.audio.onChange(paintVol);
+paintVol();
+on('shMus', 'click', function(){ A.audio.init(); A.audio.toggle('music'); startTheme(); UI.tap(); });
 on('shPurge', 'click', function(){
   var b = el('shPurge');
   b.textContent = 'CLEARING';

@@ -34,21 +34,46 @@ var listeners = [], resetSubs = [];
 var gestured = false;      // a context built before a real gesture starts
 var pending = null;        // suspended and never recovers cleanly on iOS
 
-var pref = { sfx:true, music:true };
+/* sfx/music are the mute switches; the three levels are continuous 0..1.
+   All five live in the same persisted record, so everything the player sets in
+   the launcher is already in force inside a cabinet. */
+var pref = { sfx:true, music:true, vMaster:1, vMusic:1, vSfx:1 };
+var musicTrim = 1.00;
 try {
   var raw = localStorage.getItem(KEY);
-  if (raw){ var o = JSON.parse(raw); pref.sfx = o.sfx !== false; pref.music = o.music !== false; }
+  if (raw){
+    var o = JSON.parse(raw);
+    pref.sfx   = o.sfx   !== false;
+    pref.music = o.music !== false;
+    /* the levels have to be read back too, or they are written in the launcher
+       and silently discarded on the way into a cabinet */
+    ['vMaster','vMusic','vSfx'].forEach(function(k){
+      if (typeof o[k] === 'number' && isFinite(o[k]))
+        pref[k] = Math.max(0, Math.min(1, o[k]));
+    });
+  }
 } catch(e){}
 
 function save(){ try { localStorage.setItem(KEY, JSON.stringify(pref)); } catch(e){} }
 function fire(){ for (var i=0;i<listeners.length;i++) try { listeners[i](pref); } catch(e){} }
 
+/* a stored level, clamped, defaulting to full if it was never set */
+function lvl(key){
+  var v = pref[key];
+  return (typeof v === 'number' && isFinite(v)) ? Math.max(0, Math.min(1, v)) : 1;
+}
+
 function applyGains(t){
   if (!ctx || !sfxBus) return;
   var now = ctx.currentTime, k = Math.max(0.004, (t === undefined ? 0.09 : t) / 3);
-  sfxBus.gain.setTargetAtTime((pref.sfx   && !quiet()) ? 0.62 : 0, now, k);
-  musBus.gain.setTargetAtTime((pref.music && !quiet()) ? 1.00 : 0, now, k);
-  uiBus.gain.setTargetAtTime(pref.sfx ? 0.55 : 0, now, 0.01);
+  sfxBus.gain.setTargetAtTime((pref.sfx   && !quiet()) ? 0.62 * lvl('vSfx') : 0, now, k);
+  /* musicTrim lets a page sit its bed under the interface without touching the
+     player's MUSIC toggle. Setting musBus.gain directly does not work — this
+     runs on every change and puts it straight back. */
+  musBus.gain.setTargetAtTime((pref.music && !quiet()) ? musicTrim * lvl('vMusic') : 0, now, k);
+  uiBus.gain.setTargetAtTime(pref.sfx ? 0.55 * lvl('vSfx') : 0, now, 0.01);
+  /* master rides everything, including the UI bus */
+  if (master) master.gain.setTargetAtTime(lvl('vMaster'), now, k);
 }
 
 /* iOS will hand back a context that claims to be running but stays mute
@@ -130,6 +155,20 @@ A.audio = {
 
   get: function(k){ return pref[k]; },
   set: function(k, v){ pref[k] = !!v; save(); applyGains(); flush(); fire(); },
+
+  /* Continuous levels, 0..1, kept in the same persisted record as the mutes —
+     so anything the player sets in the launcher is already in force inside a
+     cabinet without either side knowing about the other.
+        vMaster  rides everything, including the interface
+        vMusic   the bed only
+        vSfx     effects and the interface                                    */
+  level: function(k){ return lvl(k); },
+  setLevel: function(k, v){
+    if (k !== 'vMaster' && k !== 'vMusic' && k !== 'vSfx') return;
+    pref[k] = Math.max(0, Math.min(1, +v || 0));
+    save(); applyGains(0.05); fire();
+    return pref[k];
+  },
   toggle: function(k){ A.audio.set(k, !pref[k]); },
   allOn:  function(){ pref.sfx = true;  pref.music = true;  save(); applyGains(); flush(); fire(); },
   allOff: function(){ pref.sfx = false; pref.music = false; save(); applyGains(); fire(); },
@@ -348,6 +387,14 @@ function runMusic(spec){
 }
 
 A.music = {
+  /* 0..1, how loud this page's bed sits under its interface. Applied through
+     applyGains, because setting musBus.gain directly does not survive — that
+     function runs on every change and puts it straight back. */
+  trim: function(v){
+    musicTrim = Math.max(0, Math.min(1, v));
+    applyGains(0.15);
+    return musicTrim;
+  },
   start: function(bpm, div, tickFn){
     pending = { bpm:bpm, div:div, tickFn:tickFn };
     M.on = true;
