@@ -310,7 +310,7 @@ half has no tension.
 
 #### 04 · RICOCHET — *paddle breaker*
 *After **Breakout / Arkanoid** — Atari / Taito, 1976 / 1986.*
-**Status:** ☐ **Size:** S **Accent:** `#00e5ff`
+**Status:** ☑ BUILT **Size:** S **Accent:** `#00e5ff`
 
 **The idea.** The ball's angle is a function of *where* on the paddle it lands,
 which quietly turns a reflex game into an aiming game.
@@ -2607,6 +2607,103 @@ Same class as the canister that was never wired.
 
 **Untested combinations:** quality x Omega scaling, trophies during the climb,
 a shard read while an armoury lock is open, the intro on a resumed run.
+
+### Ricochet pickups — fourteen, weighted
+
+Drop chance 16% per popped brick. Weighted so the strong ones are rare and the
+bad ones are common enough that catching is a decision rather than a reflex.
+
+| pickup | | what it does |
+|---|---|---|
+| WIDE / SHRINK | W S | paddle wider / narrower |
+| QUICK / SLUDGE | Q L | paddle answers faster / slower to the same drag |
+| SLOW / FAST | O F | ball speed down / up |
+| MULTI | M | two more balls, up to five |
+| STICKY | C | catch and re-aim, six times |
+| LASER | \| | the paddle actually shoots now — bolts from both shoulders |
+| PIERCE | P | the ball tears straight through six bricks without bouncing |
+| BOMB | B | the next three kills take their neighbours with them |
+| NET | N | one free save at the floor, then spent |
+| LIFE | + | a spare ball |
+| INVERT | X | steering reverses for six seconds |
+
+**Bad ones are always red and always signposted.** A curse disguised as a gift
+is just a punishment for playing well — you should be able to choose to dodge
+it, which means the capsule has to tell you.
+
+**A caught pickup prints what it did** under the bricks for a second and a half.
+Without that a player catches a letter and never learns what any of them mean.
+
+The ball is recoloured while pierce (blue) or bomb (orange) is live, and the net
+draws as a dashed line across the floor so its one use is visible.
+
+### Music and SFX for both Golden Era cabinets
+
+**Soviet Blocks — an original folk-idiom tune.** The famous one is
+*Korobeiniki*, a Russian folk song from 1861 and long out of copyright, but this
+is written fresh in the same idiom rather than borrowed: A natural minor with a
+raised seventh at the cadence, fast duple pulse, and the call-and-response shape
+where a phrase leaps up and walks back down. Sixteen bars in two halves that
+answer each other, a square-wave lead with a quiet fifth stacked on it, and a
+root-and-fifth bass sitting under it like a bayan left hand.
+
+**Tempo is the tension curve.** 125 bpm at level 1 through 210 at level 14,
+where it caps. It is the one place a player feels the difficulty without reading
+a number. A high tick also arrives once the well passes eight rows — the room
+getting nervous rather than a drum track.
+
+Added SFX: piece move, soft landing, hold.
+
+**Ricochet — a bed that gains layers as the wall comes down**, per the spec.
+Four layers keyed to the fraction cleared: pulse always, bass from 25%,
+arpeggio from 50%, a doubled arpeggio from 72% and a high sustained fifth from
+80%. Measured across a level:
+
+    0% cleared   0.0165
+    30%          0.0324
+    67%          0.0403
+    93%          0.0561
+
+A 3.4x climb, so the room audibly crowds as you approach the last few bricks.
+The first pass was inaudible — the added layers were quieter than the pulse they
+sat under, and RMS barely moved.
+
+### Both Golden Era cabinets reskinned
+
+**Ricochet** dropped the oscilloscope for the same block language as Soviet
+Blocks: solid beveled bricks coloured by row, brushed-steel paddle with warm
+caps at the shoulders (so the aiming zones stay readable), and a ball shaded as
+a sphere lit from the upper left. Indestructible bricks are hatched steel rather
+than a crossed outline.
+
+**Soviet Blocks** moved off the neon chart onto the period. Palette: state flag
+red, unlacquered brass, wheat gold, army green, oxblood, enamel blue and the
+pale duck-egg every Soviet stairwell was painted to waist height. Warm dark
+ground instead of blue-black, a brass grid, a lamp vignette over the well, and
+blocks drawn as stamped metal — mitred bevels with a lit corner and a deep
+shadowed one, plus a hairline of wear. Title carries СОВЕТСКИЕ БЛОКИ; game over
+reads ИГРА ОКОНЧЕНА. Accent moved `#e8484f` → `#c8102e`.
+
+# 15. RICOCHET — built
+
+`games/golden/ricochet.html`, accent `#00e5ff`.
+
+Built to the spec above. The oscilloscope look works: phosphor green on black,
+bricks as hollow rectangles that flare and grow outward as they die, paddle a
+bright segment, beam persistence on the ball.
+
+**The paddle carries the idea.** Its gradient is bright at the shoulders and dim
+in the middle, so the aiming zones are *visible* rather than something you have
+to be told — hit it near the edge and the ball leaves at up to 60 degrees.
+
+Done from the spec's build list: positional English, speed stepping with rally
+and level, multi-hit and indestructible bricks, six power-ups (one of them
+SHRINK, which is the bad one you must dodge), ten authored layouts then
+procedural with a guaranteed soft row, and the anti-horizontal clamp — vertical
+speed never drops below a third, so the creeping near-flat ball cannot happen.
+
+Not yet done from the spec: the layered music bed that thins as bricks clear,
+and the laser power-up is caught and timed but does not yet fire.
 
 # 15. SOVIET BLOCKS — built
 

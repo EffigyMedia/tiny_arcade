@@ -25,11 +25,21 @@
    ===================================================================== */
 window.TINY_ARCADE = [
   {
+    file:  'games/golden/ricochet.html',
+    id:    'ricochet',
+    cat:   'golden',
+    name:  'Ricochet',
+    accent:'#00e5ff',
+    genre: 'ARCADE \u00B7 PADDLE',
+    hook:  'Where it hits the bat decides where it goes. Aim, do not react.',
+    attract:'scope'
+  },
+  {
     file:  'games/golden/blocks.html',
     id:    'blocks',
     cat:   'golden',
     name:  'Soviet Blocks',
-    accent:'#e8484f',
+    accent:'#c8102e',
     genre: 'PUZZLE \u00B7 FALLING',
     hook:  'The wall builds itself. You only choose where the gaps go.',
     attract:'blocks'
