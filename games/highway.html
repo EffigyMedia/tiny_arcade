@@ -543,6 +543,35 @@ function laneFree(z, lane, gap){
   return true;
 }
 
+/* A wave never fills every lane, but cars run at different speeds, so given
+   enough road a fast one drifts into the last free lane and the wall closes.
+   This keeps a line open without deleting anything or slowing the road down:
+   the car furthest from you in a blocked band eases off until it falls out of
+   that band. You still have to find the gap; there is simply always one. */
+function keepLaneOpen(dt, pz){
+  const BAND = 1500;
+  const bands = new Map();
+  for(const c of traffic){
+    if(c.z < pz - 2000 || c.z > pz + 26000) continue;   // only the road ahead
+    const k = Math.round(c.z / BAND);
+    if(!bands.has(k)) bands.set(k, []);
+    bands.get(k).push(c);
+  }
+  for(const [, group] of bands){
+    const lanes = new Set(group.map(c => c.lane));
+    if(lanes.size < LANES) continue;                    // a way through already
+    let worst = null, wd = -1;
+    for(const c of group){
+      const d = c.z - pz;
+      if(d > wd){ wd = d; worst = c; }
+    }
+    if(worst){
+      worst.cruise = Math.max(0.24 * MAX_SPD, worst.cruise - MAX_SPD * 0.55 * dt);
+      worst.yielding = true;
+    }
+  }
+}
+
 function spawnWave(z){
   const n = rint(1, Math.min(3, LANES-1));
   const order = [0,1,2,3].sort(()=>Math.random()-0.5).slice(0,n);
@@ -780,6 +809,7 @@ function step(dt){
   const pz = pos + PLAYER_Z;
 
   // --- traffic follows the car in front and queues at roadblocks ---
+  keepLaneOpen(dt, pz);
   traffic.sort((a,b) => a.z - b.z);
   for(const c of traffic){
     let want = c.cruise;

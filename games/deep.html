@@ -287,7 +287,27 @@ const lerp  = (a,b,t) => a + (b-a)*t;
 const rand  = (a,b) => a + Math.random()*(b-a);
 
 function difficulty(){ return clamp(metres()/650, 0, 1); }
+function hexA(hex, a){
+  const h = (hex || '#7de3ff').replace('#','');
+  const n = parseInt(h, 16);
+  return 'rgba(' + ((n>>16)&255) + ',' + ((n>>8)&255) + ',' + (n&255) + ',' + a + ')';
+}
 function metres(){ return Math.floor(dist / UPM); }
+
+/* Below this the surface light is gone entirely. Nothing that lives in the lit
+   water comes down here, and nothing that lives down here goes up.
+
+   Paced against the clock rather than the tape measure. The descent covers
+   100m every 2.4 seconds or so, so the old 300m line put you in pitch black
+   about seven seconds into a dive — before the run had really started. The
+   light now drains across most of a good dive: it is noticeably dimmer around
+   eight seconds, genuinely dark past twelve, and fully black only on a run
+   that lasts. */
+const DARK_M = 900, FADE_M = 550;
+function darkness(){                    /* 0 in the shallows, 1 in the black */
+  return clamp((metres() - (DARK_M - FADE_M)) / FADE_M, 0, 1);
+}
+function inTheBlack(){ return darkness() > 0.985; }
 function speedAt(t){ return lerp(340, 620, t); }
 function gapAt(t){ return lerp(212, 142, t); }
 function spacingAt(t){ return speedAt(t) * lerp(0.98, 0.68, t); }
@@ -338,16 +358,20 @@ function spawnLedge(y){
     orbs.push({ x: o.x + rand(-gw*0.22, gw*0.22), y: y + spacingAt(t)*0.46, got:false, spin: rand(0,6) });
   }
 
-  // something alive, patrolling the water between the ledges
+  /* Two populations, and they do not mix. Above the dark line it is all
+     shallow-water fish; below it, only the ones that carry their own light. */
   const chance = metres() > 60 ? Math.min(0.55, 0.18 + metres()/1400) : 0;
   if (Math.random() < chance){
-    const big = metres() > 260 && Math.random() < 0.3;
+    const deep = darkness() > 0.35 && Math.random() < darkness();
+    const big  = deep && Math.random() < 0.34;
     const rx = big ? 34 : 24, ry = big ? 15 : 11;
     fish.push({
       x: rand(rx + 12, W - rx - 12),
       y: y + spacingAt(t) * rand(0.36, 0.64),
       vx: (Math.random() < 0.5 ? -1 : 1) * rand(70, 120 + Math.min(90, metres()*0.22)),
-      rx, ry, tail: rand(0, 6.28), lure: rand(0, 6.28), big
+      rx, ry, tail: rand(0, 6.28), lure: rand(0, 6.28), big,
+      deep,
+      hue: deep ? (Math.random() < 0.5 ? '#7de3ff' : '#b39bff') : null
     });
   }
 }
@@ -578,11 +602,15 @@ function step(dt){
 function draw(now){
   const t = state === 'ready' ? 0 : difficulty();
 
-  // water column: the surface light drains away as you go down
+  /* water column: the surface light drains away as you go down, and past the
+     dark line there is none of it left — the column goes to flat black so the
+     only things on screen are the ones making their own light */
+  const dk = darkness();
+  const dim = v => Math.round(v * (1 - dk));
   const g = ctx.createLinearGradient(0,0,0,H);
-  g.addColorStop(0, `rgb(${Math.round(lerp(18,4,t))},${Math.round(lerp(49,10,t))},${Math.round(lerp(74,20,t))})`);
-  g.addColorStop(0.55,`rgb(${Math.round(lerp(8,3,t))},${Math.round(lerp(21,6,t))},${Math.round(lerp(38,14,t))})`);
-  g.addColorStop(1,   '#04070f');
+  g.addColorStop(0, `rgb(${dim(lerp(18,4,t))},${dim(lerp(49,10,t))},${dim(lerp(74,20,t))})`);
+  g.addColorStop(0.55,`rgb(${dim(lerp(8,3,t))},${dim(lerp(21,6,t))},${dim(lerp(38,14,t))})`);
+  g.addColorStop(1,   dk > 0.5 ? '#000000' : '#04070f');
   ctx.fillStyle = g;
   ctx.fillRect(0,0,W,H);
 
@@ -592,8 +620,8 @@ function draw(now){
     ctx.translate(rand(-s,s), rand(-s,s));
   }
 
-  // shafts of surface light, fading with depth
-  const lightAlpha = (1-t) * 0.16;
+  // shafts of surface light, fading with depth and gone entirely in the black
+  const lightAlpha = (1-t) * 0.16 * (1 - darkness());
   if (lightAlpha > 0.005){
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
@@ -698,14 +726,15 @@ function drawFish(){
     ctx.scale(dir, 1);
     ctx.rotate(sway*0.25);
 
-    // faint halo so it reads against the dark water
+    // a shallow fish is lit by the surface; a deep one carries its own light
+    const glow = f.deep ? 0.34 : 0.22;
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
-    const h = ctx.createRadialGradient(0,0,0,0,0,f.rx*2.4);
-    h.addColorStop(0,'rgba(150,120,220,.22)');
-    h.addColorStop(1,'rgba(150,120,220,0)');
+    const h = ctx.createRadialGradient(0,0,0,0,0,f.rx*(f.deep ? 3.1 : 2.4));
+    h.addColorStop(0, f.deep ? hexA(f.hue, glow) : 'rgba(150,120,220,.22)');
+    h.addColorStop(1, f.deep ? hexA(f.hue, 0) : 'rgba(150,120,220,0)');
     ctx.fillStyle = h;
-    ctx.beginPath(); ctx.arc(0,0,f.rx*2.4,0,6.2832); ctx.fill();
+    ctx.beginPath(); ctx.arc(0,0,f.rx*(f.deep ? 3.1 : 2.4),0,6.2832); ctx.fill();
     ctx.restore();
 
     // tail
@@ -716,11 +745,17 @@ function drawFish(){
     ctx.quadraticCurveTo(-f.rx*1.15, 0, -f.rx*1.55, f.ry*(1.0 - sway*2));
     ctx.closePath(); ctx.fill();
 
-    // body
+    // body — in the black, the flesh is nearly invisible and the light is not
     const bg = ctx.createLinearGradient(0,-f.ry,0,f.ry);
-    bg.addColorStop(0,'#d8ccff');
-    bg.addColorStop(0.55,'#9d88d6');
-    bg.addColorStop(1,'#5b4a86');
+    if(f.deep){
+      bg.addColorStop(0, hexA(f.hue, 0.50));
+      bg.addColorStop(0.55, hexA(f.hue, 0.22));
+      bg.addColorStop(1, 'rgba(20,16,34,.85)');
+    } else {
+      bg.addColorStop(0,'#d8ccff');
+      bg.addColorStop(0.55,'#9d88d6');
+      bg.addColorStop(1,'#5b4a86');
+    }
     ctx.fillStyle = bg;
     ctx.beginPath(); ctx.ellipse(0, 0, f.rx, f.ry, sway*0.5, 0, 6.2832); ctx.fill();
 
@@ -736,7 +771,7 @@ function drawFish(){
     ctx.fillStyle = '#1a1226';
     ctx.beginPath(); ctx.arc(f.rx*0.52, -f.ry*0.18, Math.max(1.6, f.ry*0.20), 0, 6.2832); ctx.fill();
 
-    // lure, on the big ones
+    // lure, on the big deep ones
     if (f.big){
       const lx = f.rx*1.05, ly = -f.ry*1.5 + Math.sin(f.lure)*f.ry*0.3;
       ctx.strokeStyle = 'rgba(200,180,255,.5)'; ctx.lineWidth = 1.4;
@@ -786,6 +821,12 @@ function drawGauge(){
 function drawLedge(x, y, w, isLeft){
   if (w <= 0) return;
   const r = 10;
+  const dk = darkness();
+  /* In the black the rock itself is invisible — all you get is the crust on
+     the lip. The obstacle stops being a shape and becomes two points of light
+     you have to steer between. */
+  ctx.save();
+  ctx.globalAlpha = 1 - dk * 0.94;
   const rock = ctx.createLinearGradient(0, y, 0, y+TH);
   rock.addColorStop(0, '#243349');
   rock.addColorStop(1, '#101a28');
@@ -808,13 +849,14 @@ function drawLedge(x, y, w, isLeft){
   }
   ctx.closePath();
   ctx.fill();
+  ctx.restore();
 
   // bioluminescent crust on the lip you have to miss
   const ex = isLeft ? x + w : x;
   ctx.save();
   ctx.globalCompositeOperation = 'lighter';
-  const eg = ctx.createRadialGradient(ex, y+TH/2, 0, ex, y+TH/2, 46);
-  eg.addColorStop(0, 'rgba(77,224,200,.34)');
+  const eg = ctx.createRadialGradient(ex, y+TH/2, 0, ex, y+TH/2, 46 + dk*22);
+  eg.addColorStop(0, 'rgba(77,224,200,' + (0.34 + dk*0.44) + ')');
   eg.addColorStop(1, 'rgba(77,224,200,0)');
   ctx.fillStyle = eg;
   ctx.fillRect(ex-46, y-24, 92, TH+48);
@@ -832,7 +874,9 @@ function drawLedge(x, y, w, isLeft){
 }
 
 function drawDiver(now){
-  const tilt = clamp(vxSmoothed/900, -1, 1);
+  /* Nose into the turn. It used to bank away from the direction of travel,
+     which read as being dragged sideways rather than cutting a line. */
+  const tilt = -clamp(vxSmoothed/900, -1, 1);
   ctx.save();
   ctx.translate(px, playerY);
   ctx.rotate(tilt * 0.42);
