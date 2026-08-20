@@ -10,6 +10,11 @@
    attract: which little idle animation the card plays.
             'dive' | 'grid' | 'road' | 'maze' | 'none'
 
+   cat:     which shelf it lives on.
+            'golden'   \u2014 clean-room takes on the 1970s\u201380s cabinets
+            'second'   \u2014 the 1990s floor: fighters, shmups, light-gun
+            'original' \u2014 ours outright, descended from nothing
+
    hook: write it like cabinet glass, not like a store listing. One or two
          short sentences, concrete, and no two cards built the same way —
          if every line is two clauses of the same length the rack reads as
@@ -19,6 +24,7 @@ window.TINY_ARCADE = [
   {
     file:  'games/penboy.html',
     id:    'penboy',
+    cat:   'golden',
     name:  'Penboy',
     accent:'#ffd23c',
     genre: 'ARCADE \u00B7 MAZE CHASE',
@@ -28,6 +34,7 @@ window.TINY_ARCADE = [
   {
     file:  'games/deep.html',
     id:    'deep',
+    cat:   'original',
     name:  'Deep',
     accent:'#4de0c8',
     genre: 'ARCADE \u00B7 ONE THUMB',
@@ -37,6 +44,7 @@ window.TINY_ARCADE = [
   {
     file:  'games/derelict.html',
     id:    'derelict',
+    cat:   'original',
     name:  'Derelict',
     accent:'#7fd8ff',
     genre: 'ROGUELIKE \u00B7 TURN-BASED',
@@ -46,6 +54,7 @@ window.TINY_ARCADE = [
   {
     file:  'games/highway.html',
     id:    'highway',
+    cat:   'original',
     name:  'Highway',
     accent:'#ff8a3d',
     genre: 'DRIVING \u00B7 ENDLESS',

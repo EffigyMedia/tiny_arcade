@@ -11,6 +11,21 @@ anything.
 
 ---
 
+## 0. How the launcher is organised
+
+Three shelves. The floor page shows only these; tapping one opens its rack.
+
+| Shelf | Holds | `cat` |
+|---|---|---|
+| **GOLDEN ERA** | clean-room takes on the 1970s–80s cabinets — section 3 | `golden` |
+| **SECOND WAVE** | the 1990s floor — section 3b | `second` |
+| **EFFIGY ORIGINALS** | ours outright, descended from nothing — section 5 | `original` |
+
+Every entry in `games.js` carries a `cat`. A game with no `cat` falls to
+`original`, which is the safe default but should never be left implicit.
+
+---
+
 ## 1. House rules
 
 Every machine on this floor obeys the same contract. This is what makes a new
@@ -62,6 +77,11 @@ A game is not shipped until all of these are true.
 
 ### Naming and look
 
+**Every clone entry records what it is a clone of** — inline under its heading
+and in the lookup table above. Six months on, "Myriapod" tells you nothing
+about what you were building; "after Centipede" tells you everything.
+
+
 Game *rules* are not copyrightable; the *presentation* is. Tetris has won cases
 against clones that kept the familiar playfield proportions, piece colours and
 block styling under a different name. So for every title here:
@@ -70,6 +90,28 @@ block styling under a different name. So for every title here:
 - No lifted sprite shapes, colour schemes, level layouts or character designs.
 - Where a mechanic needs a familiar read, express it in our own visual language.
 - Each game gets a distinct accent so the launcher never shows two of a colour.
+
+### What each one is a clone of
+
+Kept here so nobody has to reverse-engineer it later. Ours on the left, the
+machine it descends from on the right.
+
+| Ours | After | | Ours | After |
+|---|---|---|---|---|
+| Penboy | Pac-Man | | Myriapod | Centipede |
+| Soviet Blocks | Tetris | | The Well | Tempest |
+| Ribbit | Frogger | | Grid Riot | Robotron: 2084 |
+| Ricochet | Breakout / Arkanoid | | Lance | Joust |
+| Phalanx | Space Invaders | | Fuse | Bomberman |
+| Swarm | Galaga | | Southpaw | Punch-Out!! |
+| Girder | Donkey Kong | | Plumb | Pipe Mania |
+| Aegis | Missile Command | | Tilt | Marble Madness |
+| Coil | Snake / Blockade | | Horde | Gauntlet |
+| Popshot | Puzzle Bobble | | Burrow | Dig Dug |
+| Ziggurat | Q*bert | | Feather | Lunar Lander |
+| Shards | Asteroids | | | |
+
+**Deep**, **Derelict** and **Highway** are ours outright and descend from nothing.
 
 ### Accent register
 
@@ -131,6 +173,7 @@ Portrait, one thumb, no new engine work beyond the shared backlog.
 ---
 
 #### 01 · PENBOY — *maze chase*
+*After **Pac-Man** — Namco, 1980.*
 **Status:** ☑ shipped **Size:** L **Accent:** `#ffd23c`
 
 **The idea.** Four hunters, and the only thing that makes them prey is a
@@ -183,6 +226,7 @@ Uniform-random hunters feel terrible; the personalities are the point.
 ---
 
 #### 02 · SOVIET BLOCKS — *stacker*
+*After **Tetris** — Pajitnov, 1984.*
 **Status:** ☐ **Size:** M **Accent:** `#ff4f6d`
 
 **The idea.** Your name, and it's the right one.
@@ -218,6 +262,7 @@ kick tables, input repeat rate. Budget a tuning pass as long as the build.
 ---
 
 #### 03 · RIBBIT — *lane crosser*
+*After **Frogger** — Konami, 1981.*
 **Status:** ☐ **Size:** S **Accent:** `#5bd66c`
 
 **The idea.** Two halves that fail in opposite ways — the road kills you if you
@@ -251,6 +296,7 @@ half has no tension.
 ---
 
 #### 04 · RICOCHET — *paddle breaker*
+*After **Breakout / Arkanoid** — Atari / Taito, 1976 / 1986.*
 **Status:** ☐ **Size:** S **Accent:** `#00e5ff`
 
 **The idea.** The ball's angle is a function of *where* on the paddle it lands,
@@ -283,6 +329,7 @@ Clamp the angle away from horizontal on every bounce.
 ---
 
 #### 05 · PHALANX — *ranked shooter*
+*After **Space Invaders** — Taito, 1978.*
 **Status:** ☐ **Size:** S **Accent:** `#c3ff4a`
 
 **The idea.** The formation speeds up as you thin it, so killing them is what
@@ -312,6 +359,7 @@ structure visible inside them.
 ---
 
 #### 06 · SWARM — *formation dive shooter*
+*After **Galaga** — Namco, 1981.*
 **Status:** ☐ **Size:** M **Accent:** `#b06cff`
 
 **The idea.** They arrive along paths, sit in ranks, then peel off and come at
@@ -342,6 +390,7 @@ or define them mathematically from the start.
 ---
 
 #### 07 · GIRDER — *climb and dodge*
+*After **Donkey Kong** — Nintendo, 1981.*
 **Status:** ☐ **Size:** M **Accent:** `#ff6b2c`
 
 **The idea.** Everything the antagonist throws obeys gravity and slopes, so the
@@ -371,6 +420,7 @@ gargoyle throwing masonry. Stone, rust, tarpaulin.
 ---
 
 #### 08 · AEGIS — *point defence*
+*After **Missile Command** — Atari, 1980.*
 **Status:** ☐ **Size:** S **Accent:** `#ff3b5c`
 
 **The idea.** You cannot win. You can only be slow to lose, and the game is
@@ -402,6 +452,7 @@ tracked contacts with faint prediction lines.
 ---
 
 #### 09 · COIL — *snake*
+*After **Snake / Blockade** — Gremlin, 1976.*
 **Status:** ☐ **Size:** S **Accent:** `#7cf5a0`
 
 **The idea.** Winning is the losing condition. The better you do, the less room
@@ -429,6 +480,7 @@ travelling a dark bundle, head bright, body a fading glow, food as junction node
 ---
 
 #### 10 · POPSHOT — *aim and match*
+*After **Puzzle Bobble** — Taito, 1994.*
 **Status:** ☐ **Size:** M **Accent:** `#ff9ecd`
 
 **The idea.** Match-three where the wall comes down to meet you and bank shots
@@ -459,6 +511,7 @@ droplets.
 ---
 
 #### 11 · BURROW — *dig and pop*
+*After **Dig Dug** — Namco, 1982.*
 **Status:** ☐ **Size:** M **Accent:** `#e0a458`
 
 **The idea.** You author the terrain by moving through it, which means you're
@@ -489,6 +542,7 @@ rendered like specimen illustrations.
 ---
 
 #### 12 · ZIGGURAT — *isometric hopper*
+*After **Q*bert** — Gottlieb, 1982.*
 **Status:** ☐ **Size:** M **Accent:** `#ffb347`
 
 **The idea.** Diagonal-only movement on an isometric pyramid, which makes your
@@ -521,6 +575,7 @@ brief on-screen hint the first few times they move.
 ---
 
 #### 13 · FEATHER — *lander*
+*After **Lunar Lander** — Atari, 1979.*
 **Status:** ☐ **Size:** S **Accent:** `#cfd8e3`
 
 **The idea.** A game about arriving slowly. Everything else is fuel arithmetic.
@@ -555,6 +610,7 @@ schematic. All information, barely any scenery.
 ---
 
 #### 14 · SHARDS — *inertia shooter*
+*After **Asteroids** — Atari, 1979.*
 **Status:** ☐ **Size:** M **Accent:** `#9fb4ff`
 
 **The idea.** Momentum you cannot cancel. Every shot fired is a course you're
@@ -585,6 +641,7 @@ crystal that spall along fault lines, ship a dark wedge, blue-white on deep navy
 ---
 
 #### 15 · MYRIAPOD — *field shooter*
+*After **Centipede** — Atari, 1981.*
 **Status:** ☐ **Size:** M **Accent:** `#8cff6a`
 
 **The idea.** The playfield is destructible and the destruction is what makes the
@@ -615,6 +672,7 @@ substrate.
 ---
 
 #### 16 · THE WELL — *tube shooter*
+*After **Tempest** — Atari, 1981.*
 **Status:** ☐ **Size:** M **Accent:** `#ff2d95`
 
 **The idea.** You run the rim of a hole and everything climbs toward you.
@@ -643,6 +701,7 @@ segments in perspective, enemies as machinery climbing the walls, sparks.
 ---
 
 #### 17 · GRID RIOT — *twin-stick survival*
+*After **Robotron: 2084** — Williams, 1982.*
 **Status:** ☐ **Size:** M **Accent:** `#ff5d3a`
 
 **The idea.** Move and shoot in different directions, and the thing worth points
@@ -673,6 +732,7 @@ green outlines that turn red.
 ---
 
 #### 18 · LANCE — *flap duel*
+*After **Joust** — Williams, 1982.*
 **Status:** ☐ **Size:** M **Accent:** `#f2c14e`
 
 **The idea.** Altitude decides collisions. Two things meet, the higher one wins,
@@ -706,6 +766,7 @@ finned in a black trench, "flapping" is a swim stroke, the lava layer is a vent.
 ---
 
 #### 19 · FUSE — *grid bomber*
+*After **Bomberman** — Hudson Soft, 1983.*
 **Status:** ☐ **Size:** L **Accent:** `#ff7a45`
 
 **The idea.** Your weapon is on a timer and doesn't care whose side you're on.
@@ -735,6 +796,7 @@ malfunctioning site drones.
 ---
 
 #### 20 · SOUTHPAW — *timing boxer*
+*After **Punch-Out!!** — Nintendo, 1984.*
 **Status:** ☐ **Size:** L **Accent:** `#ffe066`
 
 **The idea.** Every opponent is a pattern with a tell. The game is learning to
@@ -769,6 +831,7 @@ distinctive thing on the list.
 ---
 
 #### 21 · PLUMB — *flow builder*
+*After **Pipe Mania** — The Assembly Line, 1989.*
 **Status:** ☐ **Size:** M **Accent:** `#4ec9d6`
 
 **The idea.** You're always building ahead of a problem that's already moving.
@@ -795,6 +858,7 @@ graph paper, flow as a spreading ink stain, leaks as blots.
 ---
 
 #### 22 · TILT — *gyro roller*
+*After **Marble Madness** — Atari, 1984.*
 **Status:** ⊘ parked — held for last **Size:** L **Accent:** `#a8e10c`
 
 **The idea.** Tilt the phone, roll the ball. The physical one. Nothing else on
@@ -829,6 +893,7 @@ fallback first.
 ---
 
 #### 23 · HORDE — *arena crawler*
+*After **Gauntlet** — Atari, 1985.*
 **Status:** ⊘ parked — held for last **Size:** L **Accent:** `#c99bff`
 
 **The idea.** Spawners, not enemies, are the problem. Kill the source or drown.
@@ -844,6 +909,106 @@ food. If that separation doesn't hold, cut it.
 - [ ] Health draining on a timer; food and potions on the floor.
 - [ ] Four classes with genuinely different ranges and speeds.
 - [ ] Keys and doors — reuse Derelict's colour-lock generator.
+
+---
+
+## 3b. The 1990s floor — a second queue
+
+The section above is the golden age: single screens, one input, ninety-second
+runs. This one is the decade after — fighters, shmups, run-and-guns, beat 'em
+ups, light-gun cabinets. Bigger, louder, and much heavier on animation.
+
+**Read this before scheduling any of them.** The 80s machines are one mechanic
+each, which is why they drop into a phone in a sitting. A 90s cabinet is usually
+*several* systems at once plus a mountain of frames, and most of them assumed
+two hands, a stick and six buttons. So the work here is not the systems — it is
+deciding what the phone version keeps and what it honestly cannot.
+
+Nothing below is scheduled. Add to it freely; write the full spec when one gets
+picked, in the same shape as the entries above.
+
+**Fit key** — ● drops in · ◐ needs a control rethink · ○ needs a real redesign
+
+### Fighters
+
+| Ours | After | Fit | The one idea worth keeping |
+|---|---|---|---|
+| **KUMITE** | Street Fighter II · Capcom, 1991 | ○ | Special moves as *motions*, not buttons. On a phone the motion is the swipe — quarter-circle is a real gesture. |
+| **VERDICT** | Mortal Kombat · Midway, 1992 | ○ | The finisher: a punish window so long it is theatre. Keep the ceremony, lose the gore. |
+| **IAIDO** | Samurai Shodown · SNK, 1993 | ◐ | One clean hit ends it. A fighter where the health bars barely matter suits short sessions. |
+| **FACET** | Virtua Fighter · Sega, 1993 | ○ | Sidestep — the third axis. Hardest of the four to make honest on touch. |
+
+### Shmups
+
+| Ours | After | Fit | The one idea worth keeping |
+|---|---|---|---|
+| **TETHER** | R-Type · Irem, 1987/90s line | ● | The detachable pod you can fling ahead or dock behind. It is a positioning puzzle wearing a shooter's clothes. |
+| **OPTION** | Gradius · Konami | ● | Trailing satellites that echo your path, and a power bar you *spend* — the choice is the game. |
+| **CURTAIN** | DonPachi / DoDonPachi · Cane, 1995/97 | ● | Bullet-hell with a hitbox one pixel across. Portrait is its native shape and drag is its native input. |
+| **THUNDERHEAD** | Raiden · Seibu Kaihatsu, 1990 | ● | Two weapons you swap by pickup colour, and the slow dread of a big screen-filling boss. |
+
+### Run and gun
+
+| Ours | After | Fit | The one idea worth keeping |
+|---|---|---|---|
+| **SPREAD** | Contra · Konami, 1987/90s line | ◐ | Named for the gun everyone remembers. One hit kills, so the whole game is spacing. |
+| **SCRAP TANK** | Metal Slug · Nazca/SNK, 1996 | ◐ | The vehicle you climb into and can lose. Best animation on any arcade board, and that is the risk. |
+
+### Beat 'em ups
+
+| Ours | After | Fit | The one idea worth keeping |
+|---|---|---|---|
+| **PRECINCT** | Final Fight / Streets of Rage · Capcom / Sega, 1989/91 | ◐ | Crowd control on a 2.5D plane: the depth axis is the whole defence. |
+| **WARBAND** | Golden Axe · Sega, 1989 | ◐ | Mounts you steal from the enemy, and a magic bar that scales with what you hoard. |
+| **HIVE** | Alien vs Predator · Capcom, 1994 | ○ | Two wildly asymmetric characters in the same brawler. Ambitious; park until Precinct proves the genre works. |
+
+### Light gun
+
+| Ours | After | Fit | The one idea worth keeping |
+|---|---|---|---|
+| **PEDAL** | Time Crisis · Namco, 1995 | ● | The cover pedal — you choose between safety and being able to shoot. That is a *button*, and it is the whole game. Best fit on this list. |
+| **QUARANTINE** | House of the Dead · Sega, 1996 | ● | Branching routes decided by who you save. Tap-to-shoot is native to touch. |
+
+### Racing and driving
+
+| Ours | After | Fit | The one idea worth keeping |
+|---|---|---|---|
+| **HAIRPIN** | Sega Rally · Sega, 1995 | ◐ | Surface change you feel through the wheel — tarmac, gravel, snow. Overlaps Highway; needs a clear separation first. |
+| **FARE** | Crazy Taxi · Sega, 1999 | ○ | A timer you extend by doing the job well. Open-world, so the biggest build here by a distance. |
+
+### Puzzle and rhythm
+
+| Ours | After | Fit | The one idea worth keeping |
+|---|---|---|---|
+| **GEM DUEL** | Super Puzzle Fighter II · Capcom, 1996 | ● | Competitive puzzling: your combos land as junk on the other board. |
+| **DRAWSTRING** | Magical Drop · Data East, 1995 | ● | Pull and throw a whole column instead of placing one piece. Fast, and a natural drag. |
+| **SIXTEENTH** | beatmania · Konami, 1997 | ● | Rhythm on the synth engine we already have — no samples needed, and nothing else on the floor is a music game. |
+
+### Accents for these, when they get scheduled
+
+Clear of everything in the register above.
+
+| Accent | Game | | Accent | Game |
+|---|---|---|---|---|
+| `#e8443f` | Kumite | | `#ff9f1c` | Spread |
+| `#7a1f2b` | Verdict | | `#8d6b3f` | Scrap Tank |
+| `#d9d0b8` | Iaido | | `#3fa7d6` | Precinct |
+| `#5f7fa8` | Facet | | `#c9a227` | Warband |
+| `#00d4a0` | Tether | | `#6b8f3a` | Hive |
+| `#b7f000` | Option | | `#ff5470` | Pedal |
+| `#ff2fb9` | Curtain | | `#9bb1a2` | Quarantine |
+| `#ffd166` | Thunderhead | | `#c1440e` | Hairpin |
+| `#f4d35e` | Fare | | `#a06cd5` | Gem Duel |
+| `#4cc9f0` | Drawstring | | `#f72585` | Sixteenth |
+
+### If you want a starting batch from this list
+
+**PEDAL · CURTAIN · GEM DUEL.** A light-gun cabinet, a bullet-hell and a
+competitive puzzler: three genres, all natively portrait, all natively touch,
+and not one of them needs a fighting game's animation budget. The fighters and
+beat 'em ups are the ones to attempt once there is an animation pipeline worth
+the name — they are where this decade gets expensive.
+
 
 ---
 
@@ -883,7 +1048,7 @@ Three at a time, always mixed so no two consecutive builds feel the same.
 
 ---
 
-## 5. Original titles — ongoing
+## 5. Effigy Originals — ongoing
 
 The clones are the floor. These are the reason for the arcade.
 
@@ -1187,18 +1352,44 @@ Scaled by deck tier: `ATK`, `DEF` and damage dice all step up every third deck.
    sprinting more than six tiles in one move costs stamina. Under six tiles is
    free and shown with a pale green tint, the way the firing envelope is shown
    in red. A REST action recovers it.
-2. **Two weapon slots** — primary and secondary, either kind, fists always
-   available. Picking something up means dropping something, with a prompt
-   showing both slots. Needs drawn art for all twenty weapons.
+2. ~~**Two weapon slots**~~ — built. Two hands plus fists, which are never a
+   slot and never droppable. Walking onto a weapon with both hands full opens a
+   prompt comparing it against what you carry; taking it leaves the old one on
+   that tile, declining leaves the new one. Every weapon now has its own
+   silhouette on the deck, drawn by class, so a rifle reads as a rifle from
+   across the room. Old saves keep their two best weapons and bin the rest.
 3. **Corner rule** — no diagonal attack, by anyone, through a blocked corner.
 4. **Dice combat** — section 7 above, once signed off.
-5. **Zoned levels** — a level is a chain of restricted zones: the card for the
-   next zone lives inside the previous one, and the hatch is always beyond the
-   final zone. No two card doors adjacent. Four card colours.
-6. **Bigger decks with a scrolling camera** — later decks larger, more zones,
-   more cards, more and stronger hostiles.
-7. **Bestiary ×4** — around forty species and several apex types, drawn from
-   pools by difficulty tier.
+5. ~~**Zoned levels**~~ — built. A deck is a chain: zone 0 is open, zone *k*
+   sits behind the *k*-th door, and the card for that door lies in zone *k-1*.
+   The gates were already chosen from tiles that cut the hatch off, so they
+   nest along one route by construction — the fault was selecting them **by
+   index**, which put two doors on consecutive corridor tiles and produced the
+   adjacent cards. Selection is now by distance along the route with a minimum
+   gap of four, and the layout is **proved before it is used**: every door must
+   be walkable-up-to before the next one, and the hatch must stay sealed while
+   any door is shut. A layout that fails is discarded and the deck regenerated.
+   Verified over 360 decks: closest two doors 4 tiles, every card obtainable in
+   turn, hatch behind the final door 360/360.
+6. ~~**Bigger decks with a scrolling camera**~~ — built. The window is a fixed
+   11x14; the deck is larger from the very first level and grows with depth,
+   13x18 up to 25x36, so the camera is doing work from deck one rather than
+   switching on later. It centres on the diver and clamps at the hull, and taps
+   are offset by it. **The floorplan bounds had to scale too** — they were
+   written as absolute tile counts for the old fixed hull, so every larger deck
+   failed all 80 generation attempts and fell back to one open box with no
+   walls. They are a fraction of hull area now.
+7. ~~**Bestiary ×4**~~ — built. 38 species and five apexes, up from ten and one.
+   The new ones are drawn from **six body plans** — crawl, biped, float, plate,
+   mass, swarm — varied by size, limb count, eye count and spines, rather than
+   thirty bespoke sprites. That keeps a family resemblance inside a tier, so a
+   new deck reads as a different part of the ship. Twelve tiered rosters, and
+   the apex on the hatch is drawn from a pool that opens up with depth
+   (Broodmaw, Warlord, Sovereign, Leviathan), so the thing on the salvage is no
+   longer the same silhouette every run. New traits: AMBUSH (holds still until
+   you are within two), SHRIEKS (wakes the compartment once), SPLITS (comes
+   apart into two smaller on death), LEECH (heals itself for what it takes),
+   BLEEDS. All 38 colours verified distinct.
 8. **Bulkhead facing** — the lit edge of a hull tile faces the room, so a tile
    can carry an edge on two, three or four sides.
 9. **Organic walls** — currently they do not read as organic. Redraw or animate,

@@ -177,6 +177,44 @@ to{transform:translateX(-50%)}}
 
 /* ---------- cabinets ---------- */
 .rack{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px}
+.rack.off,.shelves.off,.rackhead.off{display:none !important}
+
+.shelves{display:grid;gap:14px}
+.shelf{
+  position:relative;display:block;width:100%;text-align:left;cursor:pointer;
+  border:1px solid var(--line);border-radius:14px;overflow:hidden;padding:0;
+  background:linear-gradient(180deg,rgba(255,255,255,.035),rgba(0,0,0,.28));
+  color:inherit;font-family:inherit;-webkit-appearance:none;appearance:none;
+}
+.shelf .bar{
+  display:block;height:4px;background:var(--a);
+  box-shadow:0 0 14px var(--a);
+}
+.shelf .in{display:grid;gap:8px;padding:17px 16px 16px}
+.shelf .st{
+  display:block;font-family:var(--px);font-size:11.5px;letter-spacing:.08em;
+  line-height:1.5;color:var(--a);text-shadow:0 0 12px var(--a);
+}
+.shelf .sd{display:block;font-size:15.5px;line-height:1.45;color:var(--dim)}
+.shelf .sn{
+  display:block;font-family:var(--crt);font-size:15px;letter-spacing:.14em;
+  color:#6b6488;text-transform:uppercase;
+}
+.shelf.empty{opacity:.6}
+.shelf.empty .sn{color:var(--gold)}
+
+.rackhead{display:flex;align-items:center;gap:12px;margin:0 0 16px}
+.ret{
+  font-family:var(--px);font-size:9px;letter-spacing:.12em;
+  background:rgba(255,255,255,.05);border:1px solid var(--line);color:var(--text);
+  border-radius:999px;padding:10px 14px;cursor:pointer;flex:none;
+}
+.ret:active{background:rgba(255,255,255,.14)}
+.rname{font-family:var(--px);font-size:10px;letter-spacing:.08em;color:var(--a);line-height:1.4}
+.emptynote{
+  text-align:center;color:var(--dim);font-size:15px;line-height:1.5;
+  padding:26px 10px 6px;max-width:32ch;margin:0 auto;
+}
 .cab{
   display:block;text-decoration:none;color:inherit;position:relative;
   background:linear-gradient(180deg,#12101c 0%,var(--panel) 100%);
@@ -249,6 +287,10 @@ to{transform:translateX(-50%)}}
 @keyframes blink{0%,49%{opacity:1}50%,100%{opacity:.18}}
 
 /* ---------- coin slot ---------- */
+.emptynote{
+  text-align:center;color:var(--dim);font-size:15px;line-height:1.5;
+  padding:26px 10px 6px;max-width:32ch;margin:0 auto;
+}
 footer{margin-top:30px;border-top:1px solid var(--line);padding-top:26px;text-align:center}
 .credit{font-family:var(--px);font-size:9px;color:var(--gold);margin-bottom:12px}
 .credit em{font-style:normal;color:var(--dim)}
@@ -313,6 +355,12 @@ footer{margin-top:30px;border-top:1px solid var(--line);padding-top:26px;text-al
 
   <div class="ticker"><div class="tick" id="tick"></div></div>
 
+  <div class="shelves" id="shelves"></div>
+
+  <div class="rackhead" id="rackhead">
+    <button class="ret" id="ret" type="button">&#8249; ARCADE</button>
+    <span class="rname" id="rname"></span>
+  </div>
   <div class="rack" id="rack"></div>
 
   <footer>
@@ -351,6 +399,76 @@ function setText(id, t){ var e = el(id); if(e) e.textContent = t; }
 document.getElementById('tick').innerHTML = '<i></i><span>INSERT COIN</span><i></i>';
 
 /* ---------- build the row of cabinets ---------- */
+var SHELVES = [
+  { id:'golden',   name:'GOLDEN ERA',  accent:'#ffd23c',
+    blurb:'Remakes of the classic cabinets, rebuilt for a phone.' },
+  { id:'second',   name:'SECOND WAVE', accent:'#ff2d95',
+    blurb:'The nineties. Fighters, shooters, brawlers.' },
+  { id:'original', name:'EFFIGY ORIGINALS', accent:'#00e5ff',
+    blurb:'Our own games. Not remakes of anything.' }
+];
+
+var shelvesEl = document.getElementById('shelves');
+var rackHead = document.getElementById('rackhead');
+var rnameEl = document.getElementById('rname');
+
+SHELVES.forEach(function(sh){
+  var n = GAMES.filter(function(g){ return g.cat === sh.id; }).length;
+  var b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'shelf' + (n ? '' : ' empty');
+  b.style.setProperty('--a', sh.accent);
+  b.innerHTML = '<span class="bar"></span><span class="in">' +
+    '<span class="st"></span>' +
+    '<span class="sd"></span>' +
+    '<span class="sn"></span></span>';
+  b.querySelector('.st').textContent = sh.name;
+  b.querySelector('.sd').textContent = sh.blurb;
+  b.querySelector('.sn').textContent = n ? (n + (n === 1 ? ' machine' : ' machines'))
+                                         : 'empty \u2014 nothing built yet';
+  b.addEventListener('click', function(){ openShelf(sh.id, true); });
+  shelvesEl.appendChild(b);
+});
+
+function showShelves(){
+  shelvesEl.classList.remove('off');
+  rackHead.classList.add('off');
+  rack.classList.add('off');
+  var note = document.getElementById('emptyNote');
+  if(note) note.style.display = 'none';        /* belongs to a shelf, not the floor */
+  screens.forEach(function(s){ s.off = true; });
+  window.scrollTo(0, 0);
+}
+function openShelf(id, push){
+  var sh = SHELVES.filter(function(x){ return x.id === id; })[0];
+  if(!sh) return;
+  shelvesEl.classList.add('off');
+  rackHead.classList.remove('off');
+  rack.classList.remove('off');
+  rnameEl.textContent = sh.name;
+  rnameEl.style.setProperty('--a', sh.accent);
+  var any = false;
+  cabs.forEach(function(c){
+    var on = c.cat === id;
+    c.el.style.display = on ? '' : 'none';
+    c.screen.off = !on;
+    if(on) any = true;
+  });
+  rack.classList.toggle('bare', !any);
+  document.getElementById('emptyNote').style.display = any ? 'none' : '';
+  window.scrollTo(0, 0);
+  if(push) history.pushState({ shelf:id }, '', '#' + id);
+}
+document.getElementById('ret').addEventListener('click', function(){
+  history.pushState({}, '', location.pathname);
+  showShelves();
+});
+window.addEventListener('popstate', function(e){
+  if(e.state && e.state.shelf) openShelf(e.state.shelf, false);
+  else showShelves();
+});
+
+var cabs = [];
 GAMES.forEach(function(g, i){
   var a = document.createElement('a');
   a.className = 'cab';
@@ -378,8 +496,20 @@ GAMES.forEach(function(g, i){
       sv.label + (sv.resume ? '<span class="rs">RUN IN PROGRESS</span>' : '');
   }
   rack.appendChild(a);
-  screens.push({ cv:a.querySelector('canvas'), kind:g.attract, accent:g.accent, t:Math.random()*40 });
+  var sc = { cv:a.querySelector('canvas'), kind:g.attract, accent:g.accent, t:Math.random()*40, off:true };
+  screens.push(sc);
+  cabs.push({ el:a, cat:g.cat || 'original', screen:sc });
 });
+
+rack.insertAdjacentHTML('afterend',
+  '<p class="emptynote" id="emptyNote">This shelf is empty. Nothing has been built for it yet.</p>');
+
+/* land wherever the URL says, so a bookmarked shelf opens straight to it */
+(function(){
+  var want = (location.hash || '').replace('#','');
+  if(SHELVES.some(function(s){ return s.id === want; })) openShelf(want, false);
+  else showShelves();
+})();
 
 
 /* ---------- house music ----------
