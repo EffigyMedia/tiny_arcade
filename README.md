@@ -30,6 +30,23 @@ puts the arcade's name, icon and manifest on every page, and the manifest's
 `start_url` sends the installed app back to the launcher rather than whichever
 machine you were standing at.
 
+## A note on editing the launcher's CSS
+
+`index.html` keeps its styles in one `<style>` block. A stray `}` there closes
+the stylesheet early and **silently kills every rule below it** — no error, no
+warning, the page just quietly loses layout. That happened once: deleting the
+scrolling marquee left an orphaned keyframe step behind, and `.rack`'s
+`display:grid` stopped applying, so the favourites ordering computed correctly
+and rendered in DOM order anyway.
+
+If layout goes strange after an edit, check the braces balance before anything
+else:
+
+```js
+let d=0; for (const c of css) d += c==='{' ? 1 : c==='}' ? -1 : 0;
+// d must be 0
+```
+
 ## Packing
 
     ./pack.sh

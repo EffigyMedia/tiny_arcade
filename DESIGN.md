@@ -1150,8 +1150,12 @@ something quick.
 Every frame has a slug baseline. The other two feeds trade reach against power
 in opposite directions, which is what makes carrying the right one a decision:
 
-    laser   one die weaker  ·  +2 squares  ·  pierces plating
-    plasma  one die harder  ·  −2 squares  ·  sets the target burning
+    laser   one die weaker  ·  +2 squares  ·  pierces plating   RED
+    plasma  one die harder  ·  −2 squares  ·  sets them burning  GREEN
+
+The feed has one colour and it is the same everywhere: the cells and flasks on
+the deck, the receiver of a loaded weapon, the muzzle flash, and the light that
+flash throws. `--laser:#ff3b3b`, `--plasma:#3bff8a`.
 
 For the multi-shot frames the die stays at d4 and the **shot count** steps
 instead, since d4 has nothing below it.
@@ -1408,6 +1412,237 @@ Scaled by deck tier: `ATK`, `DEF` and damage dice all step up every third deck.
 9. **Organic walls** — currently they do not read as organic. Redraw or animate,
    or cut them.
 10. **Pathing** — better routes for long-distance clicks and for hostiles.
+
+## 8e. Derelict — the suit (DESIGN, awaiting sign-off)
+
+Weapons derive ATK. DEF should derive the same way, from something you chose —
+right now it is `3 + level + resist`, and `resist` comes from a couple of
+one-off upgrade cards, so defence is the only number on the sheet the player
+cannot build toward.
+
+### The frame
+
+Two weapon slots and your hands; **three mod slots and the bare suit**. Mods are
+individually weaker than weapons, which is why there are three of them.
+
+    DEF = 3 + level + sum(mod DEF)
+    ATK = 3 + level + weapon ATK
+
+**`resist` is gone.** There used to be a separate percentage sitting beside DEF,
+but nothing ever multiplied incoming damage by it — it was folded into DEF
+anyway, so the upgrade card promising *"all incoming damage reduced by 20%"* was
+describing arithmetic that never happened. One number now, and armour is what
+raises it. Old saves convert their resist into DEF rather than losing it.
+
+The bare suit is the armour equivalent of fists: it works, it is never taken
+away, and it is not good.
+
+### Mods
+
+Every one has a cost. A mod that is only "+2 DEF" is a stat, not a decision.
+
+| mod | DEF | cost | note |
+|---|---|---|---|
+| **Hull Plate** | +4 | −4 max stamina | The obvious one, and it makes you slow. |
+| **Mesh Underlay** | +3 vs melee only | — | Nothing against anything shooting at you. |
+| **Ablative Skin** | +5 | degrades 1 per hit taken, to 0 | Enormous, briefly. Repairable at a bench. |
+| **Reactive Weave** | +2 | — | Returns 1d4 to anything that lands a melee blow. |
+| **Sealed Liner** | +1 | — | Immune to corrosion. Spitters stop mattering. |
+| **Insulated Layer** | +2 | −2 charge capacity | Halves fire and burn damage. |
+| **Faraday Mesh** | +2 | −1 lamp radius | Halves electrical damage; drain does nothing. |
+| **Servo Harness** | +1 | −1 weapon slot | +6 max stamina, +2 free movement squares. |
+| **Ceramic Inlay** | +3 | −15% scan repair | Halves plasma and heat. |
+
+### Why this matters more than it looks
+
+The four Omegas each have an immunity, a resistance and a **weakness on a damage
+axis**. Three of the mods above resist a specific axis. So a shard telling you
+*it withdrew from the torch, then came straight back* is not just a hint about
+which gun to carry — it tells you what to fit before deck 12.
+
+That closes the loop properly: the documents inform the build, the build decides
+the fight, and the fight is why you went down.
+
+### Where they come from
+
+Marines wear armour, so they drop mods. Lockers and crew effects hold them. A
+bench somewhere on the run lets you swap and repair — which gives the ascent a
+reason to pass back through a deck you remember.
+
+**Open question for sign-off:** three slots or two? Three allows a genuine
+build; two makes every choice hurt. I lean three, because with two the Servo
+Harness's "−1 weapon slot" cost is unpayable.
+
+## 8d. Derelict — the twelve-deck run (DESIGN, not yet built)
+
+The wreck gets a bottom, and a reason to reach it.
+
+**Down.** Twelve decks. Each stores its own structure for the run, because you
+climb back through them. Deck 1 gains an airlock to the outside; every deck
+gains an up-hatch.
+
+**The Omega.** Chosen at the airlock, fought on deck 12. Four of them, each a
+different cosmic horror with **five** properties: a **pattern**, an
+**immunity**, a **resistance**, a **weakness**, and **the damage type it deals**.
+
+That fifth one is what makes the suit matter. Immunity and weakness tell you
+what to *carry*; dealt damage tells you what to *wear* — Insulated against a
+thing that burns, Faraday against a thing that arcs, Ceramic against a thing
+that comes in hot. Five properties, five shards, and between them they specify a
+complete loadout. Four is what the armoury supports — the axes are kinetic (24% of
+weapons), electrical (24%), heat/plasma (20%), melee (24%), fire (8%), plus
+blast, stun and bleed from consumables. The fourth needs **light as a damage
+axis**, which is new code but makes the chem light and the lamp into weapons and
+turns the fog system into the fight.
+
+A weakness must sit on an axis you can reliably find, or a bad drop run is
+unwinnable through no fault of the player. **Once the Omega is chosen, seed a
+weapon on its weakness axis into the drop tables by deck 8.**
+
+**Datashards.** Five across the whole run, one per property, not one per deck —
+scarcity makes each an event and lets them be side-objective rewards. Find none
+and the fight is still winnable, just expensive and learned by dying.
+
+The dealt-damage shard is the easiest to write honestly, because a ship keeps
+records of injuries. A medical log listing the same burn on four crew, or a
+maintenance note about scorched bulkheads on one deck, says what it does to you
+without ever saying it.
+
+### The shard rule
+
+Shards are **documents, not diary entries**. A manifest, a work order, a denied
+requisition, a medical chart, a maintenance log. Documents cannot emote, and the
+horror is in the reader's arithmetic rather than the prose.
+
+- No shard may name a feeling, describe darkness or silence, or use "something".
+- Only facts, quantities, procedure and names. If a line could not appear on a
+  real form aboard a working ship, cut it.
+- **Hints must be inferable, not encoded.** "Deck 4 lighting circuit tripped
+  twice, welder missing from locker 4C" is inference. "Electrical damage is
+  effective" is a strategy guide, and the moment a shard reads like one the
+  whole device collapses.
+
+**Up.** The Omega dies, the self-destruct starts, and you climb out through the
+same twelve decks — remembered, not mapped, and restocked with stronger things.
+The descent clock in `tickAlarm()` is **built and gated behind `P.ascending`**;
+it belongs to the climb, where the pressure has a reason.
+
+### Showing the loadout on the sprite
+
+Both the diver and the marines should wear what they carry. Two notes before
+anyone starts drawing.
+
+**The weapon is nearly free.** Every weapon already has a per-class silhouette,
+drawn for the floor. Scaled down and held at the sprite's side it costs almost
+nothing new, and the feed colour is already doing work — a red receiver reads as
+a beam weapon from across the compartment.
+
+**The space is smaller than it feels.** Measured on the real board:
+
+| | cell | body |
+|---|---|---|
+| iPhone 14 | 33px CSS | **~20px** |
+| iPhone SE | 22px CSS | **~13px** |
+
+Thirteen pixels of torso will not show nine distinct armour mods, and pretending
+otherwise produces mush that reads as noise. What *is* legible at that size:
+
+- **Weapon class** — blade, sidearm, long gun, heavy. Four silhouettes, not
+  twenty-five.
+- **Feed colour** — red, green, or bare steel on the receiver. Already built.
+- **Armour weight** — light, medium, heavy, as body bulk. Three silhouettes.
+- **One accent** — a single coloured pip or trim for the dominant mod, so a
+  Faraday build and an Insulated build are told apart by colour rather than form.
+
+So: four weapon shapes × three body weights × an accent. That reads at 13px and
+still gives a marine a recognisable loadout at a glance, which is the actual
+goal — you want to know what is coming down the corridor before it arrives.
+
+Anything finer belongs in the gear screen, where there is room for it.
+
+### Launcher — shelves, numbering, favourites
+
+Cabinets are numbered by **position on their shelf**, so every shelf reads 01,
+02, 03 whatever it holds, and the numbers follow the sort rather than
+contradicting it.
+
+Sorting is **A–Z / Z–A only**. Favourites are not a third mode to go and
+select — a starred cabinet always sits above the unstarred ones, and the toggle
+decides the alphabetical direction *inside* each group. One control, two states,
+and the star does the prioritising.
+
+The star lives on the marquee of each card. It is inside a link, so its handler
+stops the event or tapping it would launch the cabinet.
+
+### The ascent — open decisions
+
+**Repopulated hostiles pay out during the climb.** Farming them is fair when a
+self-destruct is running: the timer is the cost, and min/maxing under a clock is
+a skill rather than an exploit. The no-payout rule only needs to apply to
+backtracking on the way *down*, where there is nothing stopping you.
+
+**Alphas and cores on the ascent — yes, but they should mean something else.**
+On the way down a core is the key to the next deck. On the way up the hatch is
+already open, so a core needs a different job or it is just points. Two options:
+
+- **Fuel.** Each core installed on the climb buys back time on the self-destruct.
+  That makes the alpha a genuine choice under a timer — fight the thing, or run.
+- **Ballast.** Cores are what you are carrying out, and the score at the end is
+  what you surfaced with. Simpler, and it makes the last deck a real gamble.
+
+I lean **fuel**, because it converts the clock from a fixed budget into something
+you can bargain with, and bargaining with a timer is more interesting than
+racing one.
+
+### Endings
+
+**A win cinematic per Omega**, shown on reaching your ship. Each one should
+answer the question its shards were asking — you assembled what the thing was
+from four documents, and the ending is where you find out if you read it right.
+Same rule as the shards: no atmosphere, no adjectives reaching for a mood. The
+most effective ending for this game is probably **your own incident report**,
+written in the same voice as the paperwork you have been reading all run.
+
+**A proper death screen.** Currently it states the deck and stops. It should
+carry the run: how deep, what killed you, what you were carrying, what you never
+found. A death screen that tells you what you missed is the one that starts
+another run.
+
+### Audio still to write
+
+Derelict has 30 sounds and every one the code calls is now defined — `reveal`
+was being called for a chem light landing and did not exist, so it fell through
+to the pickup blip. These are the gaps the new systems open:
+
+| moment | why it has to exist |
+|---|---|
+| marine fires at you | by feed, so you can tell what is shooting before you see it |
+| a shot passes close | the near miss is the warning |
+| searching a prop | and a **distinct empty**, so failure is audible |
+| datashard found | must not sound like loot — this is the one that matters |
+| armour mod fitted / destroyed | ablative plate failing should be a moment |
+| Omega entrance, per-Omega motif | four of them, four themes |
+| **weakness landed** | the confirmation you read the documents right |
+| **immunity landed** | a flat, wrong, dead sound — the answer is no |
+| self-destruct bed | escalating, for the ascent |
+| up-hatch / airlock | the way out |
+| something arriving behind you | for a repopulated deck |
+
+The two in bold are the important ones. If a player can *hear* that a weapon is
+doing nothing, the Omega fight teaches itself without a single line of UI.
+
+### Also queued
+
+- **Armed marines.** Ranged hostiles carrying real weapons, dropping the weapon
+  or its ammunition. Rare high-tier carry, scaling with depth. Needs one
+  fairness rule: **firing reveals the shooter** — a muzzle flash lights their
+  tile — or being shot from unlit blackness is a tax rather than a threat.
+  Player muzzle flash is already built, for exactly that consistency.
+- **Props.** Searchable (lockers, med cabinets, tool chests, crew effects) and
+  set dressing. Searching costs a turn, and finding nothing must be possible.
+  This replaces loot lying on the floor. **Blocking props must be placed before
+  the zone validator and `sealSqueezes` run**, or the generator will happily
+  seal a keycard behind a cabinet.
 
 ## 8c. Derelict — balance pass
 

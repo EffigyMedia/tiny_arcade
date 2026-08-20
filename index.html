@@ -173,10 +173,10 @@ h1 .t2{
   margin:0 .62em;vertical-align:middle;position:relative;top:-.04em;
   clip-path:polygon(50% 0%,61% 35%,98% 35%,68% 57%,79% 91%,50% 70%,21% 91%,32% 57%,2% 35%,39% 35%);
 }
-to{transform:translateX(-50%)}}
 
 /* ---------- cabinets ---------- */
 .rack{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px}
+.rack .cab{order:0}
 .rack.off,.shelves.off,.rackhead.off{display:none !important}
 
 .shelves{display:grid;gap:14px}
@@ -204,6 +204,21 @@ to{transform:translateX(-50%)}}
 .shelf.empty .sn{color:var(--gold)}
 
 .rackhead{display:flex;align-items:center;gap:12px;margin:0 0 16px}
+.fav{
+  flex:none;width:24px;height:24px;margin-left:auto;margin-right:8px;padding:0;
+  background:none;border:0;cursor:pointer;line-height:1;
+  color:var(--line);font-size:15px;
+}
+.fav::before{content:"\2606"}          /* hollow star */
+.fav.on{color:var(--gold);text-shadow:0 0 10px currentColor}
+.fav.on::before{content:"\2605"}       /* filled */
+.sortbtn{
+  margin-left:auto;flex:none;cursor:pointer;
+  font-family:var(--px);font-size:8px;letter-spacing:.10em;
+  background:rgba(255,255,255,.05);border:1px solid var(--line);
+  color:var(--dim);border-radius:999px;padding:9px 11px;
+}
+.sortbtn:active{background:rgba(255,255,255,.14);color:var(--text)}
 .ret{
   font-family:var(--px);font-size:9px;letter-spacing:.12em;
   background:rgba(255,255,255,.05);border:1px solid var(--line);color:var(--text);
@@ -360,6 +375,7 @@ footer{margin-top:30px;border-top:1px solid var(--line);padding-top:26px;text-al
   <div class="rackhead" id="rackhead">
     <button class="ret" id="ret" type="button">&#8249; ARCADE</button>
     <span class="rname" id="rname"></span>
+    <button class="sortbtn" id="sortBtn" type="button">A–Z</button>
   </div>
   <div class="rack" id="rack"></div>
 
@@ -439,6 +455,42 @@ function showShelves(){
   screens.forEach(function(s){ s.off = true; });
   window.scrollTo(0, 0);
 }
+/* Cabinets are numbered by their position on the shelf, not by their position
+   in the catalogue — so a shelf always reads 01, 02, 03 whatever it holds, and
+   the numbers follow the sort rather than contradicting it. */
+/* Favourites are not a sort mode you have to go and choose — they are a
+   permanent priority. Starred cabinets always sit above the rest, and the
+   toggle only decides the alphabetical direction inside each group. */
+function favFirst(a, b){
+  var f = favSet();
+  return (f.has(b.id) ? 1 : 0) - (f.has(a.id) ? 1 : 0);
+}
+var SORTS = [
+  { key:'az', label:'A\u2013Z', cmp:function(a,b){ return favFirst(a,b) || a.name.localeCompare(b.name); } },
+  { key:'za', label:'Z\u2013A', cmp:function(a,b){ return favFirst(a,b) || b.name.localeCompare(a.name); } }
+];
+var sortIdx = 0;
+try { var sv = localStorage.getItem('tinyarcade.sort.v1');
+      if(sv) sortIdx = Math.max(0, SORTS.findIndex(function(s){ return s.key === sv; })); } catch(e){}
+
+function applySort(id){
+  var mine = cabs.filter(function(c){ return c.cat === id; });
+  mine.sort(function(a,b){ return SORTS[sortIdx].cmp(a.game, b.game); });
+  mine.forEach(function(c, i){
+    c.el.style.order = i;
+    c.el.querySelector('.mno').textContent = String(i+1).padStart(2,'0');
+  });
+  var b = el('sortBtn');
+  if(b) b.textContent = SORTS[sortIdx].label;
+}
+
+on('sortBtn', 'click', function(){
+  sortIdx = (sortIdx + 1) % SORTS.length;
+  try { localStorage.setItem('tinyarcade.sort.v1', SORTS[sortIdx].key); } catch(e){}
+  var cur = (location.hash || '').replace('#','') || 'golden';
+  applySort(cur);
+});
+
 function openShelf(id, push){
   var sh = SHELVES.filter(function(x){ return x.id === id; })[0];
   if(!sh) return;
@@ -454,6 +506,7 @@ function openShelf(id, push){
     c.screen.off = !on;
     if(on) any = true;
   });
+  applySort(id);
   rack.classList.toggle('bare', !any);
   document.getElementById('emptyNote').style.display = any ? 'none' : '';
   window.scrollTo(0, 0);
@@ -468,6 +521,20 @@ window.addEventListener('popstate', function(e){
   else showShelves();
 });
 
+/* Favourites. Simpler than counting plays and more honest about what it means:
+   the player says which cabinets matter rather than the launcher inferring it. */
+var FAVS = 'tinyarcade.favs.v1';
+function favSet(){
+  try { return new Set(JSON.parse(localStorage.getItem(FAVS) || '[]')); } catch(e){ return new Set(); }
+}
+function isFav(id){ return favSet().has(id); }
+function toggleFav(id){
+  var f = favSet();
+  f.has(id) ? f.delete(id) : f.add(id);
+  try { localStorage.setItem(FAVS, JSON.stringify([...f])); } catch(e){}
+  return f.has(id);
+}
+
 var cabs = [];
 GAMES.forEach(function(g, i){
   var a = document.createElement('a');
@@ -475,8 +542,9 @@ GAMES.forEach(function(g, i){
   a.href = g.file;
   a.style.setProperty('--a', g.accent);
   a.innerHTML =
-    '<div class="marquee"><span class="mname"></span><span class="mno">' +
-      String(i+1).padStart(2,'0') + '</span></div>' +
+    '<div class="marquee"><span class="mname"></span>' +
+      '<button class="fav" type="button" aria-label="Favourite"></button>' +
+      '<span class="mno">' + String(i+1).padStart(2,'0') + '</span></div>' +
     '<div class="body">' +
       '<div class="screen"><canvas></canvas></div>' +
       '<div class="meat">' +
@@ -495,10 +563,18 @@ GAMES.forEach(function(g, i){
     a.querySelector('.score').innerHTML =
       sv.label + (sv.resume ? '<span class="rs">RUN IN PROGRESS</span>' : '');
   }
+  var star = a.querySelector('.fav');
+  star.classList.toggle('on', isFav(g.id));
+  star.addEventListener('click', function(ev){
+    /* the card is a link; a tap on the star must not launch the cabinet */
+    ev.preventDefault(); ev.stopPropagation();
+    star.classList.toggle('on', toggleFav(g.id));
+    applySort(g.cat || 'original');   /* starring re-orders immediately */
+  });
   rack.appendChild(a);
   var sc = { cv:a.querySelector('canvas'), kind:g.attract, accent:g.accent, t:Math.random()*40, off:true };
   screens.push(sc);
-  cabs.push({ el:a, cat:g.cat || 'original', screen:sc });
+  cabs.push({ el:a, cat:g.cat || 'original', screen:sc, game:g });
 });
 
 rack.insertAdjacentHTML('afterend',
