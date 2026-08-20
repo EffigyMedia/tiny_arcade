@@ -1248,31 +1248,66 @@ setInterval(() => {
 }, 90);
 
 /* ---------------- overlays ---------------- */
+/* `go` may be a single callback (one button, as before) or a map of
+   data-act names, which is what a menu needs. */
 function openVeil(html, go){
   veilBody.innerHTML = html;
   veil.classList.remove('hidden');
-  const b = veilBody.querySelector('.btn');
-  if(b) b.addEventListener('click', () => { veil.classList.add('hidden'); if(go) go(); });
+  if(typeof go === 'function'){
+    const b = veilBody.querySelector('.btn');
+    if(b) b.addEventListener('click', () => { veil.classList.add('hidden'); if(go) go(); });
+    return;
+  }
+  veilBody.querySelectorAll('[data-act]').forEach(b => {
+    b.addEventListener('click', () => {
+      const fn = go && go[b.dataset.act];
+      veil.classList.add('hidden');
+      if(fn) fn();
+    });
+  });
 }
 function showTitle(){
   const sv = AR && AR.save ? AR.save.get('penboy') : null;
   best = (sv && sv.best) || 0;
   openVeil(
-    '<div class="eyebrow">SHEET ' + String(sheetNo()+1).padStart(2,'0') +
-      ' \u00B7 ' + sheetName().toUpperCase() + '</div>' +
-    '<h1>Penboy<em>FOUR OF THEM</em></h1>' +
-    '<div class="blurb">Mark every square on the sheet. Four hunters want you, and <b>no two of them think alike</b> \u2014 so they never arrive together by accident.</div>' +
-    '<div class="legend">' +
-      '<i style="color:#ff5c8a">\u25C6</i> comes straight at you<br>' +
-      '<i style="color:#a06cff">\u25C6</i> aims where you are going<br>' +
-      '<i style="color:#3fd6c8">\u25C6</i> works with the first to pincer<br>' +
-      '<i style="color:#a8e35c">\u25C6</i> guards whichever station would save you<br>' +
-      '<i style="color:#ffd23c">\u25CE</i> circle a station to turn on them' +
+    '<h1>Penboy</h1>' +
+    '<div class="tmenu">' +
+      '<button class="btn" data-act="play">PLAY</button>' +
+      '<button class="btn ghost" data-act="opts">OPTIONS</button>' +
+      '<button class="btn ghost" data-act="quit">QUIT</button>' +
+    '</div>',
+    {
+      play: () => { newGame(); fit(); },
+      opts: () => showOptions(),
+      quit: () => { if(AR && AR.home) AR.home(); }
+    });
+}
+
+function showOptions(){
+  openVeil(
+    '<div class="eyebrow">PENBOY</div><h1>Options</h1>' +
+    '<div class="tmenu">' +
+      '<button class="btn ghost" data-act="ctrl">CONTROLS</button>' +
+      '<button class="btn" data-act="back">BACK</button>' +
+    '</div>',
+    { ctrl: () => showControls(), back: () => showTitle() });
+}
+
+function showControls(){
+  const v = (AR && AR.touch) ? 'Swipe' : 'Arrow keys';
+  const rows = [
+    [v, 'turn at the next junction'],
+    ['Cover every square', 'to finish the sheet'],
+    ['Circle a station', 'to turn on the hunters'],
+    ['Pause, top right', 'options']
+  ];
+  openVeil(
+    '<div class="eyebrow">' + ((AR && AR.touch) ? 'TOUCH' : 'KEYBOARD') + '</div><h1>Controls</h1>' +
+    '<div class="ctrls">' +
+      rows.map(r => '<div class="crow"><b>' + r[0] + '</b><i>' + r[1] + '</i></div>').join('') +
     '</div>' +
-    (best ? '<div class="sub">BEST ' + best.toLocaleString() + '</div>' : '') +
-    '<button class="btn">START DRAWING</button>',
-    () => { newGame(); fit(); }
-  );
+    '<button class="btn" data-act="back" style="margin-top:16px">BACK</button>',
+    { back: () => showOptions() });
 }
 function showOver(){
   openVeil(
