@@ -38,6 +38,8 @@
   --ice:#7fd8ff;
   --blood:#ff3b5c;
   --acid:#a3e635;
+  --laser:#ff3b3b;     /* cells burn red */
+  --plasma:#3bff8a;    /* plasma burns green */
   --steel:#93a7b5;
   --violet:#b79cf0;
   --amber:#ffb347;
@@ -299,6 +301,32 @@ function deckSize(deck){
 }
 let camX = 0, camY = 0;
 
+/* ---- the descent clock -------------------------------------------------
+   A wreck this size will not sit still while you search it. Every turn spent
+   on a deck raises the alarm, and the alarm has stages. It resets when you go
+   down, so the question the game asks is when to stop looting and take the
+   hatch — and because the deck is remembered rather than mapped, dithering
+   costs you twice.
+   ------------------------------------------------------------------------ */
+const ALARM = [
+  { at:0.00, key:'calm',    name:'QUIET',    c:'#5d7f8c' },
+  { at:0.45, key:'stirring',name:'STIRRING', c:'#ffd23c' },
+  { at:0.70, key:'hunting', name:'HUNTING',  c:'#ff8a3d' },
+  { at:0.92, key:'failing', name:'BREACH',   c:'#ff3b5c' }
+];
+function alarmLimit(){
+  let open = 0;
+  for(let i=0;i<N;i++) if(!map[i].wall) open++;
+  return Math.round(55 + open * 0.55);      /* bigger decks buy proportionate time */
+}
+function alarmFrac(){ return clamp((P.alarm || 0) / Math.max(1, P.alarmMax || 1), 0, 1); }
+function alarmStage(){
+  const f = alarmFrac();
+  let s = ALARM[0];
+  for(const a of ALARM) if(f >= a.at) s = a;
+  return s;
+}
+
 const $ = id => document.getElementById(id);
 const panelEl = $('panel');
 const veil = $('veil'), veilBody = $('veilBody'), frame = $('frame');
@@ -364,6 +392,10 @@ const MORE = {
   weeper: { name:'Weeper',    hp:0.9, dmg:0.8, trait:'CORROSIVE', atk:1, def:1, dn:1, dd:4, sight:4, spd:0.35, patrol:0.28,
             plan:'mass', size:0.85, eyes:0, c:'#6f5cc8',
             desc:'Leaves the deck slick behind it. Sears the suit on contact.' },
+
+  marine: { name:'Marine',    hp:1.0, dmg:1.0, trait:null, atk:3, def:3, dn:1, dd:6, sight:6, spd:0.70, patrol:0.40,
+            plan:'suit', size:1.0, c:'#7cc46b',
+            desc:'Ship\u2019s complement. Still in the suit, still carrying what it was issued.' },
 
   /* tier 2 — deck 3-4 */
   lurker: { name:'Lurker',    hp:0.9, dmg:1.0, trait:'AMBUSH', atk:3, def:2, dn:1, dd:6, sight:3, spd:1.10, patrol:0.00,
@@ -467,16 +499,16 @@ function apexFor(deck){
 const ROSTER = [
   /* 1  */ ['crawler','mite'],
   /* 2  */ ['crawler','mite','clinger','weeper'],
-  /* 3  */ ['crawler','husk','skitter','clinger','weeper','lurker'],
-  /* 4  */ ['husk','spitter','skitter','lurker','shrieker','gnasher','ratking'],
-  /* 5  */ ['husk','spitter','warden','gnasher','ratking','sentry','leech'],
-  /* 6  */ ['spitter','warden','stalker','sentry','leech','render','drone'],
-  /* 7  */ ['warden','wraith','stalker','render','drone','maw','revenant'],
-  /* 8  */ ['wraith','gorger','stalker','shrike','maw','revenant','harrier','bulwark'],
-  /* 9  */ ['gorger','stalker','shrike','harrier','bulwark','carrion','wight'],
-  /* 10 */ ['shrike','skitter','carrion','wight','flenser','hulk','swarmling'],
-  /* 11 */ ['stalker','flenser','hulk','swarmling','nemesis','thresher'],
-  /* 12 */ ['flenser','swarmling','nemesis','thresher','hollow','colossus']
+  /* 3  */ ['marine','crawler','husk','skitter','clinger','weeper','lurker','marine'],
+  /* 4  */ ['marine','husk','spitter','skitter','lurker','shrieker','gnasher','ratking'],
+  /* 5  */ ['marine','husk','spitter','warden','gnasher','ratking','sentry','leech','marine'],
+  /* 6  */ ['marine','spitter','warden','stalker','sentry','leech','render','drone'],
+  /* 7  */ ['marine','warden','wraith','stalker','render','drone','maw','revenant','marine'],
+  /* 8  */ ['marine','wraith','gorger','stalker','shrike','maw','revenant','harrier','bulwark'],
+  /* 9  */ ['marine','gorger','stalker','shrike','harrier','bulwark','carrion','wight'],
+  /* 10 */ ['marine','shrike','skitter','carrion','wight','flenser','hulk','swarmling'],
+  /* 11 */ ['marine','stalker','flenser','hulk','swarmling','nemesis','thresher'],
+  /* 12 */ ['marine','flenser','swarmling','nemesis','thresher','hollow','colossus']
 ];
 
 /* ---------------- dice ---------------- */
@@ -494,8 +526,8 @@ function avg(w){ return (w.shots||1) * (w.n * (w.d+1)/2 + (w.bonus||0)); }
    sit on the frame, not the ammunition.                                     */
 const AMMO = {
   slug:   { name:'Slugs',  c:'steel'  },
-  cell:   { name:'Cells',  c:'ice'    },
-  plasma: { name:'Plasma', c:'violet' },
+  cell:   { name:'Cells',  c:'laser'  },
+  plasma: { name:'Plasma', c:'plasma' },
   fuel:   { name:'Fuel',   c:'amber'  }
 };
 
@@ -686,7 +718,11 @@ function playerAtk(w, m, dist){
   if(m && m.supp) a += 0;
   return a;
 }
-function playerDef(){ return 3 + P.lvl + Math.round(P.resist * 10) + (P.buff.res > 0 ? 3 : 0); }
+/* DEF is the whole defensive story. There used to be a separate `resist`
+   percentage alongside it, but nothing ever multiplied incoming damage by it —
+   it was folded into DEF anyway, so the card promising "20% less damage" was
+   describing arithmetic that did not happen. One number, and armour raises it. */
+function playerDef(){ return 3 + P.lvl + (P.def || 0) + (P.buff.res > 0 ? 3 : 0); }
 
 function weaponDice(w, m, blind){
   return () => {
@@ -773,11 +809,23 @@ function throwAt(kind, tx, ty){
   return true;
 }
 
+/* A shot lights what it passes. Muzzle flash is how a marine in the dark
+   gives himself away, so it has to work the same way when it is your finger on
+   the trigger — otherwise the rule is a cheat rather than a mechanic. */
+function muzzleFlash(w, tx, ty){
+  const kind = w.load === 'plasma' ? 'plasma' : w.load === 'laser' ? 'laser'
+             : w.cls === 'flamer' ? 'flame' : 'slug';
+  const r = kind === 'flame' ? 4 : kind === 'plasma' ? 4 : kind === 'laser' ? 2 : 3;
+  lights.push({ x:P.x, y:P.y, r, t:2, flash:kind });   /* survives this turn's endTurn */
+  if(typeof tx === 'number' && Math.max(Math.abs(tx-P.x), Math.abs(ty-P.y)) > 2)
+    lights.push({ x:tx, y:ty, r:Math.max(1, r-1), t:2, flash:kind });
+}
+
 function land(kind, x, y){
   const w = THROWN[kind];
   if(w.light){
     lights.push({ x, y, r:w.light, t:w.lightFor });
-    snd.reveal ? snd.reveal() : snd.pickup();
+    snd.reveal();
     reveal(x, y);
     render();
     return;
@@ -865,7 +913,7 @@ const CORES = [
   { name:'MAG-COIL',          desc:'Melee strikes land 30% harder.',            apply:P=>{ P.dmgMul += 0.30; } },
   { name:'REBREATHER',        desc:'Scanning new sectors repairs 60% more.',    apply:P=>{ P.scanMul += 0.60; } },
   { name:'CAPACITOR BANK',    desc:'Maximum charge raised by 5.',               apply:P=>{ P.maxCharge += 5; P.charge += 5; } },
-  { name:'ABLATIVE PLATE',    desc:'All incoming damage reduced by 20%.',       apply:P=>{ P.resist += 0.20; } },
+  { name:'ABLATIVE PLATE',    desc:'+2 DEF. Harder to land a blow on.',         apply:P=>{ P.def += 2; } },
   { name:'ARC AMPLIFIER',     desc:'ARC discharges hit 60% harder.',            apply:P=>{ P.arcMul += 0.60; } },
   { name:'SIPHON',            desc:'Every kill returns 4 charge.',              apply:P=>{ P.siphon += 4; } },
   { name:'WIDE-BAND SENSOR',  desc:'Your scan reaches one sector further.',     apply:P=>{ P.radius += 1; } },
@@ -1130,6 +1178,16 @@ const snd = {
     [523.25, 659.25, 783.99, 1046.5].forEach((f,i) =>
       AR.sfx.tone({ t:t+i*0.075, freq:f, dur:0.3, type:'square', gain:0.10, cutoff:3000, verb:0.4 }));
   },
+  /* a chem light cracking and catching. It was calling snd.reveal(), which
+     never existed, and quietly falling through to the pickup blip. */
+  reveal(){
+    if(!AR) return;
+    const t = AR.audio.now();
+    AR.sfx.noise({ t, freq:2600, dur:0.09, gain:0.09, filter:'highpass' });
+    AR.sfx.tone({ t:t+0.03, freq:420, to:900, dur:0.42, type:'sine', gain:0.10, verb:0.5 });
+    AR.sfx.tone({ t:t+0.06, freq:1260, dur:0.55, type:'sine', gain:0.05, verb:0.6 });
+  },
+
   pickup(){ if (AR) AR.sfx.tone({ freq:700, to:1050, dur:0.14, type:'square', gain:0.11, cutoff:3000 }); },
   key(){
     if (!AR) return;
@@ -1283,6 +1341,114 @@ function attemptFloorplan(){
   return floor;
 }
 
+/* Escalation. Nothing here damages you out of nowhere: the first two stages
+   change what the deck does, and only the last one starts taking integrity —
+   by which point you have had a long, loud warning. */
+function tickAlarm(){
+  if(!P.alarmMax) P.alarmMax = alarmLimit();
+  const before = alarmStage().key;
+  P.alarm = (P.alarm || 0) + 1;
+  const st = alarmStage();
+
+  if(st.key !== before){
+    if(st.key === 'stirring') say('Something aboard has noticed the airlock.');
+    if(st.key === 'hunting')  say('They are coming to you now.');
+    if(st.key === 'failing')  say('The compartment is losing pressure.');
+    snd.denied();
+  }
+
+  if(st.key === 'stirring' && P.alarm % 6 === 0){
+    /* the deck wakes, a few at a time */
+    let woke = 0;
+    for(const m of mobs){
+      if(!m.alive || m.alert > 0 || woke >= 2) continue;
+      m.alert = 3; m.mx = P.x; m.my = P.y; woke++;
+    }
+  }
+  if(st.key === 'hunting' && P.alarm % 9 === 0){
+    /* something arrives from elsewhere on the ship, at the far edge */
+    const roster = ROSTER[Math.min(ROSTER.length-1, deck-1)];
+    const far = [];
+    for(let i=0;i<N;i++){
+      const t = map[i];
+      if(t.wall || t.door || t.exit || mobAt(ix(i), iy(i))) continue;
+      if(Math.max(Math.abs(ix(i)-P.x), Math.abs(iy(i)-P.y)) < 7) continue;
+      far.push(i);
+    }
+    if(far.length){
+      const i = pick(far);
+      spawnMob(ix(i), iy(i), pick(roster), Math.max(1, Math.floor(1 + (deck-1)*0.7 + (P.lvl-1)*0.2)));
+      const m = mobs[mobs.length-1];
+      m.alert = 3; m.mx = P.x; m.my = P.y;
+      say('Something else just came aboard this deck.');
+    }
+  }
+  if(st.key === 'failing' && P.alarm % 4 === 0){
+    const d = Math.max(1, Math.round(P.maxHp * 0.04));
+    P.hp -= d;
+    say('Pressure loss \u2212' + d + '. Find the hatch.');
+    if(P.hp <= 0){ die(); }
+  }
+}
+
+/* Marines are the crew, so they carry what the crew was issued — and what they
+   carry IS their threat. Base stats are identical across every one of them;
+   the difference is the loadout, and the loadout's power is a function of how
+   deep you are. Decks run 1-12 down and 12-24 back up, so `depthOf()` gives a
+   single 1-24 scale and the climb out is armed as heavily as the bottom was. */
+function depthOf(){ return P.ascending ? (24 - deck + 1) : deck; }
+
+function armMarine(m){
+  const d = depthOf();                       /* 3 at first contact, 24 at worst */
+  const t = clamp((d - 3) / 21, 0, 1);       /* 0 the first time, 1 at the end */
+
+  /* weapon: drawn from the tiers you would be finding at this depth, and a
+     small chance of something well above it — the one that is memorable */
+  const tier = Math.min(4, Math.floor(t * 4.2 + (Math.random() < 0.10 + t*0.12 ? 1 : 0)));
+  const pool = DROPS[Math.min(DROPS.length-1, tier)] || DROPS[0];
+  m.carrying = pick(pool.filter(id => WEAPONS[id] && WEAPONS[id].kind === 'ranged'))
+            || pick(pool) || 'pistol.slug';
+
+  const w = WEAPONS[m.carrying] || {};
+  m.atk += (w.atk || 0);
+  m.dn   = w.n || m.dn;
+  m.dd   = w.d || m.dd;
+  m.shots = w.shots || 1;
+  m.reach = w.opt || 1;
+
+  /* armour: heavier the deeper you are, and the pip says what it turns aside */
+  const roll = Math.random();
+  if(roll < 0.30 + t*0.35){
+    const kit = [
+      { def:4, bulk:1.15, pip:null,      name:'Hull Plate' },
+      { def:2, bulk:1.00, pip:'#ff8a3d', name:'Insulated Layer' },
+      { def:2, bulk:1.00, pip:'#ff3b3b', name:'Faraday Mesh' },
+      { def:3, bulk:1.05, pip:'#3bff8a', name:'Ceramic Inlay' }
+    ];
+    const a = kit[(Math.random() * kit.length) | 0];
+    m.armour = a;
+    m.def += a.def;
+    m.armourBulk = a.bulk;
+    m.armourPip = a.pip;
+  } else {
+    m.armourBulk = 0.92;
+  }
+}
+
+/* what a marine leaves: the weapon on its tile, anything else beside it */
+function marineDrop(m){
+  const here = at(m.x, m.y);
+  if(m.carrying && !here.item){ here.item = 'wpn'; here.wid = m.carrying; }
+  if(m.armour){
+    for(const n of neighbours(idx(m.x, m.y))){
+      const t = map[n];
+      if(t.wall || (t.door && !t.door.open) || t.item) continue;
+      t.item = 'ammo';          /* placeholder until armour mods are items */
+      break;
+    }
+  }
+}
+
 function sealSqueezes(){
   for(let y=0;y<ROWS-1;y++) for(let x=0;x<COLS-1;x++){
     for(const [dx,dy] of [[1,1],[1,-1]]){
@@ -1427,6 +1593,7 @@ function assembleDeck(){
     used.add(i);
     const type = pick(roster), lv = Math.max(1, pick(pool));
     spawnMob(ix(i), iy(i), type, lv);
+    if(type === 'marine') armMarine(mobs[mobs.length-1]);
     const packs = SPECIES[type].pack;
     if(packs){
       let placed = 1;
@@ -1477,6 +1644,7 @@ function assembleDeck(){
   }
 
   exitOpen = false; coreDrop = null; sel = null;
+  P.alarm = 0; P.alarmMax = 0;   /* set once the floorplan exists */
   P.guardReady = !!P.guard;
   reveal(P.x, P.y);
   return true;
@@ -1513,7 +1681,7 @@ function newRun(){
         ammo:{ slug:20, cell:0, plasma:0, fuel:0 },
         items:{ med:1, trauma:0, grenade:1, incend:0, chem:2, stim:0, carapace:0 },
         buff:{ dmg:0, res:0 },
-        dmgMul:1, arcMul:1, scanMul:1, resist:0, siphon:0, radius:3, lamp:0,
+        dmgMul:1, arcMul:1, scanMul:1, def:0, siphon:0, radius:3, lamp:0,
         xpBonus:0, guard:false, guardReady:false };
   deck = 1; dead = false; logLines = [];
   installed = [];
@@ -1796,6 +1964,7 @@ function fire(m){
     }
   }
   snd.shot(w);
+  muzzleFlash(w, m.x, m.y);
   P.surge = false;
 
   for(const t of targets){
@@ -1943,6 +2112,7 @@ function hurtPlayer(m, forced, reflected){
 
 function killMob(m){
   const sp0 = SPECIES[m.type] || {};
+  if(m.type === 'marine') marineDrop(m);
   if(sp0.trait === 'SPLITS' && !m.spawned && m.lvl > 1){
     let made = 0;
     for(const n of neighbours(idx(m.x,m.y))){
@@ -2030,6 +2200,9 @@ function nearestVisible(){
    ENEMY TURN
    ================================================================ */
 function endTurn(actedOn){
+  /* Held for the ascent. On the way down the pressure is the wreck itself;
+     the self-destruct is what makes the climb out a different game. */
+  if(P.ascending) tickAlarm();
   if(!P.rested) P.stam = Math.min(P.maxStam, P.stam + 1);
   P.rested = false;
   /* fire burns down, and burns whatever is standing in it */
@@ -2527,6 +2700,7 @@ function loadRun(){
     P.buff   = P.buff   || { dmg:0, res:0 };
     if(typeof P.lamp !== 'number') P.lamp = 0;
     if(typeof P.maxStam !== 'number'){ P.maxStam = 14 + (P.lvl-1)*3; P.stam = P.maxStam; }
+    if(typeof P.def !== 'number'){ P.def = Math.round((P.resist || 0) * 10); delete P.resist; }
     if(!P.radius || P.radius < 3) P.radius = 3;
     /* older saves carried an unbounded list; keep the two best and bin the rest */
     if(!P.slots){
@@ -2725,8 +2899,8 @@ function drawItem(g, x, y, kind, extra){
   const col = {
     med:'#a3e635', trauma:'#a3e635', grenade:'#ffb347', incend:'#ff6a3d', chem:'#a3e635',
     stim:'#ff3b5c', lamp:'#ffe9a8',
-    carapace:'#93a7b5', cell:'#7fd8ff', plate:'#93a7b5', chip:'#ff3b5c',
-    cap:'#b79cf0', shard:'#ffb347', ammo:'#93a7b5', wpn:'#9fb2c0',
+    carapace:'#93a7b5', cell:'#ff3b3b', plate:'#93a7b5', chip:'#ff3b5c',
+    cap:'#b79cf0', shard:'#ffb347', ammo:'#93a7b5', wpn:'#9fb2c0', plasma:'#3bff8a',
     key:DOORCOL[extra]||'#4da3ff', core:'#ffd479'
   }[kind] || '#cfe0e6';
 
@@ -2803,7 +2977,11 @@ function drawItem(g, x, y, kind, extra){
   } else if(kind === 'wpn'){
     /* Weapons lie on the deck as themselves, so you can tell a rifle from a
        crowbar before you walk to it. Drawn by class, on a common baseline. */
-    const cls = (WEAPONS[extra] || {}).cls || 'blade';
+    const W0 = WEAPONS[extra] || {};
+    const cls = W0.cls || 'blade';
+    /* a loaded weapon carries its feed's colour on the receiver, so you can
+       tell a beam rifle from a slug rifle before you walk to it */
+    const feed = W0.load === 'laser' ? '#ff3b3b' : W0.load === 'plasma' ? '#3bff8a' : null;
     const u = C * 0.40;
     g.shadowBlur = C * 0.18;      /* a hint of glow, not a wash */
     g.translate(cx, cy);
@@ -2873,6 +3051,7 @@ function drawItem(g, x, y, kind, extra){
       /* firearms: a common receiver, then the frame's own outline */
       const barrel = { pistol:0.55, smg:0.72, shotgun:0.95, rifle:1.15, lmg:1.0, flamer:0.7 }[cls] || 0.7;
       box(-u*0.72,-u*0.15,u*0.62,u*0.30,dark);              // receiver
+      if(feed) box(-u*0.58,-u*0.06,u*0.34,u*0.12,feed);     // the cell or flask
       box(-u*0.14,-u*0.09,u*barrel,u*0.18,steel);           // barrel
       box(-u*0.68,u*0.12,u*0.26,u*0.42,'#4b5560');          // grip
       if(cls === 'rifle' || cls === 'lmg'){
@@ -2991,6 +3170,17 @@ function drawPlan(g, cx, cy, C, col, sp, m){
     }
     g.closePath(); g.fill(); outline(g);
     eyes(sp.eyes || 4, 0.13*z, 0.10*z, 0.028*z);
+
+  } else if(sp.plan === 'suit'){
+    drawSuit(g, cx - C/2, cy - C/2, {
+      helmet:false,
+      head: sp.c || '#7cc46b',
+      body: '#9fb4a8',
+      glow: '#7cc46b',
+      bulk: m && m.armourBulk ? m.armourBulk : 1,
+      weapon: m && m.carrying ? m.carrying : null,
+      pip: m && m.armourPip ? m.armourPip : null
+    });
 
   } else {  /* swarm */
     for(let i=0;i<3;i++){
@@ -3157,22 +3347,76 @@ function drawMob(g, x, y, m){
   g.fillText(m.lvl, x+C*0.95, y+C*0.30);
 }
 
-function drawPlayer(g, x, y){
+/* One suited figure, drawn twice. The diver has a sealed helmet with a lit
+   visor; a marine is the same crew in the same suit with the helmet gone and
+   whatever is left of the face showing. Sharing the silhouette is the point —
+   it says these were people wearing what you are wearing, and it means the only
+   thing that differs between two figures on screen is the loadout, which is the
+   thing you actually need to read. */
+function drawSuit(g, x, y, o){
   const C = CELL, cx = x+C/2, cy = y+C/2;
+  o = o || {};
+  const bulk = o.bulk || 1;              /* 0.9 light · 1 medium · 1.15 heavy */
+  const body = o.body || '#cfe8f5';
+  const glow = o.glow || '#7fd8ff';
+
   g.save();
-  g.shadowColor = '#7fd8ff'; g.shadowBlur = C*0.5;
-  g.fillStyle = '#cfe8f5';
-  rr(g, cx-C*0.19, cy-C*0.06, C*0.38, C*0.34, C*0.09); g.fill(); outline(g);
-  g.fillStyle = '#eaf7ff';
-  g.beginPath(); g.arc(cx, cy-C*0.16, C*0.16, 0, 6.2832); g.fill(); outline(g);
-  g.fillStyle = '#123244';
-  rr(g, cx-C*0.11, cy-C*0.21, C*0.22, C*0.11, C*0.04); g.fill();
-  g.fillStyle = '#7fd8ff';
-  rr(g, cx-C*0.09, cy-C*0.20, C*0.09, C*0.05, C*0.02); g.fill();
-  g.strokeStyle = '#cfe8f5'; g.lineWidth = Math.max(1.2, C*0.055);
-  g.beginPath(); g.moveTo(cx-C*0.19, cy+C*0.02); g.lineTo(cx-C*0.31, cy+C*0.16); g.stroke();
-  g.beginPath(); g.moveTo(cx+C*0.19, cy+C*0.02); g.lineTo(cx+C*0.31, cy+C*0.16); g.stroke();
+  g.shadowColor = glow; g.shadowBlur = C*0.5;
+
+  /* torso — armour weight is body bulk, which is what reads at 13px */
+  g.fillStyle = body;
+  rr(g, cx-C*0.19*bulk, cy-C*0.06, C*0.38*bulk, C*0.34, C*0.09); g.fill(); outline(g);
+
+  if(o.helmet === false){
+    /* bare head: no visor, and the colour tells you what it is now */
+    g.fillStyle = o.head || '#7cc46b';
+    g.beginPath(); g.arc(cx, cy-C*0.16, C*0.15, 0, 6.2832); g.fill(); outline(g);
+    g.fillStyle = '#1c2a17';
+    g.beginPath(); g.arc(cx-C*0.055, cy-C*0.18, C*0.026, 0, 6.2832); g.fill();
+    g.beginPath(); g.arc(cx+C*0.055, cy-C*0.18, C*0.026, 0, 6.2832); g.fill();
+    g.beginPath(); g.moveTo(cx-C*0.05, cy-C*0.10);
+    g.lineTo(cx+C*0.05, cy-C*0.10); g.stroke();
+  } else {
+    g.fillStyle = '#eaf7ff';
+    g.beginPath(); g.arc(cx, cy-C*0.16, C*0.16, 0, 6.2832); g.fill(); outline(g);
+    g.fillStyle = '#123244';
+    rr(g, cx-C*0.11, cy-C*0.21, C*0.22, C*0.11, C*0.04); g.fill();
+    g.fillStyle = glow;
+    rr(g, cx-C*0.09, cy-C*0.20, C*0.09, C*0.05, C*0.02); g.fill();
+  }
+
+  /* arms */
+  g.strokeStyle = body; g.lineWidth = Math.max(1.2, C*0.055*bulk);
+  g.beginPath(); g.moveTo(cx-C*0.19*bulk, cy+C*0.02); g.lineTo(cx-C*0.31, cy+C*0.16); g.stroke();
+  g.beginPath(); g.moveTo(cx+C*0.19*bulk, cy+C*0.02); g.lineTo(cx+C*0.31, cy+C*0.16); g.stroke();
+
+  /* the armour pip: coloured by the damage type it protects you from, so it
+     reuses the language the weapons already taught — red beam, green plasma,
+     orange fire. No legend required. */
+  if(o.pip){
+    g.fillStyle = o.pip;
+    g.beginPath(); g.arc(cx+C*0.15*bulk, cy+C*0.02, C*0.045, 0, 6.2832); g.fill();
+  }
+
+  /* what it is carrying, held at the side */
+  if(o.weapon){
+    g.save();
+    g.translate(cx - C*0.30, cy + C*0.14);
+    g.rotate(-0.5);
+    g.scale(0.42, 0.42);
+    drawItem(g, -CELL/2, -CELL/2, 'wpn', o.weapon);
+    g.restore();
+  }
   g.restore();
+}
+
+function drawPlayer(g, x, y){
+  const w = wep();
+  drawSuit(g, x, y, {
+    bulk: 1 + (P.def || 0) * 0.02,
+    weapon: P.weapon === 'fists' ? null : P.weapon,
+    pip: P.defPip || null
+  });
 }
 
 /* ---------------- the whole board ---------------- */
@@ -3273,13 +3517,28 @@ function drawBoard(){
       g.restore();
     }
   }
+  const FLASHCOL = { slug:'#ffd9a0', laser:'#ff3b3b', plasma:'#3bff8a', flame:'#ff8a3d' };
   for(const L of lights){
     const x = L.x*C, y = L.y*C;
     g.save();
-    g.shadowColor = '#a3e635'; g.shadowBlur = C*0.9;
-    g.fillStyle = '#a3e635';
-    g.globalAlpha = L.t > 3 ? 1 : 0.35 + Math.abs(Math.sin(performance.now()/160))*0.5;
-    g.beginPath(); g.arc(x+C/2, y+C/2, C*0.16, 0, 6.2832); g.fill();
+    if(L.flash){
+      const col = FLASHCOL[L.flash] || '#ffd9a0';
+      g.globalCompositeOperation = 'lighter';
+      const n = parseInt(col.slice(1), 16);
+      const rgb = ((n>>16)&255) + ',' + ((n>>8)&255) + ',' + (n&255);
+      const gr = g.createRadialGradient(x+C/2, y+C/2, 0, x+C/2, y+C/2, C*L.r*0.85);
+      gr.addColorStop(0,    'rgba(' + rgb + ',.85)');
+      gr.addColorStop(0.35, 'rgba(' + rgb + ',.30)');
+      gr.addColorStop(1,    'rgba(' + rgb + ',0)');
+      g.globalAlpha = 0.75;
+      g.fillStyle = gr;
+      g.beginPath(); g.arc(x+C/2, y+C/2, C*L.r*0.85, 0, 6.2832); g.fill();
+    } else {
+      g.shadowColor = '#a3e635'; g.shadowBlur = C*0.9;
+      g.fillStyle = '#a3e635';
+      g.globalAlpha = L.t > 3 ? 1 : 0.35 + Math.abs(Math.sin(performance.now()/160))*0.5;
+      g.beginPath(); g.arc(x+C/2, y+C/2, C*0.16, 0, 6.2832); g.fill();
+    }
     g.restore();
   }
 
@@ -3668,7 +3927,8 @@ function showKit(){
         '<div><span>CALIBRATION</span><b>LV ' + P.lvl + '</b></div>' +
         '<div><span>DATA</span><b>' + P.xp + '/' + P.xpNeed + '</b></div>' +
         '<div><span>DAMAGE</span><b>' + dieText(wep()) + ' \u00D7' + P.lvl + '</b></div>' +
-        '<div><span>RESIST</span><b>' + Math.round((P.resist + (P.buff.res>0?0.35:0))*100) + '%</b></div>' +
+        '<div><span>DEF</span><b>' + playerDef() + '</b></div>' +
+        '<div><span>ATK</span><b>' + (3 + P.lvl + (wep().atk || 0)) + '</b></div>' +
         '<div><span>LAMP</span><b>' + lampRange() + ' SQ</b></div>' +
         '<div><span>OPTIC</span><b style="font-size:11px">' + lamp().name.toUpperCase() + '</b></div>' +
       '</div>' +

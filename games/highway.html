@@ -708,7 +708,7 @@ function px(clientX){ return (clientX - cv.getBoundingClientRect().left); }
 
 /* page-wide relative steering, so the wheel is wherever your thumb is */
 if (AR && AR.gesture) AR.gesture.onDrag(g => {
-  if (state !== 'run') return;
+  if (state !== 'driving') return;  /* likewise: 'driving', not 'run' */
   targetX = clamp(targetX + g.dx / (W*0.34), -1.18, 1.18);
 });
 

@@ -408,7 +408,7 @@ function localX(clientX){
 
 /* steering is relative and page-wide: put your thumb anywhere and pull */
 if (AR && AR.gesture) AR.gesture.onDrag(g => {
-  if (state !== 'dive') return;
+  if (state !== 'diving') return;   /* the state is 'diving'; guessing it cost the controls */
   targetX = clamp(targetX + (g.dx / scale) * 1.5, R + 8, W - R - 8);
 });
 
