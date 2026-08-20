@@ -282,7 +282,16 @@ button:focus-visible{outline:2px solid var(--ice);outline-offset:1px}
    piece of salvage worth having. Combat is fully deterministic.
    ================================================================ */
 
-const COLS = 11, ROWS = 14, N = COLS*ROWS;
+/* The window onto the deck is a fixed 11x14; the deck itself is larger and
+   gets larger still as you go down, so the camera is doing work from the very
+   first level rather than switching on later. */
+const VIEW_C = 11, VIEW_R = 14;
+let COLS = 13, ROWS = 18, N = COLS*ROWS;
+function deckSize(deck){
+  return { c: Math.min(27, 13 + Math.floor((deck-1)/2) * 2),
+           r: Math.min(38, 18 + Math.floor((deck-1)/2) * 3) };
+}
+let camX = 0, camY = 0;
 
 const $ = id => document.getElementById(id);
 const panelEl = $('panel');
@@ -329,17 +338,139 @@ const DECKS = [
   ['The Choir',     'They have learned your name. They are practising it.'],
   ['Core',          'You are the last unopened thing aboard.']
 ];
+
+/* ---- the rest of the manifest -------------------------------------------
+   Thirty more, drawn from six body plans rather than thirty bespoke sprites:
+   a plan sets the silhouette, and size, limbs, eyes, spines and colour do the
+   distinguishing. Cheaper than thirty drawings and it keeps a family
+   resemblance inside each tier, which is what makes a new deck read as a
+   different part of the ship rather than a different game.
+   plans: crawl | biped | float | plate | mass | swarm
+   ------------------------------------------------------------------------ */
+const MORE = {
+  /* tier 1 — deck 1-2 */
+  mite:   { name:'Mite',      hp:0.5, dmg:0.7, trait:null, atk:1, def:2, dn:1, dd:3, sight:3, spd:0.55, patrol:0.35,
+            plan:'swarm', legs:4, eyes:2, size:0.62, c:'#b98cff', pack:3,
+            desc:'Small, numerous, and not worth a round of ammunition.' },
+  clinger:{ name:'Clinger',   hp:0.7, dmg:0.9, trait:'AMBUSH', atk:2, def:1, dn:1, dd:4, sight:2, spd:0.95, patrol:0.00,
+            plan:'crawl', legs:6, eyes:1, size:0.80, c:'#8f6bff',
+            desc:'Holds still against the plating until you are close, then does not.' },
+  weeper: { name:'Weeper',    hp:0.9, dmg:0.8, trait:'CORROSIVE', atk:1, def:1, dn:1, dd:4, sight:4, spd:0.35, patrol:0.28,
+            plan:'mass', size:0.85, eyes:0, c:'#6f5cc8',
+            desc:'Leaves the deck slick behind it. Sears the suit on contact.' },
+
+  /* tier 2 — deck 3-4 */
+  lurker: { name:'Lurker',    hp:0.9, dmg:1.0, trait:'AMBUSH', atk:3, def:2, dn:1, dd:6, sight:3, spd:1.10, patrol:0.00,
+            plan:'crawl', legs:8, eyes:3, size:0.92, c:'#a24bff',
+            desc:'Waits in the dark at a junction. Very fast over three squares.' },
+  shrieker:{name:'Shrieker',  hp:0.7, dmg:0.6, trait:'SHRIEKS', atk:1, def:2, dn:1, dd:4, sight:7, spd:0.45, patrol:0.35,
+            plan:'float', eyes:4, size:0.85, c:'#d67bff',
+            desc:'Wakes everything within six squares the moment it sees you.' },
+  gnasher:{ name:'Gnasher',   hp:1.0, dmg:1.1, trait:'BLEEDS', atk:2, def:1, dn:1, dd:6, sight:4, spd:0.55, patrol:0.30,
+            plan:'biped', eyes:2, size:0.95, c:'#c46bff',
+            desc:'Wounds that keep opening. Bleed 1d4 for three turns.' },
+  ratking:{ name:'Rat King',  hp:1.1, dmg:0.8, trait:'SPLITS', atk:2, def:2, dn:1, dd:6, sight:4, spd:0.50, patrol:0.30,
+            plan:'mass', size:1.0, eyes:5, c:'#7a4bd8',
+            desc:'Comes apart into two smaller things when it dies.' },
+
+  /* tier 3 — deck 5-6 */
+  sentry: { name:'Sentry',    hp:1.2, dmg:1.0, trait:'PLATED', atk:3, def:6, dn:1, dd:8, sight:5, spd:0.00, patrol:0.00,
+            plan:'plate', eyes:1, size:0.95, c:'#7f97ad',
+            desc:'Bolted to the deck. It will never follow, and it never misses either.' },
+  leech:  { name:'Leech',     hp:0.9, dmg:0.9, trait:'LEECH', atk:3, def:2, dn:1, dd:6, sight:5, spd:0.70, patrol:0.35,
+            plan:'float', eyes:2, size:0.88, c:'#c58cff',
+            desc:'Everything it takes off you, it puts back on itself.' },
+  render: { name:'Render',    hp:1.1, dmg:1.2, trait:'FIRST STRIKE', atk:3, def:2, dn:1, dd:8, sight:5, spd:0.70, patrol:0.35,
+            plan:'biped', eyes:2, size:1.05, spines:true, c:'#b04bff',
+            desc:'Opens every exchange, and opens it hard.' },
+  drone:  { name:'Drone',     hp:0.8, dmg:1.0, trait:'PLATED', atk:3, def:5, dn:1, dd:6, sight:6, spd:0.85, patrol:0.45,
+            plan:'plate', eyes:1, size:0.80, c:'#9db4c6', pack:2,
+            desc:'Maintenance unit, still following an order nobody gave it.' },
+
+  /* tier 4 — deck 7-8 */
+  maw:    { name:'Maw',       hp:1.5, dmg:1.2, trait:'REGENERATES', atk:4, def:3, dn:2, dd:6, sight:4, spd:0.45, patrol:0.25,
+            plan:'mass', size:1.15, eyes:6, c:'#5f3bc0',
+            desc:'Mostly mouth. Closes its own wounds while you deal with the others.' },
+  revenant:{name:'Revenant',  hp:1.0, dmg:1.1, trait:'DRAIN', atk:4, def:3, dn:1, dd:10, sight:7, spd:0.90, patrol:0.45,
+            plan:'float', eyes:3, size:1.0, c:'#e0c0ff',
+            desc:'Takes the charge out of your suit as readily as the blood out of you.' },
+  harrier:{ name:'Harrier',   hp:0.8, dmg:1.1, trait:'HUNTS', atk:5, def:3, dn:1, dd:8, sight:8, spd:1.30, patrol:0.55,
+            plan:'biped', eyes:2, size:0.90, spines:true, c:'#ff5cc8', pack:2,
+            desc:'Runs you down in pairs and does not tire.' },
+  bulwark:{ name:'Bulwark',   hp:1.8, dmg:1.0, trait:'PLATED', atk:3, def:8, dn:2, dd:6, sight:3, spd:0.28, patrol:0.20,
+            plan:'plate', eyes:2, size:1.20, c:'#6f8296',
+            desc:'A door that decided to walk. Bring something that pierces.' },
+
+  /* tier 5 — deck 9-10 */
+  carrion: { name:'Carrion',  hp:1.3, dmg:1.1, trait:'SPLITS', atk:4, def:4, dn:2, dd:6, sight:5, spd:0.60, patrol:0.30,
+            plan:'mass', size:1.15, eyes:4, c:'#8f3bd8',
+            desc:'What it splits into is worse than what it was.' },
+  wight:  { name:'Wight',     hp:1.1, dmg:1.2, trait:'LEECH', atk:5, def:4, dn:2, dd:6, sight:7, spd:0.95, patrol:0.45,
+            plan:'float', eyes:4, size:1.05, c:'#efd8ff',
+            desc:'Older than the wreck. Feeds and mends in the same motion.' },
+  flenser:{ name:'Flenser',   hp:1.2, dmg:1.3, trait:'BLEEDS', atk:5, def:3, dn:2, dd:8, sight:6, spd:1.05, patrol:0.50,
+            plan:'biped', eyes:3, size:1.10, spines:true, c:'#d43bff',
+            desc:'Strips a suit the way it was built to strip a hull.' },
+  hulk:   { name:'Hulk',      hp:2.0, dmg:1.2, trait:'PLATED', atk:4, def:8, dn:2, dd:8, sight:4, spd:0.40, patrol:0.25,
+            plan:'plate', eyes:2, size:1.30, c:'#8296a8',
+            desc:'Cargo loader, badly repurposed, still very strong.' },
+  swarmling:{name:'Swarmling',hp:0.6, dmg:0.9, trait:null, atk:3, def:5, dn:1, dd:6, sight:5, spd:1.25, patrol:0.55,
+            plan:'swarm', legs:6, eyes:2, size:0.70, c:'#ff8fd8', pack:5,
+            desc:'Never alone. By the time you count them it is too late.' },
+
+  /* tier 6 — deck 11 and down */
+  nemesis:{ name:'Nemesis',   hp:1.6, dmg:1.3, trait:'HUNTS', atk:6, def:5, dn:2, dd:8, sight:9, spd:1.35, patrol:0.60,
+            plan:'biped', eyes:4, size:1.20, spines:true, c:'#ff3bb0',
+            desc:'It has your scent from the moment the hatch closes.' },
+  thresher:{name:'Thresher',  hp:1.5, dmg:1.4, trait:'BLEEDS', atk:6, def:4, dn:2, dd:10, sight:6, spd:1.00, patrol:0.45,
+            plan:'crawl', legs:10, eyes:6, size:1.20, c:'#c03bff',
+            desc:'Ten limbs and every one of them ends badly.' },
+  hollow: { name:'Hollow',    hp:1.3, dmg:1.3, trait:'DRAIN', atk:6, def:5, dn:2, dd:8, sight:8, spd:1.05, patrol:0.50,
+            plan:'float', eyes:5, size:1.15, c:'#ffffff',
+            desc:'You can see the deck through it. It can see rather more of you.' },
+  colossus:{name:'Colossus',  hp:2.4, dmg:1.3, trait:'PLATED', atk:5, def:10, dn:2, dd:10, sight:4, spd:0.35, patrol:0.22,
+            plan:'plate', eyes:3, size:1.40, c:'#98acbe',
+            desc:'Structural. Whatever it was holding up came down long ago.' }
+};
+for(const k in MORE) SPECIES[k] = Object.assign({ g:'?' }, MORE[k]);
+
+/* ---- apexes ----
+   One guards the hatch on every deck. Which one depends how deep you are, so
+   the thing on the salvage stops being the same silhouette every time. */
+const APEXES = {
+  apex:     { tier:1 },
+  broodmaw: { name:'Broodmaw',  hp:2.0, dmg:1.1, trait:'SPLITS',  atk:5, def:5, dn:2, dd:8,  sight:5, spd:0.45, patrol:0.25,
+              plan:'mass', size:1.35, eyes:8, c:'#a86bff', tier:2, apex:true,
+              desc:'It has been laying in here for a long time.' },
+  warlord:  { name:'Warlord',   hp:2.2, dmg:1.3, trait:'FIRST STRIKE', atk:7, def:6, dn:2, dd:10, sight:7, spd:0.85, patrol:0.40,
+              plan:'biped', size:1.35, eyes:4, spines:true, c:'#ff4bb0', tier:3, apex:true,
+              desc:'Whatever the crew became, this is what it takes orders from.' },
+  sovereign:{ name:'Sovereign', hp:2.6, dmg:1.3, trait:'DRAIN',   atk:7, def:7, dn:3, dd:8,  sight:9, spd:0.95, patrol:0.45,
+              plan:'float', size:1.40, eyes:6, c:'#f4e6ff', tier:4, apex:true,
+              desc:'It does not hurry, because it does not need to.' },
+  leviathan:{ name:'Leviathan', hp:3.0, dmg:1.4, trait:'PLATED',  atk:6, def:11, dn:3, dd:10, sight:5, spd:0.40, patrol:0.25,
+              plan:'plate', size:1.50, eyes:4, c:'#aebdcb', tier:5, apex:true,
+              desc:'The reason the hull is shaped the way it is now.' }
+};
+for(const k in APEXES) if(k !== 'apex') SPECIES[k] = Object.assign({ g:'\u03A9' }, APEXES[k]);
+function apexFor(deck){
+  const pool = Object.keys(APEXES).filter(k => APEXES[k].tier <= Math.ceil(deck/2.5));
+  return pool.length ? pool[(Math.random()*pool.length)|0] : 'apex';
+}
+
 const ROSTER = [
-  ['crawler'],
-  ['crawler','husk','skitter'],
-  ['crawler','husk','spitter','skitter'],
-  ['husk','spitter','warden','skitter'],
-  ['husk','spitter','warden','stalker','skitter'],
-  ['spitter','warden','wraith','stalker','shrike'],
-  ['warden','wraith','gorger','stalker','skitter','shrike'],
-  ['husk','spitter','wraith','gorger','stalker','shrike'],
-  ['spitter','warden','wraith','gorger','skitter','shrike'],
-  ['husk','spitter','warden','wraith','gorger','stalker','skitter','shrike']
+  /* 1  */ ['crawler','mite'],
+  /* 2  */ ['crawler','mite','clinger','weeper'],
+  /* 3  */ ['crawler','husk','skitter','clinger','weeper','lurker'],
+  /* 4  */ ['husk','spitter','skitter','lurker','shrieker','gnasher','ratking'],
+  /* 5  */ ['husk','spitter','warden','gnasher','ratking','sentry','leech'],
+  /* 6  */ ['spitter','warden','stalker','sentry','leech','render','drone'],
+  /* 7  */ ['warden','wraith','stalker','render','drone','maw','revenant'],
+  /* 8  */ ['wraith','gorger','stalker','shrike','maw','revenant','harrier','bulwark'],
+  /* 9  */ ['gorger','stalker','shrike','harrier','bulwark','carrion','wight'],
+  /* 10 */ ['shrike','skitter','carrion','wight','flenser','hulk','swarmling'],
+  /* 11 */ ['stalker','flenser','hulk','swarmling','nemesis','thresher'],
+  /* 12 */ ['flenser','swarmling','nemesis','thresher','hollow','colossus']
 ];
 
 /* ---------------- dice ---------------- */
@@ -455,8 +586,13 @@ const DROPS = [
   ['rifle.laser','rifle.plasma','chainsaw','lmg.laser','lmg.plasma','flamer']
 ];
 
+/* You carry two, and your hands. Everything else stays where you found it,
+   which is what makes finding something a decision rather than a collection. */
+const SLOTS = 2;
+function carried(){ return ['fists'].concat(P.slots || []); }
 function wep(){ return WEAPONS[P.weapon] || WEAPONS.fists; }
-function hasWep(id){ return P.weapons.indexOf(id) >= 0; }
+function hasWep(id){ return carried().indexOf(id) >= 0; }
+function slotFree(){ return (P.slots || []).length < SLOTS; }
 function rounds(id){
   const w = WEAPONS[id] || {};
   if(!w.ammo) return Infinity;
@@ -677,7 +813,6 @@ const USABLE = {
 };
 
 function wep(){ return WEAPONS[P.weapon] || WEAPONS.knife; }
-function hasWep(id){ return P.weapons.indexOf(id) >= 0; }
 function rounds(id){ const w = WEAPONS[id] || {}; return w.ammo ? (P.ammo[w.ammo] || 0) : Infinity; }
 function canFire(id){ const w = WEAPONS[id] || {}; return !w.ammo || rounds(id) >= (w.cost || 1); }
 function equip(id){
@@ -1121,7 +1256,17 @@ function attemptFloorplan(){
 
   const floor = [];
   for(let i=0;i<N;i++) if(!map[i].wall) floor.push(i);
-  if(floor.length < 52 || floor.length > 104) return null;
+  /* These bounds were written for a fixed 11x14 hull. Once decks started
+     growing, every larger floorplan fell outside them, all 80 attempts
+     failed, and the fallback handed back one open box with no walls at all —
+     which is why deck six onward was a featureless room. Scale with area. */
+  const area = N;
+  if(floor.length < area * 0.30 || floor.length > area * 0.62) return null;
+
+  /* No route may depend on squeezing between two corners that meet. Rather
+     than allowing the squeeze, take one of the two corners out — so the rule
+     can be enforced everywhere without ever stranding a tile. */
+  sealSqueezes();
 
   // a little organic creep on the walls that touch open space
   for(let i=0;i<N;i++){
@@ -1130,6 +1275,24 @@ function attemptFloorplan(){
       map[i].organic = true;
   }
   return floor;
+}
+
+function sealSqueezes(){
+  for(let y=0;y<ROWS-1;y++) for(let x=0;x<COLS-1;x++){
+    for(const [dx,dy] of [[1,1],[1,-1]]){
+      const ax = x, ay = dy > 0 ? y : y+1;
+      const bx = x+dx, by = dy > 0 ? y+1 : y;
+      if(!inB(ax,ay) || !inB(bx,by)) continue;
+      if(map[idx(ax,ay)].wall || map[idx(bx,by)].wall) continue;   // not a diagonal pair
+      const f1 = idx(bx, ay), f2 = idx(ax, by);
+      if(!map[f1].wall || !map[f2].wall) continue;                 // at least one flank open
+      /* both flanks solid: open whichever is not on the hull border */
+      const cand = [f1, f2].filter(i =>
+        ix(i) > 0 && iy(i) > 0 && ix(i) < COLS-1 && iy(i) < ROWS-1);
+      if(!cand.length) continue;
+      map[cand[(Math.random()*cand.length)|0]].wall = false;
+    }
+  }
 }
 
 function assembleDeck(){
@@ -1167,17 +1330,49 @@ function assembleDeck(){
   }
   gates.sort((a,b) => a.d - b.d);
 
+  /* --- ZONES ---------------------------------------------------------
+     A deck is a chain of restricted zones. Zone 0 is open; zone k lies
+     behind the k-th door, and the card for that door is somewhere in zone
+     k-1. So you break into one zone to find the way into the next, and the
+     hatch is always past the last of them.
+
+     Every gate above already cuts the hatch off from the start, so any
+     subset of them nests along the same route. What matters here is picking
+     ones that are properly spaced — selecting by index put two doors on
+     consecutive corridor tiles, which is why cards were turning up adjacent
+     to each other with nothing in between. */
   const want = clamp(1 + Math.floor((deck-1)/2), 1, 3);
+  const MIN_GAP = 4;
   const chosen = [];
   if(gates.length){
-    const n = Math.min(want, gates.length);
-    for(let k=0;k<n;k++){
-      const g = gates[Math.round((k+1) * (gates.length-1) / (n+1))] || gates[k];
-      if(!chosen.includes(g)) chosen.push(g);
+    const span = gates[gates.length-1].d - gates[0].d;
+    for(let k = 0; k < want; k++){
+      const target = gates[0].d + span * ((k + 1) / (want + 1));
+      let best = null, bestScore = Infinity;
+      for(const g of gates){
+        if(chosen.some(c => Math.abs(c.d - g.d) < MIN_GAP)) continue;
+        if(chosen.some(c => Math.abs(ix(c.i) - ix(g.i)) + Math.abs(iy(c.i) - iy(g.i)) < MIN_GAP)) continue;
+        const score = Math.abs(g.d - target);
+        if(score < bestScore){ bestScore = score; best = g; }
+      }
+      if(best) chosen.push(best);
     }
   }
-  chosen.sort((a,b)=>a.d-b.d);
+  if(!chosen.length) return false;
+  chosen.sort((a,b) => a.d - b.d);
 
+  /* Prove the chain before committing to it. Each door must be reachable
+     only after the one before it is open, and the hatch only after all of
+     them are. A layout that fails is thrown away and the deck regenerated. */
+  for(let k = 0; k < chosen.length; k++){
+    const shut = new Set(chosen.slice(k).map(g => g.i));
+    const reach = flood(startI, shut);
+    /* the door's own tile is sealed, so ask whether you can walk up to it */
+    if(!neighbours(chosen[k].i).some(n => reach[n] >= 0)) return false;
+    for(let j = k + 1; j < chosen.length; j++)
+      if(neighbours(chosen[j].i).some(n => reach[n] >= 0)) return false;  // not nested
+    if(reach[exitI] >= 0) return false;                 // hatch must stay sealed
+  }
   const used = new Set([startI, exitI]);
   const keyPlacements = [];
   for(let k=0;k<chosen.length;k++){
@@ -1196,11 +1391,12 @@ function assembleDeck(){
   }
   for(const kp of keyPlacements){ map[kp.spot].key = kp.colour; map[kp.spot].item = 'key'; }
 
-  /* --- the apex sits on the salvage, beside the hatch --- */
+  /* --- the apex sits on the salvage, beside the hatch, in the final zone --- */
   const near = floor.filter(i => !used.has(i) && !map[i].door &&
                 Math.abs(ix(i)-ix(exitI)) + Math.abs(iy(i)-iy(exitI)) <= 2);
   const apexI = near.length ? pick(near) : pick(floor.filter(i => !used.has(i) && !map[i].door));
   used.add(apexI);
+  const apexType = apexFor(deck);
 
   mobs = [];
   const roster = ROSTER[Math.min(ROSTER.length-1, deck-1)];
@@ -1231,7 +1427,7 @@ function assembleDeck(){
       }
     }
   }
-  spawnMob(ix(apexI), iy(apexI), 'apex', base + 1 + Math.floor(deck/5));
+  spawnMob(ix(apexI), iy(apexI), apexType, base + 1 + Math.floor(deck/5));
 
   /* --- gear strewn through the compartments --- */
   const kinds = ['med','cell','med','plate','chip','cap','shard','ammo','ammo','ammo','grenade','incend','chem','chem','stim','carapace','trauma','lamp'];
@@ -1243,7 +1439,7 @@ function assembleDeck(){
     used.add(i);
     map[i].item = k < 2 ? (k===0?'med':'ammo') : pick(kinds);
     if(map[i].item === 'ammo'){
-      const owned = P.weapons.map(id => WEAPONS[id].ammo).filter(Boolean);
+      const owned = carried().map(id => WEAPONS[id].ammo).filter(Boolean);
       map[i].atype = owned.length && Math.random() < 0.75 ? pick(owned) : pick(['slug','cell','plasma','fuel']);
     }
   }
@@ -1272,6 +1468,8 @@ function assembleDeck(){
 }
 
 function buildDeck(){
+  const sz = deckSize(deck);
+  COLS = sz.c; ROWS = sz.r; N = COLS * ROWS;
   blaze = new Uint8Array(N);
   lights = [];
   let ok = false, guard = 0;
@@ -1296,7 +1494,7 @@ function newRun(){
   P = { lvl:1, hp:34, maxHp:34, dmg:5, charge:4, maxCharge:10, stam:14, maxStam:14,
         xp:0, xpNeed:2, x:0, y:0, corroded:false, surge:false,
         revealed:0, kills:0, keys:[], stillTurns:0, movedThisTurn:false,
-        weapons:['fists','knife','pistol.slug'], weapon:'knife',
+        slots:['knife','pistol.slug'], weapon:'knife',
         ammo:{ slug:20, cell:0, plasma:0, fuel:0 },
         items:{ med:1, trauma:0, grenade:1, incend:0, chem:2, stim:0, carapace:0 },
         buff:{ dmg:0, res:0 },
@@ -1729,6 +1927,20 @@ function hurtPlayer(m, forced, reflected){
 }
 
 function killMob(m){
+  const sp0 = SPECIES[m.type] || {};
+  if(sp0.trait === 'SPLITS' && !m.spawned && m.lvl > 1){
+    let made = 0;
+    for(const n of neighbours(idx(m.x,m.y))){
+      if(made >= 2) break;
+      const t = map[n];
+      if(t.wall || (t.door && !t.door.open) || mobAt(ix(n), iy(n))) continue;
+      spawnMob(ix(n), iy(n), m.type, Math.max(1, m.lvl - 1));
+      const kid = mobs[mobs.length-1];
+      kid.spawned = true; kid.alert = 3;
+      made++;
+    }
+    if(made) say(label(m) + ' comes apart into ' + made + ' more.');
+  }
   m.alive = false;
   const xp = Math.max(1, m.lvl - P.lvl + 1) + (m.boss ? 2 : 0) + P.xpBonus;
   P.kills++;
@@ -1847,6 +2059,22 @@ function endTurn(actedOn){
     else if(m.alert > 0) m.alert--;
     const hunting = m.alert > 0;
 
+    const sp = SPECIES[m.type] || {};
+    /* AMBUSH holds against the plating until you are almost on it */
+    if(sp.trait === 'AMBUSH' && !adjacent(m) &&
+       Math.max(Math.abs(m.x-P.x), Math.abs(m.y-P.y)) > 2) continue;
+    /* SHRIEKS wakes the compartment, once */
+    if(sp.trait === 'SHRIEKS' && hunting && !m.screamed){
+      m.screamed = true;
+      let woke = 0;
+      for(const o of mobs){
+        if(!o.alive || o === m || o.alert > 0) continue;
+        if(Math.max(Math.abs(o.x-m.x), Math.abs(o.y-m.y)) > 6) continue;
+        o.alert = 3; o.mx = P.x; o.my = P.y; woke++;
+      }
+      if(woke) say(label(m) + ' screams \u2014 ' + woke + ' more wake up.');
+    }
+
     // already on top of you: swing rather than shuffle
     if(adjacent(m)){
       if(m !== actedOn){
@@ -1917,10 +2145,26 @@ function playerField(){
 function stepHunt(m, field){
   const here = field[idx(m.x,m.y)];
   if(here < 0){ stepPatrol(m); return; }
-  let best = -1, bd = here;
+  /* Score every step rather than taking the first improvement. A pure
+     "closest tile wins" rule sends a whole pack down one corridor in single
+     file, where only the leader can ever reach you; nudging them apart makes
+     them spread and come at you from more than one side. */
+  let best = -1, bestScore = Infinity;
   for(const n of neighbours(idx(m.x,m.y))){
     if(!mobPassable(ix(n), iy(n))) continue;
-    if(field[n] >= 0 && field[n] < bd){ bd = field[n]; best = n; }
+    if(field[n] < 0 || field[n] >= here) continue;
+    if(!cornerOpen(m.x, m.y, ix(n), iy(n))) continue;
+    let score = field[n] * 4;
+    /* crowding penalty: prefer a square with fewer of its own kind beside it */
+    for(const o of mobs){
+      if(!o.alive || o === m) continue;
+      const d = Math.max(Math.abs(o.x-ix(n)), Math.abs(o.y-iy(n)));
+      if(d === 0) score += 40;
+      else if(d === 1) score += 3;
+    }
+    if(blaze && blaze[n]) score += 30;
+    score += Math.random() * 0.9;          /* break ties, so packs do not lockstep */
+    if(score < bestScore){ bestScore = score; best = n; }
   }
   if(best >= 0){ m.x = ix(best); m.y = iy(best); }
   else stepPatrol(m);
@@ -1958,26 +2202,55 @@ function passable(x,y){
 }
 function walkable(x,y){ return at(x,y).seen && passable(x,y) && !mobAt(x,y); }
 
+/* Dijkstra rather than a plain queue, so a long click can be told that some
+   squares are worse than others. A breadth-first route treats every tile as
+   equal and will happily walk you straight through a room of hostiles.
+
+   The corner rule applies here too: you cannot slip diagonally between two
+   bulkhead corners that touch. Enforcing it stranded tiles on some maps, but
+   that is a fault in the map — see sealSqueezes() — not a reason to let a
+   suited diver pass through a gap with no width. */
+function stepCost(i, from){
+  let c = 1;
+  const x = ix(i), y = iy(i);
+  /* stepping into arm's reach of something awake is expensive */
+  for(const m of mobs){
+    if(!m.alive) continue;
+    const d = Math.max(Math.abs(m.x-x), Math.abs(m.y-y));
+    if(d <= 1) c += m.alert > 0 ? 14 : 6;
+    else if(d === 2 && m.alert > 0) c += 2;
+  }
+  if(blaze && blaze[i]) c += 12;                    /* do not walk into fire */
+  const t = map[i];
+  if(t.door && !t.door.open) c += 3;                /* opening one costs a turn */
+  return c;
+}
 function pathTo(tx,ty){
   const start = idx(P.x,P.y), goal = idx(tx,ty);
   if(start === goal) return [];
-  const prev = new Array(N).fill(-1), seen = new Array(N).fill(false);
-  seen[start] = true;
-  const q = [start];
-  for(let h=0; h<q.length; h++){
-    const c = q[h];
+  if(!walkable(tx,ty)) return null;
+  const dist = new Float64Array(N).fill(Infinity);
+  const prev = new Int32Array(N).fill(-1);
+  const done = new Uint8Array(N);
+  dist[start] = 0;
+  /* N is small enough that a linear scan beats the cost of a heap */
+  for(;;){
+    let c = -1, bd = Infinity;
+    for(let i=0;i<N;i++) if(!done[i] && dist[i] < bd){ bd = dist[i]; c = i; }
+    if(c < 0) break;
+    if(c === goal) break;
+    done[c] = 1;
     for(const n of neighbours(c)){
-      if(seen[n] || !walkable(ix(n), iy(n))) continue;
-      seen[n] = true; prev[n] = c;
-      if(n === goal){
-        const path=[]; let k=n;
-        while(k !== start){ path.push(k); k = prev[k]; }
-        return path.reverse();
-      }
-      q.push(n);
+      if(done[n] || !walkable(ix(n), iy(n))) continue;
+      if(!cornerOpen(ix(c), iy(c), ix(n), iy(n))) continue;
+      const nd = dist[c] + stepCost(n, c);
+      if(nd < dist[n]){ dist[n] = nd; prev[n] = c; }
     }
   }
-  return null;
+  if(prev[goal] < 0 && goal !== start) return null;
+  const path = []; let k = goal;
+  while(k !== start){ path.push(k); k = prev[k]; if(k < 0) return null; }
+  return path.reverse();
 }
 
 function takeItem(t){
@@ -2038,13 +2311,65 @@ function takeItem(t){
     if(hasWep(id)){
       if(w.ammo){ P.ammo[w.ammo] += 6; say('A second ' + w.name + ' \u2014 stripped for 6 ' + AMMO[w.ammo].name.toLowerCase() + '.'); }
       else { P.items.stim = (P.items.stim||0)+1; say('A second ' + w.name + ' \u2014 traded off for a stim.'); }
-    } else {
-      P.weapons.push(id);
-      say(w.name.toUpperCase() + ' recovered. ' + w.note);
+      t.item = null; t.wid = null;
+    } else if(slotFree()){
+      P.slots.push(id);
       if(w.ammo && !P.ammo[w.ammo]) P.ammo[w.ammo] = w.ammo === 'fuel' ? 6 : 10;
+      say(w.name.toUpperCase() + ' recovered. ' + w.note);
+      t.item = null; t.wid = null;
+      equip(id);
+    } else {
+      /* both hands full: leave it lying there and ask */
+      askSwap(id, t);
+      return;
     }
   }
   void g;
+}
+
+/* The swap prompt. It shows what is on the floor beside what you are already
+   carrying, because the only question worth asking is which of the two you
+   would rather have. */
+function askSwap(id, tile){
+  const w = WEAPONS[id];
+  const line = k => dieText(k) + '\u00D7' + P.lvl +
+    (k.opt ? ' \u00B7 ' + k.opt + '\u2013' + maxRange(k) + 'sq' : ' \u00B7 melee') +
+    (k.kind !== 'ranged' ? ' \u00B7 ' + swingCost(k) + 'ST' : '');
+  let html =
+    '<div class="vtitle amber">On the deck</div>' +
+    '<div class="kit"><div class="krow"><div class="kmid">' +
+      '<b>' + w.name + '</b><i>' + (w.trait ? '<b style="color:var(--ice)">' + w.trait + '</b> \u00B7 ' : '') +
+      w.note + '<br>' + line(w) + '</i></div></div></div>' +
+    '<div class="kithead">Swap it for which hand?</div><div class="kit">';
+  P.slots.forEach((sid, i) => {
+    const k = WEAPONS[sid];
+    html += '<div class="krow"><div class="kmid"><b>' + (i ? 'SECOND' : 'FIRST') + ' \u00B7 ' + k.name +
+      '</b><i>' + line(k) + '</i></div>' +
+      '<button class="kbtn" data-swap="' + i + '">SWAP</button></div>';
+  });
+  html += '</div><div class="kend"><button class="vbtn" data-swap="no">LEAVE IT</button></div>';
+  openVeil(html);
+  veilBody.querySelectorAll('[data-swap]').forEach(b => {
+    b.addEventListener('click', () => {
+      const v = b.getAttribute('data-swap');
+      veil.classList.add('hidden');
+      if(v === 'no'){
+        /* takeItem clears the tile before we get here, so put it back —
+           declining must leave it lying there, not evaporate it */
+        tile.item = 'wpn'; tile.wid = id;
+        say('Left the ' + w.name + ' where it lay.');
+        render(); return;
+      }
+      const i = +v, dropped = P.slots[i];
+      P.slots[i] = id;
+      tile.item = 'wpn'; tile.wid = dropped;      /* the old one stays behind */
+      if(w.ammo && !P.ammo[w.ammo]) P.ammo[w.ammo] = w.ammo === 'fuel' ? 6 : 10;
+      if(P.weapon === dropped) P.weapon = id;
+      say('Took the ' + w.name + ', left the ' + WEAPONS[dropped].name + '.');
+      snd.pickup();
+      render();
+    });
+  });
 }
 
 function stepInto(x,y){
@@ -2188,9 +2513,15 @@ function loadRun(){
     if(typeof P.lamp !== 'number') P.lamp = 0;
     if(typeof P.maxStam !== 'number'){ P.maxStam = 14 + (P.lvl-1)*3; P.stam = P.maxStam; }
     if(!P.radius || P.radius < 3) P.radius = 3;
-    P.weapons = (P.weapons || ['fists','knife','pistol.slug']).filter(id => WEAPONS[id]);
-    if(P.weapons.indexOf('fists') < 0) P.weapons.unshift('fists');
-    if(!WEAPONS[P.weapon]) P.weapon = P.weapons[0];
+    /* older saves carried an unbounded list; keep the two best and bin the rest */
+    if(!P.slots){
+      const had = (P.weapons || []).filter(id => WEAPONS[id] && id !== 'fists');
+      had.sort((a,b) => avg(WEAPONS[b]) - avg(WEAPONS[a]));
+      P.slots = had.slice(0,2);
+    }
+    P.slots = P.slots.filter(id => WEAPONS[id] && id !== 'fists').slice(0,2);
+    delete P.weapons;
+    if(!WEAPONS[P.weapon]) P.weapon = (P.slots && P.slots[0]) || 'fists';
     installed = (r.installed || []).map(coreByName).filter(Boolean);
     corePool  = (r.pool || []).map(coreByName).filter(Boolean);
     live = true;
@@ -2214,6 +2545,13 @@ function loadRun(){
 const board = $('board'), bx = board.getContext('2d');
 let CELL = 30, BDPR = 1;
 
+/* Keep the diver near the middle, but never show past the hull — a camera
+   that runs off the edge of the map wastes half the screen on nothing. */
+function trackCam(){
+  camX = clamp(P.x - (VIEW_C - 1) / 2, 0, Math.max(0, COLS - VIEW_C));
+  camY = clamp(P.y - (VIEW_R - 1) / 2, 0, Math.max(0, ROWS - VIEW_R));
+}
+
 const PAL = {
   void:'#04060a', floor:'#20323f', floorAlt:'#1c2c38', seam:'#2f4a5f',
   wall:'#070b11', wallLip:'#31485f', wallDark:'#03060a',
@@ -2225,6 +2563,8 @@ const MOBCOL = {
   wraith:'#dcb8ff', gorger:'#6f4bd8', stalker:'#e050ff',
   skitter:'#ff8fd8', shrike:'#c74bff', apex:'#f0e6ff'
 };
+/* the newer manifest carries its own colour */
+for(const k in SPECIES) if(!MOBCOL[k] && SPECIES[k].c) MOBCOL[k] = SPECIES[k].c;
 const DOORCOL = { blue:'#4da3ff', amber:'#ffb347', red:'#ff5470' };
 
 function rr(g,x,y,w,h,r){
@@ -2247,22 +2587,71 @@ function drawFloor(g, x, y, alt){
   g.fillStyle = 'rgba(255,255,255,.028)';
   g.fillRect(x+C*0.12, y+C*0.12, C*0.30, C*0.05);
 }
-function drawWall(g, x, y, organic){
+/* A hull tile shows its machined edge on whichever sides face open deck, so a
+   pillar in the middle of a compartment is lit on all four and a tile buried in
+   the hull shows none. Previously every tile drew a lip along its top whether
+   or not anything was there to see it, which read as stacked bricks rather than
+   as structure. */
+function openSide(x, y, dx, dy){
+  const nx = x + dx, ny = y + dy;
+  if(!inB(nx, ny)) return false;
+  const t = at(nx, ny);
+  return !t.wall;
+}
+function drawWall(g, x, y, organic, tx, ty){
   const C = CELL;
+  const up    = openSide(tx, ty,  0, -1);
+  const down  = openSide(tx, ty,  0,  1);
+  const left  = openSide(tx, ty, -1,  0);
+  const right = openSide(tx, ty,  1,  0);
+
   g.fillStyle = organic ? PAL.organic : PAL.wall;
   g.fillRect(x, y, C, C);
-  g.fillStyle = organic ? PAL.organicLip : PAL.wallLip;
-  g.fillRect(x, y, C, Math.max(1.5, C*0.10));
-  g.fillStyle = organic ? 'rgba(0,0,0,.35)' : PAL.wallDark;
-  g.fillRect(x, y+C-Math.max(1.5,C*0.09), C, Math.max(1.5, C*0.09));
+
+  const lip = Math.max(1.5, C*0.10);
+  const lipCol  = organic ? PAL.organicLip : PAL.wallLip;
+  const darkCol = organic ? 'rgba(0,0,0,.42)' : PAL.wallDark;
+
+  /* the machined face, only where the deck can see it */
+  g.fillStyle = lipCol;
+  if(up)    g.fillRect(x, y, C, lip);
+  if(left)  g.fillRect(x, y, lip, C);
+  g.fillStyle = darkCol;
+  if(down)  g.fillRect(x, y+C-lip, C, lip);
+  if(right) g.fillRect(x+C-lip, y, lip, C);
+
   if(organic){
-    g.strokeStyle = PAL.vein; g.lineWidth = Math.max(1, C*0.045);
-    for(let k=0;k<3;k++){
-      g.beginPath();
-      g.moveTo(x+C*(0.18+k*0.28), y+C*0.22);
-      g.quadraticCurveTo(x+C*(0.34+k*0.22), y+C*0.52, x+C*(0.16+k*0.30), y+C*0.86);
-      g.stroke();
+    /* growth reads as something that spread over the plating: a dark body
+       with a ragged edge that creeps onto whichever sides are exposed, and a
+       slow swell so it never looks like wallpaper */
+    const beat = 0.5 + 0.5*Math.sin(performance.now()/1400 + (tx*3 + ty*7));
+    g.save();
+    g.globalAlpha = 0.55 + beat*0.25;
+    g.fillStyle = PAL.vein;
+    g.beginPath();
+    const lobes = 7, cx = x+C/2, cy = y+C/2;
+    for(let i=0;i<=lobes;i++){
+      const a = i/lobes * 6.2832;
+      const wob = 0.30 + Math.sin(i*2.7 + tx + ty)*0.075 + beat*0.02;
+      const px = cx + Math.cos(a)*C*wob, py = cy + Math.sin(a)*C*wob;
+      i ? g.lineTo(px,py) : g.moveTo(px,py);
     }
+    g.closePath(); g.fill();
+    /* tendrils reaching over each exposed edge */
+    g.strokeStyle = PAL.vein; g.lineWidth = Math.max(1, C*0.05);
+    g.globalAlpha = 0.75 + beat*0.2;
+    const reach = (ex, ey, nx2, ny2) => {
+      g.beginPath();
+      g.moveTo(cx + (ex-cx)*0.25, cy + (ey-cy)*0.25);
+      g.quadraticCurveTo(cx + (ex-cx)*0.75 + nx2, cy + (ey-cy)*0.75 + ny2, ex, ey);
+      g.stroke();
+    };
+    const j = C*0.12;
+    if(up)    reach(x+C*0.38, y,        j, 0);
+    if(down)  reach(x+C*0.62, y+C,     -j, 0);
+    if(left)  reach(x,        y+C*0.62, 0, -j);
+    if(right) reach(x+C,      y+C*0.38, 0,  j);
+    g.restore();
   } else {
     g.fillStyle = 'rgba(150,180,205,.22)';
     const r = Math.max(1, C*0.045);
@@ -2322,7 +2711,7 @@ function drawItem(g, x, y, kind, extra){
     med:'#a3e635', trauma:'#a3e635', grenade:'#ffb347', incend:'#ff6a3d', chem:'#a3e635',
     stim:'#ff3b5c', lamp:'#ffe9a8',
     carapace:'#93a7b5', cell:'#7fd8ff', plate:'#93a7b5', chip:'#ff3b5c',
-    cap:'#b79cf0', shard:'#ffb347', ammo:'#93a7b5', wpn:'#ffb347',
+    cap:'#b79cf0', shard:'#ffb347', ammo:'#93a7b5', wpn:'#9fb2c0',
     key:DOORCOL[extra]||'#4da3ff', core:'#ffd479'
   }[kind] || '#cfe0e6';
 
@@ -2397,11 +2786,94 @@ function drawItem(g, x, y, kind, extra){
     g.fillStyle = col;
     for(let k=0;k<3;k++) g.fillRect(cx-C*0.17+k*C*0.13, cy-C*0.09, C*0.07, C*0.18);
   } else if(kind === 'wpn'){
-    g.fillStyle = '#2b2618';
-    rr(g, cx-C*0.28, cy-C*0.18, C*0.56, C*0.36, C*0.05); g.fill(); outline(g);
-    g.fillStyle = col;
-    g.fillRect(cx-C*0.20, cy-C*0.05, C*0.34, C*0.08);
-    g.fillRect(cx+C*0.02, cy+C*0.03, C*0.07, C*0.12);
+    /* Weapons lie on the deck as themselves, so you can tell a rifle from a
+       crowbar before you walk to it. Drawn by class, on a common baseline. */
+    const cls = (WEAPONS[extra] || {}).cls || 'blade';
+    const u = C * 0.40;
+    g.shadowBlur = C * 0.18;      /* a hint of glow, not a wash */
+    g.translate(cx, cy);
+    g.rotate(-0.42);
+    g.lineCap = 'round'; g.lineJoin = 'round';
+    const steel = '#c8d4de', dark = '#5d6b78', wood = '#8d6b3f';
+
+    const bar = (x0,y0,x1,y1,wd,col) => {
+      g.strokeStyle = col; g.lineWidth = Math.max(1.2, C*wd);
+      g.beginPath(); g.moveTo(x0,y0); g.lineTo(x1,y1); g.stroke();
+    };
+    const box = (x0,y0,w0,h0,col) => { g.fillStyle = col; g.fillRect(x0,y0,w0,h0); };
+
+    if(cls === 'fist'){
+      g.fillStyle = steel; rr(g,-u*0.34,-u*0.28,u*0.68,u*0.56,u*0.18); g.fill();
+    } else if(cls === 'blade'){
+      g.fillStyle = steel;
+      g.beginPath(); g.moveTo(-u*0.1,0); g.lineTo(u*0.9,-u*0.16); g.lineTo(u*0.9,u*0.06); g.closePath(); g.fill();
+      bar(-u*0.62,0,-u*0.06,0,0.11,wood);
+    } else if(cls === 'bar'){
+      bar(-u*0.85,u*0.18,u*0.7,-u*0.1,0.10,dark);
+      bar(u*0.55,-u*0.06,u*0.9,-u*0.34,0.10,dark);
+    } else if(cls === 'baton'){
+      bar(-u*0.8,0,u*0.5,0,0.10,dark);
+      box(u*0.44,-u*0.20,u*0.42,u*0.40,steel);
+      bar(u*0.62,-u*0.34,u*0.62,u*0.34,0.05,'#7fd8ff');
+    } else if(cls === 'sabre'){
+      g.fillStyle = steel;
+      g.beginPath(); g.moveTo(-u*0.2,0); g.lineTo(u*1.0,-u*0.13); g.lineTo(u*1.0,u*0.05); g.closePath(); g.fill();
+      bar(-u*0.28,-u*0.26,-u*0.28,u*0.26,0.07,dark);
+      bar(-u*0.85,0,-u*0.3,0,0.09,wood);
+    } else if(cls === 'saw'){
+      box(-u*0.9,-u*0.16,u*0.7,u*0.32,dark);
+      g.fillStyle = steel;
+      for(let i=0;i<6;i++){
+        g.beginPath();
+        g.moveTo(-u*0.18 + i*u*0.19, -u*0.13);
+        g.lineTo(-u*0.06 + i*u*0.19, -u*0.30);
+        g.lineTo(0.06*u + i*u*0.19, -u*0.13);
+        g.closePath(); g.fill();
+      }
+      box(-u*0.2,-u*0.13,u*1.1,u*0.24,'#98a6b3');
+    } else if(cls === 'drill'){
+      box(-u*0.85,-u*0.17,u*0.62,u*0.34,dark);
+      g.strokeStyle = steel; g.lineWidth = Math.max(1.1,C*0.055);
+      g.beginPath();
+      for(let i=0;i<=14;i++){
+        const x = -u*0.22 + (i/14)*u*1.05;
+        g.lineTo(x, Math.sin(i*1.1)*u*0.13);
+      }
+      g.stroke();
+    } else if(cls === 'torch'){
+      box(-u*0.85,-u*0.2,u*0.55,u*0.4,'#3f4a55');
+      bar(-u*0.3,0,u*0.5,0,0.07,dark);
+      g.fillStyle = '#ff8a3d';
+      g.beginPath(); g.moveTo(u*0.5,-u*0.12); g.lineTo(u*1.0,0); g.lineTo(u*0.5,u*0.12); g.closePath(); g.fill();
+    } else if(cls === 'welder'){
+      box(-u*0.8,-u*0.24,u*0.6,u*0.48,'#3f4a55');
+      bar(-u*0.2,0,u*0.55,0,0.07,dark);
+      g.strokeStyle = '#7fd8ff'; g.lineWidth = Math.max(1,C*0.045);
+      g.beginPath(); g.moveTo(u*0.55,-u*0.16); g.lineTo(u*0.8,0); g.lineTo(u*0.55,u*0.16); g.stroke();
+    } else if(cls === 'rivet'){
+      box(-u*0.75,-u*0.2,u*0.55,u*0.4,dark);
+      box(-u*0.2,-u*0.11,u*0.75,u*0.22,steel);
+      box(-u*0.62,u*0.18,u*0.3,u*0.34,dark);
+    } else {
+      /* firearms: a common receiver, then the frame's own outline */
+      const barrel = { pistol:0.55, smg:0.72, shotgun:0.95, rifle:1.15, lmg:1.0, flamer:0.7 }[cls] || 0.7;
+      box(-u*0.72,-u*0.15,u*0.62,u*0.30,dark);              // receiver
+      box(-u*0.14,-u*0.09,u*barrel,u*0.18,steel);           // barrel
+      box(-u*0.68,u*0.12,u*0.26,u*0.42,'#4b5560');          // grip
+      if(cls === 'rifle' || cls === 'lmg'){
+        box(-u*1.02,-u*0.12,u*0.34,u*0.26,wood);            // stock
+        box(u*0.1,u*0.06,u*0.30,u*0.16,dark);               // magazine
+      }
+      if(cls === 'smg') box(-u*0.24,u*0.10,u*0.20,u*0.42,dark);
+      if(cls === 'shotgun') box(-u*0.14,u*0.05,u*barrel*0.8,u*0.10,dark);
+      if(cls === 'lmg') box(u*0.5,u*0.06,u*0.06,u*0.34,dark);
+      if(cls === 'flamer'){
+        g.fillStyle = '#ff8a3d';
+        g.beginPath(); g.moveTo(u*(barrel-0.1),-u*0.14); g.lineTo(u*(barrel+0.4),0);
+        g.lineTo(u*(barrel-0.1),u*0.14); g.closePath(); g.fill();
+        box(-u*0.95,-u*0.26,u*0.26,u*0.52,'#8d6b3f');
+      }
+    }
   } else if(kind === 'key'){
     g.fillStyle = col;
     rr(g, cx-C*0.22, cy-C*0.14, C*0.44, C*0.28, C*0.04); g.fill(); outline(g);
@@ -2429,6 +2901,93 @@ function legs(g, cx, cy, C, n, spread, len, col){
   }
 }
 
+/* Six silhouettes, varied by size, limb count, eyes and spines. Enough that
+   two species on the same plan still read apart, without thirty drawings. */
+function drawPlan(g, cx, cy, C, col, sp, m){
+  const z = (sp.size || 1) * 0.92;
+  const eyes = (n, rx, ry, r) => {
+    g.fillStyle = PAL.ink;
+    for(let i=0;i<n;i++){
+      const a = (i/Math.max(1,n)) * 6.2832 + 0.6;
+      g.beginPath();
+      g.arc(cx + Math.cos(a)*C*rx, cy + Math.sin(a)*C*ry - C*0.02, C*r, 0, 6.2832);
+      g.fill();
+    }
+  };
+  g.fillStyle = col;
+
+  if(sp.plan === 'crawl'){
+    legs(g, cx, cy+C*0.06, C, sp.legs || 6, 0.62*z, 0.24*z, col);
+    g.fillStyle = col;
+    g.beginPath(); g.ellipse(cx, cy, C*0.30*z, C*0.19*z, 0, 0, 6.2832); g.fill(); outline(g);
+    eyes(sp.eyes || 2, 0.12*z, 0.06*z, 0.035*z);
+
+  } else if(sp.plan === 'biped'){
+    g.beginPath();
+    g.moveTo(cx, cy - C*0.32*z);
+    g.lineTo(cx + C*0.24*z, cy + C*0.12*z);
+    g.lineTo(cx + C*0.13*z, cy + C*0.30*z);
+    g.lineTo(cx - C*0.13*z, cy + C*0.30*z);
+    g.lineTo(cx - C*0.24*z, cy + C*0.12*z);
+    g.closePath(); g.fill(); outline(g);
+    if(sp.spines){
+      g.strokeStyle = col; g.lineWidth = Math.max(1, C*0.035);
+      for(let i=-1;i<=1;i++){
+        g.beginPath();
+        g.moveTo(cx + i*C*0.16*z, cy - C*0.18*z);
+        g.lineTo(cx + i*C*0.26*z, cy - C*0.40*z);
+        g.stroke();
+      }
+    }
+    eyes(sp.eyes || 2, 0.10*z, 0.05*z, 0.034*z);
+
+  } else if(sp.plan === 'float'){
+    g.globalAlpha *= 0.88;
+    g.beginPath(); g.ellipse(cx, cy - C*0.04*z, C*0.26*z, C*0.30*z, 0, 0, 6.2832); g.fill();
+    g.globalAlpha /= 0.88;
+    outline(g);
+    g.strokeStyle = col; g.lineWidth = Math.max(1, C*0.028);
+    for(let i=0;i<4;i++){
+      const ox = (i-1.5)*C*0.11*z;
+      g.beginPath();
+      g.moveTo(cx+ox, cy + C*0.20*z);
+      g.quadraticCurveTo(cx+ox+C*0.04, cy + C*0.34*z, cx+ox, cy + C*0.44*z);
+      g.stroke();
+    }
+    eyes(sp.eyes || 3, 0.11*z, 0.09*z, 0.030*z);
+
+  } else if(sp.plan === 'plate'){
+    g.beginPath();
+    rr(g, cx - C*0.28*z, cy - C*0.26*z, C*0.56*z, C*0.52*z, C*0.07*z);
+    g.fill(); outline(g);
+    g.fillStyle = PAL.ink;
+    g.fillRect(cx - C*0.30*z, cy - C*0.06*z, C*0.60*z, C*0.05*z);
+    g.fillStyle = col;
+    g.fillRect(cx - C*0.20*z, cy - C*0.36*z, C*0.40*z, C*0.08*z);
+    eyes(sp.eyes || 1, 0.0, 0.10*z, 0.045*z);
+
+  } else if(sp.plan === 'mass'){
+    g.beginPath();
+    for(let i=0;i<=12;i++){
+      const a = i/12 * 6.2832;
+      const r = C*(0.26 + Math.sin(i*2.1)*0.045) * z;
+      const px = cx + Math.cos(a)*r, py = cy + Math.sin(a)*r*0.86;
+      i ? g.lineTo(px,py) : g.moveTo(px,py);
+    }
+    g.closePath(); g.fill(); outline(g);
+    eyes(sp.eyes || 4, 0.13*z, 0.10*z, 0.028*z);
+
+  } else {  /* swarm */
+    for(let i=0;i<3;i++){
+      const ox = (i-1)*C*0.15*z, oy = (i%2 ? -1 : 1)*C*0.06*z;
+      g.beginPath(); g.ellipse(cx+ox, cy+oy, C*0.13*z, C*0.10*z, 0, 0, 6.2832); g.fill();
+    }
+    outline(g);
+    legs(g, cx, cy+C*0.05, C, sp.legs || 4, 0.44*z, 0.18*z, col);
+    eyes(sp.eyes || 2, 0.16*z, 0.05*z, 0.026*z);
+  }
+}
+
 function drawMob(g, x, y, m){
   const C = CELL, cx = x+C/2, cy = y+C/2;
   const col = MOBCOL[m.type] || '#a06cff';
@@ -2436,6 +2995,31 @@ function drawMob(g, x, y, m){
   g.save();
   if(m.stun > 0) g.globalAlpha = 0.55;
   g.shadowColor = col; g.shadowBlur = C*0.30;
+
+  const sp = SPECIES[t];
+  if(sp && sp.plan){
+    drawPlan(g, cx, cy, C, col, sp, m);
+    if(m.burn > 0){
+      g.fillStyle = '#ff8a3d';
+      const fx = x + C*0.84, fy = y + C*0.62;
+      g.beginPath(); g.moveTo(fx, fy - C*0.12); g.lineTo(fx - C*0.06, fy + C*0.06);
+      g.lineTo(fx + C*0.06, fy + C*0.06); g.closePath(); g.fill();
+    }
+    if(m.hp < m.maxHp){
+      const w = C*0.62, h = Math.max(2, C*0.07);
+      g.fillStyle = 'rgba(0,0,0,.7)'; g.fillRect(x+(C-w)/2, y+C*0.86, w, h);
+      g.fillStyle = '#ff3b5c';
+      g.fillRect(x+(C-w)/2, y+C*0.86, w*Math.max(0, m.hp/m.maxHp), h);
+    }
+    g.font = '600 ' + Math.round(C*0.28) + 'px "IBM Plex Mono", monospace';
+    g.textAlign = 'right'; g.textBaseline = 'alphabetic';
+    g.lineWidth = Math.max(2, C*0.09); g.strokeStyle = PAL.ink;
+    g.strokeText(m.lvl, x+C*0.95, y+C*0.30);
+    g.fillStyle = PAL.text;
+    g.fillText(m.lvl, x+C*0.95, y+C*0.30);
+    g.restore();
+    return;
+  }
 
   if(t === 'crawler'){
     legs(g, cx, cy+C*0.06, C, 6, 0.62, 0.24, col);
@@ -2581,7 +3165,12 @@ function drawBoard(){
   const g = bx, C = CELL;
   g.setTransform(BDPR,0,0,BDPR,0,0);
   g.fillStyle = PAL.void;
-  g.fillRect(0, 0, COLS*C, ROWS*C);
+  g.fillRect(0, 0, VIEW_C*C, VIEW_R*C);
+
+  /* everything below draws in deck coordinates; the camera shifts the world
+     under a fixed window */
+  trackCam();
+  g.translate(-camX*C, -camY*C);
 
   computeLit();
   for(let i=0;i<N;i++){
@@ -2589,11 +3178,11 @@ function drawBoard(){
     if(!t.seen) continue;
     const x = ix(i)*C, y = iy(i)*C;
     g.globalAlpha = litMap[i] ? 1 : 0.42;      // remembered, not lit
-    if(t.wall){ drawWall(g, x, y, t.organic); g.globalAlpha = 1; continue; }
+    if(t.wall){ drawWall(g, x, y, t.organic, ix(i), iy(i)); g.globalAlpha = 1; continue; }
     drawFloor(g, x, y, (ix(i)+iy(i)) % 2 === 0);
     if(t.door) drawDoor(g, x, y, t.door.colour, t.door.open);
     if(t.exit) drawExit(g, x, y, exitOpen);
-    if(t.item) drawItem(g, x, y, t.item, t.key);
+    if(t.item) drawItem(g, x, y, t.item, t.item === 'wpn' ? t.wid : t.key);
     g.globalAlpha = 1;
   }
 
@@ -2726,11 +3315,13 @@ function drawBoard(){
 let fxRAF = null;
 function fxActive(){
   if(lights.length) return true;
+  for(let i=0;i<N;i++) if(map[i].organic && map[i].seen) return true;   /* growth breathes */
   if(blaze) for(let i=0;i<N;i++) if(blaze[i]) return true;
   return false;
 }
 function pumpFx(){
   if(fxRAF) return;
+  if(typeof requestAnimationFrame !== 'function') return;   /* headless: nothing to pump */
   const tick = () => {
     if(!dead && fxActive()){ drawBoard(); fxRAF = requestAnimationFrame(tick); }
     else fxRAF = null;
@@ -2833,7 +3424,10 @@ function renderActions(){
   $('bSurge').disabled = P.charge < 5 || P.surge || busy || dead;
   $('bGear').disabled = busy || dead;
   $('bRest').disabled = busy || dead || P.stam >= P.maxStam;
-  $('bRest').querySelector('.cost').textContent = '+' + restGain();
+  /* show what you will actually get back, not the theoretical maximum —
+     at 13/14 a "+4" is a lie the bar immediately contradicts */
+  $('bRest').querySelector('.cost').textContent =
+    '+' + Math.max(0, Math.min(restGain(), P.maxStam - P.stam));
   b.disabled = b.disabled || (w.kind !== 'ranged' && P.stam < swingCost(w));
   $('bArc').querySelector('.cost').textContent = adj ? arcDmg() + ' DMG \u00B7 3' : '3 CH';
   $('bPatch').querySelector('.cost').textContent = '+' + (5*P.lvl) + ' \u00B7 4';
@@ -2845,11 +3439,20 @@ function flashHurt(){ frame.classList.remove('hurt'); void frame.offsetWidth; fr
 /* ================================================================
    INPUT
    ================================================================ */
+/* a flick anywhere steps one square, the same as an arrow key */
+if (AR && AR.gesture) AR.gesture.onSwipe(d => {
+  if (busy || dead || veilOpen()) return;
+  const v = { up:[0,-1], down:[0,1], left:[-1,0], right:[1,0] }[d];
+  if (v) nudge(v[0], v[1]);
+});
+
 board.addEventListener('click', e => {
   if(busy || dead) return;
   const r = board.getBoundingClientRect();
-  const x = Math.floor((e.clientX - r.left) / (r.width / COLS));
-  const y = Math.floor((e.clientY - r.top)  / (r.height / ROWS));
+  /* the window shows VIEW_C x VIEW_R tiles starting at the camera, so a tap
+     has to be offset by it before it means anything on the deck */
+  const x = Math.floor((e.clientX - r.left) / (r.width  / VIEW_C)) + Math.round(camX);
+  const y = Math.floor((e.clientY - r.top)  / (r.height / VIEW_R)) + Math.round(camY);
   if(!inB(x,y)) return;
   if(aiming){
     const what = aiming; aiming = null;
@@ -2998,12 +3601,12 @@ function fit(){
   const wrap = $('gridwrap');
   const w = wrap.clientWidth, h = wrap.clientHeight;
   if(!w || !h) return;
-  CELL = Math.max(14, Math.floor(Math.min(w/COLS, h/ROWS)));
+  CELL = Math.max(14, Math.floor(Math.min(w/VIEW_C, h/VIEW_R)));
   BDPR = Math.min(2, window.devicePixelRatio || 1);
-  board.style.width  = (COLS*CELL) + 'px';
-  board.style.height = (ROWS*CELL) + 'px';
-  board.width  = Math.round(COLS*CELL*BDPR);
-  board.height = Math.round(ROWS*CELL*BDPR);
+  board.style.width  = (VIEW_C*CELL) + 'px';
+  board.style.height = (VIEW_R*CELL) + 'px';
+  board.width  = Math.round(VIEW_C*CELL*BDPR);
+  board.height = Math.round(VIEW_R*CELL*BDPR);
   if(map) drawBoard();
 }
 window.addEventListener('resize', fit);
@@ -3065,7 +3668,9 @@ function showKit(){
   }
 
   html += '<div class="kithead">WEAPONS</div>';
-  const order = P.weapons.slice().sort((a,b) => (WEAPONS[a].tier||0) - (WEAPONS[b].tier||0));
+  const order = carried();          /* fists first, then the two hands, in slot order */
+  const slotName = id => id === 'fists' ? 'HANDS'
+    : (P.slots.indexOf(id) === 0 ? 'FIRST' : 'SECOND');
   for(const id of order){
     const k = WEAPONS[id];
     const spec = k.kind === 'ranged'
@@ -3076,7 +3681,8 @@ function showKit(){
     html +=
       '<div class="krow">' +
         '<div class="kmid"><b>' + k.name + (dry ? ' \u00B7 DRY' : '') + '</b>' +
-          '<i>' + (k.trait ? '<b style="color:var(--ice)">' + k.trait + '</b> \u00B7 ' : '') +
+          '<i><b style="color:var(--dim)">' + slotName(id) + '</b> \u00B7 ' +
+            (k.trait ? '<b style="color:var(--ice)">' + k.trait + '</b> \u00B7 ' : '') +
             k.note + '<br>ATK ' + (k.atk >= 0 ? '+' : '') + (k.atk||0) + ' \u00B7 ' + feed + '</i></div>' +
         '<div class="kdmg">' + spec + '</div>' +
         '<button class="kbtn' + (id === P.weapon ? ' on' : '') + '" data-eq="' + id + '">' +

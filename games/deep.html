@@ -376,25 +376,20 @@ function localX(clientX){
   return (clientX - r.left) / scale;
 }
 
-cv.addEventListener('pointerdown', e => {
-  e.preventDefault();
-  cv.setPointerCapture && cv.setPointerCapture(e.pointerId);
-  if (state === 'ready'){ start(); }
-  else if (state === 'lost'){ if (performance.now() - deadAt > 550) start(); return; }
-  dragging = true;
-  grabPointer = localX(e.clientX);
-  grabPlayer = targetX;
-}, {passive:false});
+/* steering is relative and page-wide: put your thumb anywhere and pull */
+if (AR && AR.gesture) AR.gesture.onDrag(g => {
+  if (state !== 'dive') return;
+  targetX = clamp(targetX + (g.dx / scale) * 1.5, R + 8, W - R - 8);
+});
 
-cv.addEventListener('pointermove', e => {
-  if (!dragging) return;
-  e.preventDefault();
-  targetX = clamp(grabPlayer + (localX(e.clientX) - grabPointer) * 1.5, R+8, W-R-8);
-}, {passive:false});
+/* and a tap anywhere begins the dive — this used to live on the canvas */
+window.addEventListener('pointerdown', e => {
+  if (AR && AR.paused && AR.paused()) return;
+  if (e.target.closest && e.target.closest('button, a, input')) return;
+  if (state === 'ready') start();
+  else if (state === 'lost' && performance.now() - deadAt > 550) start();
+}, { passive:true });
 
-const endDrag = () => { dragging = false; };
-cv.addEventListener('pointerup', endDrag);
-cv.addEventListener('pointercancel', endDrag);
 cv.addEventListener('contextmenu', e => e.preventDefault());
 
 window.addEventListener('keydown', e => {

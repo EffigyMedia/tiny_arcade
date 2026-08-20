@@ -671,20 +671,12 @@ let dragging=false, grabPx=0, grabX=0, padNos=false;
 const keys=Object.create(null);
 function px(clientX){ return (clientX - cv.getBoundingClientRect().left); }
 
-cv.addEventListener('pointerdown',e=>{
-  e.preventDefault();
-  if(state!=='driving') return;
-  cv.setPointerCapture&&cv.setPointerCapture(e.pointerId);
-  dragging=true; grabPx=px(e.clientX); grabX=targetX;
-},{passive:false});
-cv.addEventListener('pointermove',e=>{
-  if(!dragging) return;
-  e.preventDefault();
-  targetX = clamp(grabX + (px(e.clientX)-grabPx)/(W*0.34), -1.18, 1.18);
-},{passive:false});
-const endDrag=()=>{dragging=false;};
-cv.addEventListener('pointerup',endDrag);
-cv.addEventListener('pointercancel',endDrag);
+/* page-wide relative steering, so the wheel is wherever your thumb is */
+if (AR && AR.gesture) AR.gesture.onDrag(g => {
+  if (state !== 'run') return;
+  targetX = clamp(targetX + g.dx / (W*0.34), -1.18, 1.18);
+});
+
 cv.addEventListener('contextmenu',e=>e.preventDefault());
 
 nitroBtn.addEventListener('pointerdown',e=>{e.preventDefault(); if(nos>8){ nosOn=true; snd.nitro(); }});
