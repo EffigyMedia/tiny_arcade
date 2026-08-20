@@ -1773,6 +1773,30 @@ piling up on a single wall. Average 3.7 cores installed per run.
 
 ## 9. Highway — done
 
+- ~~**The brake juddered at the floor.**~~ Speed was moved by a fixed step each
+  frame — add `rate*dt` below the target, subtract it above — so on the brakes
+  the car overshot and oscillated **±150 units every frame, forever**. Invisible
+  on a rounded mph readout, but it meant the car was genuinely decelerating half
+  the time, which is why the screech never stopped: the sound was reporting the
+  truth about a physics bug. It approaches the target without crossing it now.
+  A speed floor was added as well (silent under 46mph), because tyres do not
+  sing at a crawl — but the floor alone would have hidden the judder.
+
+- ~~**The cycle runs on a clock, not the odometer.**~~ Tying it to distance
+  meant slowing down slowed time and flooring it sped time up — a paradox you
+  feel every time you brake. `DAY_SECONDS = 240`, four minutes a lap, about what
+  twelve miles used to cost at a decent pace. Verified: six real seconds
+  advanced the day by 6.1 either way, while distance covered differed threefold.
+  The clock deliberately does **not** reset between runs, so the sky keeps its
+  own time.
+
+- ~~**The buildings were transparent.**~~ The skyline drew at 0.55–0.85 alpha to
+  "recede into the dark", so the sun and moon showed straight through it. A
+  silhouette recedes by approaching the sky colour, not by turning to glass. It
+  is opaque now — and the tint pass I first replaced it with had to go too,
+  because `source-atop` paints over every opaque pixel and the sky is opaque, so
+  it washed a visible band across the sky as well.
+
 - ~~**Sun and moon.**~~ Both sit at opposite ends of **one diameter**, and the
   wheel turns with the clock — so when one is up the other is exactly as far
   down, and neither is ever placed by hand. Height decides visibility and the
