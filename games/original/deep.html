@@ -1,0 +1,958 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#04070f">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Deep</title>
+<meta name="arcade-title" content="Deep">
+<meta name="arcade-accent" content="#4de0c8">
+<script src="../../audio.js"></script>
+<script src="../../arcade.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --abyss:#04070f;
+    --deep:#0a1526;
+    --rock:#16202f;
+    --lume:#4de0c8;
+    --spark:#ffb454;
+    --alarm:#ff5a6e;
+    --pale:#dff5ef;
+    --display:"Bricolage Grotesque","Helvetica Neue",Helvetica,Arial,sans-serif;
+    --mono:"DM Mono",ui-monospace,"SF Mono",Menlo,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html,body{
+    height:100%;width:100%;overflow:hidden;position:fixed;
+    background:#020307;color:var(--pale);
+    font-family:var(--display);
+    overscroll-behavior:none;touch-action:none;
+    -webkit-user-select:none;user-select:none;
+  }
+  #stage{
+    position:absolute;inset:0;display:grid;place-items:center;
+  }
+  #frame{
+    position:relative;
+    width:min(100dvw, calc(var(--stage-h, 100dvh) * 0.62));height:var(--stage-h, 100dvh);
+    overflow:hidden;
+    box-shadow:0 0 120px rgba(77,224,200,.06);
+  }
+  canvas{display:block;width:100%;height:100%;touch-action:none}
+
+  /* ---- HUD ---- */
+  #hud{
+    position:absolute;top:0;left:0;right:0;
+    padding:calc(var(--safe-top, env(safe-area-inset-top,0px)) + 14px) 18px 0 18px;
+    display:flex;justify-content:space-between;align-items:flex-start;
+    pointer-events:none;
+  }
+  .readout{font-family:var(--mono);font-size:13px;letter-spacing:.06em}
+  .readout .label{
+    display:block;font-size:9px;letter-spacing:.22em;text-transform:uppercase;
+    color:rgba(223,245,239,.38);margin-bottom:3px;
+  }
+  #depth{font-size:30px;font-weight:500;line-height:1;color:var(--pale);font-variant-numeric:tabular-nums}
+  #depth small{font-size:13px;color:rgba(223,245,239,.45);margin-left:2px}
+  #sparks{text-align:right;font-size:20px;line-height:1;color:var(--spark);font-variant-numeric:tabular-nums}
+
+  /* ---- Panels ---- */
+  /* Nothing in an overlay may reach past it. The title is set in a display
+   face that may or may not have loaded — a fallback with wider metrics used
+   to push the word off the side of the screen, and it is invisible on any
+   machine where the real font is available. Cap everything and let long words
+   break rather than trusting the typeface. */
+#veil{overflow-x:hidden;}
+#veil *{max-width:100%;overflow-wrap:anywhere}
+#veil h1{overflow-wrap:break-word;hyphens:auto}
+#veil{
+    position:absolute;inset:0;display:grid;place-items:center;
+    padding:32px 26px calc(env(safe-area-inset-bottom,0px) + 32px);
+    background:radial-gradient(120% 80% at 50% 45%,rgba(4,7,15,.72),rgba(2,3,7,.94));
+    backdrop-filter:blur(2px);
+    text-align:center;
+    pointer-events:none;
+    transition:opacity .28s ease;
+  }
+  #veil.hidden{opacity:0;pointer-events:none}
+  .eyebrow{
+    font-family:var(--mono);font-size:10px;letter-spacing:.34em;text-transform:uppercase;
+    color:var(--lume);opacity:.75;margin-bottom:18px;
+  }
+  h1{
+    font-family:var(--display);font-weight:800;
+    font-size:clamp(46px,15vw,78px);line-height:.86;letter-spacing:-.035em;
+    margin-bottom:6px;
+  }
+  h1 em{font-style:normal;display:block;color:var(--lume)}
+  .sub{
+    font-family:var(--mono);font-size:13px;line-height:1.7;
+    color:rgba(223,245,239,.62);max-width:26ch;margin:20px auto 0;
+  }
+  .sub b{color:var(--pale);font-weight:500}
+  .cue{
+    margin-top:30px;font-family:var(--mono);font-size:11px;letter-spacing:.24em;
+    text-transform:uppercase;color:rgba(223,245,239,.5);
+    animation:pulse 2.2s ease-in-out infinite;
+  }
+  @keyframes pulse{0%,100%{opacity:.35}50%{opacity:1}}
+  @media (prefers-reduced-motion:reduce){.cue{animation:none;opacity:.7}}
+
+  /* game over specifics */
+  .final{
+    font-family:var(--mono);font-size:11px;letter-spacing:.2em;text-transform:uppercase;
+    color:rgba(223,245,239,.4);margin-bottom:10px;
+  }
+  .big{
+    font-family:var(--mono);font-weight:500;font-size:clamp(56px,18vw,88px);
+    line-height:1;color:var(--pale);font-variant-numeric:tabular-nums;letter-spacing:-.02em;
+  }
+  .big u{text-decoration:none;font-size:.3em;color:rgba(223,245,239,.45);margin-left:4px}
+  .tally{
+    margin-top:22px;display:flex;gap:26px;justify-content:center;
+    font-family:var(--mono);font-size:12px;color:rgba(223,245,239,.55);
+  }
+  .tally b{display:block;font-size:19px;color:var(--pale);font-weight:500;margin-top:4px}
+  .tally .amber b{color:var(--spark)}
+  .rule{width:44px;height:1px;background:rgba(77,224,200,.35);margin:26px auto 0}
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="frame">
+    <canvas id="game"></canvas>
+
+    <div id="hud">
+      <div class="readout">
+        <span class="label">Depth</span>
+        <span id="depth">0<small>m</small></span>
+      </div>
+      <div class="readout">
+        <span class="label">Sparks</span>
+        <span id="sparks">0</span>
+      </div>
+    </div>
+
+    <div id="veil">
+      <div>
+        <div class="eyebrow" id="eyebrow">Descent log — 001</div>
+        <div id="panel">
+          <h1>Deep<em>the sounding</em></h1>
+          <p class="sub">Drag anywhere to steer. Thread the gaps, gather the <b>sparks</b>, and mind the things that swim across your line.</p>
+        </div>
+        <div class="rule"></div>
+        <div class="cue" id="cue">Touch to dive</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+"use strict";
+
+/* ------------------------------------------------------------------ *
+ *  Sounding — a one-thumb descent.
+ *  Logical space is 600 units wide; height derives from the viewport.
+ *  10 logical units = 1 metre.
+ * ------------------------------------------------------------------ */
+
+const cv  = document.getElementById('game');
+const ctx = cv.getContext('2d');
+const veil = document.getElementById('veil');
+const panel = document.getElementById('panel');
+const eyebrow = document.getElementById('eyebrow');
+const cue = document.getElementById('cue');
+const depthEl = document.getElementById('depth');
+const sparkEl = document.getElementById('sparks');
+
+const W = 600;                 // logical width, fixed
+let   H = 1000;                // logical height, from viewport
+let   scale = 1, dpr = 1;
+
+const UPM   = 10;              // units per metre
+const R     = 15;              // diver radius
+const TH    = 24;              // ledge thickness
+const ORB_R = 9;
+
+const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+let state = 'ready';           // ready | diving | lost
+let dives = 0;
+let best = 0;
+
+let px, targetX, playerY, vxSmoothed;
+let dist, speed, obstacles, orbs, fish, motes, bits, sparks, threads;
+let shake, flash, deadAt, toast, lastTime, acc, cause;
+
+/* ---------------------------------------------------------------- */
+/*  Sound — a cold room with something breathing at the bottom       */
+/* ---------------------------------------------------------------- */
+const AR = window.Arcade;
+const PENT = [329.63, 392.00, 440.00, 493.88, 587.33];   // E minor pentatonic
+
+const snd = {
+  drone: null,
+  armed: false,
+  arm(){
+    if (snd.armed || !AR.audio.onReset) return;
+    snd.armed = true;
+    AR.audio.onReset(() => { snd.drone = null; snd.begin(); });
+  },
+
+  begin(){
+    if (!AR) return;
+    AR.audio.init();
+    if (!AR.audio.ctx) return;  // no engine yet; a real gesture will call us back
+    snd.arm();
+    if (!snd.drone) snd.drone = AR.sfx.hold({ freq:41.2, type:'sawtooth', cutoff:230, q:2.4, verb:0.5, bus:'music' });
+    snd.drone.set(41.2, 0.15, 230, 1.4);
+    AR.music.start(62, 4, snd.bed);
+  },
+
+  bed(step, t){
+    if (!AR) return;
+    const s = step % 64;
+    const deep = Math.min(1, metres()/900);
+
+    if (s % 16 === 0)
+      AR.sfx.tone({ t, freq:55, dur:1.9, type:'sine', gain:0.13, bus:'music', attack:0.05, verb:0.45 });
+
+    if (s === 4 || s === 20 || s === 44 || (s === 52 && deep > 0.4)){
+      const f = PENT[(Math.random()*PENT.length)|0] * (Math.random() < 0.3 ? 0.5 : 1);
+      AR.sfx.tone({ t, freq:f, dur:2.4, type:'sine', gain:0.055, bus:'music',
+                    attack:0.03, verb:0.85, cutoff:2400 });
+    }
+    if (s === 32)
+      AR.sfx.tone({ t, freq:1180, to:760, dur:0.55, type:'sine', gain:0.045, bus:'music', verb:0.9 });
+
+    if (deep > 0.55 && s === 24)
+      AR.sfx.noise({ t, freq:150, dur:2.6, gain:0.035, filter:'lowpass', q:3, bus:'music' });
+
+    if (snd.drone) snd.drone.set(41.2 - deep*6.5, 0.15 + deep*0.05, 230 - deep*110, 2.5);
+  },
+
+  spark(n){
+    if (!AR) return;
+    AR.sfx.tone({ freq:880 * Math.pow(1.055, Math.min(n, 14)), to:1340, dur:0.19,
+                  type:'sine', gain:0.15, verb:0.35 });
+    AR.sfx.tone({ freq:1760, dur:0.08, type:'sine', gain:0.045 });
+  },
+  clean(){
+    if (!AR) return;
+    const t = AR.audio.now();
+    AR.sfx.tone({ t,        freq:987.77, dur:0.24, type:'sine', gain:0.13, verb:0.55 });
+    AR.sfx.tone({ t:t+0.085, freq:1318.5, dur:0.34, type:'sine', gain:0.11, verb:0.7 });
+    AR.sfx.noise({ t, freq:6000, dur:0.18, gain:0.03, filter:'highpass' });
+  },
+  pass(){ if (AR) AR.sfx.noise({ freq:240, dur:0.09, gain:0.05, filter:'lowpass', q:1.5 }); },
+  dive(){ if (AR) AR.sfx.noise({ freq:2200, to:220, dur:0.75, gain:0.13, filter:'bandpass', q:0.7 }); },
+
+  end(how){
+    if (!AR) return;
+    const t = AR.audio.now();
+    if (how === 'fish'){
+      AR.sfx.noise({ t, freq:520, to:120, dur:0.34, gain:0.30, filter:'bandpass', q:1.2 });
+      AR.sfx.tone({ t:t+0.03, freq:280, to:70, dur:0.5, type:'sawtooth', gain:0.16, cutoff:900 });
+    } else {
+      AR.sfx.noise({ t, freq:900, to:80, dur:0.85, gain:0.28, filter:'lowpass', q:2 });
+    }
+    AR.sfx.tone({ t:t+0.05, freq:170, to:32, dur:1.3, type:'sawtooth', gain:0.18, cutoff:520, verb:0.4 });
+    if (snd.drone) snd.drone.set(28, 0.02, 110, 0.8);
+  }
+};
+
+/* ---------------------------------------------------------------- */
+/*  Sizing                                                           */
+/* ---------------------------------------------------------------- */
+function resize(){
+  const r = cv.getBoundingClientRect();
+  if (!r.width || !r.height) return;
+  dpr = Math.min(2, window.devicePixelRatio || 1);
+  scale = r.width / W;
+  H = r.height / scale;
+  cv.width  = Math.round(r.width  * dpr);
+  cv.height = Math.round(r.height * dpr);
+  ctx.setTransform(scale*dpr, 0, 0, scale*dpr, 0, 0);
+  playerY = H * 0.30;
+  if (motes) seedMotes();
+}
+window.addEventListener('resize', resize);
+window.addEventListener('load', resize);
+window.addEventListener('orientationchange', () => setTimeout(resize, 150));
+
+/* ---------------------------------------------------------------- */
+/*  Helpers                                                          */
+/* ---------------------------------------------------------------- */
+const clamp = (v,a,b) => v < a ? a : v > b ? b : v;
+const lerp  = (a,b,t) => a + (b-a)*t;
+const rand  = (a,b) => a + Math.random()*(b-a);
+
+function difficulty(){ return clamp(metres()/650, 0, 1); }
+function hexA(hex, a){
+  const h = (hex || '#7de3ff').replace('#','');
+  const n = parseInt(h, 16);
+  return 'rgba(' + ((n>>16)&255) + ',' + ((n>>8)&255) + ',' + (n&255) + ',' + a + ')';
+}
+function metres(){ return Math.floor(dist / UPM); }
+
+/* Below this the surface light is gone entirely. Nothing that lives in the lit
+   water comes down here, and nothing that lives down here goes up.
+
+   Paced against the clock rather than the tape measure. The descent covers
+   100m every 2.4 seconds or so, so the old 300m line put you in pitch black
+   about seven seconds into a dive — before the run had really started. The
+   light now drains across most of a good dive: it is noticeably dimmer around
+   eight seconds, genuinely dark past twelve, and fully black only on a run
+   that lasts. */
+const DARK_M = 900, FADE_M = 550;
+function darkness(){                    /* 0 in the shallows, 1 in the black */
+  return clamp((metres() - (DARK_M - FADE_M)) / FADE_M, 0, 1);
+}
+function inTheBlack(){ return darkness() > 0.985; }
+function speedAt(t){ return lerp(340, 620, t); }
+function gapAt(t){ return lerp(212, 142, t); }
+function spacingAt(t){ return speedAt(t) * lerp(0.98, 0.68, t); }
+
+function circleHitsRect(cx, cy, r, rx, ry, rw, rh){
+  const nx = clamp(cx, rx, rx+rw);
+  const ny = clamp(cy, ry, ry+rh);
+  const dx = cx-nx, dy = cy-ny;
+  return dx*dx + dy*dy < r*r;
+}
+
+function gapCenter(o){
+  if (!o.amp) return o.x;
+  const c = o.x + Math.sin(o.t*o.w + o.phase) * o.amp;
+  return clamp(c, o.gw/2 + 24, W - o.gw/2 - 24);
+}
+
+/* ---------------------------------------------------------------- */
+/*  World                                                            */
+/* ---------------------------------------------------------------- */
+function seedMotes(){
+  motes = [];
+  for (let i=0;i<64;i++){
+    motes.push({
+      x: rand(0,W), y: rand(0,H),
+      r: rand(0.7,2.6),
+      p: rand(0.12,0.55)            // parallax factor
+    });
+  }
+}
+
+function spawnLedge(y){
+  const t = difficulty();
+  const gw = gapAt(t);
+  const margin = gw/2 + 34;
+  const moving = metres() > 140 && Math.random() < 0.26;
+  const amp = moving ? Math.min(78, (W/2 - margin) * 0.55) : 0;
+  const o = {
+    y, gw,
+    x: rand(margin + amp, W - margin - amp),
+    amp, phase: rand(0, Math.PI*2), w: rand(1.3, 1.9), t: 0,
+    passed: false
+  };
+  obstacles.push(o);
+  lastLedgeY = y;
+
+  if (!moving && Math.random() < 0.55){
+    orbs.push({ x: o.x + rand(-gw*0.22, gw*0.22), y: y + spacingAt(t)*0.46, got:false, spin: rand(0,6) });
+  }
+
+  /* Two populations, and they do not mix. Above the dark line it is all
+     shallow-water fish; below it, only the ones that carry their own light. */
+  const chance = metres() > 60 ? Math.min(0.55, 0.18 + metres()/1400) : 0;
+  if (Math.random() < chance){
+    const deep = darkness() > 0.35 && Math.random() < darkness();
+    const big  = deep && Math.random() < 0.34;
+    const rx = big ? 34 : 24, ry = big ? 15 : 11;
+    fish.push({
+      x: rand(rx + 12, W - rx - 12),
+      y: y + spacingAt(t) * rand(0.36, 0.64),
+      vx: (Math.random() < 0.5 ? -1 : 1) * rand(70, 120 + Math.min(90, metres()*0.22)),
+      rx, ry, tail: rand(0, 6.28), lure: rand(0, 6.28), big,
+      deep,
+      hue: deep ? (Math.random() < 0.5 ? '#7de3ff' : '#b39bff') : null
+    });
+  }
+}
+
+let lastLedgeY = 0;
+
+function reset(){
+  dist = 0; sparks = 0; threads = 0;
+  px = W/2; targetX = W/2; vxSmoothed = 0;
+  obstacles = []; orbs = []; fish = []; bits = [];
+  shake = 0; flash = 0; toast = null; cause = 'ledge';
+  acc = 0;
+  seedMotes();
+  lastLedgeY = H + 340;
+  updateHud();
+}
+
+/* ---------------------------------------------------------------- */
+/*  Input — relative drag, so your thumb never covers the diver      */
+/* ---------------------------------------------------------------- */
+let dragging = false, grabPointer = 0, grabPlayer = 0;
+const keys = Object.create(null);
+
+function localX(clientX){
+  const r = cv.getBoundingClientRect();
+  return (clientX - r.left) / scale;
+}
+
+/* steering is relative and page-wide: put your thumb anywhere and pull */
+if (AR && AR.gesture) AR.gesture.onDrag(g => {
+  if (state !== 'diving') return;   /* the state is 'diving'; guessing it cost the controls */
+  targetX = clamp(targetX + (g.dx / scale) * 1.5, R + 8, W - R - 8);
+});
+
+/* and a tap anywhere begins the dive — this used to live on the canvas */
+window.addEventListener('pointerdown', e => {
+  if (AR && AR.paused && AR.paused()) return;
+  if (e.target.closest && e.target.closest('button, a, input')) return;
+  if (state === 'ready') start();
+  else if (state === 'lost' && performance.now() - deadAt > 550) start();
+}, { passive:true });
+
+cv.addEventListener('contextmenu', e => e.preventDefault());
+
+window.addEventListener('keydown', e => {
+  if (['ArrowLeft','ArrowRight','ArrowUp','ArrowDown',' '].includes(e.key)) e.preventDefault();
+  keys[e.key] = true;
+  if (e.key === ' ' || e.key === 'Enter'){
+    if (state === 'ready') start();
+    else if (state === 'lost' && performance.now() - deadAt > 550) start();
+  }
+});
+window.addEventListener('keyup', e => { keys[e.key] = false; });
+
+if (AR && AR.pad) AR.pad.onPress(name => {
+  if (AR.paused && AR.paused()) return;
+  if (name !== 'a' && name !== 'rt' && name !== 'x') return;
+  if (state === 'ready') start();
+  else if (state === 'lost' && performance.now() - deadAt > 550) start();
+});
+
+/* ---------------------------------------------------------------- */
+/*  State transitions                                                */
+/* ---------------------------------------------------------------- */
+function start(){
+  dives++;
+  reset();
+  state = 'diving';
+  veil.classList.add('hidden');
+  snd.begin();
+  snd.dive();
+}
+
+function lose(){
+  state = 'lost';
+  snd.end(cause);
+  deadAt = performance.now();
+  shake = reduceMotion ? 0.25 : 1;
+  flash = 1;
+  for (let i=0;i<26;i++){
+    const a = rand(0, Math.PI*2), s = rand(60, 420);
+    bits.push({ x:px, y:playerY, vx:Math.cos(a)*s, vy:Math.sin(a)*s - 90,
+                life:rand(.5,1.15), age:0, r:rand(1.5,4.5), c:'#dff5ef' });
+  }
+  const m = metres();
+  best = Math.max(best, m);
+  if (AR && AR.save) AR.save.merge('deep', {
+    best: best, dives: dives, sparks: sparks,
+    label: 'BEST ' + best + ' M'
+  });
+  showEnd(m);
+}
+
+function showEnd(m){
+  eyebrow.textContent = 'Descent log — ' + String(dives).padStart(3,'0');
+  panel.innerHTML =
+    '<div class="final">'+(cause==='fish' ? 'Something took you at' : 'You struck a ledge at')+'</div>' +
+    '<div class="big">' + m + '<u>m</u></div>' +
+    '<div class="tally">' +
+      '<div>Deepest<b>' + best + 'm</b></div>' +
+      '<div class="amber">Sparks<b>' + sparks + '</b></div>' +
+      '<div>Clean gaps<b>' + threads + '</b></div>' +
+    '</div>';
+  cue.textContent = 'Touch to dive again';
+  setTimeout(() => { if (state === 'lost') veil.classList.remove('hidden'); }, 520);
+}
+
+function updateHud(){
+  depthEl.innerHTML = metres() + '<small>m</small>';
+  sparkEl.textContent = sparks;
+}
+
+/* ---------------------------------------------------------------- */
+/*  Simulation                                                       */
+/* ---------------------------------------------------------------- */
+function step(dt){
+  // keyboard steering folds into the same target
+  let kd = 0;
+  if (keys.ArrowLeft || keys.a || keys.A) kd -= 1;
+  if (keys.ArrowRight|| keys.d || keys.D) kd += 1;
+  const pax = AR && AR.pad ? AR.pad.axis().x : 0;
+  if (pax) kd = pax;
+  else if (AR && AR.pad){
+    if (AR.pad.down('left'))  kd = -1;
+    if (AR.pad.down('right')) kd =  1;
+  }
+  if (kd) targetX = clamp(targetX + kd * 880 * dt, R+8, W-R-8);
+
+  // smooth follow, capped so it still feels like a body in water
+  const k = 1 - Math.exp(-18 * dt);
+  let move = (targetX - px) * k;
+  const cap = 1150 * dt;
+  move = clamp(move, -cap, cap);
+  px += move;
+  vxSmoothed = lerp(vxSmoothed, move/dt, 0.25);
+
+  const t = difficulty();
+  speed = speedAt(t);
+  dist += speed * dt;
+
+  // scroll + spawn
+  const spacing = spacingAt(t);
+  for (const o of obstacles){ o.y -= speed*dt; o.t += dt; }
+  lastLedgeY -= speed*dt;   // the spawn cursor has to scroll with the water too
+  for (const b of orbs){ b.y -= speed*dt; b.spin += dt*3; }
+  while (lastLedgeY < H + spacing) spawnLedge(lastLedgeY + spacing);
+  obstacles = obstacles.filter(o => o.y > -120);
+  orbs = orbs.filter(o => o.y > -60 && !o.got);
+
+  for (const f of fish){
+    f.y -= speed*dt;
+    f.x += f.vx*dt;
+    if (f.x < f.rx + 8){ f.x = f.rx + 8; f.vx = Math.abs(f.vx); }
+    if (f.x > W - f.rx - 8){ f.x = W - f.rx - 8; f.vx = -Math.abs(f.vx); }
+    f.tail += dt * (6 + Math.abs(f.vx)*0.03);
+    f.lure += dt*2.4;
+  }
+  fish = fish.filter(f => f.y > -80);
+
+  // motes drift up with the current
+  for (const m of motes){
+    m.y -= speed * m.p * dt;
+    if (m.y < -6){ m.y = H + rand(0,60); m.x = rand(0,W); }
+  }
+
+  // trail
+  if (!reduceMotion && Math.random() < 0.9){
+    bits.push({ x:px + rand(-4,4), y:playerY + rand(2,8),
+                vx: -vxSmoothed*0.25 + rand(-30,30), vy: -speed*0.55 + rand(-40,40),
+                life: rand(.28,.6), age:0, r: rand(1.2,3.4), c:'#4de0c8' });
+  }
+  for (const b of bits){ b.age += dt; b.x += b.vx*dt; b.y += b.vy*dt; b.vy += 120*dt; }
+  bits = bits.filter(b => b.age < b.life);
+
+  // orbs
+  for (const b of orbs){
+    if (b.got) continue;
+    const dx = b.x-px, dy = b.y-playerY;
+    if (dx*dx + dy*dy < (R+ORB_R+4)*(R+ORB_R+4)){
+      b.got = true; sparks++;
+      snd.spark(sparks);
+      for (let i=0;i<9;i++){
+        const a = rand(0,Math.PI*2), s = rand(40,190);
+        bits.push({ x:b.x, y:b.y, vx:Math.cos(a)*s, vy:Math.sin(a)*s - speed*0.4,
+                    life:rand(.25,.5), age:0, r:rand(1,3), c:'#ffb454' });
+      }
+    }
+  }
+
+  // ledges: scoring + collision
+  for (const o of obstacles){
+    const c = gapCenter(o);
+    if (!o.passed && o.y + TH < playerY - R){
+      o.passed = true;
+      snd.pass();
+      const off = Math.abs(px - c);
+      if (off < 16){
+        threads++; sparks += 3;
+        snd.clean();
+        toast = { text:'CLEAN', age:0 };
+      }
+    }
+    if (o.y < playerY + R + TH && o.y + TH > playerY - R){
+      const leftW  = c - o.gw/2;
+      const rightX = c + o.gw/2;
+      if (circleHitsRect(px, playerY, R, 0, o.y, leftW, TH) ||
+          circleHitsRect(px, playerY, R, rightX, o.y, W-rightX, TH)){
+        lose(); return;
+      }
+    }
+  }
+
+  for (const f of fish){
+    const dx = (px - f.x) / (f.rx + R*0.72);
+    const dy = (playerY - f.y) / (f.ry + R*0.72);
+    if (dx*dx + dy*dy < 1){ cause = 'fish'; lose(); return; }
+  }
+
+  if (toast){ toast.age += dt; if (toast.age > 0.9) toast = null; }
+  shake = Math.max(0, shake - dt*2.6);
+  flash = Math.max(0, flash - dt*2.2);
+  updateHud();
+}
+
+/* ---------------------------------------------------------------- */
+/*  Render                                                           */
+/* ---------------------------------------------------------------- */
+function draw(now){
+  const t = state === 'ready' ? 0 : difficulty();
+
+  /* water column: the surface light drains away as you go down, and past the
+     dark line there is none of it left — the column goes to flat black so the
+     only things on screen are the ones making their own light */
+  const dk = darkness();
+  const dim = v => Math.round(v * (1 - dk));
+  const g = ctx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0, `rgb(${dim(lerp(18,4,t))},${dim(lerp(49,10,t))},${dim(lerp(74,20,t))})`);
+  g.addColorStop(0.55,`rgb(${dim(lerp(8,3,t))},${dim(lerp(21,6,t))},${dim(lerp(38,14,t))})`);
+  g.addColorStop(1,   dk > 0.5 ? '#000000' : '#04070f');
+  ctx.fillStyle = g;
+  ctx.fillRect(0,0,W,H);
+
+  ctx.save();
+  if (shake > 0){
+    const s = shake*shake*13;
+    ctx.translate(rand(-s,s), rand(-s,s));
+  }
+
+  // shafts of surface light, fading with depth and gone entirely in the black
+  const lightAlpha = (1-t) * 0.16 * (1 - darkness());
+  if (lightAlpha > 0.005){
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    for (let i=0;i<3;i++){
+      const x = W*(0.2 + i*0.3) + Math.sin((now/3000)+i)*22;
+      const lg = ctx.createLinearGradient(x, 0, x - 60, H*0.75);
+      lg.addColorStop(0, `rgba(140,220,235,${lightAlpha})`);
+      lg.addColorStop(1, 'rgba(140,220,235,0)');
+      ctx.fillStyle = lg;
+      ctx.beginPath();
+      ctx.moveTo(x-36,0); ctx.lineTo(x+36,0);
+      ctx.lineTo(x-30,H*0.8); ctx.lineTo(x-96,H*0.8);
+      ctx.closePath(); ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  // drifting motes
+  for (const m of motes){
+    ctx.fillStyle = `rgba(190,225,225,${0.05 + m.p*0.16})`;
+    ctx.beginPath(); ctx.arc(m.x, m.y, m.r, 0, 6.2832); ctx.fill();
+  }
+
+  drawGauge();
+
+  // ledges
+  for (const o of obstacles){
+    const c = gapCenter(o);
+    const leftW  = Math.max(0, c - o.gw/2);
+    const rightX = Math.min(W, c + o.gw/2);
+    drawLedge(0, o.y, leftW, true);
+    drawLedge(rightX, o.y, W-rightX, false);
+  }
+
+  drawFish();
+
+  // sparks
+  for (const b of orbs){
+    if (b.got) continue;
+    const pulse = 1 + Math.sin(b.spin)*0.12;
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    const rg = ctx.createRadialGradient(b.x,b.y,0,b.x,b.y,ORB_R*3.4);
+    rg.addColorStop(0,'rgba(255,180,84,.55)');
+    rg.addColorStop(1,'rgba(255,180,84,0)');
+    ctx.fillStyle = rg;
+    ctx.beginPath(); ctx.arc(b.x,b.y,ORB_R*3.4,0,6.2832); ctx.fill();
+    ctx.restore();
+    ctx.fillStyle = '#ffd9a0';
+    ctx.beginPath(); ctx.arc(b.x,b.y,ORB_R*pulse,0,6.2832); ctx.fill();
+    ctx.fillStyle = '#fff6e6';
+    ctx.beginPath(); ctx.arc(b.x-2,b.y-2,ORB_R*0.42,0,6.2832); ctx.fill();
+  }
+
+  // particles
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  for (const b of bits){
+    const a = 1 - b.age/b.life;
+    ctx.globalAlpha = a*a*0.8;
+    ctx.fillStyle = b.c;
+    ctx.beginPath(); ctx.arc(b.x, b.y, b.r*a, 0, 6.2832); ctx.fill();
+  }
+  ctx.restore();
+  ctx.globalAlpha = 1;
+
+  if (state !== 'lost') drawDiver(now);
+
+  // clean-gap toast
+  if (toast){
+    const a = 1 - toast.age/0.9;
+    ctx.save();
+    ctx.globalAlpha = a;
+    ctx.fillStyle = '#4de0c8';
+    ctx.font = '500 15px "DM Mono", monospace';
+    ctx.textAlign = 'center';
+    ctx.letterSpacing && (ctx.letterSpacing = '4px');
+    ctx.fillText('CLEAN  +3', px, playerY - 34 - (1-a)*26);
+    ctx.restore();
+  }
+
+  ctx.restore();
+
+  // impact flash + vignette
+  if (flash > 0){
+    ctx.fillStyle = `rgba(255,90,110,${flash*0.3})`;
+    ctx.fillRect(0,0,W,H);
+  }
+  const vg = ctx.createRadialGradient(W/2,H*0.45,H*0.22,W/2,H*0.45,H*0.72);
+  vg.addColorStop(0,'rgba(0,0,0,0)');
+  vg.addColorStop(1,'rgba(0,0,0,.55)');
+  ctx.fillStyle = vg;
+  ctx.fillRect(0,0,W,H);
+}
+
+function drawFish(){
+  const dk = darkness();
+  for (const f of fish){
+    const dir = f.vx < 0 ? -1 : 1;
+    const sway = Math.sin(f.tail)*0.16;
+    ctx.save();
+    ctx.translate(f.x, f.y);
+    ctx.scale(dir, 1);
+    ctx.rotate(sway*0.25);
+
+    /* Emissive parts keep their strength; everything lit from outside fades
+       with the water. A shallow fish that has drifted down is nearly gone. */
+    const lit = f.deep ? 1 : (1 - dk * 0.92);
+    const glow = f.deep ? 0.34 : 0.22 * lit;
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    const h = ctx.createRadialGradient(0,0,0,0,0,f.rx*(f.deep ? 3.1 : 2.4));
+    h.addColorStop(0, f.deep ? hexA(f.hue, glow) : 'rgba(150,120,220,.22)');
+    h.addColorStop(1, f.deep ? hexA(f.hue, 0) : 'rgba(150,120,220,0)');
+    ctx.fillStyle = h;
+    ctx.beginPath(); ctx.arc(0,0,f.rx*(f.deep ? 3.1 : 2.4),0,6.2832); ctx.fill();
+    ctx.restore();
+
+    // tail
+    ctx.globalAlpha = f.deep ? 1 : Math.max(0.06, lit);
+    ctx.fillStyle = 'rgba(160,140,215,.75)';
+    ctx.beginPath();
+    ctx.moveTo(-f.rx*0.72, 0);
+    ctx.lineTo(-f.rx*1.55, -f.ry*(1.0 + sway*2));
+    ctx.quadraticCurveTo(-f.rx*1.15, 0, -f.rx*1.55, f.ry*(1.0 - sway*2));
+    ctx.closePath(); ctx.fill();
+
+    // body — in the black, the flesh is nearly invisible and the light is not
+    const bg = ctx.createLinearGradient(0,-f.ry,0,f.ry);
+    if(f.deep){
+      bg.addColorStop(0, hexA(f.hue, 0.50));
+      bg.addColorStop(0.55, hexA(f.hue, 0.22));
+      bg.addColorStop(1, 'rgba(20,16,34,.85)');
+    } else {
+      bg.addColorStop(0,'#d8ccff');
+      bg.addColorStop(0.55,'#9d88d6');
+      bg.addColorStop(1,'#5b4a86');
+    }
+    ctx.fillStyle = bg;
+    ctx.beginPath(); ctx.ellipse(0, 0, f.rx, f.ry, sway*0.5, 0, 6.2832); ctx.fill();
+
+    // dorsal fin
+    ctx.fillStyle = 'rgba(120,100,180,.8)';
+    ctx.beginPath();
+    ctx.moveTo(f.rx*0.10, -f.ry*0.85);
+    ctx.lineTo(-f.rx*0.30, -f.ry*1.85);
+    ctx.lineTo(-f.rx*0.55, -f.ry*0.80);
+    ctx.closePath(); ctx.fill();
+
+    // eye
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = '#1a1226';
+    ctx.beginPath(); ctx.arc(f.rx*0.52, -f.ry*0.18, Math.max(1.6, f.ry*0.20), 0, 6.2832); ctx.fill();
+
+    // lure, on the big deep ones
+    if (f.big){
+      const lx = f.rx*1.05, ly = -f.ry*1.5 + Math.sin(f.lure)*f.ry*0.3;
+      ctx.strokeStyle = 'rgba(200,180,255,.5)'; ctx.lineWidth = 1.4;
+      ctx.beginPath(); ctx.moveTo(f.rx*0.30, -f.ry*0.9);
+      ctx.quadraticCurveTo(f.rx*0.9, -f.ry*2.0, lx, ly); ctx.stroke();
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      const g = ctx.createRadialGradient(lx,ly,0,lx,ly,10);
+      g.addColorStop(0,'rgba(255,214,140,.95)');
+      g.addColorStop(1,'rgba(255,190,110,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(lx,ly,10,0,6.2832); ctx.fill();
+      ctx.restore();
+    }
+    ctx.restore();
+  }
+}
+
+/* the signature: a sounding line ruled down the left edge, scrolling with the water */
+function drawGauge(){
+  const step = 10 * UPM;                 // a tick every 10 m
+  const off  = dist % step;
+  ctx.save();
+  ctx.font = '400 10px "DM Mono", monospace';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = 'rgba(77,224,200,.30)';
+  ctx.strokeStyle = 'rgba(77,224,200,.22)';
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(11, 0); ctx.lineTo(11, H); ctx.stroke();
+
+  // ticks mark the water still below you, so depth grows downward
+  let y = playerY + (step - off);
+  let m = (Math.floor(dist / step) + 1) * 10;
+  while (y < H + step){
+    const major = m % 50 === 0;
+    ctx.globalAlpha = major ? 0.85 : 0.4;
+    ctx.beginPath();
+    ctx.moveTo(11, y); ctx.lineTo(major ? 26 : 19, y);
+    ctx.stroke();
+    if (major) ctx.fillText(m + '', 32, y);
+    y += step; m += 10;
+  }
+  ctx.restore();
+  ctx.globalAlpha = 1;
+}
+
+function drawLedge(x, y, w, isLeft){
+  if (w <= 0) return;
+  const r = 10;
+  const dk = darkness();
+  /* In the black the rock itself is invisible — all you get is the crust on
+     the lip. The obstacle stops being a shape and becomes two points of light
+     you have to steer between. */
+  ctx.save();
+  ctx.globalAlpha = 1 - dk * 0.94;
+  const rock = ctx.createLinearGradient(0, y, 0, y+TH);
+  rock.addColorStop(0, '#243349');
+  rock.addColorStop(1, '#101a28');
+  ctx.fillStyle = rock;
+  ctx.beginPath();
+  if (isLeft){
+    ctx.moveTo(x, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + TH - r);
+    ctx.quadraticCurveTo(x + w, y + TH, x + w - r, y + TH);
+    ctx.lineTo(x, y + TH);
+  } else {
+    ctx.moveTo(x + w, y);
+    ctx.lineTo(x + r, y);
+    ctx.quadraticCurveTo(x, y, x, y + r);
+    ctx.lineTo(x, y + TH - r);
+    ctx.quadraticCurveTo(x, y + TH, x + r, y + TH);
+    ctx.lineTo(x + w, y + TH);
+  }
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+
+  // bioluminescent crust on the lip you have to miss
+  const ex = isLeft ? x + w : x;
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  const eg = ctx.createRadialGradient(ex, y+TH/2, 0, ex, y+TH/2, 46 + dk*22);
+  eg.addColorStop(0, 'rgba(77,224,200,' + (0.34 + dk*0.44) + ')');
+  eg.addColorStop(1, 'rgba(77,224,200,0)');
+  ctx.fillStyle = eg;
+  ctx.fillRect(ex-46, y-24, 92, TH+48);
+  ctx.restore();
+
+  ctx.strokeStyle = 'rgba(122,240,215,.7)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(ex, y + 3);
+  ctx.lineTo(ex, y + TH - 3);
+  ctx.stroke();
+
+  ctx.fillStyle = 'rgba(150,200,215,.18)';
+  ctx.fillRect(x, y, w, 1.5);
+}
+
+function drawDiver(now){
+  /* Nose into the turn. It used to bank away from the direction of travel,
+     which read as being dragged sideways rather than cutting a line. */
+  const tilt = -clamp(vxSmoothed/900, -1, 1);
+  ctx.save();
+  ctx.translate(px, playerY);
+  ctx.rotate(tilt * 0.42);
+
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  const halo = ctx.createRadialGradient(0,0,0,0,0,R*4.2);
+  halo.addColorStop(0,'rgba(77,224,200,.42)');
+  halo.addColorStop(1,'rgba(77,224,200,0)');
+  ctx.fillStyle = halo;
+  ctx.beginPath(); ctx.arc(0,0,R*4.2,0,6.2832); ctx.fill();
+  ctx.restore();
+
+  // teardrop body, nose down
+  ctx.fillStyle = '#eafff8';
+  ctx.beginPath();
+  ctx.moveTo(0, R*1.5);
+  ctx.quadraticCurveTo(R*1.05, R*0.25, R*0.62, -R*0.85);
+  ctx.quadraticCurveTo(0, -R*1.35, -R*0.62, -R*0.85);
+  ctx.quadraticCurveTo(-R*1.05, R*0.25, 0, R*1.5);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.fillStyle = 'rgba(20,80,90,.55)';
+  ctx.beginPath(); ctx.arc(0, -R*0.15, R*0.32, 0, 6.2832); ctx.fill();
+  ctx.restore();
+}
+
+/* ---------------------------------------------------------------- */
+/*  Loop — fixed-step physics so it plays the same on every screen   */
+/* ---------------------------------------------------------------- */
+const FIXED = 1/120;
+function frame(now){
+  if (lastTime === undefined) lastTime = now;
+  let dt = Math.min(0.05, (now - lastTime)/1000);
+  lastTime = now;
+
+  if (state === 'diving'){
+    acc += dt;
+    let guard = 0;
+    while (acc >= FIXED && state === 'diving' && guard++ < 8){
+      step(FIXED);
+      acc -= FIXED;
+    }
+  } else {
+    // keep the water alive behind the panels
+    for (const m of motes){
+      m.y -= 60 * m.p * dt;
+      if (m.y < -6){ m.y = H + rand(0,60); m.x = rand(0,W); }
+    }
+    for (const b of bits){ b.age += dt; b.x += b.vx*dt; b.y += b.vy*dt; b.vy += 120*dt; }
+    bits = bits.filter(b => b.age < b.life);
+    shake = Math.max(0, shake - dt*2.6);
+    flash = Math.max(0, flash - dt*2.2);
+  }
+
+  draw(now);
+  requestAnimationFrame(frame);
+}
+
+/* ---------------------------------------------------------------- */
+resize();
+reset();
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
