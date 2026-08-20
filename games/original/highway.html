@@ -249,7 +249,7 @@ var snd = {
   arm: function(){
     if (snd.armed || !AR.audio.onReset) return;
     snd.armed = true;
-    AR.audio.onReset(function(){ snd.eng = null; snd.begin(); });
+    AR.audio.onReset(function(){ snd.eng = null; snd.thrust = null; snd.screech = null; snd.begin(); });
   },
   begin: function(){
     if (!AR) return;
@@ -261,6 +261,13 @@ var snd = {
       snd.eng2  = AR.sfx.hold({ freq:70, type:'square',  cutoff:400, q:2, detune:14 });
       snd.wind  = AR.sfx.holdNoise({ freq:900, q:0.5 });
       snd.siren = AR.sfx.hold({ freq:700, type:'sine', cutoff:2600, q:1 });
+      /* NOS: a wide bandpassed hiss, opened up while the bottle is live */
+      snd.thrust = AR.sfx.holdNoise({ freq:1800, q:0.35 });
+      /* Brakes: a tight, high band that only sings while the tyres are losing
+         speed. Held at a fixed pitch it would drone; it tracks the rate of
+         deceleration instead, so it screeches on the stop and dies as you
+         settle. */
+      snd.screech = AR.sfx.holdNoise({ freq:3400, q:5.5 });
     }
     AR.music.start(152, 4, snd.bed);
   },
@@ -326,13 +333,29 @@ var snd = {
   },
 
   /* driven every frame from the game loop */
-  drive: function(spd, top, off, nos, copNear){
+  drive: function(spd, top, off, nos, copNear, decel){
     if (!snd.eng) return;
     var r = spd / top;
     var rpm = 62 + r * 168 + (nos ? 26 : 0);
     snd.eng.set(rpm, 0.055 + r*0.038, 420 + r*1500, 0.06);
     snd.eng2.set(rpm*0.5, 0.026 + r*0.019, 300 + r*900, 0.06);
     snd.wind.set(600 + r*2100, (off ? 0.045 : 0.009) + r*0.016, 0.10);
+
+    /* thruster: present the whole time the bottle is open, and it swells a
+       little with speed so it sits on top of the engine rather than under it */
+    if (snd.thrust){
+      if (nos) snd.thrust.set(1500 + r*1900, 0.055 + r*0.030, 0.05);
+      else     snd.thrust.set(1500, 0, 0.22);
+    }
+
+    /* screech: only while genuinely shedding speed. `decel` is 0-1, how hard
+       the car is slowing right now, so once it settles at the brake floor the
+       sound stops even though the pedal is still down. */
+    if (snd.screech){
+      var sq = Math.max(0, Math.min(1, decel || 0));
+      if (sq > 0.04) snd.screech.set(2600 + r*2200, 0.020 + sq*0.075, 0.04);
+      else           snd.screech.set(3000, 0, 0.16);
+    }
 
     if (copNear > 0){
       snd.sirenPhase += 0.055;
@@ -348,6 +371,8 @@ var snd = {
     snd.eng2.set(30, 0, 260, 0.4);
     snd.wind.set(400, 0, 0.4);
     snd.siren.set(undefined, 0, undefined, 0.3);
+    if (snd.thrust)  snd.thrust.set(1500, 0, 0.3);
+    if (snd.screech) snd.screech.set(3000, 0, 0.3);
   },
 
   nearMiss: function(){
@@ -849,6 +874,7 @@ function step(dt){
   camX = clamp(camX, playerX-0.10, playerX+0.10);
 
   // --- speed ---
+  const prevSpd = spd;
   const offRoad = Math.abs(playerX) > 1.0;
   if(nosOn && nos>0){ nos = Math.max(0, nos - 26*dt); if(nos<=0) nosOn=false; }
   else nosOn=false;
@@ -1144,7 +1170,11 @@ function step(dt){
     const gap = Math.abs(k.z - pz);
     if(gap < 7000) near = Math.max(near, 1 - gap/7000);
   }
-  snd.drive(spd, MAX_SPD, offRoad, nosOn, near);
+  /* rate of deceleration as a fraction of the hardest the brakes can pull,
+     so the screech follows what the car is doing rather than what the pedal is */
+  const lost = Math.max(0, prevSpd - spd);
+  const decel = braking ? Math.min(1, lost / Math.max(1, 9000 * dt)) : 0;
+  snd.drive(spd, MAX_SPD, offRoad, nosOn, near, decel);
 
   if(dmg>=100 && state==='driving') wreck('WRECKED');
 }
