@@ -47,24 +47,6 @@ let d=0; for (const c of css) d += c==='{' ? 1 : c==='}' ? -1 : 0;
 // d must be 0
 ```
 
-## Session handoffs
-
-Long sessions outrun the context window. Before that happens the working state
-gets written to `HANDOFF.md`, and the one before it is kept as
-`HANDOFF-PREV.md` — two at a time, so a session can be compared against the
-last rather than read cold.
-
-    ./handoff.sh          what exists now
-    ./handoff.sh rotate   archive the current one, ready for a new
-
-Neither reaches the zip: `pack.sh` ships an explicit whitelist, so anything not
-on it is excluded automatically.
-
-**The handoff has to carry its own instructions.** After a context clear there
-is no memory of this convention — only the file. So every handoff ends with the
-process itself, which is what makes it self-perpetuating rather than something
-that quietly lapses after one round.
-
 ## Packing
 
     ./pack.sh

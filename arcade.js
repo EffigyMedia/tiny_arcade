@@ -94,6 +94,27 @@ var A = window.Arcade = window.Arcade || {};
   window.addEventListener('pointerup', up, { passive:true });
   window.addEventListener('pointercancel', up, { passive:true });
 
+  /* Is this a touch device? Decides whether on-screen controls are drawn at
+     all — a desktop showing thumb buttons looks broken, and a phone without
+     them is unplayable. Coarse pointer rather than user-agent sniffing. */
+/* The shell boots on DOMContentLoaded, which is after a game's inline script
+   has run — so a game calling Arcade.options.define() at parse time would find
+   nothing there. Stand the API up immediately and hold the call until boot. */
+A._optQueue = null;
+A.options = {
+  define: function(defs, onChange){ A._optQueue = { defs: defs, onChange: onChange }; },
+  get: function(){ return undefined; },
+  set: function(){}
+};
+
+  A.touch = (function(){
+    try {
+      return window.matchMedia('(pointer: coarse)').matches ||
+             ('ontouchstart' in window) ||
+             (navigator.maxTouchPoints || 0) > 0;
+    } catch(e){ return true; }
+  })();
+
   A.gesture = {
     onSwipe: function(fn){ swipeSubs.push(fn); },
     onDrag:  function(fn){ dragSubs.push(fn); },
@@ -322,6 +343,7 @@ function boot(){
         '<button class="ark-act tog" type="button" data-a="music">MUSIC<b>ON</b></button>' +
       '</div>' +
       '<button class="ark-act" type="button" data-a="all">MUTE ALL</button>' +
+      '<div class="ark-opts"></div>' +
       '<div class="ark-note">Restarting throws away the current run.</div>' +
       '<div class="ark-hint" id="ark-pad"></div>' +
     '</div>';
@@ -331,9 +353,76 @@ function boot(){
   var tag = bar.querySelector('.ark-tag');
   var AU = (window.Arcade && window.Arcade.audio) || null;
 
+  /* ---- per-game options -------------------------------------------------
+     A game registers what it wants to be adjustable and the shell renders it
+     into the pause menu, remembers it, and hands back the value. Keeps the
+     options in one place rather than each cabinet growing its own menu, and
+     means a new game gets the whole apparatus for three lines.
+
+       Arcade.options.define([
+         { key:'side',  label:'CONTROLS', type:'toggle', of:['LEFT','RIGHT'], def:'RIGHT' },
+         { key:'easy',  label:'EASY MODE', type:'bool', def:false },
+         { key:'paint', label:'PAINT', type:'cycle', of:['WHITE','RED','GOLD'], def:'WHITE' }
+       ], onChange);
+     -------------------------------------------------------------------------- */
+  var optDefs = [], optOnChange = null;
+  /* keyed off the same slug the save system uses, so options travel with the
+     right cabinet. There is no `id` in this scope — referencing one threw and
+     silently killed the rest of boot(), which is why the options never
+     appeared and the pause menu looked fine. */
+  var OPT_KEY = 'tinyarcade.opts.v1.' +
+                String(title || 'game').toLowerCase().replace(/[^a-z0-9]+/g, '');
+
+  function optAll(){
+    try { return JSON.parse(localStorage.getItem(OPT_KEY) || '{}'); } catch(e){ return {}; }
+  }
+  function optGet(k){
+    var v = optAll()[k];
+    if (v !== undefined) return v;
+    for (var i=0;i<optDefs.length;i++) if (optDefs[i].key === k) return optDefs[i].def;
+    return undefined;
+  }
+  function optSet(k, v){
+    var all = optAll(); all[k] = v;
+    try { localStorage.setItem(OPT_KEY, JSON.stringify(all)); } catch(e){}
+    if (optOnChange) optOnChange(k, v);
+  }
+  function paintOpts(){
+    var box = veil.querySelector('.ark-opts');
+    if (!box) return;
+    if (!optDefs.length){ box.innerHTML = ''; return; }
+    var h = '<div class="ark-sep">OPTIONS</div>';
+    for (var i=0;i<optDefs.length;i++){
+      var d = optDefs[i], v = optGet(d.key), show;
+      /* fall back to the first listed value, not to OFF — a cycle with no
+         stored value was rendering as though it were a switch */
+      if (d.type === 'bool') show = v ? 'ON' : 'OFF';
+      else { if (v === undefined) v = (d.of && d.of[0]) || ''; show = String(v); }
+      h += '<button class="ark-act tog' + ((d.type === 'bool' && v) ? ' on' : '') +
+           '" type="button" data-opt="' + d.key + '">' + d.label +
+           '<b>' + show + '</b></button>';
+    }
+    box.innerHTML = h;
+    var btns = box.querySelectorAll('[data-opt]');
+    for (var j=0;j<btns.length;j++){
+      btns[j].addEventListener('click', function(){
+        var k = this.getAttribute('data-opt'), d = null;
+        for (var n=0;n<optDefs.length;n++) if (optDefs[n].key === k) d = optDefs[n];
+        if (!d) return;
+        var cur = optGet(k);
+        if (d.type === 'bool') optSet(k, !cur);
+        else {
+          var list = d.of || [], at = list.indexOf(cur);
+          optSet(k, list[(at + 1) % list.length]);
+        }
+        paintOpts();
+      });
+    }
+  }
+
   function paintAudio(){
     if (!AU) return;
-    var t = veil.querySelectorAll('.ark-act.tog');
+    var t = veil.querySelectorAll('.ark-act.tog[data-a]');   /* audio toggles only */
     for (var i=0;i<t.length;i++){
       var k = t[i].getAttribute('data-a'), on = AU.get(k);
       t[i].classList.toggle('on', on);
@@ -342,6 +431,35 @@ function boot(){
     veil.querySelector('[data-a="all"]').textContent = AU.anyOn() ? 'MUTE ALL' : 'UNMUTE ALL';
   }
   if (AU){ AU.onChange(paintAudio); paintAudio(); }
+  paintOpts();
+
+  A.options = {
+    define: function(defs, onChange){
+      optDefs = defs || [];
+      optOnChange = onChange || null;
+      /* write the defaults down on first run. Reading them lazily left the
+         first paint rendering every control as though it were a switch, and
+         only a click put it right. */
+      var stored = optAll(), dirty = false;
+      for (var d = 0; d < optDefs.length; d++){
+        var def = optDefs[d];
+        if (stored[def.key] === undefined){
+          stored[def.key] = (def.type === 'bool') ? !!def.def
+                          : (def.def !== undefined ? def.def : ((def.of && def.of[0]) || ''));
+          dirty = true;
+        }
+      }
+      if (dirty){ try { localStorage.setItem(OPT_KEY, JSON.stringify(stored)); } catch(e){} }
+      paintOpts();
+      /* fire once so the game starts in the state it was left in */
+      if (optOnChange) for (var i=0;i<optDefs.length;i++)
+        optOnChange(optDefs[i].key, optGet(optDefs[i].key));
+    },
+    get: optGet,
+    set: function(k, v){ optSet(k, v); paintOpts(); }
+  };
+  /* anything registered before the shell was ready */
+  if (A._optQueue){ A.options.define(A._optQueue.defs, A._optQueue.onChange); A._optQueue = null; }
 
   function setPaused(v){
     if (v === paused) return;
