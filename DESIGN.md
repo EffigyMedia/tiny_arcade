@@ -38,6 +38,9 @@ game a drop-in rather than a project.
 A game is not shipped until all of these are true.
 
 - [ ] Plays with **touch**, **keyboard**, and **gamepad**. No mode is second-class.
+- [ ] Touch input goes through **`Arcade.gesture`**, so a thumb anywhere on the
+      page steers. Never bind steering to the canvas alone — making someone hit
+      a 360px target to turn is a fight with the game rather than its hazards.
 - [ ] Music bed on `bus:'music'`. Drones and pads too — not just sequenced notes.
 - [ ] SFX on `bus:'sfx'`. Continuous voices use `hold` / `holdNoise`.
 - [ ] Pause hushes it; resume restores it; mute toggles are independent.
@@ -48,6 +51,11 @@ A game is not shipped until all of these are true.
 - [ ] Fits 375×667, 390×844, and iPad portrait and landscape.
 - [ ] Holds 60fps on a mid phone.
 - [ ] Entry in `games.js`: `file, id, name, accent, genre, hook, attract`.
+- [ ] **The hook reads like cabinet glass, not a store listing.** Concrete, one
+      or two short sentences, and structurally *different* from its neighbours.
+      Four cards that are each two clauses of the same length read as filler
+      however good the games are. Watch for a verb reused across two cards, and
+      for lists of three — both are tells.
 - [ ] **Attract animation moves the same direction the real game moves.**
       (Deep shipped scrolling backwards. Check this every time.)
 - [ ] Balance sanity-checked — headless sim or a scripted bot where the genre allows.
@@ -69,7 +77,7 @@ Claimed so far, keep new ones clear of these:
 
 | Accent | Game | | Accent | Game |
 |---|---|---|---|---|
-| `#4de0c8` | Deep | | `#ffd23c` | Pellet |
+| `#4de0c8` | Deep | | `#ffd23c` | Penboy |
 | `#7fd8ff` | Derelict | | `#ff4f6d` | Soviet Blocks |
 | `#ff8a3d` | Highway | | `#5bd66c` | Ribbit |
 | `#00e5ff` | Ricochet | | `#c3ff4a` | Phalanx |
@@ -90,10 +98,12 @@ Claimed so far, keep new ones clear of these:
 Things several games need. Build them **when the first game that needs one
 arrives**, not before — but design them for the second and third.
 
-- [ ] **`Arcade.gesture`** — swipe / flick recognition with direction and
-      velocity. Needed by Pellet, Ribbit, Coil, Soviet Blocks.
+- [x] **`Arcade.gesture`** — built, and every machine uses it. Page-wide
+      pointer input: `onSwipe(fn)` for one-per-flick directions, `onDrag(fn)`
+      for continuous steering. It ignores gestures that start on a control or
+      an open overlay, and stops while the shell is paused.
 - [ ] **`Arcade.grid`** — tile map helper: draw, collide, A* pathfind.
-      Needed by Pellet, Fuse, Horde. Derelict has a private version worth lifting.
+      Needed by Penboy, Fuse, Horde. Derelict has a private version worth lifting.
 - [ ] **`Arcade.fx`** — particle burst / float-text helper. Every game has
       re-implemented this; consolidate on the third repeat.
 - [ ] **`Arcade.scores`** — local top-ten table with initials entry, and a
@@ -120,7 +130,7 @@ Portrait, one thumb, no new engine work beyond the shared backlog.
 
 ---
 
-#### 01 · PELLET — *maze chase*
+#### 01 · PENBOY — *maze chase*
 **Status:** ☑ shipped **Size:** L **Accent:** `#ffd23c`
 
 **The idea.** Four hunters, and the only thing that makes them prey is a
@@ -841,7 +851,7 @@ food. If that separation doesn't hold, cut it.
 
 Three at a time, always mixed so no two consecutive builds feel the same.
 
-- **Batch A** — ☑ Pellet · ☐ Soviet Blocks · ☐ Ricochet
+- **Batch A** — ☑ Penboy · ☐ Soviet Blocks · ☐ Ricochet
   *A chase, a stacker, a paddle game. Three different muscles, all one-thumb,
   none overlapping anything on the floor. Ships the `gesture` helper.*
 
@@ -896,7 +906,7 @@ Ideas parked for later:
 
 ## 6. Housekeeping
 
-- [ ] Move Derelict's grid/pathfind code into `Arcade.grid` when Pellet needs it.
+- [ ] Move Derelict's grid/pathfind code into `Arcade.grid` when Penboy needs it.
 - [ ] Consolidate the three private particle systems into `Arcade.fx`.
 - [ ] `games.js` grows long — consider grouping by tier in the launcher once
       there are more than about a dozen cabinets.

@@ -8,16 +8,21 @@
      3. add one object to this list
 
    attract: which little idle animation the card plays.
-            'dive' | 'grid' | 'road' | 'none'
+            'dive' | 'grid' | 'road' | 'maze' | 'none'
+
+   hook: write it like cabinet glass, not like a store listing. One or two
+         short sentences, concrete, and no two cards built the same way —
+         if every line is two clauses of the same length the rack reads as
+         filler however good the games are.
    ===================================================================== */
 window.TINY_ARCADE = [
   {
-    file:  'games/pellet.html',
-    id:    'pellet',
-    name:  'Pellet',
+    file:  'games/penboy.html',
+    id:    'penboy',
+    name:  'Penboy',
     accent:'#ffd23c',
     genre: 'ARCADE \u00B7 MAZE CHASE',
-    hook:  'Four hunters, and each one wants a different tile. Clear the drawing before they work together.',
+    hook:  'Four hunters, and no two of them think alike.',
     attract:'maze'
   },
   {
@@ -26,7 +31,7 @@ window.TINY_ARCADE = [
     name:  'Deep',
     accent:'#4de0c8',
     genre: 'ARCADE \u00B7 ONE THUMB',
-    hook:  'A one-thumb dive into the abyss. Thread the ledges and mind what swims across your line.',
+    hook:  'One thumb. Straight down. Something already knows you are coming.',
     attract:'dive'
   },
   {
@@ -35,7 +40,7 @@ window.TINY_ARCADE = [
     name:  'Derelict',
     accent:'#7fd8ff',
     genre: 'ROGUELIKE \u00B7 TURN-BASED',
-    hook:  'Sealed compartments, keycards, and an apex sitting on the only salvage worth having.',
+    hook:  'Nothing aboard is alive. Plenty of it still moves.',
     attract:'grid'
   },
   {
@@ -44,7 +49,7 @@ window.TINY_ARCADE = [
     name:  'Highway',
     accent:'#ff8a3d',
     genre: 'DRIVING \u00B7 ENDLESS',
-    hook:  'Thread traffic at 180mph with the county behind you. Cruisers meet semi-trailers too.',
+    hook:  '180 with the county behind you.',
     attract:'road'
   }
 ];

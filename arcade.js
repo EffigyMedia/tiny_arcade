@@ -31,6 +31,76 @@
 
 var A = window.Arcade = window.Arcade || {};
 
+/* ---- Arcade.gesture ----------------------------------------------------
+   Page-wide pointer input, shared by every machine. A thumb lands where it
+   lands; making someone hit a 360px canvas to steer or to turn a corner is a
+   fight with the game rather than with the game's hazards.
+
+   Two ways to listen:
+     Arcade.gesture.onSwipe(fn)  fn('up'|'down'|'left'|'right')  — one per flick
+     Arcade.gesture.onDrag(fn)   fn({dx, dy, first, last})       — continuous
+
+   Both ignore anything that starts on a control (button, link, field) or on
+   an open overlay, so title screens and pause menus keep working, and both
+   stop while the shell is paused.
+   ------------------------------------------------------------------------ */
+(function(){
+  var swipeSubs = [], dragSubs = [];
+  var id = null, sx = 0, sy = 0, lx = 0, ly = 0, fired = false, dragging = false;
+  var THRESH = 16;
+
+  function blocked(target){
+    if (A.paused && A.paused()) return true;
+    if (!target || !target.closest) return false;
+    if (target.closest('button, a, input, select, textarea, [role="button"]')) return true;
+    var veil = target.closest('#veil, .ark-veil, .veil');
+    if (veil && !veil.classList.contains('hidden')) return true;
+    return false;
+  }
+
+  function down(e){
+    if (id !== null || blocked(e.target)) return;
+    id = e.pointerId; sx = lx = e.clientX; sy = ly = e.clientY;
+    fired = false; dragging = false;
+  }
+  function move(e){
+    if (id !== e.pointerId) return;
+    var dx = e.clientX - lx, dy = e.clientY - ly;
+    var tx = e.clientX - sx, ty = e.clientY - sy;
+
+    if (!fired && (Math.abs(tx) >= THRESH || Math.abs(ty) >= THRESH)){
+      var dir = Math.abs(tx) > Math.abs(ty) ? (tx > 0 ? 'right' : 'left')
+                                            : (ty > 0 ? 'down'  : 'up');
+      for (var i=0;i<swipeSubs.length;i++) swipeSubs[i](dir);
+      if (swipeSubs.length){ fired = true; if (e.cancelable) e.preventDefault(); }
+    }
+    if (dragSubs.length){
+      for (var j=0;j<dragSubs.length;j++)
+        dragSubs[j]({ dx:dx, dy:dy, x:e.clientX, y:e.clientY, first:!dragging, last:false });
+      dragging = true;
+      if (e.cancelable) e.preventDefault();
+    }
+    lx = e.clientX; ly = e.clientY;
+  }
+  function up(e){
+    if (id !== e.pointerId) return;
+    if (dragging) for (var i=0;i<dragSubs.length;i++)
+      dragSubs[i]({ dx:0, dy:0, x:e.clientX, y:e.clientY, first:false, last:true });
+    id = null; fired = false; dragging = false;
+  }
+
+  window.addEventListener('pointerdown', down, { passive:true });
+  window.addEventListener('pointermove', move, { passive:false });
+  window.addEventListener('pointerup', up, { passive:true });
+  window.addEventListener('pointercancel', up, { passive:true });
+
+  A.gesture = {
+    onSwipe: function(fn){ swipeSubs.push(fn); },
+    onDrag:  function(fn){ dragSubs.push(fn); },
+    threshold: function(px){ THRESH = px; }
+  };
+})();
+
 /* ---- 0. offline. Registering here covers the launcher and every game,
    since arcade.js is the one file all of them load. ---- */
 if ('serviceWorker' in navigator && location.protocol.slice(0,4) === 'http'){
