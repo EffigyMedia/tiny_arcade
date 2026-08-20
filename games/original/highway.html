@@ -267,7 +267,7 @@ var snd = {
          speed. Held at a fixed pitch it would drone; it tracks the rate of
          deceleration instead, so it screeches on the stop and dies as you
          settle. */
-      snd.screech = AR.sfx.holdNoise({ freq:3400, q:5.5 });
+      snd.screech = AR.sfx.holdNoise({ freq:4600, q:9 });
     }
     AR.music.start(152, 4, snd.bed);
   },
@@ -353,8 +353,13 @@ var snd = {
        sound stops even though the pedal is still down. */
     if (snd.screech){
       var sq = Math.max(0, Math.min(1, decel || 0));
-      if (sq > 0.04) snd.screech.set(2600 + r*2200, 0.020 + sq*0.075, 0.04);
-      else           snd.screech.set(3000, 0, 0.16);
+      /* Higher and thinner than the first cut, with a shiver on it — tyres
+         chattering rather than a flat hiss. It cuts off hard: the old release
+         let it ring on after the car had already settled. */
+      snd.scrPhase = (snd.scrPhase || 0) + 0.62;
+      var wob = 1 + Math.sin(snd.scrPhase) * 0.055;
+      if (sq > 0.14) snd.screech.set((4200 + r*2600) * wob, 0.024 + sq*0.085, 0.025);
+      else           snd.screech.set(4600, 0, 0.05);
     }
 
     if (copNear > 0){
@@ -901,8 +906,13 @@ function step(dt){
   score += spd*dt*0.0009*(1+combo*0.12);
 
   // --- heat ---
-  heatT += dt;
-  if(heatT > 20 && heat < 5){ heatT=0; heat++; flashWarn('HEAT '+heat); }
+  /* Heat exists only to summon cruisers and roadblocks. With them off it is a
+     number that escalates and does nothing, and the HUD would still announce
+     it — so the whole pursuit system stands down together. */
+  if(!optEasy){
+    heatT += dt;
+    if(heatT > 20 && heat < 5){ heatT=0; heat++; flashWarn('HEAT '+heat); }
+  }
   nextCopT -= dt; nextBlockT -= dt; nextCrateT -= dt;
   if(nextCrateT <= 0){
     // parked on the shoulder, so taking one means leaving the road
@@ -914,7 +924,7 @@ function step(dt){
     spawnCop();
     nextCopT = rnd(7,13) - heat*0.7;
   }
-  if(nextBlockT<=0 && heat>=2){
+  if(!optEasy && nextBlockT<=0 && heat>=2){
     spawnRoadblock();
     nextBlockT = rnd(30,44) - heat*2;
   }

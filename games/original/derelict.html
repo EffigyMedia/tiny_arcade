@@ -700,6 +700,7 @@ const FREE_STEPS = 6;
 function swingCost(w){ return Math.max(1, Math.round(avg(w) / 2)); }
 function sprintCost(len){ return Math.max(0, len - FREE_STEPS); }
 function spendStam(n){ P.stam = Math.max(0, P.stam - n); }
+function maxStamWith(){ return Math.max(4, 14 + (P.lvl-1)*3 + modSum('stam')); }
 function restGain(){ return Math.max(2, Math.round(P.maxStam * 0.28)); }
 function rangePenalty(w, dist){
   if(!w.opt || dist <= w.opt) return 0;
@@ -760,7 +761,13 @@ function playerAtk(w, m, dist){
    percentage alongside it, but nothing ever multiplied incoming damage by it —
    it was folded into DEF anyway, so the card promising "20% less damage" was
    describing arithmetic that did not happen. One number, and armour raises it. */
-function playerDef(){ return 3 + P.lvl + (P.def || 0) + (P.buff.res > 0 ? 3 : 0); }
+/* DEF is the whole defensive story: level, what the suit is wearing, and any
+   temporary buff. `P.def` survives only to carry the old upgrade cards. */
+function playerDef(melee){
+  var d = 3 + P.lvl + (P.def || 0) + modSum('def') + (P.buff.res > 0 ? 3 : 0);
+  if (melee) d += modSum('meleeDef');
+  return d;
+}
 
 function weaponDice(w, m, blind){
   return () => {
@@ -895,6 +902,59 @@ function land(kind, x, y){
 }
 
 /* ---------------- consumables ---------------- */
+/* ---- the suit -----------------------------------------------------------
+   Weapons derive ATK, armour derives DEF. Two weapon slots and your hands;
+   three mod slots and the bare suit. Every mod costs something, because a mod
+   that is only "+DEF" is a stat rather than a decision — and three of them
+   turn aside a specific damage type, which is what makes a datashard about
+   what an Omega DOES worth reading before deck twelve.
+   -------------------------------------------------------------------------- */
+/* Two, not three. Three let you stack DEF 11 at level one, which flattened the
+   early decks — and with two, every mod you fit costs you another one. */
+const MOD_SLOTS = 2;
+const MODS = {
+  plate:    { name:'Hull Plate',      def:4, c:'#8fa8bd',
+              note:'Heavy. Costs you four stamina.',            stam:-4 },
+  mesh:     { name:'Mesh Underlay',   def:0, c:'#a8b6c4',
+              note:'+3 DEF against anything in reach. Nothing against a gun.',
+              meleeDef:3 },
+  ablative: { name:'Ablative Skin',   def:5, c:'#cfd8e3',
+              note:'Sheds a layer with every blow taken.',      wears:true },
+  reactive: { name:'Reactive Weave',  def:2, c:'#ff8a3d',
+              note:'Returns 1d4 to anything that lands a melee blow.',
+              thorns:true },
+  sealed:   { name:'Sealed Liner',    def:1, c:'#a3e635',
+              note:'Immune to corrosion.',                      noCorrode:true },
+  insul:    { name:'Insulated Layer', def:2, c:'#ff8a3d',
+              note:'Halves fire. Two less charge.',             charge:-2, resist:'fire' },
+  faraday:  { name:'Faraday Mesh',    def:2, c:'#ff3b3b',
+              note:'Halves electrical, and drain does nothing. Lamp one shorter.',
+              lamp:-1, resist:'shock' },
+  servo:    { name:'Servo Harness',   def:1, c:'#7fd8ff',
+              note:'Six more stamina and two more free squares. One weapon slot.',
+              stam:6, move:2, slot:-1 },
+  ceramic:  { name:'Ceramic Inlay',   def:3, c:'#3bff8a',
+              note:'Halves plasma and heat. Scanning repairs less.',
+              scan:-0.15, resist:'heat' }
+};
+const MOD_IDS = Object.keys(MODS);
+
+function modsOn(){ return (P.mods || []).filter(id => MODS[id]); }
+function modSlots(){
+  /* the servo harness gives a weapon slot back to the suit */
+  return MOD_SLOTS;
+}
+function weaponSlots(){
+  return SLOTS + modsOn().reduce((n, id) => n + (MODS[id].slot || 0), 0);
+}
+function modSum(field){
+  return modsOn().reduce((n, id) => n + (MODS[id][field] || 0), 0);
+}
+function modHas(flag){ return modsOn().some(id => MODS[id][flag]); }
+function resistsType(kind){
+  return modsOn().some(id => MODS[id].resist === kind);
+}
+
 const USABLE = {
   med:      { name:'Med-Gel',    note:'Seals the suit and repairs you.',          c:'acid'   },
   trauma:   { name:'Trauma Kit', note:'A serious repair. Purges everything.',     c:'acid'   },
@@ -933,6 +993,7 @@ const GEAR = {
   trauma:{ g:'\u2695',   c:'acid',   name:'TRAUMA KIT', note:'a serious repair' },
   grenade:{g:'\u25CF',   c:'amber',  name:'CHARGE',     note:'thrown explosive' },
   canister:{g:'\u25AD',  c:'ice',    name:'AIR CANISTER', note:'refills the suit' },
+  mod:{g:'\u25C8',      c:'steel',  name:'SUIT MOD',     note:'fits to the suit' },
   station: {g:'\u25A6',   c:'ice',    name:'OXYGEN STATION', note:'refills the suit to full, once' },
   incend: {g:'\u25C9',   c:'blood',  name:'INCENDIARY', note:'thrown, and it burns' },
   chem:   {g:'\u25AB',   c:'acid',   name:'CHEM LIGHT', note:'thrown light' },
@@ -1489,12 +1550,15 @@ function armMarine(m){
   /* armour: heavier the deeper you are, and the pip says what it turns aside */
   const roll = Math.random();
   if(roll < 0.30 + t*0.35){
-    const kit = [
-      { def:4, bulk:1.15, pip:null,      name:'Hull Plate' },
-      { def:2, bulk:1.00, pip:'#ff8a3d', name:'Insulated Layer' },
-      { def:2, bulk:1.00, pip:'#ff3b3b', name:'Faraday Mesh' },
-      { def:3, bulk:1.05, pip:'#3bff8a', name:'Ceramic Inlay' }
-    ];
+    /* drawn from the same table the player fits, so what they drop is what
+       they were actually wearing */
+    const kit = ['plate','insul','faraday','ceramic','mesh','servo'].map(function(id){
+      return { mod:id, name:MODS[id].name, def:MODS[id].def,
+               bulk: MODS[id].def >= 4 ? 1.15 : MODS[id].def >= 3 ? 1.05 : 1.00,
+               pip:  MODS[id].resist === 'fire'  ? '#ff8a3d'
+                   : MODS[id].resist === 'shock' ? '#ff3b3b'
+                   : MODS[id].resist === 'heat'  ? '#3bff8a' : null };
+    });
     const a = kit[(Math.random() * kit.length) | 0];
     m.armour = a;
     m.def += a.def;
@@ -1513,7 +1577,8 @@ function marineDrop(m){
     for(const n of neighbours(idx(m.x, m.y))){
       const t = map[n];
       if(t.wall || (t.door && !t.door.open) || t.item) continue;
-      t.item = 'ammo';          /* placeholder until armour mods are items */
+      t.item = 'mod';
+      t.mid  = m.armour.mod || pick(MOD_IDS);
       break;
     }
   }
@@ -1762,7 +1827,7 @@ function assembleDeck(){
   spawnMob(ix(apexI), iy(apexI), apexType, base + 1 + Math.floor(deck/5));
 
   /* --- gear strewn through the compartments --- */
-  const kinds = ['med','cell','med','plate','chip','cap','shard','ammo','ammo','ammo','grenade','incend','chem','chem','stim','carapace','trauma','lamp','canister','canister'];
+  const kinds = ['med','cell','med','plate','chip','cap','shard','ammo','ammo','ammo','grenade','incend','chem','chem','stim','carapace','trauma','lamp','canister','canister','mod','mod','mod'];
   const drops = 4 + Math.floor(deck/2);
   const shelf = roomTiles.filter(i => !used.has(i) && !map[i].door && !map[i].exit);
   for(let k=0;k<drops && shelf.length;k++){
@@ -1837,7 +1902,7 @@ function newRun(){
         ammo:{ slug:20, cell:0, plasma:0, fuel:0 },
         items:{ med:1, trauma:0, grenade:1, incend:0, chem:2, stim:0, carapace:0, canister:1 },
         buff:{ dmg:0, res:0 },
-        dmgMul:1, arcMul:1, scanMul:1, def:0, siphon:0, radius:3, lamp:0,
+        dmgMul:1, arcMul:1, scanMul:1, def:0, siphon:0, radius:3, lamp:0, mods:[],
         xpBonus:0, guard:false, guardReady:false };
   deck = 1; dead = false; logLines = [];
   installed = [];
@@ -1861,7 +1926,10 @@ const LAMPS = [
   { name:'Arc Lantern',   r:6, note:'Nine squares. You see the deck before it sees you.' }
 ];
 function lamp(){ return LAMPS[Math.min(LAMPS.length-1, P.lamp || 0)]; }
-function lampRange(){ return P.radius + lamp().r; }
+function lampRange(){
+  /* a faraday mesh costs you a square of light; never below one */
+  return Math.max(1, P.radius + lamp().r + modSum('lamp'));
+}
 
 /* `seen` is memory: terrain you have walked past and still remember. `lit` is
    the beam this instant. Memory is drawn dim and holds no living thing —
@@ -2249,6 +2317,23 @@ function hurtPlayer(m, forced, reflected){
                  carrying: m.carrying || null, armour: m.armour ? m.armour.name : null };
 
   if(r.kind === 'miss'){ say(label(m) + ' misses' + tag); render(); return false; }
+
+  if(modHas('wears')){
+    /* the ablative skin is spent a layer at a time */
+    const i = P.mods.indexOf('ablative');
+    P.ablativeHits = (P.ablativeHits || 0) + 1;
+    if(P.ablativeHits >= 5 && i >= 0){
+      P.mods.splice(i, 1); P.ablativeHits = 0;
+      say('The ablative skin is gone.');
+      snd.denied();
+    }
+  }
+  if(modHas('thorns') && adjacent(m)){
+    const back = roll(1, 4);
+    m.hp -= back;
+    say('  the weave bites back \u2212' + back);
+    if(m.hp <= 0){ say(label(m) + ' stops moving.'); killMob(m); }
+  }
   if(r.kind === 'reflect'){
     say(label(m) + ' overreaches \u2014 you turn it back \u2212' + r.dmg + tag);
     m.hp -= r.dmg; if(m.hp <= 0) killMob(m);
@@ -2655,6 +2740,20 @@ function takeItem(t){
     P.items[kind] = (P.items[kind] || 0) + 1;
     say(USABLE[kind].name.toUpperCase() + ' stowed. ' + USABLE[kind].note);
   }
+  if(kind === 'mod'){
+    const id = t.mid || pick(MOD_IDS);
+    if(modsOn().length < modSlots()){
+      P.mods.push(id);
+      P.maxStam = maxStamWith();
+      P.stam = Math.min(P.stam, P.maxStam);
+      say(MODS[id].name.toUpperCase() + ' fitted. ' + MODS[id].note);
+      t.item = null; t.mid = null;
+      snd.pickup();
+    } else {
+      askFit(id, t);
+      return;
+    }
+  }
   if(kind === 'wpn'){
     const id = t.wid || 'crowbar', w = WEAPONS[id];
     if(hasWep(id)){
@@ -2734,6 +2833,43 @@ function askAir(tile){
         say('Left the station charged.');
       }
       endTurn(null);
+      render();
+    });
+  });
+}
+
+/* Fitting one out means taking one off, and the old one stays on the deck. */
+function askFit(id, tile){
+  const m = MODS[id];
+  const line = k => '+' + MODS[k].def + ' DEF \u00B7 ' + MODS[k].note;
+  let html =
+    '<div class="vtitle amber">Suit Mod</div>' +
+    '<div class="kit"><div class="krow"><div class="kmid">' +
+      '<b>' + m.name + '</b><i>' + line(id) + '</i></div></div></div>' +
+    '<div class="kithead">The suit is full. Take one off?</div><div class="kit">';
+  P.mods.forEach((mid, i) => {
+    html += '<div class="krow"><div class="kmid"><b>' + MODS[mid].name + '</b>' +
+      '<i>' + line(mid) + '</i></div>' +
+      '<button class="kbtn" data-fit="' + i + '">SWAP</button></div>';
+  });
+  html += '</div><div class="kend"><button class="vbtn" data-fit="no">LEAVE IT</button></div>';
+  openVeil(html);
+  veilBody.querySelectorAll('[data-fit]').forEach(b => {
+    b.addEventListener('click', () => {
+      const v = b.getAttribute('data-fit');
+      veil.classList.add('hidden');
+      if(v === 'no'){
+        tile.item = 'mod'; tile.mid = id;
+        say('Left the ' + m.name + ' on the deck.');
+      } else {
+        const i = +v, off = P.mods[i];
+        P.mods[i] = id;
+        tile.item = 'mod'; tile.mid = off;
+        P.maxStam = maxStamWith();
+        P.stam = Math.min(P.stam, P.maxStam);
+        say('Fitted the ' + m.name + ', stripped the ' + MODS[off].name + '.');
+        snd.pickup();
+      }
       render();
     });
   });
@@ -2948,6 +3084,7 @@ function loadRun(){
     P.buff   = P.buff   || { dmg:0, res:0 };
     if(typeof P.lamp !== 'number') P.lamp = 0;
     if(typeof P.maxStam !== 'number'){ P.maxStam = 14 + (P.lvl-1)*3; P.stam = P.maxStam; }
+    if(!Array.isArray(P.mods)) P.mods = [];
     if(typeof P.def !== 'number'){ P.def = Math.round((P.resist || 0) * 10); delete P.resist; }
     if(!P.radius || P.radius < 3) P.radius = 3;
     /* older saves carried an unbounded list; keep the two best and bin the rest */
@@ -3242,7 +3379,7 @@ function drawItem(g, x, y, kind, extra){
     canister:'#8fe8ff', station:'#8fe8ff',
     stim:'#ff3b5c', lamp:'#ffe9a8',
     carapace:'#93a7b5', cell:'#ff3b3b', plate:'#93a7b5', chip:'#ff3b5c',
-    cap:'#b79cf0', shard:'#ffb347', ammo:'#93a7b5', wpn:'#9fb2c0', plasma:'#3bff8a',
+    cap:'#b79cf0', shard:'#ffb347', ammo:'#93a7b5', wpn:'#9fb2c0', plasma:'#3bff8a', mod:'#cfd8e3',
     key:DOORCOL[extra]||'#4da3ff', core:'#ffd479'
   }[kind] || '#cfe0e6';
 
@@ -4268,6 +4405,19 @@ let aiming = null;      /* a thrown item waiting for you to pick a tile */
 
 function showKit(){
   const KIND = { melee:'MELEE', tool:'TOOL', ranged:'RANGED' };
+
+  /* the suit, shown above the weapons: what is fitted, what it costs */
+  let suit = '<div class="kithead">SUIT \u00B7 ' + modsOn().length + ' OF ' + modSlots() + '</div><div class="kit">';
+  if(!modsOn().length){
+    suit += '<div class="krow"><div class="kmid"><b>Bare suit</b>' +
+            '<i>Nothing fitted. DEF ' + playerDef() + '.</i></div></div>';
+  } else {
+    modsOn().forEach(function(id){
+      suit += '<div class="krow"><div class="kmid"><b>' + MODS[id].name + '</b>' +
+              '<i>+' + MODS[id].def + ' DEF \u00B7 ' + MODS[id].note + '</i></div></div>';
+    });
+  }
+  suit += '</div>';
   let html =
     '<div class="veyebrow">SUIT MANIFEST \u00B7 DECK ' + String(deck).padStart(2,'0') + '</div>' +
     '<div class="vtitle ice">Gear</div>' +
@@ -4295,6 +4445,7 @@ function showKit(){
     if(P.corroded)     html += '<div class="krow"><div class="kmid"><b>SUIT SEARED</b><i>Scan repair cut to a third until purged</i></div></div>';
   }
 
+  html += suit;
   html += '<div class="kithead">WEAPONS</div>';
   const order = carried();          /* fists first, then the two hands, in slot order */
   const slotName = id => id === 'fists' ? 'HANDS'
