@@ -358,8 +358,11 @@ var snd = {
          let it ring on after the car had already settled. */
       snd.scrPhase = (snd.scrPhase || 0) + 0.62;
       var wob = 1 + Math.sin(snd.scrPhase) * 0.055;
-      if (sq > 0.14) snd.screech.set((4200 + r*2600) * wob, 0.024 + sq*0.085, 0.025);
-      else           snd.screech.set(4600, 0, 0.05);
+      /* also silent at a crawl: tyres do not sing at 46mph. `r` is the speed
+         as a fraction of top, so 46/180 is the floor. */
+      if (sq > 0.14 && r > 46/180)
+             snd.screech.set((4200 + r*2600) * wob, 0.024 + sq*0.085, 0.025);
+      else   snd.screech.set(4600, 0, 0.05);
     }
 
     if (copNear > 0){
@@ -754,6 +757,7 @@ function reset(){
   pos=0; playerX=0; camX=0; targetX=0; spd=IDLE_SPD;
   dmg=0; nos=40; nosOn=false; nosTime=0;
   dist=0; score=0; combo=0; comboTime=0; heat=1; heatT=0;
+  /* dayClock deliberately NOT reset: the sky keeps its own time across runs */
   traffic=[]; cops=[]; blocks=[]; crates=[]; fx=[];
   shake=0; hitFlash=0; sirenPhase=0; lastKmh=0; iframe=0;
   acc=0;
@@ -889,7 +893,12 @@ function step(dt){
   const rate = braking ? 9000
              : spd < top ? (nosOn ? 6200 : (spd < MAX_SPD*0.5 ? 5200 : 3000))
              : (offRoad ? 11000 : 2400);
-  spd += (spd<top ? rate : -rate)*dt;
+  /* Approach the target without crossing it. It used to add or subtract a
+     fixed step, so on the brakes the car overshot the floor and juddered
+     +-150 units every frame forever — invisible on a rounded mph readout, but
+     it meant the car was genuinely decelerating half the time and the screech
+     never stopped. */
+  spd += clamp(top - spd, -rate*dt, rate*dt);
   spd = clamp(spd, 1700, NOS_SPD);
   if(offRoad){
     shake = Math.max(shake, 0.22);
@@ -1219,7 +1228,13 @@ function hurt(n, src){
 /* A full cycle: dusk, night, dawn, day, back to dusk. Twelve miles a lap, and you
    set off at dusk because that is the shot the game is named for.
    Phase runs 0-1: 0 dusk · 0.25 night · 0.5 dawn · 0.75 day. */
-function phase(){ return ((dist / 12) + 0.0) % 1; }   /* twelve miles a lap */
+/* A wall clock, not an odometer. Tying the cycle to distance meant slowing
+   down slowed time and flooring it sped time up — a paradox you feel every time
+   you brake. Four minutes a lap, which is about what twelve miles used to cost
+   at a decent pace. */
+const DAY_SECONDS = 240;
+let dayClock = 0;
+function phase(){ return (dayClock / DAY_SECONDS) % 1; }
 
 /* 0 dusk · 0.25 night · 0.5 dawn · 0.75 midday, then round again.
    Darkness peaks at night and bottoms out at midday; the golden band peaks at
@@ -1355,8 +1370,15 @@ function drawSky(){
      0.07 of the camera, which read as a wall a few streets away. */
   let ox = (-camX*W*0.018) % dw;
   if(ox>0) ox -= dw;
-  ctx.globalAlpha = 0.85 - n*0.30;            /* the city recedes into the dark */
+  /* Buildings are opaque. They used to be drawn at 0.55-0.85 alpha to "recede
+     into the dark", which meant the sun and moon showed straight through them.
+     A silhouette recedes by getting closer to the sky colour, not by turning
+     into glass — so the fade happens as a wash painted over the top instead. */
   for(let x=ox; x<W+dw; x+=dw) ctx.drawImage(skyline, x, horizon-dh+1, dw, dh);
+  /* No tint pass. `source-atop` paints over every opaque pixel and the sky is
+     opaque, so it washed a visible band across the sky as well as the
+     buildings. The silhouette is dark enough to read against both a noon sky
+     and a midnight one on its own. */
   /* windows on: full at night, out by day */
   if(skylineLit && n > 0.04){
     ctx.save();
@@ -1666,6 +1688,7 @@ const FIXED=1/120;
 function frameLoop(now){
   if(last===undefined) last=now;
   let dt = Math.min(0.05,(now-last)/1000); last=now;
+  dayClock += dt;
   if(state==='driving'){
     acc += dt;
     let g=0;
