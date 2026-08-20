@@ -1358,8 +1358,8 @@ Scaled by deck tier: `ATK`, `DEF` and damage dice all step up every third deck.
    that tile, declining leaves the new one. Every weapon now has its own
    silhouette on the deck, drawn by class, so a rifle reads as a rifle from
    across the room. Old saves keep their two best weapons and bin the rest.
-3. **Corner rule** — no diagonal attack, by anyone, through a blocked corner.
-4. **Dice combat** — section 7 above, once signed off.
+3. ~~**Corner rule**~~ — built, and it governs movement as well as attacks.
+4. ~~**Dice combat**~~ — built. See item 0.
 5. ~~**Zoned levels**~~ — built. A deck is a chain: zone 0 is open, zone *k*
    sits behind the *k*-th door, and the card for that door lies in zone *k-1*.
    The gates were already chosen from tiles that cut the hatch off, so they
@@ -1396,9 +1396,41 @@ Scaled by deck tier: `ATK`, `DEF` and damage dice all step up every third deck.
    or cut them.
 10. **Pathing** — better routes for long-distance clicks and for hostiles.
 
-## 9. Highway — queued
+## 8b. Deep — done
 
-- Always leave a legitimate line through traffic, without making it soft.
+1. ~~**Rotation**~~ — the diver noses into the turn now rather than banking away
+   from it, so it reads as cutting a line instead of being dragged sideways.
+2. ~~**Depth zones**~~ — paced against the clock, not the tape measure. The
+   descent covers 100m every ~2.4s, so the first cut (300m) put you in pitch
+   black seven seconds into a dive, before the run had started. The line is now
+   900m with a 550m fade:
+
+   | depth | time | darkness | deep-water fish |
+   |---|---|---|---|
+   | 300m | 7.2s | 0.00 | none |
+   | 500m | 11.1s | 0.27 | none |
+   | 600m | 12.8s | 0.46 | half |
+   | 800m | 16.1s | 0.82 | most |
+   | 900m | 17.7s | 1.00 | all |
+
+   So the water dims noticeably around eight seconds, goes genuinely dark past
+   twelve, and reaches full black only on a dive that lasts.
+3. ~~**Bioluminescence**~~ — past the line the water column goes to flat black
+   and the surface shafts are gone. Deep fish are lit from within by their own
+   colour and carry a wider halo; the ledges' rock fades to nothing while the
+   crust on the lip brightens, so an obstacle stops being a shape and becomes
+   two points of light you steer between.
+
+## 9. Highway — done
+
+- ~~**Always leave a legitimate line through traffic.**~~ A wave never fills
+  every lane, but cars run at different speeds, so given enough road a fast one
+  drifts into the last free lane and the wall closes — which is what made some
+  runs unavoidable damage. `keepLaneOpen()` watches the road ahead in 1500-unit
+  bands; in any band where all four lanes are occupied, the car **furthest from
+  you** eases off until it falls out of that band. Nothing is deleted and
+  nothing is slowed on your account, so the road is no softer — there is simply
+  always a line. Measured over 478 bands of live road: **zero fully blocked**.
 
 
 © 2026 Effigy Media. All rights reserved.
