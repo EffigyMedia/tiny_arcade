@@ -101,6 +101,8 @@ html,body{
 #chFill{background:linear-gradient(90deg,#155e75,var(--ice))}
 #xpFill{background:linear-gradient(90deg,#3f3a18,var(--amber))}
 #stFill{background:linear-gradient(90deg,#1d5c2a,#5ce07a)}
+#o2Fill{background:linear-gradient(90deg,#155e75,#8fe8ff)}
+#o2Fill.low{background:linear-gradient(90deg,#8c1024,#ff5470)}
 .mnum{font-size:10px;font-weight:500;width:52px;text-align:right;flex:none;font-variant-numeric:tabular-nums}
 .track.thin{height:4px}
 .status{display:flex;gap:6px;margin:6px 0 2px;min-height:14px;flex-wrap:wrap}
@@ -251,6 +253,11 @@ button:focus-visible{outline:2px solid var(--ice);outline-offset:1px}
       <span class="mnum" id="chNum">2/10</span>
     </div>
     <div class="meter">
+      <span class="mlabel">OXYGEN</span>
+      <span class="track"><span class="fill" id="o2Fill"></span></span>
+      <span class="mnum" id="o2Num">0%</span>
+    </div>
+    <div class="meter">
       <span class="mlabel">STAMINA</span>
       <span class="track"><span class="fill" id="stFill"></span></span>
       <span class="mnum" id="stNum">0/0</span>
@@ -314,6 +321,29 @@ const ALARM = [
   { at:0.70, key:'hunting', name:'HUNTING',  c:'#ff8a3d' },
   { at:0.92, key:'failing', name:'BREACH',   c:'#ff3b5c' }
 ];
+/* ---- oxygen -------------------------------------------------------------
+   One clock for the whole run rather than a timer per deck. It does not reset
+   when you descend, which is what makes lingering expensive everywhere and
+   turns "search this locker or not" into a real question. Stations refill it,
+   canisters top it up, and the suit can be built to hold more or spend less.
+   -------------------------------------------------------------------------- */
+function o2Frac(){ return clamp((P.o2 || 0) / Math.max(1, P.o2Max || 1), 0, 1); }
+function burnO2(n){
+  P.o2 = Math.max(0, (P.o2 || 0) - (n === undefined ? (P.o2Rate || 1) : n));
+  if(P.o2 > 0) return false;
+  /* out of air: the suit starts costing you directly */
+  const d = Math.max(1, Math.round(P.maxHp * 0.05));
+  P.hp -= d;
+  say('No air. \u2212' + d + ' integrity.');
+  if(P.hp <= 0){ die({ what:'ASPHYXIA', env:true }); return true; }
+  return false;
+}
+function refillO2(n){
+  const before = P.o2;
+  P.o2 = Math.min(P.o2Max, P.o2 + n);
+  return P.o2 - before;
+}
+
 function alarmLimit(){
   let open = 0;
   for(let i=0;i<N;i++) if(!map[i].wall) open++;
@@ -849,6 +879,7 @@ function land(kind, x, y){
   if(pd <= w.blast){
     const dmg = (pd === 0 ? w.centre() : w.edge()) * Math.max(1, Math.round(P.lvl/2));
     say('  the blast catches you \u2212' + dmg);
+    P.killedBy = { what: 'YOUR OWN CHARGE', env: true };
     P.hp -= dmg;
     if(P.hp <= 0){ die(); return; }
   }
@@ -859,6 +890,7 @@ function land(kind, x, y){
 const USABLE = {
   med:      { name:'Med-Gel',    note:'Seals the suit and repairs you.',          c:'acid'   },
   trauma:   { name:'Trauma Kit', note:'A serious repair. Purges everything.',     c:'acid'   },
+  canister: { name:'Air Canister', note:'Restores a third of the suit\u2019s oxygen.', c:'ice' },
   grenade:  { name:'Charge',     note:'Thrown. 3d12 at the centre, and it stuns.',   c:'amber' },
   incend:   { name:'Incendiary', note:'Thrown. Sets the whole blast alight.',        c:'blood' },
   chem:     { name:'Chem Light', note:'Thrown. Lights three squares for twelve turns \u2014 and it sees round corners.', c:'acid' },
@@ -892,6 +924,8 @@ const GEAR = {
   med:   { g:'+',        c:'acid',   name:'MED-GEL',    note:'field repair' },
   trauma:{ g:'\u2695',   c:'acid',   name:'TRAUMA KIT', note:'a serious repair' },
   grenade:{g:'\u25CF',   c:'amber',  name:'CHARGE',     note:'thrown explosive' },
+  canister:{g:'\u25AD',  c:'ice',    name:'AIR CANISTER', note:'refills the suit' },
+  station: {g:'\u25A6',   c:'ice',    name:'OXYGEN STATION', note:'refills the suit to full, once' },
   incend: {g:'\u25C9',   c:'blood',  name:'INCENDIARY', note:'thrown, and it burns' },
   chem:   {g:'\u25AB',   c:'acid',   name:'CHEM LIGHT', note:'thrown light' },
   stim:  { g:'\u2191',   c:'blood',  name:'STIM',       note:'damage, six turns' },
@@ -1305,7 +1339,7 @@ function carveCorridor(a,b){
 function attemptFloorplan(){
   map = new Array(N);
   for(let i=0;i<N;i++)
-    map[i] = { wall:true, organic:false, seen:false, item:null, key:null, wid:null, atype:null,
+    map[i] = { wall:true, organic:false, seen:false, item:null, key:null, wid:null, atype:null, station:null,
                exit:false, door:null, room:-1 };
   rooms = [];
   const joins = [];
@@ -1330,7 +1364,30 @@ function attemptFloorplan(){
   /* No route may depend on squeezing between two corners that meet. Rather
      than allowing the squeeze, take one of the two corners out — so the rule
      can be enforced everywhere without ever stranding a tile. */
+  placeProps(floor);      /* before sealSqueezes: blocking props are walls */
   sealSqueezes();
+
+  /* Every open tile must be reachable from every other. The floorplan was only
+     ever checked for SIZE, so a BSP split could leave an isolated pocket and
+     the item placer would happily drop a keycard into it — 25 items sealed off
+     across 180 decks before this check existed. The zone validator did not
+     catch it because it only proves the door chain from the start, not that
+     the deck is one connected space. */
+  {
+    const open = [];
+    for(let i=0;i<N;i++) if(!map[i].wall) open.push(i);
+    if(!open.length) return null;
+    const seen = new Uint8Array(N);
+    const q = [open[0]]; seen[open[0]] = 1;
+    let count = 1;
+    for(let h=0; h<q.length; h++){
+      for(const n of neighbours(q[h])){
+        if(seen[n] || map[n].wall) continue;
+        seen[n] = 1; count++; q.push(n);
+      }
+    }
+    if(count !== open.length) return null;   // pockets: throw the deck away
+  }
 
   // a little organic creep on the walls that touch open space
   for(let i=0;i<N;i++){
@@ -1338,7 +1395,12 @@ function attemptFloorplan(){
     if(neighbours(i).some(n => !map[n].wall) && Math.random() < Math.min(0.55, 0.10 + deck*0.06))
       map[i].organic = true;
   }
-  return floor;
+  /* Props turn tiles into walls AFTER this list was built, and sealSqueezes
+     opens others — so hand back a fresh one. The item placer trusts this array
+     completely; a stale entry means a keycard dropped inside a cabinet. */
+  const finalFloor = [];
+  for(let i=0;i<N;i++) if(!map[i].wall) finalFloor.push(i);
+  return finalFloor;
 }
 
 /* Escalation. Nothing here damages you out of nowhere: the first two stages
@@ -1447,6 +1509,64 @@ function marineDrop(m){
       break;
     }
   }
+}
+
+/* ---- props ---------------------------------------------------------------
+   The deck stopped being a room with things on the floor. Some of it is fixed
+   equipment you can search, the rest is what a working ship leaves behind.
+
+   Blocking props are written into the map as REAL WALLS before the zone
+   validator and sealSqueezes() run. That is deliberate: every existing
+   guarantee — the keycard chain is solvable, no diagonal squeeze, nothing
+   stranded — is computed against walls, so a prop that blocks must be a wall
+   by the time those run, or the generator will happily seal a card behind a
+   cabinet and prove the deck solvable anyway.
+   -------------------------------------------------------------------------- */
+const PROPS = {
+  locker:  { name:'Crew Locker',   blocks:true,  search:true,  c:'#7f97ad',
+             loot:['ammo','med','canister','wpn','chem'] },
+  medcab:  { name:'Med Cabinet',   blocks:true,  search:true,  c:'#a3e635',
+             loot:['med','med','trauma','stim','canister'] },
+  toolbox: { name:'Tool Chest',    blocks:false, search:true,  c:'#e0a458',
+             loot:['ammo','wpn','cell','plate','ammo'] },
+  effects: { name:'Crew Effects',  blocks:false, search:true,  c:'#b79cf0',
+             loot:['chem','shard','cap','med',null] },
+  bag:     { name:'Body Bag',      blocks:false, search:true,  c:'#8fa8bd',
+             loot:['med','ammo',null,null,'trauma'] },
+  console: { name:'Console',       blocks:true,  search:false, c:'#4da3ff' },
+  pipes:   { name:'Pipe Run',      blocks:true,  search:false, c:'#6f8296' },
+  cargo:   { name:'Spilled Cargo', blocks:false, search:false, c:'#8d6b3f' },
+  remains: { name:'Remains',       blocks:false, search:false, c:'#6f5c4a' }
+};
+
+/* placed while the floorplan is still being carved — see the note above */
+function placeProps(floor){
+  const kinds = Object.keys(PROPS);
+  const want = Math.min(14, 4 + Math.round(deck * 0.9));
+  let placed = 0, guard = 0;
+  while(placed < want && guard++ < 400){
+    const i = floor[(Math.random() * floor.length) | 0];
+    const t = map[i];
+    if(!t || t.wall || t.prop || t.door || t.exit) continue;
+    const kind = kinds[(Math.random() * kinds.length) | 0];
+    const def = PROPS[kind];
+    /* never wall off a tile that is the only way through: try it, and put it
+       back if the deck stops being connected */
+    if(def.blocks){
+      t.wall = true;
+      /* flood from a known floor tile, not from P — the start position is not
+         chosen until later, so P still holds the previous deck's coordinates */
+      const anchor = floor.find(j => j !== i && !map[j].wall);
+      if(anchor === undefined){ t.wall = false; continue; }
+      const reach = flood(anchor, null);
+      let cut = 0;
+      for(const j of floor) if(j !== i && !map[j].wall && reach[j] < 0) cut++;
+      if(cut > 0){ t.wall = false; continue; }
+    }
+    t.prop = { kind, searched:false };
+    placed++;
+  }
+  return placed;
 }
 
 function sealSqueezes(){
@@ -1563,6 +1683,28 @@ function assembleDeck(){
   }
   for(const kp of keyPlacements){ map[kp.spot].key = kp.colour; map[kp.spot].item = 'key'; }
 
+  /* Plain bulkhead doors on the chokepoints no keycard claimed. They open when
+     you walk into them and cost the turn — no card, no ceremony. Without them
+     every doorway on the deck is a locked one, which makes a coloured door
+     ordinary; with them a colour actually means something. */
+  for(const g2 of gates){
+    if(map[g2.i].door || used.has(g2.i)) continue;
+    if(Math.random() > 0.55) continue;
+    if(chosen.some(c => Math.abs(c.d - g2.d) < 2)) continue;
+    map[g2.i].door = { colour:null, open:false };
+  }
+
+  /* An oxygen station. One per deck, single use, and the state sticks with the
+     deck for the whole run — so drawing air on the way down is air you will not
+     have on the way back up. That is the ascent's clock, bought and paid for by
+     a decision made an hour earlier rather than switched on by a script. */
+  const airSpots = floor.filter(i => !used.has(i) && !map[i].door && !map[i].exit && dist[i] >= 3);
+  if(airSpots.length){
+    const ai = pick(airSpots);
+    map[ai].station = { used:false };
+    used.add(ai);
+  }
+
   /* --- the apex sits on the salvage, beside the hatch, in the final zone --- */
   const near = floor.filter(i => !used.has(i) && !map[i].door &&
                 Math.abs(ix(i)-ix(exitI)) + Math.abs(iy(i)-iy(exitI)) <= 2);
@@ -1612,7 +1754,7 @@ function assembleDeck(){
   spawnMob(ix(apexI), iy(apexI), apexType, base + 1 + Math.floor(deck/5));
 
   /* --- gear strewn through the compartments --- */
-  const kinds = ['med','cell','med','plate','chip','cap','shard','ammo','ammo','ammo','grenade','incend','chem','chem','stim','carapace','trauma','lamp'];
+  const kinds = ['med','cell','med','plate','chip','cap','shard','ammo','ammo','ammo','grenade','incend','chem','chem','stim','carapace','trauma','lamp','canister','canister'];
   const drops = 4 + Math.floor(deck/2);
   const shelf = roomTiles.filter(i => !used.has(i) && !map[i].door && !map[i].exit);
   for(let k=0;k<drops && shelf.length;k++){
@@ -1675,11 +1817,17 @@ function spawnMob(x,y,type,lvl){
 function newRun(){
   snd.begin();
   P = { lvl:1, hp:34, maxHp:34, dmg:5, charge:4, maxCharge:10, stam:14, maxStam:14,
+        /* Sized so a full suit covers roughly two decks unaided. There is a
+           station on every deck, so the descent is comfortable if you spend
+           them — and the climb back is not, because you already did. This is
+           the number to tune: raise it and the run softens, lower it and the
+           stations stop being a choice. */
+        o2:1200, o2Max:1200, o2Rate:1,
         xp:0, xpNeed:2, x:0, y:0, corroded:false, surge:false,
         revealed:0, kills:0, keys:[], stillTurns:0, movedThisTurn:false,
         slots:['knife','pistol.slug'], weapon:'knife',
         ammo:{ slug:20, cell:0, plasma:0, fuel:0 },
-        items:{ med:1, trauma:0, grenade:1, incend:0, chem:2, stim:0, carapace:0 },
+        items:{ med:1, trauma:0, grenade:1, incend:0, chem:2, stim:0, carapace:0, canister:1 },
         buff:{ dmg:0, res:0 },
         dmgMul:1, arcMul:1, scanMul:1, def:0, siphon:0, radius:3, lamp:0,
         xpBonus:0, guard:false, guardReady:false };
@@ -2089,6 +2237,8 @@ function hurtPlayer(m, forced, reflected){
   }, { frail: P.hp < P.maxHp/2 });
   m.supp = 0;
   const tag = ' [' + r.ra + 'v' + r.rd + ']';
+  P.killedBy = { what: label(m), lvl: m.lvl, type: m.type,
+                 carrying: m.carrying || null, armour: m.armour ? m.armour.name : null };
 
   if(r.kind === 'miss'){ say(label(m) + ' misses' + tag); render(); return false; }
   if(r.kind === 'reflect'){
@@ -2112,6 +2262,7 @@ function hurtPlayer(m, forced, reflected){
 
 function killMob(m){
   const sp0 = SPECIES[m.type] || {};
+  noteTally(m.type, 'killed');
   if(m.type === 'marine') marineDrop(m);
   if(sp0.trait === 'SPLITS' && !m.spawned && m.lvl > 1){
     let made = 0;
@@ -2200,6 +2351,7 @@ function nearestVisible(){
    ENEMY TURN
    ================================================================ */
 function endTurn(actedOn){
+  if(burnO2()) return;
   /* Held for the ascent. On the way down the pressure is the wreck itself;
      the self-destruct is what makes the climb out a different game. */
   if(P.ascending) tickAlarm();
@@ -2212,6 +2364,7 @@ function endTurn(actedOn){
     if(blaze[pi]){
       const d = roll(1,6) * Math.max(1, Math.round(P.lvl/2));
       say('You are standing in fire \u2212' + d);
+      P.killedBy = { what: 'FIRE', env: true };
       P.burn = Math.max(P.burn||0, 1);
       P.hp -= d;
       if(P.hp <= 0){ die(); return; }
@@ -2385,7 +2538,7 @@ function stepToward(m, tx, ty){
 function passable(x,y){
   const t = at(x,y);
   if(t.wall) return false;
-  if(t.door && !t.door.open && !hasKey(t.door.colour)) return false;
+  if(t.door && !t.door.open && t.door.colour && !hasKey(t.door.colour)) return false;
   return true;
 }
 function walkable(x,y){ return at(x,y).seen && passable(x,y) && !mobAt(x,y); }
@@ -2515,6 +2668,69 @@ function takeItem(t){
   void g;
 }
 
+/* Searching costs a turn and can come up empty. Both matter: the turn is what
+   prices exploration against the oxygen, and the empty result is what stops a
+   container being a slower floor pickup. */
+function searchProp(tile){
+  const def = PROPS[tile.prop.kind];
+  tile.prop.searched = true;
+  const roll = def.loot[(Math.random() * def.loot.length) | 0];
+  if(!roll){
+    say(def.name + ' \u2014 nothing worth carrying.');
+    snd.denied();
+  } else if(roll === 'wpn'){
+    const pool = DROPS[Math.min(DROPS.length-1, Math.floor(deck/3))] || DROPS[0];
+    tile.item = 'wpn'; tile.wid = pick(pool);
+    say(def.name + ' \u2014 there is a ' + WEAPONS[tile.wid].name + ' in here.');
+    snd.pickup();
+    takeItem(tile);
+    render();
+    return;
+  } else {
+    tile.item = roll;
+    say(def.name + ' \u2014 ' + (USABLE[roll] ? USABLE[roll].name : roll) + '.');
+    snd.pickup();
+    takeItem(tile);
+  }
+  endTurn(null);
+  render();
+}
+
+/* Drawing air is a decision, not a pickup. It fills the suit and the station is
+   then dry for the rest of the run — including the climb back through this same
+   deck. Taking it early is borrowing against the way out. */
+function askAir(tile){
+  const now = Math.round(100 * o2Frac());
+  const gain = P.o2Max - P.o2;
+  openVeil(
+    '<div class="vtitle ice">Oxygen Station</div>' +
+    '<div class="kit"><div class="krow"><div class="kmid">' +
+      '<b>Suit at ' + now + '%</b>' +
+      '<i>Drawing fills it to full \u2014 ' + gain + ' units.<br>' +
+      'The station is single use. It will be dry when you come back through.</i>' +
+    '</div></div></div>' +
+    '<div class="kend">' +
+      '<button class="vbtn ice" data-air="yes">DRAW AIR</button>' +
+      '<button class="vbtn" data-air="no" style="margin-top:8px">LEAVE IT</button>' +
+    '</div>');
+  veilBody.querySelectorAll('[data-air]').forEach(b => {
+    b.addEventListener('click', () => {
+      const take = b.getAttribute('data-air') === 'yes';
+      veil.classList.add('hidden');
+      if(take){
+        const got = refillO2(P.o2Max);
+        tile.station.used = true;
+        say('Station drawn dry \u2014 +' + got + ' oxygen.');
+        snd.patch();
+      } else {
+        say('Left the station charged.');
+      }
+      endTurn(null);
+      render();
+    });
+  });
+}
+
 /* The swap prompt. It shows what is on the floor beside what you are already
    carrying, because the only question worth asking is which of the two you
    would rather have. */
@@ -2567,10 +2783,15 @@ function stepInto(x,y){
   if(t.door && !t.door.open){
     t.door.open = true;
     snd.door();
-    say(DOOR_NAME[t.door.colour] + ' door cycles open.');
+    say((t.door.colour ? DOOR_NAME[t.door.colour] + ' door' : 'Bulkhead door') + ' cycles open.');
   }
   reveal(x,y);
   takeItem(t);
+  if(t.station && !t.station.used){ askAir(t); return true; }
+  if(t.prop && PROPS[t.prop.kind] && PROPS[t.prop.kind].search && !t.prop.searched){
+    searchProp(t);
+    return true;
+  }
   if(t.exit && exitOpen){ descend(); return true; }
   if(t.exit && !exitOpen) say('Hatch sealed. The apex still has the core.');
   return false;
@@ -2630,7 +2851,9 @@ function descend(){
   showDeckCard();
 }
 
-function die(){
+function die(cause){
+  if(cause) P.killedBy = cause;
+  if(P.killedBy && P.killedBy.type) noteTally(P.killedBy.type, 'killedBy');
   dead = true; busy = false;
   live = false;
   snd.die();
@@ -2653,6 +2876,23 @@ function deckInfo(){
    Cores hold functions, so they travel by name and are re-linked.
    ================================================================ */
 const SAVE_ID = 'derelict';
+
+/* Who has killed whom, kept across every run. A species you have put down forty
+   times reads differently from the one that has ended three of your runs, and
+   the death screen is the only place that comparison lands. */
+const TALLY_KEY = 'tinyarcade.derelict.tally.v1';
+function tally(){
+  try { return JSON.parse(localStorage.getItem(TALLY_KEY) || '{}'); } catch(e){ return {}; }
+}
+function noteTally(type, field){
+  if(!type) return;
+  try {
+    const t = tally();
+    t[type] = t[type] || { killed:0, killedBy:0 };
+    t[type][field]++;
+    localStorage.setItem(TALLY_KEY, JSON.stringify(t));
+  } catch(e){}
+}
 let saveT = null;
 let live = false;   // only a run the player has actually started gets written
 
@@ -2696,7 +2936,7 @@ function loadRun(){
     logLines = r.logLines || [];
     P = r.P; map = r.map; mobs = r.mobs;
     if(typeof P.ammo === 'number' || !P.ammo) P.ammo = { slug:20, cell:0, plasma:0, fuel:0 };
-    P.items  = P.items  || { med:1, trauma:0, grenade:1, incend:0, chem:2, stim:0, carapace:0 };
+    P.items  = P.items  || { med:1, trauma:0, grenade:1, incend:0, chem:2, stim:0, carapace:0, canister:1 };
     P.buff   = P.buff   || { dmg:0, res:0 };
     if(typeof P.lamp !== 'number') P.lamp = 0;
     if(typeof P.maxStam !== 'number'){ P.maxStam = 14 + (P.lvl-1)*3; P.stam = P.maxStam; }
@@ -2849,8 +3089,101 @@ function drawWall(g, x, y, organic, tx, ty){
     }
   }
 }
+/* charged: a lit cylinder on the bulkhead. dry: the same fitting, unlit, with
+   the gauge on the floor — so a deck you have already drained reads at a glance
+   on the way back up. */
+/* Set dressing and fixtures. Blocking props are already walls, so they draw
+   over the hull; the rest sit on the floor under everything else. */
+function drawProp(g, x, y, prop){
+  const C = CELL, cx = x+C/2, cy = y+C/2;
+  const def = PROPS[prop.kind] || {};
+  const col = def.c || '#8fa8bd';
+  g.save();
+  g.globalAlpha = prop.searched ? 0.42 : 1;
+
+  if(prop.kind === 'locker' || prop.kind === 'medcab'){
+    g.fillStyle = '#141c24';
+    rr(g, cx-C*0.26, cy-C*0.32, C*0.52, C*0.64, C*0.05); g.fill();
+    g.strokeStyle = col; g.lineWidth = Math.max(1.1, C*0.045); g.stroke();
+    g.fillStyle = col;
+    g.fillRect(cx-C*0.02, cy-C*0.24, C*0.035, C*0.48);       // door seam
+    g.beginPath(); g.arc(cx+C*0.11, cy, C*0.035, 0, 6.2832); g.fill();
+    if(prop.kind === 'medcab'){
+      g.fillRect(cx-C*0.16, cy-C*0.05, C*0.11, C*0.10);
+      g.fillRect(cx-C*0.145, cy-C*0.10, C*0.05, C*0.20);
+    }
+  } else if(prop.kind === 'toolbox'){
+    g.fillStyle = '#1a1712';
+    rr(g, cx-C*0.24, cy-C*0.10, C*0.48, C*0.30, C*0.04); g.fill();
+    g.strokeStyle = col; g.lineWidth = Math.max(1, C*0.04); g.stroke();
+    g.beginPath(); g.moveTo(cx-C*0.09, cy-C*0.10);
+    g.quadraticCurveTo(cx, cy-C*0.24, cx+C*0.09, cy-C*0.10); g.stroke();
+  } else if(prop.kind === 'effects'){
+    g.fillStyle = col; g.globalAlpha *= 0.8;
+    rr(g, cx-C*0.18, cy-C*0.06, C*0.36, C*0.26, C*0.06); g.fill();
+    g.globalAlpha /= 0.8;
+    g.strokeStyle = col; g.lineWidth = Math.max(1, C*0.035);
+    g.beginPath(); g.moveTo(cx-C*0.10, cy-C*0.06); g.lineTo(cx-C*0.10, cy-C*0.16); g.stroke();
+  } else if(prop.kind === 'bag' || prop.kind === 'remains'){
+    g.fillStyle = col; g.globalAlpha *= 0.75;
+    g.beginPath(); g.ellipse(cx, cy+C*0.06, C*0.28, C*0.14, 0.2, 0, 6.2832); g.fill();
+    g.globalAlpha /= 0.75;
+    if(prop.kind === 'bag'){
+      g.strokeStyle = '#0d151d'; g.lineWidth = Math.max(1, C*0.03);
+      g.beginPath(); g.moveTo(cx-C*0.24, cy+C*0.06); g.lineTo(cx+C*0.24, cy+C*0.06); g.stroke();
+    }
+  } else if(prop.kind === 'console'){
+    g.fillStyle = '#101820';
+    rr(g, cx-C*0.28, cy-C*0.18, C*0.56, C*0.40, C*0.04); g.fill();
+    g.fillStyle = col; g.globalAlpha *= 0.55;
+    g.fillRect(cx-C*0.20, cy-C*0.11, C*0.40, C*0.20);
+    g.globalAlpha /= 0.55;
+    for(let i=0;i<3;i++){
+      g.fillRect(cx-C*0.16 + i*C*0.13, cy-C*0.06 + (i%2)*C*0.06, C*0.07, C*0.03);
+    }
+  } else if(prop.kind === 'pipes'){
+    g.strokeStyle = col; g.lineWidth = Math.max(1.6, C*0.10); g.lineCap = 'butt';
+    g.beginPath(); g.moveTo(x, cy-C*0.14); g.lineTo(x+C, cy-C*0.14);
+    g.moveTo(x, cy+C*0.10); g.lineTo(x+C, cy+C*0.10); g.stroke();
+    g.strokeStyle = '#0d151d'; g.lineWidth = Math.max(1, C*0.03);
+    g.beginPath(); g.moveTo(cx, cy-C*0.22); g.lineTo(cx, cy+C*0.18); g.stroke();
+  } else {   /* cargo */
+    g.fillStyle = col; g.globalAlpha *= 0.75;
+    for(const [ox,oy,r] of [[-0.13,0.04,0.10],[0.09,-0.02,0.12],[0.02,0.14,0.08]]){
+      g.beginPath(); g.arc(cx+C*ox, cy+C*oy, C*r, 0, 6.2832); g.fill();
+    }
+  }
+  g.restore();
+}
+
+function drawStation(g, x, y, spent){
+  const C = CELL, cx = x+C/2, cy = y+C/2;
+  g.save();
+  g.fillStyle = spent ? '#2a3239' : '#123a49';
+  rr(g, cx-C*0.22, cy-C*0.30, C*0.44, C*0.58, C*0.07); g.fill();
+  g.strokeStyle = spent ? '#3d474f' : '#8fe8ff';
+  g.lineWidth = Math.max(1.2, C*0.05);
+  g.stroke();
+  if(!spent){
+    g.save();
+    g.shadowColor = '#8fe8ff'; g.shadowBlur = C*0.6;
+    g.fillStyle = '#8fe8ff';
+    for(let i=0;i<3;i++) g.fillRect(cx-C*0.13, cy-C*0.18 + i*C*0.14, C*0.26, C*0.06);
+    g.restore();
+  } else {
+    g.strokeStyle = '#3d474f'; g.lineWidth = Math.max(1, C*0.04);
+    g.beginPath();
+    g.moveTo(cx-C*0.13, cy-C*0.10); g.lineTo(cx+C*0.13, cy+C*0.14);
+    g.stroke();
+  }
+  g.restore();
+}
+
 function drawDoor(g, x, y, colour, open){
-  const C = CELL, col = DOORCOL[colour] || '#8899aa';
+  const C = CELL;
+  /* no colour means an ordinary bulkhead door: steel, no keycard, opens when
+     you lean on it. Coloured doors have to look like the exception. */
+  const col = colour ? (DOORCOL[colour] || '#8899aa') : '#7f8c99';
   g.fillStyle = '#0d151d'; g.fillRect(x, y, C, C);
   g.fillStyle = col; g.globalAlpha = open ? 0.20 : 0.34;
   g.fillRect(x, y, C, C); g.globalAlpha = 1;
@@ -2898,6 +3231,7 @@ function drawItem(g, x, y, kind, extra){
   const C = CELL, cx = x+C/2, cy = y+C/2;
   const col = {
     med:'#a3e635', trauma:'#a3e635', grenade:'#ffb347', incend:'#ff6a3d', chem:'#a3e635',
+    canister:'#8fe8ff', station:'#8fe8ff',
     stim:'#ff3b5c', lamp:'#ffe9a8',
     carapace:'#93a7b5', cell:'#ff3b3b', plate:'#93a7b5', chip:'#ff3b5c',
     cap:'#b79cf0', shard:'#ffb347', ammo:'#93a7b5', wpn:'#9fb2c0', plasma:'#3bff8a',
@@ -3437,10 +3771,14 @@ function drawBoard(){
     if(!t.seen) continue;
     const x = ix(i)*C, y = iy(i)*C;
     g.globalAlpha = litMap[i] ? 1 : 0.42;      // remembered, not lit
-    if(t.wall){ drawWall(g, x, y, t.organic, ix(i), iy(i)); g.globalAlpha = 1; continue; }
+    if(t.wall){ drawWall(g, x, y, t.organic, ix(i), iy(i));
+                if(t.prop) drawProp(g, x, y, t.prop);
+                g.globalAlpha = 1; continue; }
     drawFloor(g, x, y, (ix(i)+iy(i)) % 2 === 0);
     if(t.door) drawDoor(g, x, y, t.door.colour, t.door.open);
     if(t.exit) drawExit(g, x, y, exitOpen);
+    if(t.station) drawStation(g, x, y, t.station.used);
+    if(t.prop) drawProp(g, x, y, t.prop);
     if(t.item) drawItem(g, x, y, t.item, t.item === 'wpn' ? t.wid : t.key);
     g.globalAlpha = 1;
   }
@@ -3457,7 +3795,7 @@ function drawBoard(){
         for(const j of neighbours(i)){
           if(seen[j]) continue;
           const t = map[j];
-          if(t.wall || (t.door && !t.door.open && !hasKey(t.door.colour))) continue;
+          if(t.wall || (t.door && !t.door.open && t.door.colour && !hasKey(t.door.colour))) continue;
           if(!t.seen) continue;
           seen[j] = 1; next.push(j);
         }
@@ -3613,6 +3951,13 @@ function render(){
 
   $('hpFill').style.width = (100*P.hp/P.maxHp) + '%';
   $('hpNum').textContent = P.hp + '/' + P.maxHp;
+  const of = o2Frac();
+  $('o2Fill').style.width = Math.round(100 * of) + '%';
+  const o2el = $('o2Fill');
+  /* the headless harness stubs elements, so check the method not the object */
+  if(o2el && o2el.classList && typeof o2el.classList.toggle === 'function')
+    o2el.classList.toggle('low', of < 0.22);
+  $('o2Num').textContent = Math.round(100 * of) + '%';
   $('stFill').style.width = Math.round(100 * P.stam / Math.max(1, P.maxStam)) + '%';
   $('stNum').textContent = P.stam + '/' + P.maxStam;
   $('chFill').style.width = (100*P.charge/P.maxCharge) + '%';
@@ -3737,7 +4082,7 @@ board.addEventListener('click', e => {
   const t = at(x,y);
   if(!t.seen || t.wall) return;
 
-  if(t.door && !t.door.open && !hasKey(t.door.colour)){
+  if(t.door && !t.door.open && t.door.colour && !hasKey(t.door.colour)){
     sel = null;
     snd.denied();
     say('SEALED. ' + DOOR_NAME[t.door.colour] + ' KEYCARD REQUIRED.');
@@ -3811,7 +4156,7 @@ function nudge(dx, dy){
   const m = mobAt(nx, ny);
   if(m && m.alive){ sel = m; render(); strike(m); return; }
   if(t.wall) return;
-  if(t.door && !t.door.open && !hasKey(t.door.colour)){
+  if(t.door && !t.door.open && t.door.colour && !hasKey(t.door.colour)){
     snd.denied();
     say('SEALED. ' + DOOR_NAME[t.door.colour] + ' KEYCARD REQUIRED.');
     render();
@@ -4068,20 +4413,57 @@ function showCore(core){
     '<button class="vbtn amberB">INSTALL</button>');
 }
 
+/* The death screen is the last thing a run says, so it should be the thing that
+   starts the next one. Not just how deep you got: what killed you, what you were
+   holding when it did, and — the part that stings — what you left behind on that
+   deck. A screen that tells you what you missed is worth more than a score. */
+/* Stats, gear, how deep, what killed you — and the running score between you
+   and that species. Nothing else. A death screen is read in about four seconds,
+   and everything on it has to survive that. */
 function showDeath(){
+  const k = P.killedBy || {};
+  const killer = k.what || 'THE SHIP';
+  const kit = [];
+  if(k.carrying && WEAPONS[k.carrying]) kit.push(WEAPONS[k.carrying].name);
+  if(k.armour) kit.push(k.armour);
+
+  const rec = (tally()[k.type] || { killed:0, killedBy:0 });
+  const carried = (P.slots || []).map(id => WEAPONS[id] && WEAPONS[id].name).filter(Boolean);
+
   openVeil(
     '<div class="veyebrow">BIOSIGN \u2014 FLAT</div>' +
     '<div class="vtitle">Signal Lost</div>' +
     '<div class="vflavor">The suit keeps transmitting for a while after you stop.</div>' +
+
     '<div class="vgrid">' +
       '<div class="vcell"><span>REACHED</span><b>DECK ' + String(deck).padStart(2,'0') + '</b></div>' +
       '<div class="vcell"><span>CALIBRATION</span><b>LV ' + P.lvl + '</b></div>' +
-      '<div class="vcell"><span>KILLS</span><b>' + P.kills + '</b></div>' +
-      '<div class="vcell"><span>DEEPEST</span><b>DECK ' + String(best).padStart(2,'0') + '</b></div>' +
+      '<div class="vcell"><span>ATK</span><b>' + (3 + P.lvl + (wep().atk||0)) + '</b></div>' +
+      '<div class="vcell"><span>DEF</span><b>' + playerDef() + '</b></div>' +
     '</div>' +
-    systemsList() +
+
+    '<div class="kithead">Killed by</div>' +
+    '<div class="kit"><div class="krow"><div class="kmid">' +
+      '<b>' + killer + '</b>' +
+      '<i>' + (kit.length ? 'carrying ' + kit.join(' \u00B7 ') : 'unarmed') + '</i>' +
+    '</div></div>' +
+    (k.type
+      ? '<div class="krow"><div class="kmid"><i>' +
+          'You have killed ' + rec.killed + ' of them.<br>' +
+          'They have killed you ' + rec.killedBy + ' time' + (rec.killedBy === 1 ? '' : 's') + '.' +
+        '</i></div></div>'
+      : '') +
+    '</div>' +
+
+    '<div class="kithead">Recovered from the suit</div>' +
+    '<div class="kit"><div class="krow"><div class="kmid">' +
+      '<b>' + (carried.length ? carried.join(' \u00B7 ') : 'Nothing but your hands') + '</b>' +
+      '<i>' + Object.keys(AMMO).map(a => (P.ammo[a]||0) + ' ' + AMMO[a].name.toLowerCase()).join(' \u00B7 ') + '</i>' +
+    '</div></div></div>' +
+
     '<button class="vbtn red" data-act="go" style="margin-top:18px">BOARD AGAIN</button>' +
-    '<div class="vsub">ATTEMPT ' + (runDeaths+1) + '</div>',
+    '<div class="vsub">DEEPEST DECK ' + String(best).padStart(2,'0') +
+      ' \u00B7 ATTEMPT ' + (runDeaths+1) + '</div>',
     ()=>{ dropSave(); newRun(); live = true; fit(); showDeckCard(); });
 }
 

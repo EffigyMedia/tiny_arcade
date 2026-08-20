@@ -739,18 +739,19 @@ function eatAt(x, y){
   }
 }
 
-/* an open, pellet-free tile near the middle of the sheet that is not the house */
+/* Anywhere on the sheet you can actually stand, chosen at random — it used to
+   creep toward the middle every time, which made it predictable and put it in
+   the hunters' lap. Only the chamber and its doorway are excluded. */
 function bonusSpot(){
-  let best = null, bd = Infinity;
-  const tx = SPAWN.x, ty = SPAWN.y - 3;
+  const spots = [];
   for(let y=0;y<ROWS;y++) for(let x=0;x<COLS;x++){
     if(grid[y][x] !== OPEN) continue;
     if(MAZE[y][x] === 'C') continue;
-    if(Math.abs(x-CORE.x) <= 1 && Math.abs(y-CORE.y) <= 1) continue;
-    const d = (x-tx)*(x-tx) + (y-ty)*(y-ty);
-    if(d < bd){ bd = d; best = { x, y }; }
+    if(Math.abs(x-CORE.x) <= 1 && Math.abs(y-CORE.y) <= 2) continue;
+    if(x === SPAWN.x && y === SPAWN.y) continue;
+    spots.push({ x, y });
   }
-  return best;
+  return spots.length ? spots[(Math.random()*spots.length)|0] : null;
 }
 
 function collide(){
@@ -1251,18 +1252,19 @@ function showTitle(){
   const sv = AR && AR.save ? AR.save.get('penboy') : null;
   best = (sv && sv.best) || 0;
   openVeil(
-    '<div class="eyebrow">SHEET 01 \u00B7 CORRIDOR SURVEY</div>' +
+    '<div class="eyebrow">SHEET ' + String(sheetNo()+1).padStart(2,'0') +
+      ' \u00B7 ' + sheetName().toUpperCase() + '</div>' +
     '<h1>Penboy<em>FOUR OF THEM</em></h1>' +
-    '<div class="blurb">Clear the drawing. Four things want you, and each one wants a <b>different tile</b> \u2014 so they never arrive together by accident.</div>' +
+    '<div class="blurb">Mark every square on the sheet. Four hunters want you, and <b>no two of them think alike</b> \u2014 so they never arrive together by accident.</div>' +
     '<div class="legend">' +
       '<i style="color:#ff5c8a">\u25C6</i> comes straight at you<br>' +
       '<i style="color:#a06cff">\u25C6</i> aims where you are going<br>' +
       '<i style="color:#3fd6c8">\u25C6</i> works with the first to pincer<br>' +
-      '<i style="color:#a8e35c">\u25C6</i> guards whichever pellet would save you<br>' +
-      '<i style="color:#ffd23c">\u25CE</i> four survey stations void them for points' +
+      '<i style="color:#a8e35c">\u25C6</i> guards whichever station would save you<br>' +
+      '<i style="color:#ffd23c">\u25CE</i> circle a station to turn on them' +
     '</div>' +
     (best ? '<div class="sub">BEST ' + best.toLocaleString() + '</div>' : '') +
-    '<button class="btn">SURVEY THE MAZE</button>',
+    '<button class="btn">START DRAWING</button>',
     () => { newGame(); fit(); }
   );
 }
