@@ -209,16 +209,22 @@ h1 .t2{
 .shelf.empty .sn{color:var(--gold)}
 
 .rackhead{display:flex;align-items:center;gap:12px;margin:0 0 16px}
+.mspacer{margin-left:auto}
 .fav{
   position:relative;z-index:2;    /* above the marquee wash */
-  flex:none;width:44px;height:44px;margin-left:auto;margin-right:4px;padding:0;
+  flex:none;width:40px;height:40px;margin:0 2px 0 0;padding:0;
   display:flex;align-items:center;justify-content:center;
   touch-action:manipulation;-webkit-tap-highlight-color:transparent;
   background:none;border:0;cursor:pointer;line-height:1;
-  color:var(--line);font-size:15px;
+  font-size:21px;
+  /* Off is a bright hollow star, not a grey smudge — it has to read as
+     something you can press. On fills it and lights it. */
+  color:var(--gold);opacity:.85;
+  text-shadow:0 0 6px rgba(255,210,60,.45);
 }
-.fav::before{content:"\2606"}          /* hollow star */
-.fav.on{color:var(--gold);text-shadow:0 0 10px currentColor}
+.fav::before{content:"\2606"}          /* hollow */
+.fav:active{transform:scale(.88)}
+.fav.on{opacity:1;text-shadow:0 0 12px var(--gold),0 0 26px rgba(255,210,60,.6)}
 .fav.on::before{content:"\2605"}       /* filled */
 .sortbtn{
   margin-left:auto;flex:none;cursor:pointer;
@@ -267,7 +273,7 @@ h1 .t2{
   text-shadow:0 0 8px var(--a),0 0 22px var(--a);position:relative;
 }
 .mno{
-  margin-left:auto;font-family:var(--px);font-size:9px;color:var(--a);position:relative;
+  font-family:var(--px);font-size:9px;color:var(--a);position:relative;
 }
 
 .body{display:flex;gap:13px;padding:13px 11px 11px}
@@ -553,6 +559,7 @@ GAMES.forEach(function(g, i){
   a.style.setProperty('--a', g.accent);
   a.innerHTML =
     '<div class="marquee"><span class="mname"></span>' +
+      '<span class="mspacer"></span>' +
       '<button class="fav" type="button" aria-label="Favourite"></button>' +
       '<span class="mno">' + String(i+1).padStart(2,'0') + '</span></div>' +
     '<div class="body">' +

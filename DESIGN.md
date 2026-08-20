@@ -1432,7 +1432,7 @@ Scaled by deck tier: `ATK`, `DEF` and damage dice all step up every third deck.
    or cut them.
 10. **Pathing** — better routes for long-distance clicks and for hostiles.
 
-## 8e. Derelict — the suit (DESIGN, awaiting sign-off)
+## 8e. Derelict — the suit (BUILT)
 
 Weapons derive ATK. DEF should derive the same way, from something you chose —
 right now it is `3 + level + resist`, and `resist` comes from a couple of
@@ -1488,9 +1488,15 @@ Marines wear armour, so they drop mods. Lockers and crew effects hold them. A
 bench somewhere on the run lets you swap and repair — which gives the ascent a
 reason to pass back through a deck you remember.
 
-**Open question for sign-off:** three slots or two? Three allows a genuine
-build; two makes every choice hurt. I lean three, because with two the Servo
-Harness's "−1 weapon slot" cost is unpayable.
+**Two slots.** Three let you stack DEF 11 at level one, which flattened the
+early decks; with two, every mod you fit costs you another one. Built and verified: bare suit DEF 4, three mods
+fitted DEF 11; Hull Plate costs 4 stamina, Servo Harness gives 6 back and takes
+a weapon slot (2 → 1), Faraday shortens the lamp 3 → 2, Mesh Underlay reads
+4 DEF against a gun and 7 in reach. Fitting a fourth prompts, and the one you
+take off stays on the deck.
+
+**Marines drop what they wore** — their armour is drawn from this same table,
+so the mod on the floor is the one that was making them hard to hit.
 
 ## 8d. Derelict — the twelve-deck run (DESIGN, not yet built)
 
