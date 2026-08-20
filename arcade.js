@@ -115,7 +115,64 @@ A.options = {
     } catch(e){ return true; }
   })();
 
-  A.gesture = {
+  /* ---- cinema --------------------------------------------------------------
+   A frame sequence between the title and the run. The shell owns the parts
+   every cabinet would otherwise reimplement: the canvas at the right pixel
+   ratio, the recovered-footage grade, SKIP, once-per-device memory, and
+   handing control back when it is done. A game supplies only the drawings and
+   the words.
+
+     Arcade.cinema.play([
+       { art: (g,w,h) => {...}, text: 'One line over the frame.' }
+     ], { key:'derelict.intro', onDone: start, overlay: myOpenVeil });
+
+   `overlay` is how a game renders a panel — it is handed HTML and a callback,
+   because every cabinet already has its own veil and its own typeface, and the
+   shell should not impose a look on top of them.
+   -------------------------------------------------------------------------- */
+/* Back to the launcher. Every cabinet declares where home is in a meta tag;
+   this is the one place that reads it, so QUIT means the same thing everywhere. */
+A.home = function(){
+  var m = document.querySelector('meta[name="arcade-home"]');
+  var href = m && m.content ? m.content : '../../index.html';
+  location.href = href;
+};
+
+A.cinema = (function(){
+  var KEY = 'tinyarcade.cinema.v1';
+
+  function seenSet(){
+    try { return JSON.parse(localStorage.getItem(KEY) || '{}'); } catch(e){ return {}; }
+  }
+  function seen(k){ return !!seenSet()[k]; }
+  function mark(k){
+    try { var o = seenSet(); o[k] = 1; localStorage.setItem(KEY, JSON.stringify(o)); } catch(e){}
+  }
+
+  /* NO VISUAL TREATMENT LIVES HERE. An earlier pass put grain, scanlines and a
+     red recording dot in the shell, which is Derelict's suit-cam look rather
+     than a mechanism — Penboy would have inherited horror-film grain over a
+     ballpoint drawing. A game passes its own `filter` and gets exactly the
+     look it chose. The shell only decides WHEN it runs. */
+
+  function canvasFor(frame, w, h){
+    var cv = document.createElement('canvas');
+    var dpr = Math.min(2, window.devicePixelRatio || 1);
+    cv.width = Math.round(w*dpr); cv.height = Math.round(h*dpr);
+    cv.style.width = w+'px'; cv.style.height = h+'px';
+    cv.className = 'ark-cine';
+    var g = cv.getContext('2d');
+    g.scale(dpr,dpr);
+    try { frame.art(g, w, h); } catch(e){}
+    /* whatever treatment the GAME supplies, applied last */
+    if(typeof frame.filter === 'function'){ try { frame.filter(g, w, h); } catch(e){} }
+    return cv;
+  }
+
+  return { seen: seen, mark: mark, canvasFor: canvasFor };
+})();
+
+A.gesture = {
     onSwipe: function(fn){ swipeSubs.push(fn); },
     onDrag:  function(fn){ dragSubs.push(fn); },
     threshold: function(px){ THRESH = px; }
@@ -129,7 +186,15 @@ if ('serviceWorker' in navigator && location.protocol.slice(0,4) === 'http'){
     /* this file runs from <head>, so the body does not exist yet — the
        launcher/game test has to wait until load or it always says launcher
        and registers games/sw.js, which does not exist. */
-    var root = document.getElementById('stage') ? '../' : './';
+    /* Games live TWO levels down (games/<shelf>/x.html), not one — '../sw.js'
+       resolved to games/sw.js, which does not exist, so every cabinet 404'd on
+       its service worker and silently lost offline support. The launcher is at
+       the root. Derive it from the arcade-home meta the game already declares
+       rather than counting directories here. */
+    var m = document.querySelector('meta[name="arcade-home"]');
+    var root = './';
+    if (m && m.content) root = m.content.replace(/index\.html(#.*)?$/, '');
+    if (!root) root = './';
     navigator.serviceWorker.register(root + 'sw.js').then(null, function(err){
       if (window.console && console.warn) console.warn('arcade: offline cache unavailable', err);
     });
@@ -314,6 +379,12 @@ function boot(){
     '.ark-act.tog{display:flex;align-items:center;justify-content:space-between;',
     '  padding:12px 13px;letter-spacing:.16em}',
     '.ark-act.tog b{font-weight:600;color:#565a70}',
+    '.ark-cine-wrap{margin:12px 0 4px;display:flex;justify-content:center}',
+    'canvas.ark-cine{border-radius:4px;display:block;',
+      'box-shadow:0 0 0 1px rgba(160,200,225,.16),0 10px 34px -12px #000}',
+    '.ark-cine-text{text-align:left;line-height:1.7;margin:12px auto 0;',
+      'font-size:clamp(11.5px,3.6vw,15px);max-width:min(34ch,92vw)}',
+    '.ark-cine-eyebrow{font-size:9px;letter-spacing:.24em;opacity:.6;text-align:center}',
     '.ark-act.tog.on b{color:var(--ark)}',
     '.ark-act.cursor{border-color:var(--ark);box-shadow:0 0 0 1px var(--ark) inset}',
     '.ark-hint{margin-top:10px;font-size:9px;letter-spacing:.14em;color:#565a70}'

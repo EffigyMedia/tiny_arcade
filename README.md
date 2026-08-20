@@ -99,7 +99,7 @@ works with no signal. Settings (the cog, top right) has a **FETCH ALL** button
 to do it again on command, with a progress bar, plus the sound toggles and an
 erase-saved-data option.
 
-## Adding a game## Adding a game
+## Adding a game
 
 1. Drop `yourgame.html` into `games/`.
 
@@ -130,6 +130,36 @@ as it needs to, and only runs the attract loops for cabinets you can actually
 see. Nothing in the launcher assumes how many machines there are.
 
 Keep `hook` to one short line: cards clamp it at four lines.
+
+## Cinematics
+
+**Each cabinet owns its own.** Not every game will have them, and the ones that
+do should differ in pacing and structure, not only in palette — so the sequence
+lives in the game.
+
+The shell keeps two primitives, because they are identical for anyone and one of
+them is a reliable footgun:
+
+    Arcade.cinema.seen(key) / mark(key)   has this player watched it
+    Arcade.cinema.canvasFor(frame, w, h)  a canvas at the right pixel ratio
+
+`frame` is `{ art(g,w,h), filter(g,w,h) }` — the drawing, then an optional
+treatment applied after it. Derelict's filter is grain, scanlines and a
+recording dot; another game passes its own, or none.
+
+**Two things were pulled back out of the shell**, both worth remembering as
+shapes of mistake:
+
+- **A film grade.** Shared "to avoid duplication", it would have given Penboy
+  horror-film grain over a ballpoint drawing. The tell was that it had opinions
+  — a colour, a typeface, a *dot* — rather than just doing work.
+- **The sequence runner.** Thirty lines shaped entirely around Derelict's
+  eyebrow text, final button label and aspect ratio. Speculative generality with
+  exactly one caller. When a second game wants a sequence, compare the two and
+  extract only what genuinely matches.
+
+**Order that works:** title → cinematic → run. A cinematic in front of the title
+puts a wall between the player and the front door.
 
 ## What arcade.js expects
 

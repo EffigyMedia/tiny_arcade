@@ -1498,13 +1498,312 @@ take off stays on the deck.
 **Marines drop what they wore** — their armour is drawn from this same table,
 so the mod on the floor is the one that was making them hard to hit.
 
-## 8d. Derelict — the twelve-deck run (DESIGN, not yet built)
+## 8d. Derelict — the twelve-deck run (FRAME BUILT)
 
 The wreck gets a bottom, and a reason to reach it.
 
-**Down.** Twelve decks. Each stores its own structure for the run, because you
+**Down.** ~~Twelve decks. Each stores its own structure for the run, because you
 climb back through them. Deck 1 gains an airlock to the outside; every deck
-gains an up-hatch.
+gains an up-hatch.~~ Built.
+
+`stashDeck()` freezes a deck as you leave it — map, what is still on the floor,
+which doors you opened, which oxygen stations you drank. `restoreDeck()` brings
+it back. Verified over a four-deck round trip: items, opened doors and drained
+stations all survive exactly.
+
+**Hostiles ARE stored.** Backtracking up during the descent brings back exactly
+what you left alive — otherwise walking up a deck and back down would be a free
+way to wipe a compartment you could not handle. Verified: 8 hostiles, kill 2,
+leave, return, 6 remain.
+
+**Depth runs 13-24 on the way out, and the roster has to keep up.** `ROSTER`
+only has twelve tiers, so clamping to it made the entire climb draw the same
+top-tier cast — flat, and indistinguishable from deck 12. The ascent now pools
+the deepest tiers and **widens that pool as you rise**, with marines folded in
+throughout: the crew is between you and the airlock, and that is what makes the
+climb a different game rather than the descent replayed.
+
+| deck | depth | hostiles | avg lvl |
+|---|---|---|---|
+| 12 | 13 | 9 | 7.0 |
+| 8 | 17 | 12 | 9.0 |
+| 4 | 21 | 16 | 12.0 |
+| 1 | 24 | 18 | 13.0 |
+
+Compare deck 8 going down — 14 hostiles at average level 4.9 — with deck 8
+coming up: fewer bodies, far higher level, a deeper cast. The last stretch to
+the airlock is the hardest part of the run.
+
+### The persistence rules, stated plainly
+
+| when | what happens |
+|---|---|
+| descending, revisiting a deck | restored exactly — dead stay dead, loot stays taken |
+| killing the Omega | **only deck 12** repopulates, under your feet |
+| climbing into a deck for the first time | repopulates once, harder |
+| revisiting any ascent deck | restored exactly — no second reroll |
+
+Decks are **not** all re-rolled when the Omega dies. It happens lazily, one deck
+at a time, the first time the climb reaches each. Everything above deck twelve
+sits untouched until you get there.
+
+Verified: descent, killed 3 of 9, returned to 6. Ascent, deck 11 came up with
+10, killed 4, dropped back and found 6.
+
+**A deck is repopulated exactly once**, the first time you climb into it on the
+way out — re-rolled against `depthOf()`, so the same deck came back with 16
+where it had 6. After that it persists in **both** directions: going back down
+mid-ascent restores it garrison and all, rather than rebuilding.
+
+Without that, walking down a deck and back up would re-roll a garrison you could
+not fight — the same exploit the descent already guards against, only in
+reverse. Verified in play: 16 hostiles on deck 6, kill 4, climb to 5, drop back
+to 6, and **12 are still there**. The map is remembered; nothing living in
+it is. The climb re-rolls a heavier garrison against `depthOf()`, so the same
+space is a different fight on the way out — 14-19 hostiles per deck against
+8-12 going down.
+
+Every deck's up-hatch sits on the tile you arrived at, so the geometry always
+agrees; deck one's is the airlock, drawn differently. Reaching deck 12 turns the
+run around rather than continuing, and `showEscape()` is a placeholder ending
+until the per-Omega cinematics exist — a run that can be *won* needs a win
+screen from the day the frame lands.
+
+### What stops a run being unwinnable
+
+**Not seeding the counter.** An earlier pass forced a weapon on the weakness
+axis onto every deck until you carried one — which handed you the answer the
+datashards exist to teach and made reading them pointless. Removed.
+
+**Not fists, either.** They are always available and they are not a fallback:
+against the Lamprey, which is *weak* to melee, fists take **38 swings** while it
+kills you in four.
+
+| weapon | per swing | swings to kill |
+|---|---|---|
+| Fists | ~24 | 38 |
+| Bone Knife | ~37 | 25 |
+| Bulkhead Sabre | ~84 | 11 |
+| Chainsaw | ~100 | 10 |
+
+**What actually stops it:** the wreck is full of the answer and it stays where
+you left it. Across forty runs of eleven decks, ~7 weapons appear per run
+spanning **all five axes** — melee 32%, shock 26%, heat 17%, kinetic 15%, fire
+10% — none of them planted. And because decks persist, a weapon you walked past
+on deck six is still on deck six. Reaching twelve with the wrong loadout means
+**climbing back for the right one**, at the cost of oxygen and a re-populated
+deck.
+
+That is a real penalty rather than a dead end, and working out *what to fetch*
+is exactly what the shards are for.
+
+### The Hollow Light needed a weakness you cannot trip over
+
+Being "in light" was satisfied by walking up to it — your lamp lights whatever
+you can see, so the immunity meant nothing and it was simply x2 always.
+
+It now takes damage only while standing in **thrown** light: a chem stick
+burning on a tile near it. Your own lamp does not count. So the stick is the
+attack and the blow is the follow-through, and the fight is about placing light
+under something that keeps moving.
+
+### Quality tiers — BUILT
+
+One scale across everything found. **GOOD is the baseline the tables were
+written against**, so nothing needed rebalancing — the other tiers bracket it.
+
+| tier | dice | note |
+|---|---|---|
+| Poor | x0.75 | |
+| Good | x1.00 | the existing numbers |
+| Excellent | x1.30 | |
+| Exquisite | x1.30 | plus a perk suited to the item |
+
+Exquisite perks are the item's own virtue taken further, not a generic bump:
+ranged pierces the first target, melee cleaves a second, tools never fumble, a
+suit mod weighs nothing, an optic reaches a square further.
+
+    floor, deck 1     poor 19%  good 54%  excellent 23%  exquisite  4%
+    floor, deck 12    poor  8%  good 57%  excellent 22%  exquisite 12%
+    marine drop       poor 62%  good 31%  excellent  6%  exquisite  1%
+
+**Marines carry mostly poor kit** — it has been on a corpse for weeks with
+nobody servicing it. The crew had good equipment once, so a rare one still has
+theirs.
+
+The depth bonus is **capped**: uncapped, deck twelve produced exquisite gear 17%
+of the time, which made the last decks a lottery rather than a reward.
+
+**An armoury locker always yields Excellent**, and cracking it pays calibration
+on a curve — `max(2, 8 - attempts)` — so reading the lock well is worth more
+than brute-forcing it.
+
+### Armoury lockers — BUILT
+
+A ship's terminal wanting a four-figure release code. Four figures from six, no
+repeats — 360 possibilities. Each attempt reports how many are **in place** and
+how many are **present but elsewhere**, and every attempt costs a turn.
+
+Solved by deduction: **4.0 attempts on average, 6 worst case** over 300 trials.
+So the wager is about four breaths of air against a weapon a tier above what an
+ordinary locker holds, and guessing wildly costs more than thinking.
+
+It sits on loot, not on story. **A puzzle in front of a datashard was considered
+and rejected** — the shard already *is* the puzzle, and putting a lock before it
+says the deduction is not enough on its own. Lockers are optional, so a player
+who does not want it walks past.
+
+You can step away and come back: the code and every attempt so far persist with
+the deck, so an unsolved locker is still waiting with your working intact.
+
+### Killing an Omega pays for the climb — BUILT
+
+The climb out is harder than the descent and you arrive at it spent. A trophy
+tied to what you killed, rather than a generic power-up:
+
+| Omega | trophy | what it does on the ascent |
+|---|---|---|
+| The Ninefold Weight | **Sealed Ballast** | it grew by taking on mass — the suit holds +60% oxygen |
+| The Choir | **One Voice** | it answered blows by dividing — your shots split, hitting a second target for half |
+| The Lamprey | **Closing Distance** | it would not be shot at — you move two free squares more per turn |
+| The Hollow Light | **Afterimage** | it lived in the dark — your lamp reaches three squares further and never dims |
+
+Each is permanent and costs no mod slot, since it is earned rather than found.
+Measured on pickup:
+
+    Sealed Ballast     oxygen 200 -> 300
+    Afterimage         lamp 3 -> 6 squares
+    Closing Distance   a 10-step dash costs 4 -> 2 stamina
+    One Voice          a second lit target within 3 takes half the blow
+
+The free-movement overlay had to learn about Closing Distance too — it drew a
+fixed six squares, so the trophy would have been invisible and the green tint
+would have been lying about what a move costs.
+
+### Music — BUILT, with vertical re-orchestration
+
+Three layers on the **same grid**, so they stay locked to each other and to the
+drone. Nothing restarts when the state changes; the layers fade across, which is
+why a fight can begin mid-phrase and still land on the beat.
+
+| layer | when | what it is |
+|---|---|---|
+| **explore** | always | the deck's motif, ducked but never silenced |
+| **contact** | anything hunting you within 9 | driving eighths, a rising figure, a hat on the sixteenth |
+| **apex** | an alpha or an Omega in the room | a tritone pedal, an off-beat stab, a falling sweep |
+
+Measured through a full cycle:
+
+    exploring          explore 1.00  combat 0.00  apex 0.00
+    3 ticks of combat  explore 0.84  combat 0.53  apex 0.00
+    10 ticks           explore 0.61  combat 0.96  apex 0.00
+    apex arrives       explore 0.34  combat 1.00  apex 0.98
+    room goes quiet    explore 1.00  combat 0.00  apex 0.00
+
+**Exploration ducks to 55% under combat and 30% under an apex rather than
+cutting out.** It is the floor the other two stand on — killing it entirely made
+the transition sound like a different track rather than the same room getting
+worse.
+
+Attack and release are deliberately asymmetric: combat rises in about ten ticks
+and decays over forty. Trouble arrives faster than it leaves.
+
+Six figures over the existing drone, one drawn per deck. All in D minor or its
+phrygian shade so they sit against the pedal the bed already holds, and all
+sparse — the ambience is the floor, these only place a few notes on it.
+
+| figure | density | what it is |
+|---|---|---|
+| **vigil** | 0 | two falling notes, very far apart |
+| **descent** | 1 | a stepwise fall, D E♭ F, unhurried |
+| **toll** | 1 | a struck bell on the half, its fifth underneath |
+| **circling** | 2 | a figure that keeps returning to the same note |
+| **lament** | 2 | phrygian — the flat second, which never settles |
+| **pursuit** | 3 | a low pulse that will not stop |
+
+Selection is weighted by depth, so the sparse ones sit shallow and the busy ones
+sit deep:
+
+    deck  1: vigil 27%, descent 20%, toll 20%
+    deck  8: circling 27%, pursuit 20%, lament 20%
+    deck 12: circling 33%, lament 20%, toll 17%
+
+And a deck never repeats the figure of the one you just left — **0 repeats
+across 480 transitions**. The change is what tells you the ship has changed.
+
+Measured on the music bus: 0.133 for the sparsest through 0.186 for the busiest,
+so the density gradient is audible and not just structural.
+
+Several ominous minor-key loops that cycle at random deck to deck, layered over
+the existing ambience rather than replacing it. The synth engine and sequencer
+already carry every other bed in the arcade, so this is composition rather than
+new code. Worth writing them at different densities so a shallow deck and deck
+eleven do not sound alike.
+
+**BUILT: the four Omegas and the property system.** Chosen at the airlock and
+stored on `P`, so the shards can be about the thing you will actually meet.
+
+    omegaScale()          kinetic  shock  heat  fire  melee  blast  light
+    The Ninefold Weight      —      x2     ½     1     1      1      1
+    The Choir                1      —      x2    1     ½      1      1
+    The Lamprey              —      —      —     —     x2     —      —
+    The Hollow Light         —      —      —     —     —      —      x2
+
+`damageAxis()` asks what a blow is made of from the weapon itself, so nothing
+new had to be added to the armoury. The Hollow Light additionally takes nothing
+while standing in darkness — the chem lights become the weapon.
+
+The log makes the answer unmistakable: *"it does nothing. KINETIC is wasted on
+this"* against an immunity, *"SHOCK TEARS INTO IT"* against a weakness. A player
+who cannot tell will assume the fight is long rather than the weapon wrong.
+
+**Ranged had its own damage site** and was bypassing the whole system — a rifle
+hurt something immune to rifles. Both paths scale now.
+
+### Calibration should not require murder
+
+It came from exactly two places — kills and data shards — so the only reliable
+route to a level was clearing a deck, which pushes you to farm exactly where
+oxygen is trying to move you on. Three sources added, none of them combat:
+
+| source | value |
+|---|---|
+| reaching a new deck | 2 + deck/3 |
+| installing the salvage core | 3 |
+| surveying the wreck | 1 per 40 fresh tiles |
+
+That guarantees a floor. A run with **no kills at all** now reaches level 14 by
+deck twelve — ATK 19 against Omega DEF 16, so a quiet player arrives able to
+fight. A thorough one reaches around 25.
+
+**That spread is wide, but it matters less than it looks**, because levels only
+decide whether you *land* a blow. An Omega immune to your axis takes nothing at
+level 25 just as it takes nothing at level 5 — the fight is about what you
+carry, and calibration only buys you the right to make the attempt. Worth
+watching in play whether the HP growth at high levels flattens the run.
+
+**Omega DEF is a flat 16**, not scaled by level. They only ever appear on deck
+twelve, so there is nothing for the number to scale against, and a fixed figure
+is something the armoury can be designed around rather than a value that drifts
+with how the run went.
+
+**HP is fixed too**, for the same reason — around 900, varying by species. Left
+scaled it came out at 165, which the right weapon removed in **two swings** after
+a twelve-deck descent.
+
+Where the fight lands, sabre against the Lamprey's melee weakness:
+
+| arrival | level | lands | per swing | swings to kill |
+|---|---|---|---|---|
+| pacifist, no kills | 14 | 43% | ~84 | **11** |
+| exhaustive, cleared every deck | 25 | 86% | ~302 | **3** |
+
+Both are fights. The quiet player works for it and the thorough one is rewarded
+for the levels they earned, which is the right shape — and neither can touch it
+at all with the wrong axis.
+
+*(An earlier note here claimed the fight was unplayable at DEF 13. That was
+wrong — the test had hardcoded the player to level 5 for a deck-12 fight.)*
 
 **The Omega.** Chosen at the airlock, fought on deck 12. Four of them, each a
 different cosmic horror with **five** properties: a **pattern**, an
@@ -1601,6 +1900,28 @@ stops the event or tapping it would launch the cabinet.
 
 ### The ascent — open decisions
 
+### The self-destruct is cut
+
+Two clocks on the ascent is one too many, and oxygen is the better of them.
+
+The arithmetic: a straight-line crossing of a deck is ~26 turns, so a thorough
+run — looting, fighting, doubling back — is nearer 80. Twenty-four decks at that
+rate is **~1890 turns against a 1200-turn suit**. Oxygen is already binding
+before a second timer is added, and the stations you drank on the way down are
+what decide whether you make it.
+
+Oxygen is also simply the better mechanic here. It runs the whole game rather
+than switching on and changing the rules; it is **spatial**, because stations are
+places on a map you are navigating from memory; and it is **elastic** — you can
+plan around it, carry canisters, fit a suit that spends less. A countdown can
+only be raced.
+
+`tickAlarm()` stays in the file, gated behind `P.ascending` and unused. Its
+staged escalation — the deck waking, then hunting, then the compartment failing
+— is worth **re-pointing at low oxygen instead**, so the ship starts coming
+apart when your air does. That is the drama the self-destruct was for, attached
+to the resource that already matters.
+
 ### Oxygen — the run's clock
 
 **One meter for the whole run**, not a timer per deck. It does not reset when
@@ -1608,9 +1929,19 @@ you descend, which is what makes lingering expensive *everywhere* and turns
 "search this locker or not" into a real question. Empty, and the suit starts
 taking integrity directly.
 
-**Stations are single use, and the state sticks with the deck.** There is one on
-every deck. Drawing air on the way down is air you will not have on the way back
-up — so the ascent is harder because of a decision you made an hour earlier,
+**Stations hold a charge and you draw from it.** Filling the suit takes only
+what it needed out of the bottle, so a sip at 90% costs 10% of the station and a
+desperate top-up at 30% drains it:
+
+    suit 90%  ->  drew 120, station left 90%
+    suit 70%  ->  drew 360, station left 60%
+    suit 30%  ->  drew 720, station left  0%
+
+That keeps the decision — the same station has to serve you going down *and*
+coming back — while being far kinder than all-or-nothing, because an early sip
+no longer costs the whole bottle. The gauge on the front empties as it goes, so
+a part-used station reads from across the compartment. Drawing air on the way
+down is still air you will not have on the way up — so the ascent is harder because of a decision you made an hour earlier,
 rather than because a script switched a timer on. **That is the ascent clock,
 and it is a better one:** you can bargain with it, you can plan around it, and
 running dry on deck 4 of the climb is your own arithmetic rather than bad luck.
@@ -1619,7 +1950,44 @@ Stepping onto a charged station asks rather than takes. A spent one is drawn
 unlit with its gauge on the floor, so a deck you have already drained reads at a
 glance on the way back through.
 
-Air canisters top the suit up by a third and drop like any other consumable.
+**Consumption scales with stamina.** Fresh you sip at the base rate; wrung out
+you pull nearly three times as much:
+
+    stamina 100%  ->  1.00 per turn      suit lasts 200 turns
+    stamina  50%  ->  1.90 per turn
+    stamina   0%  ->  2.80 per turn      suit lasts  71 turns
+
+That ties the two meters in the right direction — sprinting and swinging cost
+stamina, and spending stamina costs air — so a fight is expensive twice over and
+resting is not only about getting your strength back. The oxygen figure turns
+amber when you are breathing hard.
+
+**The budget, after three passes.** The first was absurd: a 1200-breath suit
+covered fifteen thorough decks, two-thirds of the whole run, and the stations
+were garnish. Cutting the suit *and* halving the stations then suffocated every
+play style, because the two changes pull the same way and stack badly. Where it
+landed:
+
+| play style | outcome |
+|---|---|
+| brisk, rested | out with 3.2 bottles spare |
+| normal, some fighting | out on fumes |
+| normal, tops up at every station | out on fumes |
+| thorough and tired | suffocates on the last deck of the climb |
+| exhaustive, exhausted, greedy | dies on the way down |
+
+Suit 200, one station per deck holding 60% of a suit. Sized against a
+*purposeful* crossing (~26 turns), because a diver under air pressure moves with
+intent.
+
+**Air canisters restore about a third of the suit** — one use, and they
+do not overfill: using one at 90% wastes most of it, exactly like drawing from a
+station, and using one at 100% is refused rather than thrown away.
+
+A third is the deliberate figure. The suit covers roughly fifteen thorough deck
+crossings, so a canister buys about **five** — enough to save a climb that went
+wrong, not enough to make the stations irrelevant. They drop like any other
+consumable and turn up in lockers and med cabinets.
 Suit mods should modify **capacity** and **consumption rate** as their cost or
 benefit — that is a third axis for the armour table alongside DEF and resistance.
 
@@ -1661,8 +2029,9 @@ from the suit; and the running record between you and that species: *you have
 killed 14 of them, they have killed you 3 times*. That tally persists across
 every run.
 
-Still to come, once the frame exists: **a win cinematic per Omega**, written as
-your own incident report in the same voice as the shards you assembled it from.
+~~Still to come: a win cinematic per Omega.~~ Built — see section 13, which is
+the editable source in the same way section 12 is. Each ending renders on the
+same LCD panel the shards use, so the run closes in the voice it was told in.
 
 ### Audio still to write
 
@@ -1869,3 +2238,459 @@ piling up on a single wall. Average 3.7 cores installed per run.
 
 
 © 2026 Effigy Media. All rights reserved.
+
+---
+
+# 12. DATASHARDS — editable source
+
+Twenty documents, five per Omega, one per property. **This section is the
+source and it is now ingested into the game** — the table in `derelict.html` was
+generated from these blocks verbatim. Edit here, tell me, and I re-import.
+
+**In play:** five per run, drawn only from the Omega you were dealt, one each on
+decks 2, 4, 6, 8 and 10. The order is shuffled per run, so meeting the same
+Omega twice teaches it differently. The old random `shard` pickup was removed
+from the drop table — it was competing with the authored ones and diluting them. Edit anything here and it gets read back into the game verbatim, so
+rewrite freely — the format is what matters, not my wording.
+
+    id     which Omega, which property
+    title  the document's own header, as it would be filed
+    body   the document. Lines break where the form breaks.
+
+### How they are set
+
+**Orbitron** is now Derelict's display face throughout, replacing Oxanium.
+
+Shards render in **Share Tech Mono** on a dark green panel with scanlines
+across it — you are reading them off the suit's own display, not off the paper
+they were printed on. Monospace matters: the manifests stack their weights in a
+column, and the column is where the horror is.
+
+Left-aligned explicitly. The overlay centres its text, which threw the columns
+out and made a form read like a poem.
+
+### The rule these follow
+
+No shard names a feeling, describes darkness or silence, or uses "something".
+Facts, quantities, procedure, names. If a line could not appear on a real form
+aboard a working ship, it is wrong. The hint must be **inferable, never
+encoded** — a maintenance note about a tripped circuit, not "electricity works".
+
+The ship is the **Kestrel**, a bulk hauler. Nine containers, a crew of about
+forty, and a transfer it should not have accepted.
+
+---
+
+## Omega: The Ninefold Weight
+*grows · immune kinetic · resists heat · weak shock · deals kinetic*
+
+    [ninefold/pattern]
+    CARGO MANIFEST — CONTAINER 9 OF 9
+    Consignor: withheld under commercial terms
+    Gross at loading:        412 kg
+    Gross at Kestrel transfer: 419 kg
+    Gross at 0600 inspection:  474 kg
+    Discrepancy noted third time. Seal intact all three readings.
+    Reweigh scheduled daily until resolved.
+
+    [ninefold/immunity]
+    REQUISITION 118 — DENIED
+    Requested: 400 rounds, ship's small arms locker
+    Denied by: Second Officer Aldridge
+    Ground: expenditure of 900 rounds during incident 4-11 produced no
+    measurable effect. Container 9 gross unchanged before and after.
+    No further issue authorised.
+
+    [ninefold/resistance]
+    ENGINEERING — CUTTING LOG
+    Torch applied to container 9 seam, 40 minutes continuous.
+    Seam temperature 1,180 C. No separation.
+    Torch bottle exhausted. Second bottle not authorised.
+    Note: gross weight up 6 kg since the attempt.
+
+    [ninefold/weakness]
+    MAINTENANCE LOG — DECK 4
+    Arc welder missing from locker 4C. Not signed out.
+    Deck 4 lighting circuit tripped 0300. Reset. Tripped again 0340.
+    Locker 4C found open. Welder not recovered.
+    Deck 4 sealed pending inspection. Inspection not carried out.
+
+    [ninefold/deals]
+    MEDICAL — SUMMARY, WEEK 31
+    Presenting: 0043 ribs, 0051 collarbone, 0062 ribs, 0071 hip.
+    All crush injuries. All to the left side.
+    No lacerations, no burns, no chemical exposure in any of the four.
+    Note to watch officer: it is not sharp. It is heavy.
+
+---
+
+## Omega: The Choir
+*splits · immune shock · resists melee · weak heat · deals shock*
+
+    [choir/pattern]
+    HOLD INVENTORY — RECONCILIATION
+    Item logged at intake:  1
+    Count, week 29:         1
+    Count, week 30:         3
+    Count, week 31:         7
+    Counts performed by three separate ratings and agree.
+    Intake documentation lists no multiples.
+
+    [choir/immunity]
+    ELECTRICAL — FAULT REPORT
+    Deliberate discharge, 400V bus, applied at hold 3 per Chief's order.
+    Bus tripped. No response from subject.
+    Second discharge at 800V. Bus tripped. No response.
+    Chief's note: it is drawing off the bus, not resisting it.
+    Do not attempt a third.
+
+    [choir/resistance]
+    ARMOURY — EDGED WEAPON CONDITION
+    Four boarding axes returned bent at the haft.
+    Two ship's knives returned with tips broken off.
+    None of the six show blood or tissue on the blade.
+    Recommend edged weapons be withdrawn from the standing issue.
+
+    [choir/weakness]
+    GALLEY — INCIDENT
+    Fat fire in the number two fryer, 0210. Extinguished 0214.
+    Rating 0038 reports the count in hold 3 fell from seven to four
+    during the four minutes the fire was burning.
+    Count returned to seven by 0900.
+    Galley closed. Fryer not repaired.
+
+    [choir/deals]
+    MEDICAL — SUMMARY, WEEK 30
+    Presenting: 0038, 0044, 0059. All the same.
+    Entry wound at the hand, exit at the opposite foot.
+    Tissue cooked along the path between.
+    Two are wearing their earthing straps. It made no difference.
+
+---
+
+## Omega: The Lamprey
+*closes · immune ranged · resists blast · weak melee · deals fire*
+
+    [lamprey/pattern]
+    BRIDGE LOG — 0340
+    Contact reported at 60 metres, corridor 2.
+    Contact reported at 20 metres, same corridor, same watch, 40 seconds later.
+    Rating withdrew. Contact at 4 metres on reaching the bulkhead door.
+    It does not hold a distance. It removes one.
+
+    [lamprey/immunity]
+    ARMOURY — AMMUNITION RECONCILIATION
+    Small arms expenditure, week 32: 1,340 rounds.
+    Recovered from bulkheads and deck plating aft of hold 2: 1,290 rounds.
+    Remaining 50 rounds accounted for by the two ratings who fired downward.
+    Nothing was stopped. Everything passed through and hit the ship.
+
+    [lamprey/resistance]
+    DEMOLITION — CHARGE EXPENDED
+    Two shaped charges placed at the corridor 2 junction.
+    Both detonated. Junction destroyed to a radius of 6 metres.
+    Deck plating buckled. Two frames sheared.
+    Subject observed in corridor 2 at 0500, unchanged.
+    No further charges available.
+
+    [lamprey/weakness]
+    MEDICAL — RATING 0071, DECEASED
+    Injuries consistent with close struggle. Hands and forearms.
+    Ship's axe recovered beside him, blade fouled with tissue not his own.
+    Tissue sample retained, container 7C.
+    First tissue recovered aboard. He was the only one who let it get close.
+
+    [lamprey/deals]
+    DAMAGE CONTROL — CORRIDOR 2
+    Paint blistered along 14 metres of the port bulkhead.
+    Cable insulation charred, three runs, replaced.
+    Deck coating scorched in a continuous line, not in patches.
+    No accelerant found. No electrical fault found. No fire reported.
+
+---
+
+## Omega: The Hollow Light
+*unlit · immune to everything · weak to thrown light · deals heat*
+
+    [hollowlight/pattern]
+    WATCH LOG — DECK 7
+    0100 lamps out, section C. Nothing reported on the walk-through.
+    0130 lamps out, section D. Nothing reported.
+    0200 lamps out, section E. Rating did not complete the walk-through.
+    Sections C, D and E are consecutive.
+
+    [hollowlight/immunity]
+    STANDING ORDER 9 — DECK 7
+    Following the loss of 0044, 0051, 0066 and 0080, all attempts against
+    the deck 7 subject are suspended.
+    Rounds, blades, charges and the cutting torch have all been tried by
+    the parties named above. All four are lost.
+    Deck 7 is sealed. Nobody goes down with a weapon. Nobody goes down.
+
+    [hollowlight/weakness]
+    STORES — FLARE ISSUE
+    Chemical light sticks, 200 issued to deck 7 party, week 33.
+    12 returned.
+    Party leader's note on the return: the ones we dropped and left burning
+    did more than the ones we carried.
+    Reissue requested. Stores empty.
+
+    [hollowlight/deals]
+    MEDICAL — SUMMARY, WEEK 33
+    Presenting: 0080 face and hands, 0066 forearms, 0051 shoulder.
+    Full-thickness burns. No blistering, no reddening at the margins.
+    Tissue cooked through rather than scalded.
+    Nothing on any of them was alight. Their clothing is not even singed.
+
+    [hollowlight/extra]
+    ENGINEERING — LAMP CIRCUIT, DECK 7
+    Circuit tests good. Bulbs test good. Bulbs fitted and lit at the bench.
+    Fitted on deck 7 they read zero current and give no light.
+    Bench and deck 7 are on the same bus.
+    Chief's note: the fault is not in the circuit.
+
+---
+
+---
+
+# 13. ENDINGS — editable source
+
+**Art.** Every cinematic frame is DRAWN AT RUNTIME, not shipped as an image.
+The eight scenes as PNGs came to roughly 11MB of base64 against a 660K game;
+as canvas code they cost almost nothing and scale to any screen. `CINE` in
+`derelict.html` holds them, sharing one corridor builder and one
+recovered-footage grade — grain, scanlines, vignette, timestamp, recording dot.
+
+**Order:** title screen → the approach → the first deck. It plays on BOARD, not
+on load — the title is the game's front door and a cinematic has no business in
+front of it. Resuming a saved run skips it, since you are already aboard, and
+once seen the title offers THE APPROACH to watch it again.
+
+**Everything on a frame is a fraction of its width** — border inset, type size,
+the recording dot — so the furniture holds its proportions at any size. Fixed
+pixel values looked right on one screen only. The crawl scales with it:
+
+    iPhone SE   frame 232x166   crawl 11.5px
+    iPhone 14   frame 340x204   crawl 14.0px
+    Pro Max     frame 340x204   crawl 15.0px
+
+**The approach** plays before the first deck: beacon, wreck, holds,
+airlock, one line of the brief over each, with SKIP on every frame. Replayable
+from the pause menu.
+
+One per Omega, shown on reaching your own ship. Same rule as the shards: it is
+**your incident report**, filed after the fact, in the voice of the paperwork
+you spent the run reading. No adjectives reaching for a mood. What you saw, what
+you did, what is still true.
+
+**The fixed prose is the part that is always true** — what the ship was, what is
+still aboard, who worked it out first. Everything about *your* run is composed
+at the end from a log kept while you played: the weapon you actually used and
+its quality, how many ineffective attempts you made and with what, how many
+documents you recovered, lockers cracked, stations drained, oxygen at the
+airlock, what you took off the body.
+
+So these blocks must not assert anything the game can contradict. An earlier
+draft said "destroyed at contact range with an edged weapon", which was a lie
+in any run that emptied a rifle into it.
+
+What the run log records, and what each fact becomes:
+
+| recorded | line in the report |
+|---|---|
+| weapon, quality, deck of the killing blow | *Destroyed on deck 12 with an excellent Bulkhead Sabre.* |
+| attempts made on an immune axis | *9 attempts were made with kinetic and recorded as ineffective.* |
+| none of those | *No ineffective method was attempted. The party arrived informed.* |
+| documents recovered, and whether the weakness was among them | *Recovered 5 of 5 ship documents. One of them was the reason this worked.* |
+| none recovered | *No ship documents were recovered. This was worked out the long way.* |
+| lockers cracked | *Released 2 sealed armoury lockers en route.* |
+| stations drained on the descent | *4 oxygen stations were drawn dry on the way down. This was felt on the way up.* |
+| oxygen at the airlock | *Oxygen remaining at the airlock: 34 per cent.* |
+| trophy taken | *Recovered from the subject: Closing Distance.* |
+
+So a prepared run and a desperate one produce visibly different reports from the
+same Omega. Articles are handled — *an* excellent sabre, *a* poor pistol, and
+fists become **"with bare hands"** rather than "with a Fists".
+
+The frame is fixed and the body varies:
+
+    [omega]
+    body — the report itself
+
+---
+
+    [ninefold]
+    INCIDENT REPORT — KESTREL, CONTAINER 9
+    Filed by the undersigned, sole surviving party aboard.
+    The container is still aboard the Kestrel. The seal is still intact.
+    Recommend the Kestrel is not boarded again and not salvaged.
+    Recommend the consignor named on manifest 9 be traced.
+    Nothing on that manifest was carried by accident.
+
+    [choir]
+    INCIDENT REPORT — KESTREL, HOLD 3
+    Filed by the undersigned, sole surviving party aboard.
+    I did not count them as I worked. I counted them afterward, from
+    what was left, and I am confident in the figure.
+    The Kestrel's inventory has been recovered and is attached.
+    It lists one. It has always listed one.
+
+    [lamprey]
+    INCIDENT REPORT — KESTREL, CORRIDOR 2
+    Filed by the undersigned, sole surviving party aboard.
+    It does not hold a distance. It removes one.
+    Rating 0071 worked this out before I did and it cost him.
+    His name should be on this report and it is.
+
+    [hollowlight]
+    INCIDENT REPORT — KESTREL, DECK 7
+    Filed by the undersigned, sole surviving party aboard.
+    Carried light had no effect at any point. Light placed on the
+    deck and left burning had effect immediately.
+    I cannot account for the difference and I am not going to try.
+    Stores issued 200 sticks to the party before mine. Twelve came back.
+
+---
+
+---
+
+### CUT: ARC, PATCH, SURGE and the charge resource
+
+They were a generic suit-power bar — free damage, a heal, a double-hit — the
+default three abilities in anything, touching none of what Derelict is about.
+Power should come from **what you found and what you are carrying**, not from a
+meter that refills on its own.
+
+Removed with them: the CHARGE meter, POWER CELL and CAPACITOR pickups, and three
+cores that existed only to feed the system (CAPACITOR BANK, ARC AMPLIFIER,
+SIPHON).
+
+**Two things had to be repointed rather than deleted:**
+
+- **ARC was the only guaranteed shock source**, which mattered for the Ninefold.
+  Shock now comes only from gear — shock weapons are 26% of floor drops, so the
+  axis is well covered, but you must be carrying one.
+- **The DRAIN trait** (wraith, revenant, hollow) stripped charge. It takes 2
+  stamina instead — which costs oxygen, since consumption scales with
+  exhaustion, so the trait bites harder than it used to.
+
+Actions are now STRIKE, REST, GEAR.
+
+# 14. OPEN — Derelict is NOT done
+
+**Saving: one real bug, one false alarm. Both resolved.**
+
+The real one: `saveRun()` did not carry `decks`, the stashed floors — so
+resuming forgot the entire wreck above you and the climb had nothing to climb
+through. Fixed.
+
+The false alarm: a test then reported a run writing **no run at all**. That test
+moved with arrow keys, which had just been removed, so no turn ever elapsed and
+nothing was ever queued to save. The save was never broken. A second reading of
+`arcade.js` also looked like it found an empty `set: function(){}` stub — that
+is `A.options.set`, not `A.save.set`, and is deliberate.
+
+Verified end to end: dive to deck 5, reload, CONTINUE — deck, all five stashed
+floors, Omega, motif, level and oxygen all identical across the reload.
+
+**The twelve-deck run has never been played end to end.** Every piece is
+verified in isolation and the seams between them are not. Specifically never
+played: the Omega fight at deck 12 with a real character, the turnaround, a full
+climb, the ending firing from actual play rather than a forced call.
+
+**Balance numbers come from a sim bot that has been wrong before.** The 4/6-swing
+Omega figures, the oxygen curve and the calibration floor are all arithmetic, not
+observed play.
+
+**`P.data` is a dead field** — displayed on the escape screen, never incremented.
+Same class as the canister that was never wired.
+
+**Untested combinations:** quality x Omega scaling, trophies during the climb,
+a shard read while an armoury lock is open, the intro on a resumed run.
+
+# 15. SWEEP — all four cabinets
+
+Run 2026-08-20. Penboy, Deep, Highway, Derelict.
+
+**One real bug, affecting every game: the service worker never registered.**
+`arcade.js` derived its path as `'../sw.js'` for a game, but games live TWO
+levels down (`games/<shelf>/x.html`), so it resolved to `games/sw.js` — which
+does not exist. Every cabinet 404'd on its service worker and silently lost
+offline support; the arcade has never actually worked offline from a game. It
+now derives the root from the `arcade-home` meta each game already declares.
+Verified: all four games and the launcher register cleanly, no 4xx.
+
+**Clean on everything else:**
+
+| check | result |
+|---|---|
+| JS parses | all four |
+| runtime errors over ~25 interactions | 0 in all four |
+| 4xx responses | none |
+| `arcade-home` meta declared | all four |
+| shell bar + pause menu opens and resumes | all four |
+| viewport overflow at 390x844 | none |
+
+**Not bugs, but worth knowing:** only Derelict writes a save — the other three
+are score-only by design. Derelict still has orphaned `snd.arc/patch/surge`
+sound definitions with no callers; harmless, a few dozen bytes.
+
+**Two false alarms from my own tooling**, recorded because they cost real time:
+a dangling-reference scan that flagged every object-method shorthand, and two
+wrong CSS selectors that reported the pause button missing from all four games.
+When a check fails identically everywhere, suspect the check.
+
+# 15. QUEUE
+
+**Title screens — spec fixed, Derelict built, three to go.**
+
+The name of the game and four buttons. Nothing else — no flavour paragraph, no
+legend, no control recap. The game teaches itself; the front door only has to
+open.
+
+    PLAY
+    CONTINUE      only when a run exists
+    OPTIONS       houses CONTROLS
+    QUIT          back to the launcher
+
+**One control scheme, not two.** Movement keys (arrows, WASD, QEZC) are gone.
+The game is built around pointing at a tile, and a keyboard-shaped alternative
+made it two different games with two different feels — a mouse does exactly what
+a thumb does. The keyboard keeps one job: space or enter dismisses a panel,
+because reaching for the mouse to acknowledge a card is worse than not.
+
+So CONTROLS reads the same on every device; only the verb changes:
+
+    TOUCH                        POINTER
+    Tap a tile     move there    Click a tile     move there
+    Tap a hostile  read/strike   Click a hostile  read/strike
+
+**Two latent crashes found while cutting it.** The keyboard bound `1`/`2`/`3`
+and the gamepad bound `x`/`y`/`rb` to `arc()`, `patch()` and `surge()` — deleted
+functions. Any of those presses would have thrown.
+
+**CONTROLS is detected, not asked.** `Arcade.touch` decides whether the page
+lists taps or keys, so a phone never reads "press Esc" and a desktop never reads
+"tap a tile". Verified both ways.
+
+**`Arcade.home()` added to the shell** — QUIT had nothing to call. Every cabinet
+already declares an `arcade-home` meta tag; this reads it, so QUIT means the same
+thing everywhere. Lands on `index.html#original` from Derelict.
+
+Still to do: **Penboy, Highway, Deep** — Deep has no title screen at all and
+starts cold.
+
+**Original queue entry:** All four have one, but they were written
+one at a time and it shows. They should share a structure — the machine's name,
+its one-line hook, best score, and a single obvious way in — while keeping their
+own typeface and palette. The unbuilt games inherit the same structure.
+
+**Cinematics as a shell convention.** The pattern proven in Derelict — canvas
+scenes drawn at runtime, a shared grade, a frame sequence between title and run
+— belongs in `arcade.js` so any cabinet can call it. Roughly:
+
+    Arcade.cinema.play([{art:fn, text:'...'}], { key:'derelict.intro', onDone })
+
+with SKIP, once-per-device memory and the replay entry handled by the shell
+rather than re-implemented per game. Derelict becomes the first caller instead
+of the only implementation.
