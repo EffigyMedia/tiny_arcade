@@ -1779,6 +1779,14 @@ piling up on a single wall. Average 3.7 cores installed per run.
   lights come on at dusk, burn through the night and go out by mid-morning. A
   handful of windows are cold blue among the sodium orange.
 
+- ~~**NOS thruster and brake screech.**~~ Two sustained voices rather than
+  one-shots. The thruster is a wide bandpassed hiss that opens while the bottle
+  is live and swells with speed. The screech is a tight high band gated on
+  **measured deceleration**, not on the pedal: it tracks how much speed the car
+  actually lost this frame, so it sings on the stop and falls silent once you
+  settle at the brake floor even with your thumb still down. Holding a fixed
+  pitch there would have droned.
+
 - ~~**Brake.**~~ Bottom left, mirroring NOS, plus down-arrow and S. Holding it
   settles at 45mph from 180 and lights the button. It cancels nitrous — you
   cannot boost and brake — and it is what makes the PIT a decision rather than
