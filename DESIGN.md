@@ -1779,6 +1779,12 @@ piling up on a single wall. Average 3.7 cores installed per run.
   lights come on at dusk, burn through the night and go out by mid-morning. A
   handful of windows are cold blue among the sodium orange.
 
+- ~~**Brake.**~~ Bottom left, mirroring NOS, plus down-arrow and S. Holding it
+  settles at 45mph from 180 and lights the button. It cancels nitrous — you
+  cannot boost and brake — and it is what makes the PIT a decision rather than
+  an accident, because it is how you drop back *alongside* a cruiser instead of
+  blowing past it.
+
 - ~~**PIT manoeuvre.**~~ Catch a cruiser **alongside** rather than nose to tail,
   while steering into it and carrying speed, and it spins out. Square-on contact
   is still just a crash — the lateral component is what decides it, so the

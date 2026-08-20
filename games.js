@@ -10,6 +10,10 @@
    attract: which little idle animation the card plays.
             'dive' | 'grid' | 'road' | 'maze' | 'none'
 
+   Files live in games/<cat>/, one folder per shelf, so the catalogue can grow
+   to forty machines without becoming one unreadable directory. `file` must
+   match the folder its `cat` names — pack.sh checks this.
+
    cat:     which shelf it lives on.
             'golden'   \u2014 clean-room takes on the 1970s\u201380s cabinets
             'second'   \u2014 the 1990s floor: fighters, shmups, light-gun
@@ -22,7 +26,7 @@
    ===================================================================== */
 window.TINY_ARCADE = [
   {
-    file:  'games/penboy.html',
+    file:  'games/golden/penboy.html',
     id:    'penboy',
     cat:   'golden',
     name:  'Penboy',
@@ -32,7 +36,7 @@ window.TINY_ARCADE = [
     attract:'maze'
   },
   {
-    file:  'games/deep.html',
+    file:  'games/original/deep.html',
     id:    'deep',
     cat:   'original',
     name:  'Deep',
@@ -42,7 +46,7 @@ window.TINY_ARCADE = [
     attract:'dive'
   },
   {
-    file:  'games/derelict.html',
+    file:  'games/original/derelict.html',
     id:    'derelict',
     cat:   'original',
     name:  'Derelict',
@@ -52,7 +56,7 @@ window.TINY_ARCADE = [
     attract:'grid'
   },
   {
-    file:  'games/highway.html',
+    file:  'games/original/highway.html',
     id:    'highway',
     cat:   'original',
     name:  'Highway',
