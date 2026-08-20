@@ -61,14 +61,17 @@ body{
 @keyframes hum{0%,100%{opacity:1}47%{opacity:.93}49%{opacity:1}}
 
 #cog{
-  position:fixed;z-index:870;right:12px;
-  top:calc(env(safe-area-inset-top,0px) + 9px);
-  width:38px;height:38px;border-radius:50%;cursor:pointer;padding:0;
-  background:rgba(10,8,18,.82);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);
-  border:1px solid var(--line);color:var(--cyan);
-  font-family:var(--px);font-size:12px;line-height:1;display:grid;place-items:center;
+  position:fixed;z-index:870;right:10px;
+  top:calc(env(safe-area-inset-top,0px) + 4px);
+  width:52px;height:52px;cursor:pointer;padding:0;
+  background:none;border:0;color:var(--cyan);
+  display:grid;place-items:center;
+  -webkit-tap-highlight-color:transparent;
+  filter:drop-shadow(0 0 6px rgba(0,229,255,.55)) drop-shadow(0 0 16px rgba(0,229,255,.25));
+  transition:transform .18s ease;
 }
-#cog:active{background:rgba(0,229,255,.16)}
+#cog svg{width:40px;height:40px;display:block}
+#cog:active{transform:rotate(38deg) scale(.94)}
 #cog:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
 
 #sheet{
@@ -340,7 +343,13 @@ footer{margin-top:30px;border-top:1px solid var(--line);padding-top:26px;text-al
 </head>
 <body>
 <div id="crt"></div>
-<button id="cog" type="button" aria-label="Settings">⚙</button>
+<button id="cog" type="button" aria-label="Settings">
+  <svg viewBox="0 0 48 48" fill="none" aria-hidden="true">
+    <path d="M24 3.5 27.6 9a17 17 0 0 1 4.2 1.75l6.3-1.4 3.55 6.15-4.2 4.9a17 17 0 0 1 0 4.4l4.2 4.9-3.55 6.15-6.3-1.4A17 17 0 0 1 27.6 39L24 44.5 20.4 39a17 17 0 0 1-4.2-1.75l-6.3 1.4L6.35 32.5l4.2-4.9a17 17 0 0 1 0-4.4l-4.2-4.9 3.55-6.15 6.3 1.4A17 17 0 0 1 20.4 9Z"
+          stroke="currentColor" stroke-width="2.6" stroke-linejoin="round"/>
+    <circle cx="24" cy="24" r="6.4" stroke="currentColor" stroke-width="2.6"/>
+  </svg>
+</button>
 <div id="sheet">
   <div class="sh">
     <h2>SETTINGS</h2>

@@ -1793,7 +1793,15 @@ piling up on a single wall. Average 3.7 cores installed per run.
   settle at the brake floor even with your thumb still down. Holding a fixed
   pitch there would have droned.
 
-- ~~**Brake.**~~ Bottom left, mirroring NOS, plus down-arrow and S. Holding it
+- ~~**Steering weight and parallax.**~~ The wheel is about a third lighter
+  (a lane change costs less thumb travel) and the car reaches its mark faster,
+  so a lane change lands when you ask for it rather than a beat later. The
+  skyline's parallax dropped from 0.07 of the camera to 0.018, with the stars
+  at 0.006 — it was sliding like a wall a few streets away rather than a city
+  on the horizon.
+
+- ~~**Brake.**~~ Below NOS on a steep diagonal — brake low and outboard where
+  the thumb rests, NOS above and inboard so it takes a deliberate reach. plus down-arrow and S. Holding it
   settles at 45mph from 180 and lights the button. It cancels nitrous — you
   cannot boost and brake — and it is what makes the PIT a decision rather than
   an accident, because it is how you drop back *alongside* a cruiser instead of
