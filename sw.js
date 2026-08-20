@@ -16,8 +16,13 @@
 
    © 2026 Effigy Media. All rights reserved.
    ===================================================================== */
-const CORE    = 'tiny-arcade-core-v2';
-const RUNTIME = 'tiny-arcade-runtime-v2';
+/* BUMP THESE WHENEVER A FILE MOVES OR IS RENAMED. A device that already has
+   the old catalogue cached will keep serving it, and every path in it now
+   points at a file that no longer exists — which is a site of 404s that looks
+   like a broken deploy rather than a stale cache. Changing the names makes
+   every client throw its cache away on the next visit. */
+const CORE    = 'tiny-arcade-core-v4';
+const RUNTIME = 'tiny-arcade-runtime-v4';
 const KEEP    = [CORE, RUNTIME];
 
 /* the least we need to open the arcade with no signal at all */

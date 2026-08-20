@@ -10,9 +10,8 @@
    attract: which little idle animation the card plays.
             'dive' | 'grid' | 'road' | 'maze' | 'none'
 
-   Files live in games/<cat>/, one folder per shelf, so the catalogue can grow
-   to forty machines without becoming one unreadable directory. `file` must
-   match the folder its `cat` names — pack.sh checks this.
+   Files live in games/<cat>/, one folder per shelf. `file` must match the
+   folder its `cat` names — pack.sh fails the build if they disagree.
 
    cat:     which shelf it lives on.
             'golden'   \u2014 clean-room takes on the 1970s\u201380s cabinets
