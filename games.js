@@ -25,6 +25,16 @@
    ===================================================================== */
 window.TINY_ARCADE = [
   {
+    file:  'games/golden/blocks.html',
+    id:    'blocks',
+    cat:   'golden',
+    name:  'Soviet Blocks',
+    accent:'#e8484f',
+    genre: 'PUZZLE \u00B7 FALLING',
+    hook:  'The wall builds itself. You only choose where the gaps go.',
+    attract:'blocks'
+  },
+  {
     file:  'games/golden/penboy.html',
     id:    'penboy',
     cat:   'golden',

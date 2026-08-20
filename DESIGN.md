@@ -2608,6 +2608,36 @@ Same class as the canister that was never wired.
 **Untested combinations:** quality x Omega scaling, trophies during the climb,
 a shard read while an armoury lock is open, the intro on a resumed run.
 
+# 15. SOVIET BLOCKS — built
+
+Golden Era, `games/golden/blocks.html`, accent `#e8484f`.
+
+**The parts that make it feel right rather than merely correct:**
+
+- **Seven-bag randomiser.** All seven shuffled, dealt, reshuffled. Pure random
+  gives droughts long enough to feel broken; the bag guarantees the piece you
+  need within twelve.
+- **Wall kicks.** A rotation that would clip is nudged through nine offsets
+  before failing. Without it, spinning against a wall just refuses and the game
+  feels stiff.
+- **Lock delay** of 0.45s on the floor, so a piece can still be slid into a gap
+  at the last instant.
+- **Ghost piece** at 16% so you can see where it lands.
+- **Hold**, once per piece.
+- Four lines at once pays 800 x level against 100 for one — the reason to build
+  a well and wait.
+
+**Controls:** drag across the well to move by columns crossed, tap to rotate,
+swipe down to drop, swipe up to hold. Four buttons do the same for anyone who
+prefers them. Keyboard and gamepad both mapped.
+
+**A sizing bug worth remembering.** The well rendered taller than the phone and
+pushed the buttons off screen. Two analytical fixes both missed by a few pixels
+— `innerHeight - head - pad` ignores the safe-area padding, and measuring the
+gap directly still came out 7px over. The fix is empirical: size it, measure the
+real overlap, shrink, repeat up to six times. Verified even margins on 320x568,
+360x640, 390x844 and 430x932.
+
 # 15. SWEEP — all four cabinets
 
 Run 2026-08-20. Penboy, Deep, Highway, Derelict.
