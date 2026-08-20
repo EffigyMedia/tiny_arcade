@@ -80,9 +80,13 @@ canvas{display:block;width:100%;height:100%;touch-action:none}
 #dmgFill{background:linear-gradient(90deg,#7a2233,var(--red))}
 #nosFill{background:linear-gradient(90deg,#1d6e73,var(--cyan))}
 
+/* Both controls under one thumb, stepped up and inboard so they are hard to
+   confuse — NOS low and outboard, BRAKE higher and further in. `--pedal-x`
+   flips the whole pair for a left-handed layout. */
 #nitro{
-  position:absolute;right:calc(env(safe-area-inset-right,0px) + 16px);
-  bottom:calc(env(safe-area-inset-bottom,0px) + 78px);
+  position:absolute;
+  right:calc(env(safe-area-inset-right,0px) + 16px);
+  bottom:calc(env(safe-area-inset-bottom,0px) + 74px);
   width:88px;height:88px;border-radius:50%;pointer-events:auto;z-index:12;
   border:2px solid rgba(95,240,216,.55);background:rgba(12,40,44,.5);
   color:var(--cyan);font-family:var(--disp);font-weight:800;font-size:15px;letter-spacing:.14em;
@@ -90,15 +94,23 @@ canvas{display:block;width:100%;height:100%;touch-action:none}
 }
 #nitro:disabled{opacity:.3}
 #brake{
-  position:absolute;left:calc(env(safe-area-inset-left,0px) + 16px);
-  bottom:calc(env(safe-area-inset-bottom,0px) + 78px);
-  width:78px;height:78px;border-radius:50%;pointer-events:auto;z-index:12;
+  position:absolute;
+  right:calc(env(safe-area-inset-right,0px) + 104px);
+  bottom:calc(env(safe-area-inset-bottom,0px) + 158px);
+  width:74px;height:74px;border-radius:50%;pointer-events:auto;z-index:12;
   border:2px solid rgba(255,90,90,.5);background:rgba(48,14,16,.5);
   color:#ff6b6b;font-family:var(--disp);font-weight:800;font-size:13px;letter-spacing:.10em;
   backdrop-filter:blur(3px);
 }
 #brake:disabled{opacity:.3}
 #brake.on{background:rgba(120,24,26,.75);color:#fff}
+
+/* left-handed: mirror the pair */
+body.pedals-left #nitro{ right:auto; left:calc(env(safe-area-inset-left,0px) + 16px) }
+body.pedals-left #brake{ right:auto; left:calc(env(safe-area-inset-left,0px) + 104px) }
+
+/* no touch, no thumb buttons — a desktop showing them looks broken */
+body.no-touch #nitro, body.no-touch #brake{ display:none }
 #nitro.hot{background:rgba(95,240,216,.3);color:#eafffb;box-shadow:0 0 26px rgba(95,240,216,.45)}
 #nitro:focus-visible{outline:2px solid var(--cyan);outline-offset:3px}
 
@@ -485,11 +497,23 @@ function paintCar(o){
 }
 
 let SP = {};
+
+/* Paint schemes for the coupe. Each is body, highlight and shadow, so the
+   panel shading survives the colour change rather than going flat. */
+const PAINT = {
+  WHITE:  { body:'#dfe6ef', hi:'#ffffff', lo:'#8d9bb0' },
+  RED:    { body:'#c8203a', hi:'#ff6472', lo:'#6d0f20' },
+  BLACK:  { body:'#23262e', hi:'#4d5462', lo:'#0d0f14' },
+  GOLD:   { body:'#d8a13c', hi:'#ffdf94', lo:'#7d5511' },
+  CYAN:   { body:'#2fb8c8', hi:'#8ef0f8', lo:'#146370' },
+  VIOLET: { body:'#7d4bd8', hi:'#c6a2ff', lo:'#3d1f74' }
+};
+let optPaint = 'WHITE', optEasy = false;
 function buildSprites(){
-  SP.player = sprite(220,168, paintCar({
-    body:'#dfe6ef', hi:'#ffffff', lo:'#8d9bb0', cabin:true, spoiler:true,
-    bodyTop:0.42, cabinTop:0.16, lamp:'#d61b3c', lamp2:'#ff7a86'
-  }));
+  SP.player = sprite(220,168, paintCar(Object.assign({
+    cabin:true, spoiler:true, bodyTop:0.42, cabinTop:0.16,
+    lamp:'#d61b3c', lamp2:'#ff7a86'
+  }, PAINT[optPaint] || PAINT.WHITE)));
   SP.sedan = sprite(200,164, paintCar({
     body:'#3c4a63', hi:'#5b6d8c', lo:'#212a3b', cabin:true, bodyTop:0.46, cabinTop:0.10
   }));
@@ -853,7 +877,7 @@ function step(dt){
     crates.push({ z: pos + 30000, x: side * rnd(0.86, 1.02), got:false });
     nextCrateT = rnd(20, 34);
   }
-  if(nextCopT<=0 && cops.length < Math.min(3, 1+Math.floor(heat/2))){
+  if(!optEasy && nextCopT<=0 && cops.length < Math.min(3, 1+Math.floor(heat/2))){
     spawnCop();
     nextCopT = rnd(7,13) - heat*0.7;
   }
@@ -1584,6 +1608,23 @@ buildSprites();
 resize();
 window.addEventListener('load', resize);
 reset();
+/* Options live in the pause menu, rendered and remembered by the shell. */
+if (AR && AR.options) AR.options.define([
+  { key:'side',  label:'CONTROLS', type:'cycle', of:['RIGHT','LEFT'],                    def:'RIGHT' },
+  { key:'paint', label:'PAINT',    type:'cycle', of:Object.keys(PAINT),                  def:'WHITE' },
+  { key:'easy',  label:'NO COPS',  type:'bool',                                          def:false }
+], function(key, val){
+  if(key === 'side')  document.body.classList.toggle('pedals-left', val === 'LEFT');
+  if(key === 'easy')  optEasy = !!val;
+  if(key === 'paint' && val !== optPaint){
+    optPaint = val;
+    buildSprites();          /* repaint the coupe */
+  }
+});
+
+/* a desktop has no thumbs to put buttons under */
+if (AR && !AR.touch) document.body.classList.add('no-touch');
+
 showTitle();
 requestAnimationFrame(frameLoop);
 })();
