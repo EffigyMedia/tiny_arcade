@@ -397,7 +397,7 @@ function sheetName(){ return SHEET_NAMES[sheetNo()] || 'Sheet ' + (sheetNo()+1);
 const COLS = MAZE[0].length, ROWS = MAZE.length;
 
 const WALL = 1, OPEN = 0, GATE = 2;
-let grid, pellets, powers, pelletsLeft, inked;
+let grid, pellets, powers, pelletsLeft, inked, ringed;
 
 const CORE = { x:7, y:8 };
 const SPAWN = { x:7, y:12 };
@@ -433,7 +433,7 @@ const walkable = (x,y,gate) => {
 
 /* ---------------- build ---------------- */
 function buildMaze(){
-  grid = []; pellets = []; powers = []; pelletsLeft = 0; inked = [];
+  grid = []; pellets = []; powers = []; pelletsLeft = 0; inked = []; ringed = [];
   for(let y=0;y<ROWS;y++){
     const row = [], prow = [];
     for(let x=0;x<COLS;x++){
@@ -444,6 +444,7 @@ function buildMaze(){
       else prow.push(0);
     }
     grid.push(row); pellets.push(prow); inked.push(new Array(COLS).fill(0));
+    ringed.push(new Array(COLS).fill(0));
   }
 }
 
@@ -717,7 +718,7 @@ function eatAt(x, y){
   const p = pellets[y] && pellets[y][x];
   if(!p) return;
   pellets[y][x] = 0;
-  inked[y][x] = 1;
+  if(p === 2) ringed[y][x] = 1; else inked[y][x] = 1;
   pelletsLeft--;
   dotsEaten++;
   if(p === 1){ score += 10; snd.bite(dotsEaten); }
@@ -829,17 +830,29 @@ const snd = {
     if(!scared && s === 7)
       AR.sfx.tone({ t, freq:key*3, dur:0.14, type:'sine', gain:0.05, bus:'music', verb:0.4 });
   },
+  /* A nib on paper, not a blip. Two short noise strokes a few milliseconds
+     apart — the two lines of the X — filtered high and cut off fast, with the
+     pitch alternating so a run of them sounds like scribbling rather than a
+     metronome. */
   bite(n){
     if(!AR) return;
+    const t = AR.audio.now();
     const up = n % 2 === 0;
-    AR.sfx.tone({ freq: up ? 300 : 210, to: up ? 210 : 300, dur:0.055,
-                  type:'square', gain:0.085, cutoff:1600 });
+    const base = up ? 2600 : 2200;
+    AR.sfx.noise({ t,          freq:base,      to:base*0.55, dur:0.045,
+                   gain:0.075, filter:'bandpass', q:1.1 });
+    AR.sfx.noise({ t:t+0.035,  freq:base*0.92, to:base*0.5,  dur:0.040,
+                   gain:0.060, filter:'bandpass', q:1.1 });
+    AR.sfx.tone({ t, freq: up ? 190 : 165, dur:0.030, type:'triangle', gain:0.022 });
   },
+  /* one long stroke round the station, then the ink settling */
   power(){
     if(!AR) return;
     const t = AR.audio.now();
+    AR.sfx.noise({ t, freq:1800, to:3000, dur:0.30, gain:0.10, filter:'bandpass', q:0.8 });
+    AR.sfx.noise({ t:t+0.16, freq:2800, to:1500, dur:0.22, gain:0.075, filter:'bandpass', q:0.9 });
     [880, 740, 620, 520].forEach((f,i) =>
-      AR.sfx.tone({ t:t+i*0.055, freq:f, dur:0.18, type:'square', gain:0.11, cutoff:3000, verb:0.3 }));
+      AR.sfx.tone({ t:t+i*0.055, freq:f, dur:0.18, type:'square', gain:0.075, cutoff:3000, verb:0.3 }));
   },
   eat(chain){
     if(!AR) return;
@@ -929,22 +942,41 @@ function drawMaze(g){
 
 function drawPenboys(g, now){
   const C = CELL;
-  /* every square you clear is inked in: the sheet fills up as you survey it,
-     so progress reads as a drawing being finished rather than a board
-     being emptied */
-  g.fillStyle = 'rgba(255,210,60,.07)';
-  for(let y=0;y<ROWS;y++)
-    for(let x=0;x<COLS;x++)
-      if(inked[y][x]) g.fillRect(x*C+C*0.18, y*C+C*0.18, C*0.64, C*0.64);
+
+  /* You are not eating the sheet, you are filling it in. A square you have not
+     reached is an empty position waiting for a mark; a square you have crossed
+     carries the X you drew there. Progress is a drawing being completed, which
+     is a far better read than a board being emptied. */
+  for(let y=0;y<ROWS;y++){
+    for(let x=0;x<COLS;x++){
+      if(!inked[y][x]) continue;
+      const cx = x*C + C/2, cy = y*C + C/2, s = C*0.19;
+      /* hand-drawn: each stroke wanders a little, seeded off the tile so it
+         does not shimmer between frames */
+      const w1 = ((x*7 + y*13) % 5 - 2) * C * 0.012;
+      const w2 = ((x*11 + y*5) % 5 - 2) * C * 0.012;
+      g.strokeStyle = '#ffd23c';
+      g.lineWidth = Math.max(1.2, C*0.075);
+      g.lineCap = 'round';
+      g.globalAlpha = 0.92;
+      g.beginPath();
+      g.moveTo(cx-s+w1, cy-s-w2); g.lineTo(cx+s+w2, cy+s+w1);
+      g.moveTo(cx+s-w2, cy-s+w1); g.lineTo(cx-s-w1, cy+s-w2);
+      g.stroke();
+      g.globalAlpha = 1;
+    }
+  }
+
   for(let y=0;y<ROWS;y++){
     for(let x=0;x<COLS;x++){
       const p = pellets[y][x];
       if(!p) continue;
       const cx = x*C + C/2, cy = y*C + C/2;
       if(p === 1){
-        g.strokeStyle = '#9fc7d8';
-        g.lineWidth = Math.max(1, C*0.055);
-        const s = C*0.13;
+        /* an unmarked position: faint, and clearly waiting for something */
+        g.strokeStyle = 'rgba(159,199,216,.45)';
+        g.lineWidth = Math.max(1, C*0.04);
+        const s = C*0.08;
         g.beginPath();
         g.moveTo(cx-s, cy); g.lineTo(cx+s, cy);
         g.moveTo(cx, cy-s); g.lineTo(cx, cy+s);
@@ -964,6 +996,24 @@ function drawPenboys(g, now){
         g.restore();
       }
     }
+  }
+}
+
+/* a survey station you have voided keeps the ring you drew into it */
+function drawRings(g){
+  const C = CELL;
+  for(let y=0;y<ROWS;y++) for(let x=0;x<COLS;x++){
+    if(!ringed[y] || !ringed[y][x]) continue;
+    const cx = x*C + C/2, cy = y*C + C/2;
+    g.save();
+    g.strokeStyle = '#ffd23c'; g.lineWidth = Math.max(1.4, C*0.085);
+    g.globalAlpha = 0.9;
+    g.beginPath();
+    /* an ellipse, slightly off-round and not quite closed, the way a circled
+       item on a form always is */
+    g.ellipse(cx, cy, C*0.30, C*0.26, 0.2, 0.5, 5.9);
+    g.stroke();
+    g.restore();
   }
 }
 
@@ -1092,6 +1142,7 @@ function paint(){
   }
   drawMaze(g);
   drawPenboys(g, now);
+  drawRings(g);
   drawBonus(g, now);
   for(const h of hunters) drawHunter(g, h, now);
   drawPlayer(g, now);
