@@ -25,6 +25,16 @@
    ===================================================================== */
 window.TINY_ARCADE = [
   {
+    file:  'games/golden/phalanx.html',
+    id:    'phalanx',
+    cat:   'golden',
+    name:  'Phalanx',
+    accent:'#c3ff4a',
+    genre: 'ARCADE \u00B7 RANKED SHOOTER',
+    hook:  'Thinning them is what makes them fast. The last one is the worst.',
+    attract:'ranks'
+  },
+  {
     file:  'games/golden/ricochet.html',
     id:    'ricochet',
     cat:   'golden',

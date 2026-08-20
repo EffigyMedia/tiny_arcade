@@ -343,7 +343,7 @@ Clamp the angle away from horizontal on every bounce.
 
 #### 05 · PHALANX — *ranked shooter*
 *After **Space Invaders** — Taito, 1978.*
-**Status:** ☐ **Size:** S **Accent:** `#c3ff4a`
+**Status:** ☑ BUILT **Size:** S **Accent:** `#c3ff4a`
 
 **The idea.** The formation speeds up as you thin it, so killing them is what
 makes them dangerous. One shot on screen at a time — every trigger pull is a
@@ -2683,6 +2683,38 @@ ground instead of blue-black, a brass grid, a lamp vignette over the well, and
 blocks drawn as stamped metal — mitred bevels with a lit corner and a deep
 shadowed one, plus a hairline of wear. Title carries СОВЕТСКИЕ БЛОКИ; game over
 reads ИГРА ОКОНЧЕНА. Accent moved `#e8484f` → `#c8102e`.
+
+# 15. PHALANX — built
+
+`games/golden/phalanx.html`, accent `#c3ff4a`. Seventh cabinet.
+
+**The two load-bearing mechanics, measured:**
+
+    march interval as the formation thins, wave 1
+      55 alive -> 620 ms      12 alive -> 242 ms
+      25 alive -> 356 ms       1 alive -> 145 ms
+    at wave 5 the last one steps every 103 ms
+
+    one shot at a time: firing twice leaves exactly one in flight
+
+**The march IS the bed.** Rather than a loop running alongside the formation,
+`Arcade.music.start` owns the clock and is re-armed whenever the interval
+changes. So the tempo a player hears cannot drift from the thing it describes,
+and it still sits on the music bus, obeys the mute and the volume slider, and
+stops with the game.
+
+That is also how the minimum standard was satisfied honestly: `pack.sh` rejected
+the first build for having no music bed, and the right answer was to make the
+march a real bed rather than to loosen the check.
+
+Also built: 5x11 formation with the sideways-then-down cadence, only the lowest
+of a column can drop a bomb, four shields eroding cell by cell from either side,
+a bonus craft on a timer, and the formation reaching the shield line ending the
+run outright.
+
+**Look:** x-ray plate. Pale silhouettes on a grey wash with a darker core
+showing through, three body plans — medusa at the back, crab in the middle,
+louse at the front.
 
 # 15. RICOCHET — built
 

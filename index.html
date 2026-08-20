@@ -1234,7 +1234,132 @@ function maze(g,s,t){
   g.restore();
 }
 
-var draw = { dive:dive, grid:grid, road:road, maze:maze };
+/* ---- Soviet Blocks: pieces falling into a stack that clears ------------ */
+function blocks(g,s,t){
+  g.fillStyle='#181510'; g.fillRect(0,0,s.w,s.h);
+  var cols=8, u=s.w/cols, rows=Math.floor(s.h/u);
+  g.strokeStyle='rgba(216,179,16,.06)'; g.lineWidth=1;
+  for(var c=1;c<cols;c++){ g.beginPath(); g.moveTo(c*u,0); g.lineTo(c*u,s.h); g.stroke(); }
+  for(var r=1;r<rows;r++){ g.beginPath(); g.moveTo(0,r*u); g.lineTo(s.w,r*u); g.stroke(); }
+
+  var pal=['#c8102e','#3f6d8c','#c8871f','#d9b310','#5f8a5a','#8f4a52','#6f9ba3'];
+  function cell(x,y,col){
+    var b=Math.max(2,u*0.20);
+    g.fillStyle=col; g.fillRect(x+1,y+1,u-2,u-2);
+    g.fillStyle='rgba(255,255,255,.30)';
+    g.beginPath(); g.moveTo(x+1,y+1); g.lineTo(x+u-1,y+1); g.lineTo(x+u-1-b,y+1+b);
+    g.lineTo(x+1+b,y+1+b); g.lineTo(x+1+b,y+u-1-b); g.lineTo(x+1,y+u-1);
+    g.closePath(); g.fill();
+    g.fillStyle='rgba(0,0,0,.42)';
+    g.beginPath(); g.moveTo(x+u-1,y+1); g.lineTo(x+u-1,y+u-1); g.lineTo(x+1,y+u-1);
+    g.lineTo(x+1+b,y+u-1-b); g.lineTo(x+u-1-b,y+u-1-b); g.lineTo(x+u-1-b,y+1+b);
+    g.closePath(); g.fill();
+  }
+
+  /* a settled stack whose height breathes, with one row flashing out */
+  var cyc=(t*0.55)%6;
+  for(var r2=0;r2<4;r2++){
+    var y=s.h-(r2+1)*u;
+    for(var c2=0;c2<cols;c2++){
+      var seed=(c2*7+r2*13)%11;
+      if(r2===0 && seed===3 && cyc>4) continue;
+      if(seed>8) continue;
+      var flash=(r2===0 && cyc>4.4 && cyc<4.9);
+      cell(c2*u, y, flash?'#fff6d0':pal[(c2+r2)%pal.length]);
+    }
+  }
+  /* the falling piece: an S, tumbling down */
+  var fall=((t*34)%(s.h+3*u))-2*u;
+  var px=Math.floor(((Math.sin(t*0.4)*0.5+0.5)*(cols-3)))*u;
+  var shape=[[0,1],[0,2],[1,0],[1,1]];
+  for(var i=0;i<shape.length;i++)
+    cell(px+shape[i][1]*u, fall+shape[i][0]*u, pal[0]);
+
+  var vg=g.createRadialGradient(s.w/2,s.h*0.3,s.h*0.1,s.w/2,s.h*0.5,s.h*0.95);
+  vg.addColorStop(0,'rgba(217,179,16,.05)'); vg.addColorStop(1,'rgba(0,0,0,.36)');
+  g.fillStyle=vg; g.fillRect(0,0,s.w,s.h);
+}
+
+/* ---- Ricochet: the ball working a wall down --------------------------- */
+function scope(g,s,t){
+  g.fillStyle='#0d1119'; g.fillRect(0,0,s.w,s.h);
+  g.strokeStyle='rgba(255,255,255,.035)'; g.lineWidth=1;
+  for(var x=0;x<s.w;x+=s.w/6){ g.beginPath(); g.moveTo(x,0); g.lineTo(x,s.h); g.stroke(); }
+
+  var pal=['#e8484f','#e8963f','#e8d23f','#5ccf6a','#3fd6e0'];
+  var cols=6, bw=s.w/cols, bh=s.h*0.055, top=s.h*0.10;
+  for(var r=0;r<4;r++){
+    for(var c=0;c<cols;c++){
+      /* bricks vanish in a sweep, then the wall comes back */
+      var order=(r*cols+c*3)%24, phase=(t*3)%34;
+      if(phase>order && phase<order+22) continue;
+      var bx=c*bw, by=top+r*bh, col=pal[r%pal.length];
+      var bev=Math.max(1.5,bh*0.22);
+      g.fillStyle=col; g.fillRect(bx+1,by+1,bw-2,bh-2);
+      g.fillStyle='rgba(255,255,255,.26)'; g.fillRect(bx+1,by+1,bw-2,bev);
+      g.fillStyle='rgba(0,0,0,.34)'; g.fillRect(bx+1,by+bh-1-bev,bw-2,bev);
+    }
+  }
+
+  /* the ball on a bouncing path, and the paddle tracking it */
+  var span=s.h*0.55, by2=top+4*bh+ (span - Math.abs(((t*70)%(span*2))-span));
+  var bx2=(s.w*0.5)+Math.sin(t*1.7)*(s.w*0.36);
+  var py=s.h-bh*1.2, pw=s.w*0.26;
+  var px=Math.max(pw/2,Math.min(s.w-pw/2,bx2));
+  var steel=g.createLinearGradient(0,py,0,py+bh*0.55);
+  steel.addColorStop(0,'#f2f5fa'); steel.addColorStop(0.5,'#78829a'); steel.addColorStop(1,'#4a5265');
+  g.fillStyle=steel; g.fillRect(px-pw/2,py,pw,bh*0.55);
+  var cap=pw*0.22;
+  g.fillStyle='#00b8d4'; g.fillRect(px-pw/2,py,cap,bh*0.55); g.fillRect(px+pw/2-cap,py,cap,bh*0.55);
+
+  var rr=Math.max(3,s.w*0.020);
+  var sg=g.createRadialGradient(bx2-rr*0.38,by2-rr*0.42,rr*0.1,bx2,by2,rr*1.12);
+  sg.addColorStop(0,'#fff'); sg.addColorStop(0.3,'#e4ecf7');
+  sg.addColorStop(0.68,'#9aa8bd'); sg.addColorStop(1,'#3d465a');
+  g.fillStyle=sg; g.beginPath(); g.arc(bx2,by2,rr,0,6.2832); g.fill();
+}
+
+/* ---- Phalanx: the formation stepping down, thinning as it goes --------- */
+function ranks(g,s,t){
+  g.fillStyle='#131615'; g.fillRect(0,0,s.w,s.h);
+  var wash=g.createLinearGradient(0,0,0,s.h);
+  wash.addColorStop(0,'rgba(255,255,255,.05)');
+  wash.addColorStop(1,'rgba(0,0,0,.22)');
+  g.fillStyle=wash; g.fillRect(0,0,s.w,s.h);
+
+  var cols=6, rows=4, u=s.w/(cols+1.6), cyc=(t*0.42)%9;
+  /* the whole block slides, and drops a rank each time it turns */
+  var swing=Math.sin(t*0.8), ox=s.w*0.10+swing*s.w*0.10;
+  var oy=s.h*0.14 + Math.floor(cyc)*s.h*0.028;
+  var wob=Math.floor(t*2.2)%2;
+  g.fillStyle='#e8ede2';
+  for(var r=0;r<rows;r++){
+    for(var c=0;c<cols;c++){
+      /* they thin from the middle out as the cycle runs */
+      if(cyc>3 && ((r*cols+c*5)%13) < (cyc-3)*2.4) continue;
+      var x=ox+c*u, y=oy+r*u*0.78, w=u*0.55, h=u*0.42;
+      g.fillRect(x, y, w, h);
+      g.fillRect(x-w*0.16, y+h*0.25, w*0.16, h*0.5);
+      g.fillRect(x+w, y+h*0.25, w*0.16, h*0.5);
+      g.fillRect(x+(wob?0:w*0.15), y+h, w*0.2, h*0.35);
+      g.fillRect(x+w*0.65+(wob?w*0.15:0), y+h, w*0.2, h*0.35);
+      g.fillStyle='rgba(20,24,20,.45)';
+      g.fillRect(x+w*0.28, y+h*0.28, w*0.4, h*0.42);
+      g.fillStyle='#e8ede2';
+    }
+  }
+  /* the gun, tracking, and one shot in flight */
+  var gx=s.w*0.5+Math.sin(t*1.3)*s.w*0.28;
+  g.fillStyle='#c3ff4a';
+  g.fillRect(gx-s.w*0.055, s.h-s.h*0.075, s.w*0.11, s.h*0.022);
+  g.fillRect(gx-s.w*0.014, s.h-s.h*0.095, s.w*0.028, s.h*0.022);
+  var sy=s.h-s.h*0.10-((t*150)%(s.h*0.62));
+  g.fillStyle='#eef2e8'; g.fillRect(gx-1, sy, 2, s.h*0.026);
+  g.strokeStyle='rgba(195,255,74,.20)'; g.lineWidth=1;
+  g.beginPath(); g.moveTo(0,s.h-s.h*0.045); g.lineTo(s.w,s.h-s.h*0.045); g.stroke();
+}
+
+var draw = { dive:dive, grid:grid, road:road, maze:maze, blocks:blocks, scope:scope, ranks:ranks };
 
 function paint(now){
   for(var i=0;i<screens.length;i++){

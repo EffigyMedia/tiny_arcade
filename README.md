@@ -131,6 +131,59 @@ see. Nothing in the launcher assumes how many machines there are.
 
 Keep `hook` to one short line: cards clamp it at four lines.
 
+## Every game needs — the minimum standard
+
+The contents vary with the game. This list does not. **`./pack.sh` enforces
+everything in it that a machine can check and refuses to build otherwise**, so
+this is not a document you have to remember.
+
+### Enforced by pack.sh
+
+- [ ] `arcade-home`, `arcade-title`, `arcade-accent` meta tags
+- [ ] loads `audio.js` and `arcade.js`
+- [ ] title screen with **PLAY / OPTIONS / QUIT** (and CONTINUE if it saves)
+- [ ] a CONTROLS page, detected per device via `Arcade.touch`
+- [ ] a music bed — `Arcade.music.start(...)`
+- [ ] sound effects — `Arcade.sfx.tone` or `.noise`
+- [ ] records a best score — `Arcade.save.merge`
+- [ ] music routed to `bus:'music'`, so the mix can be balanced and muted
+- [ ] an `attract` field in `games.js` **whose function exists in the `draw` map
+      in `index.html`** — a missing entry renders a black card with no error
+
+### Not machine-checkable, still required
+
+- [ ] **Mix.** Music sits UNDER the effects. Measure both buses rather than
+      trusting an ear: a bed at 0.02 RMS is inaudible on a phone, and one that
+      matches the SFX drowns them. Beds land around 0.03-0.06.
+- [ ] **The bed reacts to play.** A loop that never changes is wallpaper.
+      Tempo with level (Soviet Blocks), layers with progress (Ricochet),
+      orchestration with state (Derelict).
+- [ ] **Attract card matches the game it advertises** — same palette, same
+      shapes, real motion from the actual mechanic.
+- [ ] **Fits every screen.** Check 320x568 through 430x932. Derive sizes from
+      measured layout, and if the arithmetic is off, size-measure-shrink.
+- [ ] **Pause, resume and EXIT TO ARCADE all work** from mid-game.
+- [ ] **Zero console errors** across a few minutes of play.
+- [ ] **Offline.** Bump `sw.js` cache version whenever a file is added or moved.
+- [ ] **A hook line in `games.js`** written like cabinet glass, not a store
+      listing.
+
+### The order things go in
+
+    title screen -> (cinematic, if any) -> run
+
+## Attract cards
+
+A cabinet's `attract` field in `games.js` names a function in the `draw` map at
+the bottom of `index.html`. **If the name has no entry there the card renders
+nothing** — no error, no warning, just a black rectangle. Both Golden Era games
+shipped that way until it was spotted. When adding a game, add the attract
+function in the same commit.
+
+Note when testing: the launcher opens on the SHELVES view, where every attract
+loop is deliberately switched off (`s.off = true`). A canvas sampled from that
+view is blank for every cabinet, working or not — enter a shelf first.
+
 ## Cinematics
 
 **Each cabinet owns its own.** Not every game will have them, and the ones that
