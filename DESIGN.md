@@ -997,6 +997,24 @@ picked, in the same shape as the entries above.
 | **DRAWSTRING** | Magical Drop · Data East, 1995 | ● | Pull and throw a whole column instead of placing one piece. Fast, and a natural drag. |
 | **SIXTEENTH** | beatmania · Konami, 1997 | ● | Rhythm on the synth engine we already have — no samples needed, and nothing else on the floor is a music game. |
 
+### Flight
+
+| Ours | After | Fit | The one idea worth keeping |
+|---|---|---|---|
+| **BOGEY** | Ace Combat / Top Gun · Namco / Sega, 1995 | ◐ | Chase cam behind the aircraft, and a **lock-on that takes time** — you hold the enemy in the reticle and wait, which is a nerve mechanic rather than an aiming one. Portrait is wrong for dogfighting; this one may want landscape. |
+
+### Sports
+
+| Ours | After | Fit | The one idea worth keeping |
+|---|---|---|---|
+| **TWO ON TWO** | NBA Jam · Midway, 1993 | ● | Two-a-side, no fouls, and a **heat streak** — three baskets running and the ball is on fire. Physics loose enough to dunk from the arc. The rules fit on a card, which is why it works on a phone. |
+
+### Rhythm
+
+| Ours | After | Fit | The one idea worth keeping |
+|---|---|---|---|
+| **DOWNBEAT** | DDR / Guitar Hero · Konami / Harmonix, 1998/2005 | ● | Notes falling to a line, scored on **timing windows** rather than hits. Runs on the synth engine we already have, so the chart *is* the music — no samples, and the track can be generated from the same sequencer that plays every other bed on this floor. Supersedes **SIXTEENTH** above; keep one, not both. |
+
 ### Accents for these, when they get scheduled
 
 Clear of everything in the register above.
@@ -1012,7 +1030,8 @@ Clear of everything in the register above.
 | `#ff2fb9` | Curtain | | `#9bb1a2` | Quarantine |
 | `#ffd166` | Thunderhead | | `#c1440e` | Hairpin |
 | `#f4d35e` | Fare | | `#a06cd5` | Gem Duel |
-| `#4cc9f0` | Drawstring | | `#f72585` | Sixteenth |
+| `#4cc9f0` | Drawstring | | `#f72585` | Downbeat |
+| `#2ec4ff` | Bogey | | `#ff7d00` | Two On Two |
 
 ### If you want a starting batch from this list
 
@@ -1576,6 +1595,32 @@ stops the event or tapping it would launch the cabinet.
 
 ### The ascent — open decisions
 
+### Oxygen — the run's clock
+
+**One meter for the whole run**, not a timer per deck. It does not reset when
+you descend, which is what makes lingering expensive *everywhere* and turns
+"search this locker or not" into a real question. Empty, and the suit starts
+taking integrity directly.
+
+**Stations are single use, and the state sticks with the deck.** There is one on
+every deck. Drawing air on the way down is air you will not have on the way back
+up — so the ascent is harder because of a decision you made an hour earlier,
+rather than because a script switched a timer on. **That is the ascent clock,
+and it is a better one:** you can bargain with it, you can plan around it, and
+running dry on deck 4 of the climb is your own arithmetic rather than bad luck.
+
+Stepping onto a charged station asks rather than takes. A spent one is drawn
+unlit with its gauge on the floor, so a deck you have already drained reads at a
+glance on the way back through.
+
+Air canisters top the suit up by a third and drop like any other consumable.
+Suit mods should modify **capacity** and **consumption rate** as their cost or
+benefit — that is a third axis for the armour table alongside DEF and resistance.
+
+The suit currently holds 1200 breaths at 1 per turn, roughly two decks unaided.
+**That is the number to tune.** Raise it and the run softens; lower it and the
+stations stop being a choice.
+
 **Repopulated hostiles pay out during the climb.** Farming them is fair when a
 self-destruct is running: the timer is the cost, and min/maxing under a clock is
 a skill rather than an exploit. The no-payout rule only needs to apply to
@@ -1603,10 +1648,15 @@ Same rule as the shards: no atmosphere, no adjectives reaching for a mood. The
 most effective ending for this game is probably **your own incident report**,
 written in the same voice as the paperwork you have been reading all run.
 
-**A proper death screen.** Currently it states the deck and stops. It should
-carry the run: how deep, what killed you, what you were carrying, what you never
-found. A death screen that tells you what you missed is the one that starts
-another run.
+~~**A proper death screen.**~~ Built, and deliberately short — it is read in
+about four seconds, so everything on it has to survive that. Deck, calibration,
+ATK and DEF; what killed you and **what it was carrying**; what was recovered
+from the suit; and the running record between you and that species: *you have
+killed 14 of them, they have killed you 3 times*. That tally persists across
+every run.
+
+Still to come, once the frame exists: **a win cinematic per Omega**, written as
+your own incident report in the same voice as the shards you assembled it from.
 
 ### Audio still to write
 
@@ -1638,11 +1688,26 @@ doing nothing, the Omega fight teaches itself without a single line of UI.
   fairness rule: **firing reveals the shooter** — a muzzle flash lights their
   tile — or being shot from unlit blackness is a tax rather than a threat.
   Player muzzle flash is already built, for exactly that consistency.
-- **Props.** Searchable (lockers, med cabinets, tool chests, crew effects) and
-  set dressing. Searching costs a turn, and finding nothing must be possible.
-  This replaces loot lying on the floor. **Blocking props must be placed before
-  the zone validator and `sealSqueezes` run**, or the generator will happily
-  seal a keycard behind a cabinet.
+- ~~**Props.**~~ Built. Nine kinds — five searchable (crew locker, med cabinet,
+  tool chest, crew effects, body bag) and four set dressing (console, pipe run,
+  spilled cargo, remains). Searching **costs a turn and can come up empty**:
+  the turn prices exploration against the oxygen, and the empty result is what
+  stops a container being a slower floor pickup. Roughly 7 per deck, scaling
+  with depth.
+
+  Blocking props are written in as **real walls before the zone validator and
+  `sealSqueezes()` run**, so every existing guarantee is computed against them.
+  Each one also tests connectivity before it commits and reverts if it would
+  cut the deck.
+
+  **Two pre-existing generator bugs surfaced doing this**, neither caused by
+  props: the floorplan was only ever validated for *size*, so a BSP split could
+  leave an isolated pocket and the item placer would drop a keycard into it; and
+  the floor list handed to the item placer was captured *before* props and
+  `sealSqueezes` modified the map, so loot could be placed onto a wall. Both
+  fixed — the floorplan must now be one connected space, and the list is rebuilt
+  after the map is final. Verified over 180 decks: **0 items walled off, 0 on
+  wall tiles**.
 
 ## 8c. Derelict — balance pass
 
@@ -1701,6 +1766,28 @@ piling up on a single wall. Average 3.7 cores installed per run.
    two points of light you steer between.
 
 ## 9. Highway — done
+
+- ~~**Day/night cycle.**~~ A full one, six miles a lap: **dusk → night → dawn →
+  midday → dusk**. You set off at dusk because that is the shot the game is
+  named for. Two curves drive everything — `nightFall()` peaks at night and
+  bottoms at midday, `goldenHour()` peaks at dusk and dawn and is gone at both
+  extremes — so the sky, the sodium haze on the horizon and the skyline's
+  opacity all follow one clock.
+
+  The skyline is **two sprites**: the buildings, and their windows on a separate
+  sheet drawn over the top with alpha following `nightFall()`. So the city
+  lights come on at dusk, burn through the night and go out by mid-morning. A
+  handful of windows are cold blue among the sodium orange.
+
+- ~~**PIT manoeuvre.**~~ Catch a cruiser **alongside** rather than nose to tail,
+  while steering into it and carrying speed, and it spins out. Square-on contact
+  is still just a crash — the lateral component is what decides it, so the
+  manoeuvre has to be deliberate. Reuses the existing `wreckCop()` spin, which
+  was already written for cruisers that hit a barrier.
+
+- ~~**Idles at 60mph on the title card.**~~ The road moves before you press
+  anything. The title state was *decaying* speed to a stop; it now holds at idle
+  while the wrecked state still rolls to a halt.
 
 - ~~**Always leave a legitimate line through traffic.**~~ A wave never fills
   every lane, but cars run at different speeds, so given enough road a fast one
