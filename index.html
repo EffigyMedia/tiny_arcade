@@ -465,7 +465,7 @@ SHELVES.forEach(function(sh){
   b.querySelector('.sd').textContent = sh.blurb;
   b.querySelector('.sn').textContent = n ? (n + (n === 1 ? ' machine' : ' machines'))
                                          : 'empty \u2014 nothing built yet';
-  b.addEventListener('click', function(){ openShelf(sh.id, true); });
+  b.addEventListener('click', function(){ UI.open(); openShelf(sh.id, true); });
   shelvesEl.appendChild(b);
 });
 
@@ -508,6 +508,7 @@ function applySort(id){
 }
 
 on('sortBtn', 'click', function(){
+  UI.tap();
   sortIdx = (sortIdx + 1) % SORTS.length;
   try { localStorage.setItem('tinyarcade.sort.v1', SORTS[sortIdx].key); } catch(e){}
   var cur = (location.hash || '').replace('#','') || 'golden';
@@ -536,6 +537,7 @@ function openShelf(id, push){
   if(push) history.pushState({ shelf:id }, '', '#' + id);
 }
 document.getElementById('ret').addEventListener('click', function(){
+  UI.back();
   history.pushState({}, '', location.pathname);
   showShelves();
 });
@@ -597,13 +599,17 @@ GAMES.forEach(function(g, i){
      itself, and only act on pointerup so a drag off it does nothing. */
   star.addEventListener('click', function(ev){
     ev.stopPropagation();
-    star.classList.toggle('on', toggleFav(g.id));
+    var nowOn = toggleFav(g.id);
+    star.classList.toggle('on', nowOn);
+    nowOn ? UI.fav() : UI.unfav();
     applySort(g.cat || 'original');   /* starring re-orders immediately */
   });
 
   a.addEventListener('click', function(ev){
     if (ev.target.closest('.fav')) return;      /* the star is not the cabinet */
-    location.href = a.dataset.href;
+    UI.launch();
+    /* let the coin land before the page goes */
+    setTimeout(function(){ location.href = a.dataset.href; }, 130);
   });
   a.addEventListener('keydown', function(ev){
     if (ev.key === 'Enter' || ev.key === ' ') location.href = a.dataset.href;
@@ -628,6 +634,73 @@ rack.insertAdjacentHTML('afterend',
 /* ---------- house music ----------
    Am - F - C - G, 138bpm, the kind of loop a cabinet plays at nobody. */
 var A = window.Arcade;
+
+/* ---- launcher sounds -----------------------------------------------------
+   The cabinets all have voices; the room they sit in had none. These are
+   deliberately small — a launcher that announces itself gets tiring by the
+   third visit, so everything here is short, quiet, and out of the way of the
+   attract music.
+   -------------------------------------------------------------------------- */
+var UI = {
+  ready: function(){
+    return !!(A && A.audio && A.audio.ctx && A.sfx);
+  },
+  /* a soft contact for anything you press */
+  tap: function(){
+    if (!UI.ready()) return;
+    var t = A.audio.now();
+    A.sfx.tone({ t, freq:520, to:700, dur:0.045, type:'triangle', gain:0.055, cutoff:2600 });
+    A.sfx.noise({ t, freq:3200, dur:0.022, gain:0.030, filter:'highpass' });
+  },
+  /* opening a shelf: the same contact with a lift under it */
+  open: function(){
+    if (!UI.ready()) return;
+    var t = A.audio.now();
+    A.sfx.tone({ t, freq:380, to:620, dur:0.11, type:'triangle', gain:0.065, cutoff:2800 });
+    A.sfx.tone({ t:t+0.045, freq:760, to:920, dur:0.10, type:'sine', gain:0.038, verb:0.25 });
+  },
+  /* going back: the same shape, falling */
+  back: function(){
+    if (!UI.ready()) return;
+    var t = A.audio.now();
+    A.sfx.tone({ t, freq:620, to:380, dur:0.11, type:'triangle', gain:0.060, cutoff:2400 });
+  },
+  /* starting a cabinet: a coin going in */
+  launch: function(){
+    if (!UI.ready()) return;
+    var t = A.audio.now();
+    A.sfx.tone({ t, freq:880, dur:0.055, type:'square', gain:0.070, cutoff:3400 });
+    A.sfx.tone({ t:t+0.055, freq:1320, dur:0.075, type:'square', gain:0.060, cutoff:3600 });
+    A.sfx.noise({ t:t+0.02, freq:5200, dur:0.05, gain:0.035, filter:'highpass' });
+  },
+  /* FAVOURITED: a rising major third that resolves upward and rings.
+     It should feel like a small reward, so it is the only sound here with
+     any tail on it. */
+  fav: function(){
+    if (!UI.ready()) return;
+    var t = A.audio.now();
+    [[0,   784],      /* G5  */
+     [0.06, 988],     /* B5  */
+     [0.12,1175]      /* D6  */].forEach(function(n){
+      A.sfx.tone({ t:t+n[0], freq:n[1], dur:0.20, type:'triangle',
+                   gain:0.075, cutoff:4200, verb:0.35 });
+    });
+    A.sfx.tone({ t:t+0.18, freq:1568, dur:0.42, type:'sine', gain:0.045, verb:0.5 });
+  },
+  /* UNFAVOURITED: the same shape inverted and flattened into a minor fall,
+     shorter and duller. Not a buzzer — just a small disappointment. */
+  unfav: function(){
+    if (!UI.ready()) return;
+    var t = A.audio.now();
+    [[0,   932],      /* Bb5 */
+     [0.06, 784],     /* G5  */
+     [0.12, 622]      /* Eb5 */].forEach(function(n){
+      A.sfx.tone({ t:t+n[0], freq:n[1], dur:0.16, type:'triangle',
+                   gain:0.060, cutoff:2200, verb:0.15 });
+    });
+    A.sfx.tone({ t:t+0.16, freq:311, dur:0.26, type:'sine', gain:0.035, cutoff:1400 });
+  }
+};
 var CH = [
   { bass:['A',1], notes:[['A',4],['C',5],['E',5],['A',5]] },
   { bass:['F',1], notes:[['F',4],['A',4],['C',5],['F',5]] },
