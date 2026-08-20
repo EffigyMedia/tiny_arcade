@@ -145,14 +145,11 @@
     </div>
 
     <div id="veil">
-      <div>
+      <div id="veilBody">
         <div class="eyebrow" id="eyebrow">Descent log — 001</div>
-        <div id="panel">
-          <h1>Deep<em>the sounding</em></h1>
-          <p class="sub">Drag anywhere to steer. Thread the gaps, gather the <b>sparks</b>, and mind the things that swim across your line.</p>
-        </div>
+        <div id="panel"><h1>Deep</h1></div>
         <div class="rule"></div>
-        <div class="cue" id="cue">Touch to dive</div>
+        <div class="cue" id="cue"></div>
       </div>
     </div>
   </div>
@@ -423,7 +420,7 @@ if (AR && AR.gesture) AR.gesture.onDrag(g => {
 window.addEventListener('pointerdown', e => {
   if (AR && AR.paused && AR.paused()) return;
   if (e.target.closest && e.target.closest('button, a, input')) return;
-  if (state === 'ready') start();
+  if (state === 'ready' && !menuOpen) start();
   else if (state === 'lost' && performance.now() - deadAt > 550) start();
 }, { passive:true });
 
@@ -433,7 +430,7 @@ window.addEventListener('keydown', e => {
   if (['ArrowLeft','ArrowRight','ArrowUp','ArrowDown',' '].includes(e.key)) e.preventDefault();
   keys[e.key] = true;
   if (e.key === ' ' || e.key === 'Enter'){
-    if (state === 'ready') start();
+    if (state === 'ready' && !menuOpen) start();
     else if (state === 'lost' && performance.now() - deadAt > 550) start();
   }
 });
@@ -442,13 +439,73 @@ window.addEventListener('keyup', e => { keys[e.key] = false; });
 if (AR && AR.pad) AR.pad.onPress(name => {
   if (AR.paused && AR.paused()) return;
   if (name !== 'a' && name !== 'rt' && name !== 'x') return;
-  if (state === 'ready') start();
+  if (state === 'ready' && !menuOpen) start();
   else if (state === 'lost' && performance.now() - deadAt > 550) start();
 });
 
 /* ---------------------------------------------------------------- */
 /*  State transitions                                                */
 /* ---------------------------------------------------------------- */
+const veilBody = document.getElementById('veilBody');
+let menuOpen = true;          /* the title is a menu, not a "tap anywhere" screen */
+
+function paintMenu(html, acts){
+  veilBody.innerHTML = html;
+  veil.classList.remove('hidden');
+  menuOpen = true;
+  veilBody.querySelectorAll('[data-act]').forEach(b => {
+    b.addEventListener('click', ev => {
+      ev.stopPropagation();
+      const fn = acts && acts[b.dataset.act];
+      if(fn) fn();
+    });
+  });
+}
+
+function showTitle(){
+  paintMenu(
+    '<div class="eyebrow">DESCENT LOG \u00B7 ' + String(dives+1).padStart(3,'0') + '</div>' +
+    '<div id="panel"><h1>Deep</h1></div>' +
+    '<div class="tmenu">' +
+      '<button class="mbtn" data-act="play">PLAY</button>' +
+      '<button class="mbtn ghost" data-act="opts">OPTIONS</button>' +
+      '<button class="mbtn ghost" data-act="quit">QUIT</button>' +
+    '</div>',
+    {
+      play: () => { menuOpen = false; start(); },
+      opts: () => showOptions(),
+      quit: () => { if(AR && AR.home) AR.home(); }
+    });
+}
+
+function showOptions(){
+  paintMenu(
+    '<div class="eyebrow">DEEP</div><div id="panel"><h1>Options</h1></div>' +
+    '<div class="tmenu">' +
+      '<button class="mbtn ghost" data-act="ctrl">CONTROLS</button>' +
+      '<button class="mbtn" data-act="back">BACK</button>' +
+    '</div>',
+    { ctrl: () => showControls(), back: () => showTitle() });
+}
+
+function showControls(){
+  const touch = !!(AR && AR.touch);
+  const rows = [
+    [touch ? 'Drag anywhere' : 'Drag, or arrow keys', 'steer the descent'],
+    ['Thread the gaps', 'the walls do not forgive'],
+    ['Gather sparks', 'they are the score'],
+    ['Pause, top right', 'options']
+  ];
+  paintMenu(
+    '<div class="eyebrow">' + (touch ? 'TOUCH' : 'POINTER') + '</div>' +
+    '<div id="panel"><h1>Controls</h1></div>' +
+    '<div class="ctrls">' +
+      rows.map(r => '<div class="crow"><b>' + r[0] + '</b><i>' + r[1] + '</i></div>').join('') +
+    '</div>' +
+    '<button class="mbtn" data-act="back" style="margin-top:14px">BACK</button>',
+    { back: () => showOptions() });
+}
+
 function start(){
   dives++;
   reset();
@@ -460,6 +517,7 @@ function start(){
 
 function lose(){
   state = 'lost';
+  menuOpen = false;
   snd.end(cause);
   deadAt = performance.now();
   shake = reduceMotion ? 0.25 : 1;
@@ -958,6 +1016,7 @@ function frame(now){
 /* ---------------------------------------------------------------- */
 resize();
 reset();
+showTitle();      /* the front door, rather than a tap-anywhere panel */
 requestAnimationFrame(frame);
 })();
 </script>

@@ -1748,22 +1748,69 @@ function frameLoop(now){
 }
 
 /* ---------- overlays ---------- */
+/* `go` may be a single callback (one .go button) or a map of data-act names. */
 function openVeil(html, go){
   veilBody.innerHTML = html;
   veil.classList.remove('hidden');
-  const b = veilBody.querySelector('.go');
-  if(b) b.addEventListener('click', ()=>{ veil.classList.add('hidden'); if(go) go(); });
+  if(typeof go === 'function'){
+    const b = veilBody.querySelector('.go');
+    if(b) b.addEventListener('click', ()=>{ veil.classList.add('hidden'); if(go) go(); });
+    return;
+  }
+  veilBody.querySelectorAll('[data-act]').forEach(b => {
+    b.addEventListener('click', () => {
+      const fn = go && go[b.dataset.act];
+      veil.classList.add('hidden');
+      if(fn) fn();
+    });
+  });
 }
 function showTitle(){
   openVeil(
-    '<div class="eyebrow">STATE ROUTE 9 \u00B7 23:40</div>'+
-    '<h1>Highway<u>SODIUM NIGHT RUN</u></h1>'+
-    '<div class="blurb">Straight road, no exits, and every cruiser in the county behind you. '+
-    '<b>Squeeze past traffic</b> to fill the nitrous \u2014 and let the cops find out what a semi-trailer does to a pursuit.</div>'+
-    '<div class="tip"><b>Drag</b> anywhere to steer \u00B7 <b>NOS</b> button to burn it<br>'+
-    'Threading a roadblock pays. Hitting one does not.</div>'+
-    '<button class="go" style="margin-top:22px">DROP THE CLUTCH</button>',
-    start);
+    '<h1>Highway</h1>' +
+    '<div class="tmenu">' +
+      '<button class="go" data-act="play">PLAY</button>' +
+      '<button class="go ghost" data-act="opts">OPTIONS</button>' +
+      '<button class="go ghost" data-act="quit">QUIT</button>' +
+    '</div>',
+    {
+      play: start,
+      opts: () => showOptions(),
+      quit: () => { if(AR && AR.home) AR.home(); }
+    });
+}
+
+function showOptions(){
+  openVeil(
+    '<div class="eyebrow">HIGHWAY</div><h1>Options</h1>' +
+    '<div class="tmenu">' +
+      '<button class="go ghost" data-act="ctrl">CONTROLS</button>' +
+      '<button class="go" data-act="back">BACK</button>' +
+    '</div>' +
+    '<div class="tip">Paint, control side and cop traffic are in the pause menu.</div>',
+    { ctrl: () => showControls(), back: () => showTitle() });
+}
+
+function showControls(){
+  const touch = !!(AR && AR.touch);
+  const rows = touch
+    ? [['Drag anywhere', 'steer'],
+       ['NOS', 'burn what you have banked'],
+       ['BRAKE', 'scrub speed into a corner'],
+       ['Squeeze past traffic', 'fills the nitrous'],
+       ['Pause, top right', 'options']]
+    : [['Drag, or arrow keys', 'steer'],
+       ['NOS button', 'burn what you have banked'],
+       ['BRAKE button', 'scrub speed into a corner'],
+       ['Squeeze past traffic', 'fills the nitrous'],
+       ['Pause, top right', 'options']];
+  openVeil(
+    '<div class="eyebrow">' + (touch ? 'TOUCH' : 'POINTER') + '</div><h1>Controls</h1>' +
+    '<div class="ctrls">' +
+      rows.map(r => '<div class="crow"><b>' + r[0] + '</b><i>' + r[1] + '</i></div>').join('') +
+    '</div>' +
+    '<button class="go" data-act="back" style="margin-top:16px">BACK</button>',
+    { back: () => showOptions() });
 }
 function showEnd(reason){
   openVeil(
