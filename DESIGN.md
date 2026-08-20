@@ -1773,6 +1773,23 @@ piling up on a single wall. Average 3.7 cores installed per run.
 
 ## 9. Highway — done
 
+- ~~**Sun and moon.**~~ Both sit at opposite ends of **one diameter**, and the
+  wheel turns with the clock — so when one is up the other is exactly as far
+  down, and neither is ever placed by hand. Height decides visibility and the
+  horizontal sweep falls out of the same angle. The sun reddens and both fade as
+  they touch the horizon; the skyline draws over them, so they set behind the
+  city. Parallax is 0.01 of the camera, essentially fixed.
+
+  Cycle doubled to **twelve miles a lap**, so a full day is a long run rather
+  than a lap of the block.
+
+- ~~**The sky popped once a lap.**~~ `nightFall()` ramped 0 → 1 across
+  midday→dusk and then wrapped straight back to dusk, where darkness is 0 — a
+  hard snap from near-black to full daylight every six miles. Dusk is where the
+  darkening *starts*, so the afternoon has to stay lit; only the golden band
+  moves in it. Measured at the lap boundary: the sky now steps **3** where it
+  jumped **96 and 108**.
+
 - ~~**Day/night cycle.**~~ A full one, six miles a lap: **dusk → night → dawn →
   midday → dusk**. You set off at dusk because that is the shot the game is
   named for. Two curves drive everything — `nightFall()` peaks at night and
