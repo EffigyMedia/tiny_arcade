@@ -43,6 +43,13 @@ game a drop-in rather than a project.
   ```
 - Root markup is `#stage` (absolute, `inset:0`) wrapping `#frame`.
 - `#frame` sized from `var(--stage-h, 100dvh)`, never raw `100dvh`.
+- **A game must never define `--stage-h` or `--safe-top` in its own `:root`.**
+  `arcade.js` loads from `<head>` and appends its stylesheet during parse, so a
+  `:root` block later in the document wins on source order and silently
+  discards the shell's calculation. All four games did this, so every frame was
+  38px taller than the room it had — invisible until Derelict's HUD grew and
+  pushed the action bar off the bottom of the screen. Use the fallback form at
+  the point of use and let the shell own the value.
 - Top safe-area padding written `var(--safe-top, env(safe-area-inset-top,0px))`.
 - A `resize` listener that fully recomputes layout — `arcade.js` fires one after
   it installs the title bar.
@@ -64,6 +71,12 @@ A game is not shipped until all of these are true.
 - [ ] Title screen, game-over screen, and a way back to the arcade.
 - [ ] Clean console — zero errors on load, play, pause, death, restart.
 - [ ] Fits 375×667, 390×844, and iPad portrait and landscape.
+- [ ] **Overlays cannot spill.** `#veil{overflow-x:hidden}`, `#veil *{max-width:100%}`
+      and long words allowed to break. A title set in a webfont is sized by
+      whichever face actually loaded — if the real one is unavailable the
+      fallback's metrics differ, so a heading that fits in development can run
+      off the side of a device where the font *does* load. Never trust the
+      typeface; cap the box. Check at 320px, the narrowest phone still in use.
 - [ ] Holds 60fps on a mid phone.
 - [ ] Entry in `games.js`: `file, id, name, accent, genre, hook, attract`.
 - [ ] **The hook reads like cabinet glass, not a store listing.** Concrete, one
@@ -1395,6 +1408,37 @@ Scaled by deck tier: `ATK`, `DEF` and damage dice all step up every third deck.
 9. **Organic walls** — currently they do not read as organic. Redraw or animate,
    or cut them.
 10. **Pathing** — better routes for long-distance clicks and for hostiles.
+
+## 8c. Derelict — balance pass
+
+Three faults, two of them mine from this run of work.
+
+**The levelling treadmill.** Hostile level tracked yours one for one, and since
+their damage multiplies by level while your integrity only gains a flat +10,
+every calibration made you *less* able to survive a blow — 13.6 crawler hits at
+level one, 6.4 at level four. Levelling was a punishment dressed as a reward,
+and it is what put the wall on deck two. Depth sets the difficulty now, with
+your own level as a small nudge so salvage is not a free ride.
+
+**Decks were unwinnable.** `boss` was set by `type === 'apex'`, so the four
+apexes added with the bestiary — Broodmaw, Warlord, Sovereign, Leviathan — never
+dropped the salvage core and the hatch could never open. Half the sim runs were
+ending with the deck fully cleared, every door open, 98.5% integrity and no way
+down. It read as the bot being stuck, which is why it went unnoticed for two
+sessions. Verified: 640 decks, every one spawns exactly one core-bearer.
+
+**Deck one was crowded** — nearly nine hostiles before you have found anything.
+The count ramps from five now and reaches the same ceiling by the time it
+matters.
+
+Where it landed, measured per deck in isolation with a competent policy:
+
+| deck | 1 | 2 | 3 | 4 |
+|---|---|---|---|---|
+| death rate | 0% | 3% | 8% | 28% |
+
+And across full runs the depth histogram decays smoothly to deck 13 rather than
+piling up on a single wall. Average 3.7 cores installed per run.
 
 ## 8b. Deep — done
 
