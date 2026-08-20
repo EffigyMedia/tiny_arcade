@@ -1399,7 +1399,21 @@ function drawHaze(){
   ctx.fillStyle=g; ctx.fillRect(0,horizon-2,W,d+2);
 }
 
+/* Sodium lamps down the verge. They come on partway into dusk and go off
+   partway into dawn, with a short warm-up rather than a switch — a bank of
+   street lights does not snap on. This is the illumination only; there are no
+   poles to model at this scale, just pools of light on the tarmac. */
+function lampsOn(){
+  const p = phase();
+  /* on from 0.10 of dusk through the night, off during dawn at 0.60 */
+  if(p < 0.10) return p / 0.10;                      // coming up at dusk
+  if(p < 0.55) return 1;                             // lit all night
+  if(p < 0.65) return 1 - (p - 0.55) / 0.10;         // going out through dawn
+  return 0;                                          // daylight
+}
+
 function drawRoad(){
+  const lamp = lampsOn();
   const base = Math.floor(pos/SEG);
   let maxy = H;
   for(let n=DRAW; n>=0; n--){
@@ -1416,6 +1430,26 @@ function drawRoad(){
     // verge
     ctx.fillStyle = dark ? '#241a30' : '#2b2038';
     ctx.fillRect(0, y2, W, y1-y2+1);
+
+    /* every eighth segment carries a lamp, alternating sides, throwing an
+       ellipse of sodium light across the near lanes */
+    if(lamp > 0.01 && idx % 8 === 0){
+      const side = ((idx/8)|0) % 2 ? 1 : -1;
+      const lx = p1.x + side * p1.scale * ROAD * W * 1.15;
+      const rw = Math.max(6, p1.scale * ROAD * W * 2.6);
+      const rh = Math.max(2, (y1 - y2) * 5.5);
+      const g2 = ctx.createRadialGradient(lx, y1, 0, lx, y1, rw);
+      g2.addColorStop(0,   'rgba(255,196,110,' + (0.30 * lamp * fade) + ')');
+      g2.addColorStop(0.5, 'rgba(255,168,80,'  + (0.11 * lamp * fade) + ')');
+      g2.addColorStop(1,   'rgba(255,150,60,0)');
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.fillStyle = g2;
+      ctx.beginPath();
+      ctx.ellipse(lx, y1, rw, rh, 0, 0, 6.2832);
+      ctx.fill();
+      ctx.restore();
+    }
 
     // rumble strip
     const r1 = p1.w*1.13, r2 = p2.w*1.13;
