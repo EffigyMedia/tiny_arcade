@@ -28,8 +28,6 @@
 <link href="https://fonts.googleapis.com/css2?family=Oxanium:wght@600;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
 :root{
-    --stage-h:100dvh;
-    --safe-top:env(safe-area-inset-top,0px);
   --cell:34px;
   --void:#06080a;
   --hull:#101820;
@@ -60,7 +58,7 @@ html,body{
 #stage{position:absolute;inset:0;display:grid;place-items:center;background:#000}
 #frame{
   position:relative;
-  width:min(100dvw, calc(var(--stage-h) * 0.52));height:var(--stage-h);
+  width:min(100dvw, calc(var(--stage-h, 100dvh) * 0.52));height:var(--stage-h, 100dvh);
   display:flex;flex-direction:column;
   padding:calc(var(--safe-top, env(safe-area-inset-top,0px)) + 10px) 12px calc(env(safe-area-inset-bottom,0px) + 10px);
   background:
@@ -188,6 +186,14 @@ button:not(:disabled):active{background:#16222c}
 button:focus-visible{outline:2px solid var(--ice);outline-offset:1px}
 
 /* ---------------- overlay ---------------- */
+/* Nothing in an overlay may reach past it. The title is set in a display
+   face that may or may not have loaded — a fallback with wider metrics used
+   to push the word off the side of the screen, and it is invisible on any
+   machine where the real font is available. Cap everything and let long words
+   break rather than trusting the typeface. */
+#veil{overflow-x:hidden;}
+#veil *{max-width:100%;overflow-wrap:anywhere}
+#veil h1{overflow-wrap:break-word;hyphens:auto}
 #veil{
   position:absolute;inset:0;z-index:70;display:flex;
   padding:26px 22px calc(env(safe-area-inset-bottom,0px) + 30px);
@@ -1400,10 +1406,19 @@ function assembleDeck(){
 
   mobs = [];
   const roster = ROSTER[Math.min(ROSTER.length-1, deck-1)];
-  // hostiles track how strong you have actually become, not just how deep
-  // you are — so salvage buys you depth rather than a free ride
-  const base = Math.max(1, P.lvl + Math.floor(deck/6));
-  const count = Math.min(15, 6 + deck);
+  /* Hostile level used to track yours one for one. Since their damage
+     multiplies by level and your integrity only gains a flat +10, every
+     calibration made you *less* able to survive a hit — 13.6 crawler blows at
+     level one, 6.4 at level four. Levelling was a punishment dressed as a
+     reward, and it is what put the wall on deck two.
+
+     Depth sets the difficulty now. Your own level still nudges it, so salvage
+     is not a free ride, but it can no longer outrun you. */
+  const base = Math.max(1, Math.floor(1 + (deck-1)*0.7 + (P.lvl-1)*0.2));
+  /* Deck one had nearly nine hostiles on it, which is a lot to meet before
+     you have found anything. Ramp from five instead, and reach the same
+     ceiling by the time it matters. */
+  const count = Math.min(15, 4 + Math.round(deck * 1.1));
   const pool = [Math.max(1, base-1), base, base, base+1];
   const spots = floor.filter(i => !used.has(i) && !map[i].door && dist[i] >= 4);
   for(let k=0;k<count && spots.length;k++){
@@ -1480,7 +1495,7 @@ function spawnMob(x,y,type,lvl){
   const s = SPECIES[type];
   const hp = Math.max(4, Math.round(5*lvl*s.hp));
   mobs.push({ x,y,type,lvl,alive:true, hp, maxHp:hp,
-              dmg: Math.max(1, Math.round(2.5*lvl*s.dmg)), boss: type === 'apex',
+              dmg: Math.max(1, Math.round(2.5*lvl*s.dmg)), boss: type === 'apex' || !!(SPECIES[type] && SPECIES[type].apex),
               atk: (s.atk||1) + Math.floor(lvl*0.8), def: (s.def||1) + Math.floor(lvl*0.7),
               dn: (s.dn||1) + Math.floor(lvl/4), dd: s.dd||4, supp:0,
               alert:0, move:0, dir:null, stun:0, burn:0, bleed:0 });
