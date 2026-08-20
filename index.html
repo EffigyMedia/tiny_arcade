@@ -948,9 +948,9 @@ function maze(g,s,t){
   var nib = along(t*2.2);
   var lap = Math.floor((t*2.2) / nib.per);
 
-  /* Marks fill the whole maze, not just the route. The ones the nib is
-     actually running get taken as it passes and come back each lap; the rest
-     stand, so the sheet looks like a sheet rather than a bare track. */
+  /* The nib DRAWS. Positions on the circuit start blank and get an X as it
+     passes; the ones it has not reached yet are faint. The card fills up over
+     the lap and clears at the top of the next, matching the game. */
   var eaten = {};
   var run = 0;
   for(var i=0;i<LOOP.length;i++){
@@ -958,19 +958,33 @@ function maze(g,s,t){
     var len = Math.abs(b[0]-a[0]) + Math.abs(b[1]-a[1]);
     for(var q=0;q<len;q++){
       var px = a[0] + Math.sign(b[0]-a[0])*q, py = a[1] + Math.sign(b[1]-a[1])*q;
-      eaten[px+','+py] = (run + q) < nib.along;
+      eaten[px+','+py] = (run + q) < nib.along;   /* true = already drawn */
     }
     run += len;
   }
 
-  g.strokeStyle = '#9fc7d8'; g.lineWidth = Math.max(0.9, C*0.09);
   for(var yy=0;yy<N;yy++) for(var xx=0;xx<N;xx++){
     if(M[yy][xx] === '#') continue;
     var key = xx+','+yy;
-    if(eaten[key]) continue;
-    var mx = ox + xx*C + C/2, my = oy + yy*C + C/2, r = C*0.13;
-    g.beginPath(); g.moveTo(mx-r,my); g.lineTo(mx+r,my);
-    g.moveTo(mx,my-r); g.lineTo(mx,my+r); g.stroke();
+    var mx = ox + xx*C + C/2, my = oy + yy*C + C/2;
+    if(eaten[key]){
+      /* drawn: an amber X, the mark he just made */
+      g.strokeStyle = s.accent;
+      g.lineWidth = Math.max(1, C*0.13);
+      g.lineCap = 'round';
+      var r = C*0.19;
+      g.beginPath();
+      g.moveTo(mx-r,my-r); g.lineTo(mx+r,my+r);
+      g.moveTo(mx+r,my-r); g.lineTo(mx-r,my+r);
+      g.stroke();
+    } else {
+      /* not yet reached: a faint position waiting for one */
+      g.strokeStyle = 'rgba(159,199,216,.40)';
+      g.lineWidth = Math.max(0.8, C*0.06);
+      var q2 = C*0.09;
+      g.beginPath(); g.moveTo(mx-q2,my); g.lineTo(mx+q2,my);
+      g.moveTo(mx,my-q2); g.lineTo(mx,my+q2); g.stroke();
+    }
   }
 
   /* the hunter, a little way back down the same corridor */
