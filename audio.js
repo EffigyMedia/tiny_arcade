@@ -23,6 +23,13 @@ var A = window.Arcade = window.Arcade || {};
 
 var ctx = null, master = null, sfxBus = null, musBus = null, uiBus = null;
 var verb = null, noiseBuf = null, hushed = false;
+/* Leaving the page has to silence us. A backgrounded tab still runs its
+   scheduler, throttled to about a tick a second, so the bed keeps playing —
+   late, dragging and out of time — long after you think you have closed it.
+   The game shell pauses itself, but the launcher has no shell, so this lives
+   down here where every page gets it. */
+var bgHidden = false;
+function quiet(){ return hushed || bgHidden; }
 var listeners = [], resetSubs = [];
 var gestured = false;      // a context built before a real gesture starts
 var pending = null;        // suspended and never recovers cleanly on iOS
@@ -37,10 +44,10 @@ function save(){ try { localStorage.setItem(KEY, JSON.stringify(pref)); } catch(
 function fire(){ for (var i=0;i<listeners.length;i++) try { listeners[i](pref); } catch(e){} }
 
 function applyGains(t){
-  if (!ctx) return;
+  if (!ctx || !sfxBus) return;
   var now = ctx.currentTime, k = Math.max(0.004, (t === undefined ? 0.09 : t) / 3);
-  sfxBus.gain.setTargetAtTime((pref.sfx   && !hushed) ? 0.62 : 0, now, k);
-  musBus.gain.setTargetAtTime((pref.music && !hushed) ? 1.00 : 0, now, k);
+  sfxBus.gain.setTargetAtTime((pref.sfx   && !quiet()) ? 0.62 : 0, now, k);
+  musBus.gain.setTargetAtTime((pref.music && !quiet()) ? 1.00 : 0, now, k);
   uiBus.gain.setTargetAtTime(pref.sfx ? 0.55 : 0, now, 0.01);
 }
 
@@ -162,6 +169,7 @@ A.sfx = {
   tone: function(o){
     if (!ctx) return null;
     o = o || {};
+    if (!ctx) return;
     var t0 = o.t || ctx.currentTime;
     var dur = o.dur || 0.18;
     var osc = ctx.createOscillator();
@@ -194,6 +202,7 @@ A.sfx = {
   noise: function(o){
     if (!ctx) return null;
     o = o || {};
+    if (!ctx) return;
     var t0 = o.t || ctx.currentTime;
     var dur = o.dur || 0.2;
     var src = ctx.createBufferSource();
@@ -228,6 +237,7 @@ A.sfx = {
   },
 
   drum: function(kind, t, gain, bus){
+    if (!ctx) return;
     if (!ctx) return;
     t = t || ctx.currentTime;
     gain = gain === undefined ? 0.5 : gain;
@@ -269,12 +279,13 @@ A.sfx = {
     return {
       osc:osc, filter:f, gain:g,
       set: function(freq, level, cutoff, glide){
+        if (!ctx) return;
         var n = ctx.currentTime, k = glide || 0.05;
         if (freq !== undefined)   osc.frequency.setTargetAtTime(Math.max(8, freq), n, k);
         if (level !== undefined)  g.gain.setTargetAtTime(level, n, k);
         if (cutoff !== undefined) f.frequency.setTargetAtTime(Math.max(40, cutoff), n, k);
       },
-      stop: function(){ try { g.gain.setTargetAtTime(0, ctx.currentTime, 0.05); osc.stop(ctx.currentTime + 0.4); } catch(e){} }
+      stop: function(){ if (!ctx) return; try { g.gain.setTargetAtTime(0, ctx.currentTime, 0.05); osc.stop(ctx.currentTime + 0.4); } catch(e){} }
     };
   },
 
@@ -294,11 +305,12 @@ A.sfx = {
     return {
       gain:g, filter:f,
       set: function(freq, level, glide){
+        if (!ctx) return;
         var n = ctx.currentTime, k = glide || 0.08;
         if (freq !== undefined)  f.frequency.setTargetAtTime(Math.max(40, freq), n, k);
         if (level !== undefined) g.gain.setTargetAtTime(level, n, k);
       },
-      stop: function(){ try { g.gain.setTargetAtTime(0, ctx.currentTime, 0.05); src.stop(ctx.currentTime + 0.4); } catch(e){} }
+      stop: function(){ if (!ctx) return; try { g.gain.setTargetAtTime(0, ctx.currentTime, 0.05); src.stop(ctx.currentTime + 0.4); } catch(e){} }
     };
   }
 };
@@ -318,6 +330,7 @@ var M = { bpm:120, div:4, step:0, next:0, tickFn:null, timer:null, on:false, pau
 
 function runMusic(spec){
   if (M.timer){ clearInterval(M.timer); M.timer = null; }
+  if (!ctx) return;
   M.bpm = spec.bpm; M.div = spec.div; M.tickFn = spec.tickFn;
   M.step = 0; M.next = ctx.currentTime + 0.05; M.on = true; M.paused = false;
   M.timer = setInterval(function(){
@@ -351,7 +364,7 @@ A.music = {
   pause:  function(){ M.paused = true; },
   resume: function(){
     if (!M.on || !ctx) return;
-    if (M.paused){ M.next = ctx.currentTime + 0.06; M.paused = false; }
+    if (M.paused && ctx){ M.next = ctx.currentTime + 0.06; M.paused = false; }
   },
   playing: function(){ return M.on; },
   bpm: function(){ return M.bpm; }
@@ -375,6 +388,7 @@ function startWatchdog(){
   wdFast = Date.now() + 6000;
   wdTimer = setInterval(function(){
     if (!ctx) return;
+    if (bgHidden) return;          /* deliberately asleep; leave it alone */
     /* after the opening scramble, back off so we are not polling forever */
     if (Date.now() > wdFast && ctx.state === 'running' && M.timer && !pending) return;
     if (ctx.state === 'closed'){
@@ -393,8 +407,8 @@ function startWatchdog(){
     /* music was asked for but never actually got going */
     if (pending && M.on && !M.paused && !M.timer) runMusic(pending);
     /* a bus that should be open but is sitting at zero */
-    var wantMus = (pref.music && !hushed) ? 1.00 : 0;
-    var wantSfx = (pref.sfx   && !hushed) ? 0.62 : 0;
+    var wantMus = (pref.music && !quiet()) ? 1.00 : 0;
+    var wantSfx = (pref.sfx   && !quiet()) ? 0.62 : 0;
     if (Math.abs(musBus.gain.value - wantMus) > 0.4 ||
         Math.abs(sfxBus.gain.value - wantSfx) > 0.4) applyGains(0.05);
   }, 120);
@@ -406,6 +420,12 @@ function startWatchdog(){
    be suspended again at any time. */
 function wake(){
   gestured = true;
+  /* If a page loads while the browser thinks it is hidden — which iOS does
+     when a home-screen app is launched from cold — the background silencer
+     can latch on and never let go. A real gesture on a visible page is proof
+     enough that we are back. */
+  if (bgHidden && !document.hidden) background(false);
+  if (killTimer){ clearTimeout(killTimer); killTimer = null; }
   A.audio.init();
   if (!ctx) return;
   unlockTap();
@@ -426,7 +446,55 @@ document.addEventListener('pointerdown', wake, { capture:true, passive:true });
 document.addEventListener('touchstart',  wake, { capture:true, passive:true });
 document.addEventListener('keydown',     wake, { capture:true, passive:true });
 document.addEventListener('click',       wake, { capture:true, passive:true });
+/* Tear the engine down completely. suspend() only parks the audio session —
+   iOS can and does resume a parked session after the app is gone, which is
+   how a backgrounded page carried on blipping through a force-quit. close()
+   releases the hardware for good; the next real gesture builds a fresh
+   context and the games rebuild their held voices through onReset. */
+var killTimer = null;
+function teardown(){
+  if (killTimer){ clearTimeout(killTimer); killTimer = null; }
+  if (M.timer){ clearInterval(M.timer); M.timer = null; }
+  M.paused = true;
+  if (wdTimer){ clearInterval(wdTimer); wdTimer = null; }
+  if (!ctx) return;
+  try { if (master) master.disconnect(); } catch(e){}
+  var dying = ctx;
+  ctx = null; master = sfxBus = musBus = uiBus = verb = noiseBuf = null;
+  A.audio.ctx = null; A.audio.ready = false;
+  try { if (dying.state !== 'closed') dying.close(); } catch(e){}
+}
+
+function background(on){
+  if (bgHidden === on) return;
+  bgHidden = on;
+  if (on){
+    M.paused = true;
+    applyGains(0.03);
+    if (ctx && ctx.state === 'running') ctx.suspend().catch(function(){});
+    /* If we are still hidden a few seconds later the app is not coming back
+       soon — stop being a live audio session at all. Covers the case where
+       pagehide never fires, which is how it escaped a force-quit. */
+    if (killTimer) clearTimeout(killTimer);
+    killTimer = setTimeout(teardown, 4000);
+  } else {
+    if (killTimer){ clearTimeout(killTimer); killTimer = null; }
+    if (!hushed) M.paused = false;
+    if (ctx && gestured) ctx.resume().then(flush, function(){});
+    applyGains(0.05);
+  }
+}
+
 document.addEventListener('visibilitychange', function(){
+  background(document.hidden);
   if (!document.hidden && gestured) wake();
 });
+/* pagehide fires where visibilitychange sometimes does not — closing a tab,
+   swiping a home-screen app away, the back/forward cache */
+/* closing, swiping the app away, or being frozen: destroy it outright */
+window.addEventListener('pagehide', teardown);
+window.addEventListener('freeze',   teardown);
+window.addEventListener('beforeunload', teardown);
+window.addEventListener('blur',     function(){ if (document.hidden) background(true); });
+window.addEventListener('pageshow', function(){ if (!document.hidden) background(false); });
 })();
