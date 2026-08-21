@@ -221,9 +221,11 @@ body.pedals-left #horn{ left:auto; right:-58px }
 #nitro.on i{ filter:brightness(1.5); box-shadow:inset 0 3px 0 rgba(255,255,255,.6),
   0 0 22px rgba(95,240,216,.7), 0 4px 12px -3px #000 }
 
-body.pedals-left #pedals{ right:auto; left:calc(env(safe-area-inset-left,0px) + 14px) }
-body.pedals-left #brake{ left:auto; right:0 }
-body.pedals-left #gas{ right:auto; left:0 }
+/* Left-handed moves the CLUSTER, it does not mirror the pedals. Accelerator is
+   the right pedal and brake is the left pedal in every car ever built, so
+   swapping them for a left-handed player is exactly wrong. Only the bottle,
+   the horn and the box position move. */
+body.pedals-left #pedals{ right:auto; left:calc(env(safe-area-inset-left,0px) + 10px) }
 body.pedals-left #nitro{ right:auto; left:0 }
 
 /* no touch, no pedals — a desktop showing them looks broken */
@@ -234,6 +236,35 @@ body.no-touch #pedals{ display:none }
    The knob is dragged between them. It sits above the pedals so the same
    thumb can reach it without leaving the wheel hand.
    -------------------------------------------------------------------------- */
+/* the tacho sits on top of the gate, because revs are what tell you to shift */
+#tacho{
+  position:absolute;left:0;right:0;top:-26px;height:22px;
+  border-radius:5px;background:#0d0f13;border:1px solid #333941;
+  box-shadow:inset 0 2px 4px rgba(0,0,0,.8);
+  overflow:hidden;
+}
+#tacho i{
+  position:absolute;left:2px;top:2px;bottom:2px;width:2px;border-radius:2px;
+  background:#5ff0d8;
+  box-shadow:0 0 7px rgba(95,240,216,.85);
+  transform:translateX(var(--rev,0px));
+  transition:transform .05s linear;
+}
+/* the last fifth is the red zone, painted on the plate itself */
+#tacho::after{
+  content:"";position:absolute;right:2px;top:2px;bottom:2px;width:18%;
+  background:repeating-linear-gradient(115deg,
+    rgba(255,60,80,.30) 0 3px, rgba(255,60,80,.10) 3px 6px);
+  border-left:1px solid rgba(255,60,80,.5);
+}
+#tacho b{
+  position:absolute;left:5px;top:50%;transform:translateY(-50%);
+  font-family:var(--disp);font-size:9px;font-weight:800;color:#5c6570;
+  letter-spacing:.06em;
+}
+#tacho.red i{ background:#ff3b5c; box-shadow:0 0 9px rgba(255,59,92,.9) }
+#tacho.red b{ color:#ff8fa0 }
+
 #shifter{
   position:absolute;z-index:13;pointer-events:auto;
   right:calc(env(safe-area-inset-right,0px) + 10px);
@@ -343,6 +374,7 @@ h1 u{text-decoration:none;display:block;font-size:.34em;letter-spacing:.26em;col
     <button id="horn" aria-label="Horn"><i></i></button>
   </div>
   <div id="shifter" hidden>
+    <div id="tacho"><i></i><b>0</b></div>
     <div id="gate"></div>
     <div id="knob" data-gear="1"><b>1</b></div>
   </div>
@@ -452,11 +484,26 @@ var snd = {
     AR.music.start(152, 4, snd.bed);
   },
 
-  shift: function(){
+  shift: function(g){
     if(!AR) return;
-    /* a mechanical clack, not a beep: a short knock plus a metal tick */
-    AR.sfx.noise({ freq:520, to:180, dur:0.055, gain:0.075, filter:'bandpass' });
-    AR.sfx.tone({ freq:180, to:120, dur:0.05, type:'square', gain:0.05, cutoff:900 });
+    const t = AR.audio.now();
+    const into = (g === undefined) ? gear : g;
+    if(into < 1 || into > 4){
+      /* NEUTRAL: the lever falls into the middle of the gate with nothing to
+         engage, so it is softer, hollower and has no engagement thud. */
+      AR.sfx.noise({ t, freq:900, to:420, dur:0.045, gain:0.048, filter:'bandpass' });
+      AR.sfx.tone({ t:t+0.012, freq:150, to:112, dur:0.075, type:'triangle',
+                    gain:0.042, cutoff:700 });
+      return;
+    }
+    /* Into gear: three layers — the rod knocking through the gate, the collar
+       engaging, and a short metallic ring off the linkage. */
+    AR.sfx.noise({ t, freq:2100, to:700, dur:0.035, gain:0.070, filter:'bandpass' });
+    AR.sfx.noise({ t:t+0.018, freq:420, to:140, dur:0.075, gain:0.090, filter:'lowpass' });
+    AR.sfx.tone({ t:t+0.020, freq:196, to:124, dur:0.085, type:'square',
+                  gain:0.062, cutoff:1100 });
+    AR.sfx.tone({ t:t+0.026, freq:1560, to:1180, dur:0.055, type:'sine',
+                  gain:0.030, verb:0.25 });
   },
 
   warnCop: function(){
@@ -469,8 +516,10 @@ var snd = {
   honk: function(on){
     if(!AR) return;
     if(snd.horn1 && snd.horn1.set){
-      snd.horn1.set(440,   on ? 0.075 : 0, on ? 0.012 : 0.05);
-      if(snd.horn2) snd.horn2.set(554.4, on ? 0.060 : 0, on ? 0.012 : 0.05);
+      /* set() is (freq, level, CUTOFF, glide) — passing the glide third was
+         setting the filter to 0.012Hz, which silenced the horn completely. */
+      snd.horn1.set(440,   on ? 0.085 : 0, 1500, on ? 0.008 : 0.04);
+      if(snd.horn2) snd.horn2.set(554.4, on ? 0.070 : 0, 1700, on ? 0.008 : 0.04);
     } else if(on){
       /* no holdable voice: a short blast instead, still two notes */
       AR.sfx.tone({ freq:440,   dur:0.22, type:'sawtooth', gain:0.075, cutoff:1500 });
@@ -562,18 +611,21 @@ var snd = {
       /* Higher and thinner than the first cut, with a shiver on it — tyres
          chattering rather than a flat hiss. It cuts off hard: the old release
          let it ring on after the car had already settled. */
-      snd.scrPhase = (snd.scrPhase || 0) + 0.62;
-      var wob = 1 + Math.sin(snd.scrPhase) * 0.055;
+      snd.scrPhase = (snd.scrPhase || 0) + 0.94;
+      var wob = 1 + Math.sin(snd.scrPhase) * 0.115;
       /* also silent at a crawl: tyres do not sing at 46mph. `r` is the speed
          as a fraction of top, so 46/180 is the floor. */
       if (sq > 0.14 && r > 46/180){
         /* three voices together: the LOW body is the loudest of them, which is
            what turns a hiss into rubber tearing off a tyre */
-        snd.screech.set((4200 + r*2600) * wob, 0.020 + sq*0.062, 0.025);
+        /* Harder across the board, and the SQUEAL now carries real level
+           rather than sitting under the body — tyres tearing loose sing, they
+           do not rumble politely. The wobble is deeper too, so it chatters. */
+        snd.screech.set((4300 + r*3000) * wob, 0.048 + sq*0.165, 0.020);
         if (snd.screechMid)
-          snd.screechMid.set((980 + r*900) * wob, 0.050 + sq*0.130, 0.030);
+          snd.screechMid.set((1050 + r*1150) * wob, 0.085 + sq*0.235, 0.024);
         if (snd.screechLow)
-          snd.screechLow.set(200 + r*180, 0.075 + sq*0.175, 0.040);
+          snd.screechLow.set(190 + r*200, 0.100 + sq*0.250, 0.032);
       } else {
         snd.screech.set(4600, 0, 0.05);
         if (snd.screechMid) snd.screechMid.set(1250, 0, 0.06);
@@ -1053,28 +1105,64 @@ function setBrake(on){
 /* Four speeds. The gate was drawing two rails all along, which IS a four-speed
    H however the table was labelled — so the plate and the box now agree, and
    the bands are stretched to cover the same range in four steps. */
+/* Real close-ratio four-speed numbers, near enough: a short first, a big step
+   to second, then progressively smaller steps. `ratio` is the actual gearing —
+   revs are road speed times ratio — and `pull` falls off with it, because
+   torque at the wheel is what the ratio multiplies. */
 const GEARS = [
-  { g:1, from:0,     to:0.22, pull:1.00 },
-  { g:2, from:0.17,  to:0.46, pull:0.88 },
-  { g:3, from:0.40,  to:0.74, pull:0.72 },
-  { g:4, from:0.66,  to:1.40, pull:0.56 }
+  { g:1, ratio:3.65, from:0,    to:0.26, pull:1.00 },
+  { g:2, ratio:2.16, from:0.20, to:0.46, pull:0.72 },
+  { g:3, ratio:1.44, from:0.38, to:0.70, pull:0.52 },
+  { g:4, ratio:1.00, from:0.60, to:1.40, pull:0.38 }
 ];
+const REDLINE = 7200;
+/* Engine speed, from road speed and whatever ratio is selected. In neutral it
+   falls back to an idle that lifts when you blip the throttle — the engine is
+   not connected to anything, so the road cannot tell it what to do. */
+let idleRev = 900;
+function engineRpm(){
+  if(!optManual) {
+    const r = spd / MAX_SPD;
+    return 900 + Math.min(1, r*1.15) * (REDLINE - 900);
+  }
+  if(gear < 1 || gear > GEARS.length){
+    idleRev += (( (gas||nosOn) ? 4200 : 900) - idleRev) * 0.06;
+    return idleRev;
+  }
+  const G = GEARS[gear-1];
+  idleRev = 900;
+  return clamp(700 + (spd / MAX_SPD) * G.ratio * 2100, 600, REDLINE + 400);
+}
 let optManual = false, gear = 1, bogT = 0;
 
 /* how well the current gear suits the speed you are at */
 function gearFactor(){
+  /* The automatic used to return a flat 1.00, so it ignored the ratio table
+     entirely and pulled like nothing on the road. It now runs the SAME
+     ratios — it just picks the gear for you, and because autoGear keeps it in
+     band you rarely feel the penalty. */
+  /* NEUTRAL is gear 0, so GEARS[-1] was undefined and reading G.from threw on
+     every single frame — the game appeared to hang the moment the knob passed
+     through the centre of the gate, which it must do to reach any other gear. */
+  if(gear < 1 || gear > GEARS.length) return 0;
   const r = spd / MAX_SPD;
   const G = GEARS[gear-1];
-  if(!optManual) return 1;
   if(r < G.from - 0.06) return 0.34;      /* lugging: it will not pull */
   if(r > G.to)          return 0.12;      /* on the limiter: nothing left */
   return G.pull;
 }
 /* the automatic box, when manual is off */
+/* A real automatic holds a gear until the revs say otherwise, and it does NOT
+   flutter between two ratios at the crossover — hence the hysteresis: it shifts
+   up near the top of the band and only comes back down well below the bottom. */
+let autoHold = 0;
 function autoGear(){
   const r = spd / MAX_SPD;
-  for(const G of GEARS) if(r <= G.to){ gear = G.g; return; }
-  gear = 4;
+  if(gear < 1 || gear > GEARS.length) gear = 1;
+  if(autoHold > 0) return;
+  const G = GEARS[gear-1];
+  if(gear < GEARS.length && r > G.to - 0.03){ gear++; autoHold = 0.55; snd.shift(gear); }
+  else if(gear > 1 && r < GEARS[gear-2].to - 0.11){ gear--; autoHold = 0.55; snd.shift(gear); }
 }
 
 let horning = false, hornCool = 0, bustT = 0;
@@ -1115,6 +1203,7 @@ function setGas(on){
    having to hit a target exactly.
    -------------------------------------------------------------------------- */
 const shifterEl = document.getElementById('shifter');
+const tachoEl   = document.getElementById('tacho');
 const knobEl    = document.getElementById('knob');
 /* left/top of each slot inside the 118x132 plate */
 /* three rails at x = 5, 27, 49; up and down on each */
@@ -1304,6 +1393,7 @@ function step(dt){
   /* The floor was 1700 — about 22mph — so the car could never actually stop.
      It can now sit still, which is what a brake pedal is for. */
   if(hornCool > 0) hornCool -= dt;
+  if(autoHold > 0) autoHold -= dt;
   if(!optManual) autoGear();
   /* a gear that cannot pull makes the engine labour, which you hear */
   bogT = (optManual && onGas && gearFactor() < 0.4) ? Math.min(1, bogT + dt*3)
@@ -2330,6 +2420,15 @@ function hud(){
   $('score').textContent = Math.round(score).toLocaleString();
   /* the bottle empties as you burn it */
   nitroBtn.style.setProperty('--nos', nos + '%');
+  if(optManual && tachoEl){
+    const rpm = engineRpm();
+    const frac = clamp(rpm / (REDLINE + 400), 0, 1);
+    /* the needle travels the width of the plate, minus its own width */
+    tachoEl.firstElementChild.style.setProperty('--rev',
+      (frac * (tachoEl.clientWidth - 8)) + 'px');
+    tachoEl.lastElementChild.textContent = Math.round(rpm/100)/10 + 'k';
+    tachoEl.classList.toggle('red', rpm > REDLINE*0.88);
+  }
   const active = cops.some(k=>k.wreck<=0);
   $('pursuit').className = active ? 'on' : '';
   $('pursuit').textContent = 'PURSUIT \u00D7'+cops.filter(k=>k.wreck<=0).length+'  \u00B7  HEAT '+heat +
