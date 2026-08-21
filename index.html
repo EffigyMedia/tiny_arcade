@@ -381,13 +381,49 @@ footer{margin-top:30px;border-top:1px solid var(--line);padding-top:26px;text-al
 
 /* The arcade always moves. A cabinet that has stopped looks broken, and every
    loop here is small, contained and inside a bezel. */
+
+/* ---- the loading panel ---------------------------------------------------
+   It sits exactly where the shelves will be, so nothing jumps when it goes.
+   --------------------------------------------------------------------------- */
+#loading{
+  padding:52px 22px 64px;text-align:center;
+  display:flex;align-items:center;justify-content:center;min-height:46vh;
+}
+#loading.done{display:none}
+.lwrap{width:min(300px,84vw)}
+.lname{
+  font-family:var(--px);font-size:10px;letter-spacing:.42em;
+  color:var(--gold,#e8b23a);margin-bottom:11px;
+}
+.lsub{
+  font-family:var(--px);font-size:8px;letter-spacing:.20em;
+  color:#7b839c;margin-bottom:16px;
+}
+.ltrack{
+  height:4px;border-radius:3px;overflow:hidden;
+  background:rgba(255,255,255,.09);
+  box-shadow:inset 0 1px 2px rgba(0,0,0,.6);
+}
+.ltrack u{
+  display:block;height:100%;width:0;text-decoration:none;border-radius:3px;
+  background:linear-gradient(90deg,#e8b23a,#ffd98a);
+  box-shadow:0 0 10px rgba(232,178,58,.55);
+  transition:width .18s ease-out;
+}
+.lct{
+  font-family:var(--px);font-size:8px;letter-spacing:.16em;
+  color:#5b6278;margin-top:9px;
+}
 </style>
 </head>
 <body>
 <div id="crt"></div>
 <button id="cog" type="button" aria-label="Settings">
   <svg viewBox="0 0 48 48" fill="none" aria-hidden="true">
-    <path d="M24 3.5 27.6 9a17 17 0 0 1 4.2 1.75l6.3-1.4 3.55 6.15-4.2 4.9a17 17 0 0 1 0 4.4l4.2 4.9-3.55 6.15-6.3-1.4A17 17 0 0 1 27.6 39L24 44.5 20.4 39a17 17 0 0 1-4.2-1.75l-6.3 1.4L6.35 32.5l4.2-4.9a17 17 0 0 1 0-4.4l-4.2-4.9 3.55-6.15 6.3 1.4A17 17 0 0 1 20.4 9Z"
+    <!-- Eight identical teeth, generated radially rather than drawn by hand.
+         The old path mixed straight lines at top and bottom with arcs on the
+         sides, so half the teeth came out triangular and half rounded. -->
+    <path d="M19.21 4.07 L28.79 4.07 L28.64 9.73 L30.81 10.63 L34.71 6.52 L41.48 13.29 L37.37 17.19 L38.27 19.36 L43.93 19.21 L43.93 28.79 L38.27 28.64 L37.37 30.81 L41.48 34.71 L34.71 41.48 L30.81 37.37 L28.64 38.27 L28.79 43.93 L19.21 43.93 L19.36 38.27 L17.19 37.37 L13.29 41.48 L6.52 34.71 L10.63 30.81 L9.73 28.64 L4.07 28.79 L4.07 19.21 L9.73 19.36 L10.63 17.19 L6.52 13.29 L13.29 6.52 L17.19 10.63 L19.36 9.73 Z"
           stroke="currentColor" stroke-width="2.6" stroke-linejoin="round"/>
     <circle cx="24" cy="24" r="6.4" stroke="currentColor" stroke-width="2.6"/>
   </svg>
@@ -443,6 +479,18 @@ footer{margin-top:30px;border-top:1px solid var(--line);padding-top:26px;text-al
   <div class="ticker"><div class="tick" id="tick"></div></div>
 
   <div class="shelves" id="shelves"></div>
+  <!-- Shown in place of the shelves until the arcade is cached. Always runs,
+       so the state is the same every visit; when it is already cached it is
+       gone in a blink rather than skipped, which is less jarring than a panel
+       that only sometimes appears. -->
+  <div id="loading">
+    <div class="lwrap">
+      <div class="lname">TINY ARCADE</div>
+      <div class="lsub" id="lsub">PREPARING CABINETS</div>
+      <div class="ltrack"><u id="lfill"></u></div>
+      <div class="lct" id="lct">0 / 0</div>
+    </div>
+  </div>
 
   <div class="rackhead" id="rackhead">
     <button class="ret" id="ret" type="button">&#8249; ARCADE</button>
@@ -1109,6 +1157,7 @@ function road(g,s,t){
       g.fillRect(x+cw*0.16, y+ch*0.34, cw*0.18, Math.max(1.4, ch*0.12));
     }
   }
+
 }
 
 function maze(g,s,t){
@@ -2021,6 +2070,71 @@ function onScroll(){
 window.addEventListener('scroll', onScroll, { passive:true });
 onScroll();
 
+})();
+</script>
+
+<script>
+/* ---------------------------------------------------------------------------
+   The loading panel. It ALWAYS runs, so first visit and hundredth visit look
+   the same — only the duration differs. The worker reports each file as it
+   lands; when everything is already cached those messages arrive almost at
+   once and the panel is gone in a blink.
+
+   A hard floor of 600ms stops it strobing, and a 6s ceiling means a bad
+   network can never lock you out of a game you already have.
+   --------------------------------------------------------------------------- */
+(function(){
+  var panel = document.getElementById('loading');
+  var shelves = document.getElementById('shelves');
+  var fill = document.getElementById('lfill');
+  var ct = document.getElementById('lct');
+  var sub = document.getElementById('lsub');
+  if(!panel) return;
+  shelves.style.display = 'none';
+  var t0 = Date.now(), settled = false;
+
+  /* A flat 500ms floor, always. On a warm cache the work finishes in about
+     forty milliseconds, and a panel that flashes and vanishes reads as a
+     glitch rather than as loading — so it holds for half a second whatever
+     happens. Long enough to see, short enough not to be in the way. */
+  function finish(){
+    if(settled) return; settled = true;
+    var wait = Math.max(0, 500 - (Date.now() - t0));
+    setTimeout(function(){
+      panel.classList.add('done');
+      shelves.style.display = '';
+    }, wait);
+  }
+
+  if(!navigator.serviceWorker){ sub.textContent = 'READY'; finish(); return; }
+
+  navigator.serviceWorker.addEventListener('message', function(e){
+    var d = e.data; if(!d || d.type !== 'precache') return;
+    var pc = d.done / d.total;
+    fill.style.width = (pc*100) + '%';
+    ct.textContent = d.done + ' / ' + d.total;
+    if(d.done >= d.total){ sub.textContent = 'READY'; finish(); }
+  });
+
+  /* If the worker is already installed there will be no install event and so
+     no messages at all — ask it what it has instead of waiting forever. */
+  navigator.serviceWorker.ready.then(function(){
+    return caches.keys().then(function(names){
+      var core = names.filter(function(n){ return n.indexOf('core') >= 0; })[0];
+      if(!core) return;
+      return caches.open(core).then(function(c){ return c.keys(); }).then(function(k){
+        if(k.length > 40){
+          fill.style.width = '100%';
+          ct.textContent = k.length + ' / ' + k.length;
+          sub.textContent = 'READY \u00B7 OFFLINE';
+          finish();
+        }
+      });
+    });
+  });
+
+  /* never hold the arcade hostage to a slow network */
+  setTimeout(function(){ sub.textContent = 'READY'; finish(); }, 6000);
 })();
 </script>
 </body>

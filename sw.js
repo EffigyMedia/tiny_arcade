@@ -25,7 +25,7 @@ const CORE    = 'tiny-arcade-core-v16';
 const RUNTIME = 'tiny-arcade-runtime-v16';
 const KEEP    = [CORE, RUNTIME];
 
-/* the least we need to open the arcade with no signal at all */
+/* The shell. Enough to open the arcade with no signal at all. */
 const CORE_FILES = [
   './',
   './index.html',
@@ -38,6 +38,62 @@ const CORE_FILES = [
   './effigy.png'
 ];
 
+/* ---------------------------------------------------------------------------
+   EVERYTHING ELSE — every cabinet and every font, written here by pack.sh.
+   This used to be lazy: a game was cached the first time you opened it, so a
+   machine you had never played was a 404 offline, and a partially-warmed cache
+   produced intermittent misses that looked like a broken deploy. The whole
+   arcade is now pulled down on first visit.
+   DO NOT EDIT BY HAND — pack.sh regenerates it from what is actually shipping,
+   so it cannot drift out of step with the catalogue.
+   --------------------------------------------------------------------------- */
+const ALL_FILES = [
+  "./games/golden/aegis.html",
+  "./games/golden/blocks.html",
+  "./games/golden/burrow.html",
+  "./games/golden/coil.html",
+  "./games/golden/feather.html",
+  "./games/golden/girder.html",
+  "./games/golden/penboy.html",
+  "./games/golden/phalanx.html",
+  "./games/golden/popshot.html",
+  "./games/golden/ribbit.html",
+  "./games/golden/ricochet.html",
+  "./games/golden/swarm.html",
+  "./games/golden/vector.html",
+  "./games/original/deep.html",
+  "./games/original/derelict.html",
+  "./games/original/highway.html",
+  "./fonts/LICENSES.md",
+  "./fonts/anton-400.woff2",
+  "./fonts/archivo-var.woff2",
+  "./fonts/bebasneue-400.woff2",
+  "./fonts/bricolagegrotesque-var.woff2",
+  "./fonts/bungee-400.woff2",
+  "./fonts/chivomono-var.woff2",
+  "./fonts/cutivemono-400.woff2",
+  "./fonts/dmmono-400.woff2",
+  "./fonts/dmmono-500.woff2",
+  "./fonts/fredoka-var.woff2",
+  "./fonts/ibmplexmono-400.woff2",
+  "./fonts/ibmplexmono-500.woff2",
+  "./fonts/ibmplexmono-600.woff2",
+  "./fonts/majormonodisplay-400.woff2",
+  "./fonts/michroma-400.woff2",
+  "./fonts/orbitron-var.woff2",
+  "./fonts/oxanium-var.woff2",
+  "./fonts/pressstart2p-400.woff2",
+  "./fonts/rajdhani-400.woff2",
+  "./fonts/sairacondensed-600.woff2",
+  "./fonts/sairacondensed-800.woff2",
+  "./fonts/sharetechmono-400.woff2",
+  "./fonts/silkscreen-400.woff2",
+  "./fonts/spacegrotesk-var.woff2",
+  "./fonts/spacemono-400.woff2",
+  "./fonts/syne-var.woff2",
+  "./fonts/vt323-400.woff2"
+];
+
 const NET_TIMEOUT = 7000;
 
 self.addEventListener('install', event => {
@@ -48,6 +104,18 @@ self.addEventListener('install', event => {
       cache.add(new Request(f, { cache: 'reload' })).catch(() => {})
     ));
     await self.skipWaiting();
+    /* The rest is fetched straight after, NOT awaited — the arcade opens the
+       moment the shell is there, and the cabinets fill in behind it. Report
+       progress to any page listening so the launcher can say so. */
+    (async () => {
+      let done = 0;
+      for(const f of ALL_FILES){
+        try { await cache.add(new Request(f, { cache: 'reload' })); } catch(e){}
+        done++;
+        const cs = await self.clients.matchAll({ includeUncontrolled: true });
+        for(const c of cs) c.postMessage({ type:'precache', done, total: ALL_FILES.length });
+      }
+    })();
   })());
 });
 
