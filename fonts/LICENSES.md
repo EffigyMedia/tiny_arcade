@@ -14,3 +14,21 @@ beside the font.
 - **IBM Plex Mono** — OFL · https://github.com/google/fonts/tree/main/ofl/ibmplexmono
 - **Saira Condensed** — OFL · https://github.com/google/fonts/tree/main/ofl/sairacondensed
 - **Archivo** — OFL · https://github.com/google/fonts/tree/main/ofl/archivo
+
+## Added for the Golden Era shelf
+
+All from the Google Fonts repository, all SIL Open Font License 1.1, subset with
+`fonts.py` and self-hosted — no network call at launch.
+
+| face | used by |
+|---|---|
+| Anton | Soviet Blocks, Burrow |
+| Michroma | Ricochet, Coil |
+| Major Mono Display | Phalanx, Coil, Aegis, Feather |
+| Cutive Mono | Phalanx, Girder, Burrow |
+| Rajdhani | Swarm |
+| Bungee | Ribbit |
+| Bebas Neue | Girder, Aegis |
+| Space Grotesk | Vector, Feather |
+| Space Mono | Blocks, Ricochet, Swarm, Ribbit, Vector, Popshot |
+| Fredoka | Popshot |
