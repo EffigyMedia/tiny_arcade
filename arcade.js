@@ -303,6 +303,27 @@ function meta(name, fallback){
 /* The glass belongs to the whole app, not to a game. It used to be built
    inside boot() AFTER the "no #stage means we are on the launcher" bail, so
    every cabinet had scanlines and the launcher had none. */
+/* ---------------------------------------------------------------------------
+   UI SCALE. Every cabinet's overlay is laid out in px against a ~390pt phone.
+   On a desktop the canvas grows to fill the window but the buttons, gauges and
+   readouts stay the size they were, so they shrink into a corner of a 1400px
+   window and look like a phone screenshot pasted onto a monitor.
+
+   `--ark-ui` is published on the root element for any game to use. It is 1 on
+   a phone and rises with the viewport, capped so a huge monitor does not get
+   comically large furniture. Games opt in by scaling their own overlay by it —
+   the shell cannot do it for them without knowing what is a control and what
+   is the game itself.
+   --------------------------------------------------------------------------- */
+function uiScale(){
+  var w = window.innerWidth, h = window.innerHeight;
+  var short = Math.min(w, h);
+  /* a phone is ~390 short-edge; grow from there, and stop at 1.8 */
+  var s = Math.max(1, Math.min(1.8, short / 390));
+  document.documentElement.style.setProperty('--ark-ui', s.toFixed(3));
+  return s;
+}
+
 function glass(){
   if (document.querySelector('.ark-crt')) return;
   /* The launcher has had its own #crt overlay since it was built — full-screen
@@ -337,6 +358,8 @@ function glass(){
 
 function boot(){
   glass();
+  uiScale();
+  window.addEventListener('resize', uiScale);
   /* no #stage means we are on the launcher: skip the SHELL, keep the rest */
   if (!document.getElementById('stage')) return;
 
