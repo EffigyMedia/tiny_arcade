@@ -186,13 +186,25 @@ function timedFetch(request, ms){
 /* pages and code: the network is the source of truth, cache is the parachute */
 async function networkFirst(request){
   const cache = await caches.open(RUNTIME);
+  /* Look this up BEFORE going to the network, so a bad answer has somewhere
+     to fall back to. `caches.match` searches every cache, which matters
+     because the precache writes to CORE and this function's own puts go to
+     RUNTIME — a file could be perfectly cached and still be missed here. */
+  const cached = (await cache.match(request)) || (await caches.match(request));
   try {
     const fresh = await timedFetch(request, NET_TIMEOUT);
-    if (fresh && fresh.ok) cache.put(request, fresh.clone()).catch(() => {});
-    return fresh;
+    /* THE 404 BUG: a non-ok response was returned straight through. A flaky
+       moment, a sleeping host, a redirect gone wrong — any of them produced a
+       404 for a file sitting in the cache the whole time. A bad answer is now
+       treated exactly like no answer. */
+    if (fresh && fresh.ok){
+      cache.put(request, fresh.clone()).catch(() => {});
+      return fresh;
+    }
+    if (cached) return cached;
+    return fresh;                       /* nothing cached: pass it on as-is */
   } catch (err) {
-    const hit = (await cache.match(request)) || (await caches.match(request));
-    if (hit) return hit;
+    if (cached) return cached;
     if (request.mode === 'navigate'){
       const shell = await caches.match('./index.html');
       if (shell) return shell;
