@@ -1044,21 +1044,236 @@ function sprite(w,h,paint){
    `pull` scales acceleration, `vmax` scales top speed. They pull in opposite
    directions on purpose so no car is simply better. */
 const BODY = {
-  'TYPE-F': { bodyTop:0.44, cabinTop:0.15, cabW:0.56, cabOff:0.04, roofR:0.10,
+  /* Pushed genuinely apart. They shared a greenhouse, an arch size and a deck
+     height, so only the tail treatment told them apart — which is not enough at
+     road distance. Width, roof height, arch size and glass rake now all differ:
+
+       F  the WIDEST and lowest-roofed, a long flat deck, modest arches
+       L  narrow cabin, tall deck, the BIGGEST arches, hard-edged
+       P  narrowest overall, tall domed roof, arches that dominate the flanks
+  */
+  'TYPE-F': { bodyTop:0.44, cabinTop:0.19, cabW:0.62, cabOff:0, roofR:0.06,
               hip:0.00, wing:'lip',   nose:0.30, spoiler:true,
               /* 200mph is the ceiling the whole game is scaled to, so the
                  fastest car sits AT it and the others come down from there —
                  anything above 1.0 was simply clamped and two cars tied. */
               pull:0.84, vmax:1.00, note:'SLOWER OFF THE LINE \u00B7 HIGHEST TOP END' },
-  'TYPE-L': { bodyTop:0.50, cabinTop:0.20, cabW:0.50, cabOff:0.00, roofR:0.03,
+  'TYPE-L': { bodyTop:0.52, cabinTop:0.24, cabW:0.44, cabOff:0.00, roofR:0.02,
               hip:0.05, wing:'high',  nose:0.16, spoiler:true,
               pull:1.24, vmax:0.86, note:'FASTEST OFF THE LINE \u00B7 LOWEST TOP END' },
-  'TYPE-P': { bodyTop:0.42, cabinTop:0.12, cabW:0.52, cabOff:-0.01, roofR:0.22,
+  'TYPE-P': { bodyTop:0.40, cabinTop:0.10, cabW:0.48, cabOff:0, roofR:0.30,
               hip:0.09, wing:'ducktail', nose:0.24, spoiler:true,
               pull:1.02, vmax:0.93, note:'BALANCED' }
 };
 function bodyStat(k){ return (BODY[optBody] || BODY['TYPE-L'])[k]; }
 let optBody = 'TYPE-L';
+
+
+/* ===========================================================================
+   EVERY VEHICLE ITS OWN SHAPE
+
+   These used to be one painter with a few numbers changed, so a van, a pickup
+   and a saloon were the same box at different heights. From behind — the only
+   angle you ever see — they are completely different objects, and a road full
+   of the same silhouette is what made the traffic read as filler.
+   =========================================================================== */
+function paintRig(kind, o){
+  return (g,w,h)=>{
+    const cy = h;
+    const P = o;
+    const grad = (y0,y1) => { const b = g.createLinearGradient(0,y0,0,y1);
+      b.addColorStop(0,P.hi); b.addColorStop(0.48,P.body); b.addColorStop(1,P.lo); return b; };
+
+    /* ground shadow — wider and softer under the tall things */
+    g.fillStyle='rgba(0,0,0,.5)';
+    g.beginPath(); g.ellipse(w/2, cy-5, w*0.46, h*0.045, 0, 0, 6.2832); g.fill();
+
+    /* ---- wheels, at the right track for the vehicle --------------------- */
+    const tw = kind==='truck'||kind==='van' ? 0.155 : kind==='pickup' ? 0.145 : 0.13;
+    const th2 = kind==='truck' ? 0.20 : kind==='pickup' ? 0.24 : 0.26;
+    g.fillStyle='#0c0d11';
+    rr(g, w*0.012, cy-h*th2, w*tw, h*(th2-0.02), 3); g.fill();
+    rr(g, w-w*0.012-w*tw, cy-h*th2, w*tw, h*(th2-0.02), 3); g.fill();
+
+    if(kind === 'truck'){
+      /* a box trailer: one tall slab, roof markers, doors with a centre seam */
+      const top = h*0.05, bot = cy - h*0.135;
+      g.fillStyle = grad(top, bot);
+      rr(g, w*0.045, top, w*0.91, bot-top, w*0.015); g.fill();
+      /* the two door leaves */
+      g.strokeStyle='rgba(0,0,0,.38)'; g.lineWidth=Math.max(1,w*0.008);
+      g.beginPath(); g.moveTo(w*0.5, top+h*0.02); g.lineTo(w*0.5, bot-h*0.02); g.stroke();
+      for(const hx of [0.30, 0.70]){
+        g.beginPath(); g.moveTo(w*hx, top+h*0.03); g.lineTo(w*hx, bot-h*0.03); g.stroke();
+      }
+      /* hinges and a latch bar */
+      g.fillStyle='rgba(255,255,255,.14)';
+      for(const hy of [0.22,0.46,0.70]) g.fillRect(w*0.045, top+(bot-top)*hy, w*0.03, h*0.02);
+      g.fillStyle='#2a2c31';
+      g.fillRect(w*0.46, top+(bot-top)*0.46, w*0.08, h*0.03);
+      /* roof marker lamps */
+      g.fillStyle=P.lamp2||'#ffb066';
+      for(const mx of [0.16,0.34,0.5,0.66,0.84]) rr(g, w*mx-w*0.018, top-h*0.014, w*0.036, h*0.016, 2), g.fill();
+      /* rear underrun bar and mud flaps */
+      g.fillStyle='#23252a';
+      rr(g, w*0.08, cy-h*0.115, w*0.84, h*0.028, 2); g.fill();
+      g.fillStyle='#15161a';
+      g.fillRect(w*0.05, cy-h*0.10, w*0.13, h*0.085);
+      g.fillRect(w*0.82, cy-h*0.10, w*0.13, h*0.085);
+      /* lamps low on the frame */
+      g.fillStyle=P.lamp||'#b8371f';
+      rr(g, w*0.10, cy-h*0.155, w*0.16, h*0.032, 2); g.fill();
+      rr(g, w*0.74, cy-h*0.155, w*0.16, h*0.032, 2); g.fill();
+      return;
+    }
+
+    if(kind === 'van'){
+      /* a tall slab with a distinct roof edge, small high glass, twin doors */
+      const top = h*0.10, bot = cy - h*0.10;
+      g.fillStyle = grad(top, bot);
+      rr(g, w*0.055, top, w*0.89, bot-top, w*0.045); g.fill();
+      /* roof cap */
+      g.fillStyle='rgba(255,255,255,.16)';
+      rr(g, w*0.055, top, w*0.89, h*0.028, w*0.03); g.fill();
+      /* the two windows, high and small */
+      g.fillStyle='#10151d';
+      rr(g, w*0.13, top+h*0.055, w*0.33, h*0.11, 3); g.fill();
+      rr(g, w*0.54, top+h*0.055, w*0.33, h*0.11, 3); g.fill();
+      g.fillStyle='rgba(120,160,200,.20)';
+      rr(g, w*0.14, top+h*0.062, w*0.31, h*0.035, 2); g.fill();
+      rr(g, w*0.55, top+h*0.062, w*0.31, h*0.035, 2); g.fill();
+      /* door seam and handles */
+      g.strokeStyle='rgba(0,0,0,.35)'; g.lineWidth=Math.max(1,w*0.008);
+      g.beginPath(); g.moveTo(w*0.5, top+h*0.03); g.lineTo(w*0.5, bot-h*0.03); g.stroke();
+      g.fillStyle='#3a3d44';
+      g.fillRect(w*0.44, top+(bot-top)*0.55, w*0.045, h*0.016);
+      g.fillRect(w*0.515, top+(bot-top)*0.55, w*0.045, h*0.016);
+      /* tall narrow lamps up the corners, as vans have */
+      g.fillStyle=P.lamp||'#c8102e';
+      rr(g, w*0.07, bot-h*0.135, w*0.075, h*0.115, 2); g.fill();
+      rr(g, w*0.855, bot-h*0.135, w*0.075, h*0.115, 2); g.fill();
+      g.fillStyle='rgba(255,190,120,.85)';
+      rr(g, w*0.07, bot-h*0.135, w*0.075, h*0.030, 2); g.fill();
+      rr(g, w*0.855, bot-h*0.135, w*0.075, h*0.030, 2); g.fill();
+      /* bumper */
+      g.fillStyle='#2b2e34';
+      rr(g, w*0.05, cy-h*0.105, w*0.90, h*0.045, 3); g.fill();
+      return;
+    }
+
+    if(kind === 'pickup'){
+      /* narrow cab up top, wide open BED below — the giveaway silhouette */
+      const cabTop = h*0.10, bedTop = h*0.40, bot = cy - h*0.135;
+      /* the cab */
+      g.fillStyle = grad(cabTop, bedTop);
+      rr(g, w*0.20, cabTop, w*0.60, bedTop-cabTop+h*0.03, w*0.035); g.fill();
+      g.fillStyle='#10151d';
+      rr(g, w*0.245, cabTop+h*0.035, w*0.51, h*0.145, 3); g.fill();
+      g.fillStyle='rgba(130,170,210,.18)';
+      rr(g, w*0.255, cabTop+h*0.042, w*0.49, h*0.048, 2); g.fill();
+      /* the bed, wider than the cab, with a visible rim */
+      g.fillStyle = grad(bedTop, bot);
+      rr(g, w*0.055, bedTop, w*0.89, bot-bedTop, w*0.02); g.fill();
+      g.fillStyle='rgba(255,255,255,.18)';
+      rr(g, w*0.055, bedTop, w*0.89, h*0.022, w*0.015); g.fill();
+      /* tailgate seam and handle */
+      g.strokeStyle='rgba(0,0,0,.30)'; g.lineWidth=Math.max(1,w*0.007);
+      g.beginPath(); g.moveTo(w*0.10, bedTop+h*0.055); g.lineTo(w*0.90, bedTop+h*0.055); g.stroke();
+      g.fillStyle='#3a3d44';
+      g.fillRect(w*0.44, bedTop+h*0.085, w*0.12, h*0.022);
+      /* lamps on the bed corners */
+      g.fillStyle=P.lamp||'#c8102e';
+      rr(g, w*0.075, bot-h*0.085, w*0.15, h*0.065, 2); g.fill();
+      rr(g, w*0.775, bot-h*0.085, w*0.15, h*0.065, 2); g.fill();
+      /* chrome bumper, hanging low */
+      g.fillStyle='#7d838c';
+      rr(g, w*0.06, cy-h*0.115, w*0.88, h*0.040, 3); g.fill();
+      g.fillStyle='rgba(255,255,255,.28)';
+      rr(g, w*0.06, cy-h*0.115, w*0.88, h*0.014, 3); g.fill();
+      return;
+    }
+
+    /* ---- the saloons, the coupe and the cruiser ------------------------- */
+    const isCoupe = kind === 'coupe';
+    const roofY = h*(isCoupe ? 0.22 : 0.16);
+    const deckY = h*(isCoupe ? 0.52 : 0.48);
+    const bot   = cy - h*0.075;
+    const cabW  = isCoupe ? 0.44 : 0.52;
+
+    /* the greenhouse: narrower than the body, and raked on a coupe */
+    g.fillStyle = P.lo;
+    g.beginPath();
+    g.moveTo(w*(0.5-cabW/2+0.03), roofY);
+    g.lineTo(w*(0.5+cabW/2-0.03), roofY);
+    g.lineTo(w*(0.5+cabW/2+0.06), deckY);
+    g.lineTo(w*(0.5-cabW/2-0.06), deckY);
+    g.closePath(); g.fill();
+    /* the glass */
+    const gg = g.createLinearGradient(0, roofY, 0, deckY);
+    gg.addColorStop(0,'#46586c'); gg.addColorStop(0.4,'#131a24'); gg.addColorStop(1,'#0a0d13');
+    g.fillStyle = gg;
+    g.beginPath();
+    g.moveTo(w*(0.5-cabW/2+0.055), roofY+h*0.022);
+    g.lineTo(w*(0.5+cabW/2-0.055), roofY+h*0.022);
+    g.lineTo(w*(0.5+cabW/2+0.03), deckY-h*0.012);
+    g.lineTo(w*(0.5-cabW/2-0.03), deckY-h*0.012);
+    g.closePath(); g.fill();
+
+    /* the body: widest at the arches, tucked at the deck */
+    const hipY = deckY + (bot-deckY)*0.40;
+    g.fillStyle = grad(deckY, bot);
+    g.beginPath();
+    g.moveTo(w*0.115, deckY);
+    g.lineTo(w*0.885, deckY);
+    g.quadraticCurveTo(w*0.955, deckY+h*0.02, w*0.955, hipY);
+    g.lineTo(w*0.955, bot-h*0.03);
+    g.quadraticCurveTo(w*0.955, bot, w*0.90, bot);
+    g.lineTo(w*0.10, bot);
+    g.quadraticCurveTo(w*0.045, bot, w*0.045, bot-h*0.03);
+    g.lineTo(w*0.045, hipY);
+    g.quadraticCurveTo(w*0.045, deckY+h*0.02, w*0.115, deckY);
+    g.closePath(); g.fill();
+
+    /* arch blisters standing proud */
+    for(const sx of [0.135, 0.865]){
+      g.fillStyle = grad(hipY-h*0.04, bot);
+      g.beginPath(); g.ellipse(w*sx, hipY+h*0.02, w*0.10, h*0.055, 0, 0, 6.2832); g.fill();
+      g.fillStyle='rgba(255,255,255,.18)';
+      g.beginPath(); g.ellipse(w*sx, hipY-h*0.004, w*0.065, h*0.014, 0, 0, 6.2832); g.fill();
+    }
+    /* the boot shut line, which is what says saloon */
+    if(!isCoupe){
+      g.strokeStyle='rgba(0,0,0,.26)'; g.lineWidth=Math.max(1,w*0.006);
+      g.beginPath();
+      g.moveTo(w*0.10, deckY+h*0.055); g.lineTo(w*0.90, deckY+h*0.055); g.stroke();
+    }
+    /* wraparound lamps */
+    const ly = deckY + (bot-deckY)*0.40, lh = h*0.055;
+    g.fillStyle = P.lamp || '#c8102e';
+    rr(g, w*0.055, ly, w*0.26, lh, 3); g.fill();
+    rr(g, w*0.685, ly, w*0.26, lh, 3); g.fill();
+    g.fillStyle = 'rgba(255,255,255,.30)';
+    rr(g, w*0.065, ly+lh*0.14, w*0.24, lh*0.30, 2); g.fill();
+    rr(g, w*0.695, ly+lh*0.14, w*0.24, lh*0.30, 2); g.fill();
+    /* plate and bumper */
+    g.fillStyle='rgba(0,0,0,.40)';
+    rr(g, w*0.055, bot-h*0.075, w*0.89, h*0.075, w*0.02); g.fill();
+    g.fillStyle='rgba(238,234,222,.85)';
+    g.fillRect(w*0.415, bot-h*0.062, w*0.17, h*0.038);
+
+    if(kind === 'cop'){
+      /* livery, push bar and a light bar on the roof */
+      g.fillStyle='rgba(20,26,40,.85)';
+      g.fillRect(w*0.045, deckY+h*0.10, w*0.91, h*0.05);
+      g.fillStyle='#1b1e24';
+      rr(g, w*0.24, roofY-h*0.055, w*0.52, h*0.045, 2); g.fill();
+      g.fillStyle='#2f6bff';
+      rr(g, w*0.255, roofY-h*0.050, w*0.235, h*0.034, 2); g.fill();
+      g.fillStyle='#ff2b4a';
+      rr(g, w*0.51, roofY-h*0.050, w*0.235, h*0.034, 2); g.fill();
+    }
+  };
+}
 
 function paintCar(o){
   return (g,w,h)=>{
@@ -1071,14 +1286,6 @@ function paintCar(o){
     rr(g, w*0.015, cy-h*0.30, w*0.13, h*0.27, 3); g.fill();
     rr(g, w-w*0.145, cy-h*0.30, w*0.13, h*0.27, 3); g.fill();
     const B = o.shape || null;
-    // haunches over the rear wheels, for the shapes that have them
-    if(B && B.hip > 0){
-      g.fillStyle = o.lo;
-      g.beginPath();
-      g.ellipse(w*0.16, h*(o.bodyTop+0.10), w*0.15, h*B.hip*2.4, 0, 0, 6.2832);
-      g.ellipse(w*0.84, h*(o.bodyTop+0.10), w*0.15, h*B.hip*2.4, 0, 0, 6.2832);
-      g.fill();
-    }
     // lower body
     const bg = g.createLinearGradient(0, h*o.bodyTop, 0, cy);
     bg.addColorStop(0, o.hi); bg.addColorStop(0.5, o.body); bg.addColorStop(1, o.lo);
@@ -1086,20 +1293,82 @@ function paintCar(o){
     rr(g, w*0.055, h*o.bodyTop, w*0.89, cy - h*o.bodyTop - h*0.035, w*0.06); g.fill();
     // cabin
     if(o.cabin){
+      const wid = 0.42 + (B ? B.wide : 0.03);
+      /* shared by the dome shell AND the screen, so they cannot drift apart */
+      const springX = 0.5 - wid + 0.02;
+      const springY = h*o.bodyTop + h*0.02;
+      const apex    = h*o.cabinTop + h*0.015;
       const cg = g.createLinearGradient(0, h*o.cabinTop, 0, h*o.bodyTop+4);
       cg.addColorStop(0, o.lo); cg.addColorStop(1, o.body);
       g.fillStyle=cg;
       /* cabin width and roof radius come from the SHAPE, which is most of what
          separates a wedge from a rounded rear-engined car at a glance */
-      const cw = (B ? B.cabW : 0.66), co = (B ? B.cabOff : 0);
+      /* A real rear screen is far narrower than the arches — these were nearly
+         parallel-sided, which is the other half of why they looked like toys. */
+      const cw = (B ? B.cabW*0.80 : 0.60), co = (B ? B.cabOff : 0);
       const rad = w * (B ? B.roofR*0.5 + 0.02 : 0.05);
-      rr(g, w*(0.5-cw/2+co), h*o.cabinTop, w*cw, h*(o.bodyTop-o.cabinTop)+h*0.06, rad); g.fill();
+      if(B && B.dome){
+        /* ---- a full-width dome ------------------------------------------
+           The 911 roofline is one continuous arc from the top of one rear
+           arch across to the other — there is no flat roof panel and no
+           separate pillar, which is the whole shape of the car. Drawn as a
+           single curve springing from the shoulders rather than a rounded
+           box sitting on the deck.
+           ---------------------------------------------------------------- */
+        /* Springs from the ARCHES, not from the cabin width — the first pass
+           used the greenhouse dimension and covered barely half the car. */
+        /* The control points were only 0.02 in from the springing line, so the
+           curve went up almost vertically and then flattened — a pointed
+           marquee rather than a dome. For a smooth arc they belong about a
+           third of the span in, and the apex a little below the old one. */
+        const span = (1 - springX*2), ctl = span*0.30;
+        g.beginPath();
+        g.moveTo(w*springX, springY);
+        g.bezierCurveTo(w*(springX+ctl), apex,
+                        w*(1-springX-ctl), apex,
+                        w*(1-springX), springY);
+        g.lineTo(w*(1-springX), springY + h*0.03);
+        g.lineTo(w*springX, springY + h*0.03);
+        g.closePath(); g.fill();
+      } else {
+        rr(g, w*(0.5-cw/2+co), h*o.cabinTop, w*cw, h*(o.bodyTop-o.cabinTop)+h*0.06, rad); g.fill();
+      }
       // rear glass
       const gg = g.createLinearGradient(0, h*o.cabinTop, 0, h*o.bodyTop);
       gg.addColorStop(0,'#4a5a6e'); gg.addColorStop(0.35,'#141a24'); gg.addColorStop(1,'#0b0e14');
       g.fillStyle=gg;
-      rr(g, w*(0.5-cw/2+co)+w*0.045, h*o.cabinTop+h*0.035,
-            w*cw-w*0.09, h*(o.bodyTop-o.cabinTop)-h*0.02, rad*0.7); g.fill();
+      if(B && B.dome){
+        /* the glass follows the same arc, inset from it */
+        /* ---- the rear screen ----------------------------------------------
+           A second arc filling the whole dome made the glass look like a
+           bubble. On the real car the screen is a WIDE, SHALLOW pane set into
+           the dome: flat-ish across the top, tucked in at the sides where the
+           roof rail comes down, and it does not reach the shoulders. Springs
+           from the SAME y as the dome so the rail is even on both sides.
+           ------------------------------------------------------------------ */
+        const sX = springX + 0.085, sY = springY - h*0.012;
+        const sSpan = (1 - sX*2);
+        const sApex = apex + h*0.052;
+        g.beginPath();
+        g.moveTo(w*sX, sY);
+        /* up the near pillar */
+        g.quadraticCurveTo(w*(sX + sSpan*0.10), sApex + h*0.014, w*(sX + sSpan*0.24), sApex);
+        /* across the top, barely curved */
+        g.quadraticCurveTo(w*0.5, sApex - h*0.014, w*(1-sX-sSpan*0.24), sApex);
+        /* down the far pillar */
+        g.quadraticCurveTo(w*(1-sX-sSpan*0.10), sApex + h*0.014, w*(1-sX), sY);
+        g.closePath(); g.fill();
+        /* a slim reflection across the top of the pane */
+        g.fillStyle = 'rgba(150,190,230,.16)';
+        g.beginPath();
+        g.moveTo(w*(sX+sSpan*0.20), sApex + h*0.004);
+        g.quadraticCurveTo(w*0.5, sApex - h*0.010, w*(1-sX-sSpan*0.20), sApex + h*0.004);
+        g.quadraticCurveTo(w*0.5, sApex + h*0.010, w*(sX+sSpan*0.20), sApex + h*0.004);
+        g.closePath(); g.fill();
+      } else {
+        rr(g, w*(0.5-cw/2+co)+w*0.045, h*o.cabinTop+h*0.035,
+              w*cw-w*0.09, h*(o.bodyTop-o.cabinTop)-h*0.02, rad*0.7); g.fill();
+      }
     }
     /* the wing, and each shape wears a different one */
     const wing = B ? B.wing : 'lip';
@@ -1175,8 +1444,31 @@ const PAINT = {
   SILVER: { body:'#9aa3ae', hi:'#e2e8f0', lo:'#4b535e' }
 };
 const PAINT_KEYS = Object.keys(PAINT);
+
+/* ---- what ordinary cars are painted --------------------------------------
+   Deliberately DULL. The supercars own the saturated end of the spectrum, and
+   they only read as special if everything around them is the colour real
+   traffic actually is: silver, white, grey, black, dark blue, dark red, beige.
+   -------------------------------------------------------------------------- */
+const TRAFFIC_PAINT = [
+  { body:'#b9bec6', hi:'#dde1e7', lo:'#7b8189' },   /* silver     */
+  { body:'#d8dade', hi:'#f2f4f7', lo:'#9aa0a8' },   /* white      */
+  { body:'#6e747d', hi:'#8f96a0', lo:'#454a52' },   /* grey       */
+  { body:'#2f333a', hi:'#4d525b', lo:'#191b20' },   /* near black */
+  { body:'#31435e', hi:'#4b6183', lo:'#1c2634' },   /* navy       */
+  { body:'#5c2b30', hi:'#7d4046', lo:'#33171b' },   /* maroon     */
+  { body:'#7d6a4e', hi:'#9f8a68', lo:'#4a3f2e' },   /* beige      */
+  { body:'#33544a', hi:'#4a7264', lo:'#1d322c' },   /* dark green */
+  { body:'#4a4550', hi:'#665f6e', lo:'#2a2730' },   /* graphite   */
+  { body:'#8a6a55', hi:'#ac8a72', lo:'#503d31' }    /* tan        */
+];
+function trafficPaint(seed){
+  const c = TRAFFIC_PAINT[Math.abs(seed|0) % TRAFFIC_PAINT.length];
+  return { body:c.body, hi:c.hi, lo:c.lo, lamp:'#c8102e' };
+}
 let optPaint = 'WHITE', optEasy = true, optMirror = 'FULL';   /* no cops unless HOT PURSUIT is on */
 const RIVAL_SP = {};
+let TRAFFIC_SP = {};
 function buildSprites(){
   const shape = BODY[optBody] || BODY['TYPE-L'];
   SP.player = sprite(220,168, paintCar(Object.assign({
@@ -1200,32 +1492,36 @@ function buildSprites(){
     }
   }
   /* A pickup: tall cab, open bed, and it sits high on its springs. */
-  SP.pickup = sprite(206,176, paintCar({
-    body:'#6b5540', hi:'#8d735a', lo:'#3e3125', cabin:true,
-    bodyTop:0.30, cabinTop:0.06, bed:true
-  }));
+  SP.pickup = sprite(206,176, paintRig('pickup', { body:'#6b5540', hi:'#8d735a', lo:'#3e3125', lamp:'#c8102e' }));
   /* A van: one tall slab, glass right at the top. */
-  SP.van = sprite(200,190, paintCar({
-    body:'#c9cdd4', hi:'#e8ecf2', lo:'#8b9099', cabin:true,
-    bodyTop:0.16, cabinTop:0.04, slab:true
-  }));
-  SP.sedan = sprite(200,164, paintCar({
-    body:'#3c4a63', hi:'#5b6d8c', lo:'#212a3b', cabin:true, bodyTop:0.46, cabinTop:0.10
-  }));
-  SP.sedan2 = sprite(200,164, paintCar({
-    body:'#6b3346', hi:'#8f4a5f', lo:'#3d1c28', cabin:true, bodyTop:0.46, cabinTop:0.10
-  }));
-  SP.coupe = sprite(206,150, paintCar({
-    body:'#2f6b5e', hi:'#469084', lo:'#193b34', cabin:true, bodyTop:0.46, cabinTop:0.12
-  }));
-  SP.truck = sprite(230,250, paintCar({
-    body:'#8a8477', hi:'#a8a293', lo:'#4e4a41', cabin:false, bodyTop:0.06,
-    lamp:'#b8371f', lamp2:'#ff8a5a'
-  }));
-  SP.cop = sprite(206,168, paintCar({
-    body:'#eceff4', hi:'#ffffff', lo:'#9aa3b0', cabin:true, police:true,
-    bodyTop:0.44, cabinTop:0.16, lamp:'#c8102e', lamp2:'#ff7a6a'
-  }));
+  SP.van = sprite(200,196, paintRig('van', { body:'#c9cdd4', hi:'#e8ecf2', lo:'#8b9099', lamp:'#c8102e' }));
+  SP.sedan = sprite(200,164, paintRig('sedan', { body:'#3c4a63', hi:'#5b6d8c', lo:'#212a3b', lamp:'#c8102e' }));
+  SP.sedan2 = sprite(200,164, paintRig('sedan', { body:'#6b3346', hi:'#8f4a5f', lo:'#3d1c28', lamp:'#d2313f' }));
+  SP.coupe = sprite(206,150, paintRig('coupe', { body:'#2f6b5e', hi:'#469084', lo:'#193b34', lamp:'#c8102e' }));
+  SP.truck = sprite(230,250, paintRig('truck', { body:'#8a8477', hi:'#a8a293', lo:'#4e4a41', lamp:'#b8371f', lamp2:'#ffb066' }));
+  SP.cop = sprite(206,168, paintRig('cop', { body:'#eceff4', hi:'#ffffff', lo:'#9aa3b0', lamp:'#c8102e' }));
+  /* ---- one sprite per body type PER COLOUR -----------------------------
+     Ten paints across five civilian shapes is fifty small canvases, built once
+     at boot. Cheap, and it turns a road of identical grey saloons into
+     traffic. */
+  TRAFFIC_SP = {};
+  for(const kind of ['sedan','sedan2','coupe','pickup','van']){
+    const rig = kind === 'sedan2' ? 'sedan' : kind;
+    const size = kind === 'van'    ? [200,196]
+               : kind === 'pickup' ? [206,176]
+               : kind === 'coupe'  ? [206,150] : [200,164];
+    TRAFFIC_SP[kind] = TRAFFIC_PAINT.map((c,i2) =>
+      sprite(size[0], size[1], paintRig(rig, trafficPaint(i2))));
+  }
+  /* lorries are their own thing: liveried panels, not car colours */
+  TRAFFIC_SP.truck = [
+    { body:'#8a8477', hi:'#a8a293', lo:'#4e4a41' },
+    { body:'#9aa0a8', hi:'#c2c7cd', lo:'#5c6169' },
+    { body:'#4e5a6b', hi:'#6d7c90', lo:'#2c333e' },
+    { body:'#7a5f4e', hi:'#9b7c66', lo:'#453529' }
+  ].map(c => sprite(230,250, paintRig('truck',
+    { body:c.body, hi:c.hi, lo:c.lo, lamp:'#b8371f', lamp2:'#ffb066' })));
+
   SP.repair = sprite(150,120, (g,w,h)=>{
     g.fillStyle='rgba(0,0,0,.45)';
     g.beginPath(); g.ellipse(w/2,h-6,w*0.42,h*0.07,0,0,6.2832); g.fill();
@@ -1351,7 +1647,7 @@ function spawnBehind(){
     w: t==='truck' ? 0.32 : t==='van' ? 0.30 : t==='pickup' ? 0.29
      : t==='coupe' ? 0.26 : 0.275,
     len: t==='truck' ? 520 : t==='van' ? 440 : t==='pickup' ? 420 : 380,
-    near:false, drift: rnd(-1,1)*0.0002, fromBehind:true
+    near:false, drift: rnd(-1,1)*0.0002, fromBehind:true, paintN: (Math.random()*10)|0
   });
 }
 
@@ -1378,7 +1674,7 @@ function spawnWave(z){
       w: t==='truck' ? 0.32 : t==='van' ? 0.30 : t==='pickup' ? 0.29
        : t==='coupe' ? 0.26 : 0.275,
       len: t==='truck' ? 520 : t==='van' ? 440 : t==='pickup' ? 420 : 380,
-      near: false, drift: rnd(-1,1)*0.0002
+      near: false, drift: rnd(-1,1)*0.0002, paintN: (Math.random()*10)|0
     });
     traffic[traffic.length-1].spd = traffic[traffic.length-1].cruise;
   }
@@ -3183,11 +3479,16 @@ function drawSky(){
   }
 
   // sodium bloom sitting on the horizon, dying back with the sun
-  const bloom = gold * 0.85 + (1 - n) * 0.15;   /* sodium haze belongs to dusk and dawn */
+  /* This had a FLOOR of 0.15 that never went away, so an orange haze sat on
+     the horizon at noon and at midnight alike. It belongs to dusk and dawn and
+     nowhere else, so it is driven purely by `gold` now and reaches zero. */
+  /* the bloom is welcome at any hour now that it is not orange — it just
+     glows in whatever colour the air is */
+  const bloom = 0.35 + gold * 0.65;
   const b = ctx.createRadialGradient(W*0.5 - camX*W*0.03, horizon, 0, W*0.5 - camX*W*0.03, horizon, W*0.75);
-  b.addColorStop(0,'rgba(255,150,70,' + (0.55*bloom) + ')');
-  b.addColorStop(0.4,'rgba(255,110,60,' + (0.16*bloom) + ')');
-  b.addColorStop(1,'rgba(255,110,60,0)');
+  b.addColorStop(0,   hazeTint(0.42*bloom));
+  b.addColorStop(0.4, hazeTint(0.14*bloom));
+  b.addColorStop(1,   hazeTint(0));
   ctx.fillStyle=b; ctx.fillRect(0,0,W,horizon+2);
 
   const sky = celestial();
@@ -3222,12 +3523,37 @@ function drawSky(){
   ctx.globalAlpha=1;
 }
 
+/* ---- one tint for every atmospheric layer --------------------------------
+   The haze layers were fine as LAYERS — the problem was that they were fixed
+   orange whatever the hour. They now take their colour from the time of day and
+   blend between three: cool blue at night, warm through golden hour, neutral
+   grey by day. Everything hazy in the scene reads from this, so they can never
+   disagree with each other or with the sky again.
+   -------------------------------------------------------------------------- */
+function hazeTint(a){
+  const n = nightFall(), g2 = goldenHour();
+  /* day - golden - night, mixed in that order */
+  const day   = [152, 162, 182];
+  const golden= [214, 138,  92];
+  const night = [ 58,  70, 108];
+  const mix = (x,y,t) => x + (y-x)*t;
+  let r = mix(day[0], golden[0], g2), gg = mix(day[1], golden[1], g2), b = mix(day[2], golden[2], g2);
+  r = mix(r, night[0], n); gg = mix(gg, night[1], n); b = mix(b, night[2], n);
+  return 'rgba(' + Math.round(r) + ',' + Math.round(gg) + ',' + Math.round(b) + ',' + a + ')';
+}
+
 function drawHaze(){
+  /* THE THIRD ORANGE SOURCE. The lamps were fixed, the bloom was gated, and a
+     hard rgba(196,88,54,.62) band was still being painted across the horizon
+     every frame regardless of the hour — which is the wash that kept coming
+     back. It is a neutral atmospheric haze now: cool grey-blue, the colour
+     distance actually is, and it thins out at night instead of glowing. */
   const d = H*0.13;
+  const a = 0.50;
   const g = ctx.createLinearGradient(0, horizon-2, 0, horizon+d);
-  g.addColorStop(0,'rgba(196,88,54,.62)');
-  g.addColorStop(0.35,'rgba(140,60,60,.22)');
-  g.addColorStop(1,'rgba(90,40,60,0)');
+  g.addColorStop(0,    hazeTint(a));
+  g.addColorStop(0.35, hazeTint(a*0.38));
+  g.addColorStop(1,    hazeTint(0));
   ctx.fillStyle=g; ctx.fillRect(0,horizon-2,W,d+2);
 }
 
@@ -3263,7 +3589,17 @@ function drawRoad(){
     if(y1 < y2) continue;
 
     // verge
-    ctx.fillStyle = dark ? '#241a30' : '#2b2038';
+    /* GRASS, as Out Run has it — the land either side is green, banded like
+       the tarmac so it strobes past at speed, and it takes the sky's own
+       light so it goes deep and blue at night rather than staying lit. */
+    const grassLo = dark ? '#1d3a24' : '#24462b';
+    const grassHi = dark ? '#2a4f31' : '#33603b';
+    /* `gold` lives in the sky function, so the tint is taken from the day
+       cycle directly rather than a variable that is not in scope here. */
+    const nAmt = nightFall(), gAmt = goldenHour();
+    ctx.fillStyle = nAmt > 0.5 ? (dark ? '#12251a' : '#162d1f')
+                  : gAmt > 0.25 ? (dark ? '#2f4a2c' : '#395638')
+                  : (dark ? grassLo : grassHi);
     ctx.fillRect(0, y2, W, y1-y2+1);
 
     /* every eighth segment carries a lamp, alternating sides, throwing an
@@ -3461,7 +3797,9 @@ function drawWorld(){
         }
       }
     } else if(it.kind==='t'){
-      const box = drawSprite(SP[it.o.type], it.o.x, it.o.z, it.o.w);
+      const set = TRAFFIC_SP[it.o.type];
+      const img = set ? set[(it.o.paintN|0) % set.length] : SP[it.o.type];
+      const box = drawSprite(img, it.o.x, it.o.z, it.o.w);
       /* Tail lights on the same schedule the street lamps use, and BRIGHT the
          moment a car is actually shedding speed. Same rule for everything on
          the road, seen from in front or behind. */
