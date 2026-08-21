@@ -1249,7 +1249,7 @@ function reset(){
   gear=1; idleRev=IDLE; autoHold=0; autoDownT=0;
   if(typeof knobRail !== 'undefined'){ knobRail=0; knobY=TOP_Y; }
   dmg=0; nos=40; nosOn=false; nosTime=0; bustT=0;
-  racers=[]; place=12; finished=false;
+  racers=[]; place=12; finished=false; hasMoved=false;
   if(mode === 'race') buildField();
   const pw = document.getElementById('placeWrap');
   if(pw) pw.hidden = (mode !== 'race');
@@ -3244,6 +3244,37 @@ function drawMirrorFull(mx, my, mw, mh){
       ctx.fillRect(cx-sw/2, y-sh-2, sw, 2);
     }
   }
+  ctx.restore();
+}
+
+/* ---- the starting line ---------------------------------------------------
+   The standing start I added has a cliff in it: the road is motionless, the
+   car is motionless, and nothing at all happens until you find the pedal — so
+   the game reads as HUNG rather than as waiting for you. It needs to say so.
+   Shows only before you have first moved, and never comes back.
+   -------------------------------------------------------------------------- */
+let hasMoved = false;
+function drawStartPrompt(){
+  if(hasMoved) return;
+  if(spd > MAX_SPD*0.02){ hasMoved = true; return; }
+  const t = performance.now()/1000;
+  const pulse = 0.55 + Math.abs(Math.sin(t*2.2))*0.45;
+  ctx.save();
+  ctx.textAlign = 'center';
+  /* a starting-grid strip across the road */
+  const y = H*0.66, bw = W*0.62, bh = H*0.052;
+  ctx.fillStyle = 'rgba(8,8,12,.72)';
+  ctx.fillRect(W/2 - bw/2, y - bh/2, bw, bh);
+  ctx.strokeStyle = 'rgba(255,255,255,.22)'; ctx.lineWidth = 1;
+  ctx.strokeRect(W/2 - bw/2, y - bh/2, bw, bh);
+  ctx.font = '700 ' + Math.round(H*0.026) + 'px ' +
+             getComputedStyle(document.body).getPropertyValue('--disp');
+  ctx.fillStyle = 'rgba(255,236,190,' + pulse + ')';
+  const touch = !!(AR && AR.touch);
+  ctx.fillText(touch ? 'HOLD THE RIGHT PEDAL' : 'HOLD UP ARROW', W/2, y + H*0.009);
+  ctx.font = '400 ' + Math.round(H*0.014) + 'px monospace';
+  ctx.fillStyle = 'rgba(200,208,224,.72)';
+  ctx.fillText('STANDING START \u00B7 1ST GEAR', W/2, y + bh*0.62);
   ctx.restore();
 }
 
