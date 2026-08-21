@@ -144,11 +144,16 @@ canvas{display:block;width:100%;height:100%;touch-action:none}
 }
 #nitro i{
   display:block;width:100%;height:100%;position:relative;overflow:hidden;
-  border-radius:14px 6px 6px 14px;
+  /* The DOMED BASE is on the right and the tapered shoulder on the left,
+     because that is the end the valve screws into — the nozzle was on the
+     base, which is the one place a bottle has no opening at all. */
+  border-radius:7px 16px 16px 7px;
   /* The bottle IS the gauge now — the old #nosFill bar sat under the pedals
      where nothing could see it. --nos is set every frame; the charge fills
      from the neck end and the empty part reads as dark glass. */
   background:
+    /* drains from the valve end, so the charge you have left sits against the
+       base — which is the way round a real bottle empties */
     linear-gradient(to right,
       rgba(8,30,32,.92) 0%,
       rgba(8,30,32,.92) calc(100% - var(--nos,40%)),
@@ -158,16 +163,41 @@ canvas{display:block;width:100%;height:100%;touch-action:none}
              0 4px 12px -3px #000;
   border:1px solid rgba(140,255,238,.5);
 }
-/* the neck and valve at the right-hand end */
-#nitro i::after{
-  content:"";position:absolute;right:-8px;top:50%;transform:translateY(-50%);
-  width:11px;height:11px;border-radius:2px;
-  background:linear-gradient(to bottom,#cfd8e3,#6b727d);
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.6);
+/* The neck, valve and NOZZLE. It was a plain block on the end — a bottle needs
+   somewhere for the gas to actually leave, so this is a brass valve body with a
+   tapered nozzle tip beyond it. */
+/* The brass valve body, on the NECK end. It lives on the BUTTON, not on the
+   bottle: `#nitro i` carries `overflow:hidden` for the charge fill, which was
+   clipping its own pseudo-element clean off. */
+#nitro::before{
+  content:"";position:absolute;left:-11px;top:50%;transform:translateY(-50%);
+  width:13px;height:14px;border-radius:1px 2px 2px 1px;
+  background:linear-gradient(to bottom,#e2c98a,#a8843c 55%,#5f4718);
+  box-shadow:inset 0 1px 0 rgba(255,240,200,.7), -1px 0 0 rgba(0,0,0,.35);
+  z-index:1;
 }
+#nitro.on::before{ filter:brightness(1.45) }
+/* the tip: a short taper past the valve, with a dark bore down the middle */
+/* the tapered outlet, beyond the valve and pointing away from the bottle */
+#nitro::after{
+  content:"";position:absolute;left:-20px;top:50%;
+  transform:translateY(-50%);
+  width:9px;height:7px;
+  background:linear-gradient(to bottom,#d8d2c4,#8a8f98 55%,#41464e);
+  clip-path:polygon(100% 0, 0 22%, 0 78%, 100% 100%);
+}
+#nitro.on::after{ filter:brightness(1.5) }
 /* a strap band across the middle, so it reads as a bottle not a pill */
+/* the label, as on the real bottle */
+#nitro b{
+  position:absolute;left:0;right:0;top:50%;transform:translateY(-50%);
+  text-align:center;pointer-events:none;z-index:2;
+  font-family:var(--disp);font-size:9px;font-weight:800;
+  letter-spacing:.16em;color:#eafffb;
+  text-shadow:0 1px 0 rgba(0,0,0,.55), 0 0 6px rgba(120,255,235,.45);
+}
 #nitro i::before{
-  content:"";position:absolute;left:34%;top:-1px;width:9px;height:calc(100% + 2px);
+  content:"";position:absolute;left:52%;top:-1px;width:9px;height:calc(100% + 2px);
   background:rgba(10,40,42,.55);border-left:1px solid rgba(160,255,240,.30);
   border-right:1px solid rgba(160,255,240,.30);
 }
@@ -182,13 +212,12 @@ canvas{display:block;width:100%;height:100%;touch-action:none}
              0 4px 10px -2px #000;
   border:1px solid #565e69;position:relative;
 }
-/* A bulb horn as one continuous body, with a NECK you can see. The first
-   single-path version joined up correctly but drew the tube about a pixel and
-   a half wide at 40px, so it read as a bell on a bent wire. The outward and
-   return edges of the neck are now four units apart at the bell and taper to
-   two at the bulb, which is a tube rather than a line. */
+/* A POST HORN, drawn from the reference: the bell is a flat vertical mouth on
+   the left, the tube sweeps away to the right and narrows, and the coiled loop
+   hangs below it as an open ellipse. Nothing about it can be mistaken for a
+   speaker, because a speaker has no loop. */
 #horn i::after{
-  content:"";position:absolute;inset:13%;
+  content:"";position:absolute;inset:16%;
   background:rgba(24,28,34,.84);
   -webkit-mask:var(--hornmark) center/contain no-repeat;
           mask:var(--hornmark) center/contain no-repeat;
@@ -196,23 +225,10 @@ canvas{display:block;width:100%;height:100%;touch-action:none}
 #horn i{
   --hornmark:url('data:image/svg+xml;utf8,\
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">\
-<path d="\
-M3.2 6.6\
-C2.5 6.2 1.7 6.7 1.7 7.5\
-L1.7 24.5\
-C1.7 25.3 2.5 25.8 3.2 25.4\
-C5.6 23.9 7.2 21.9 7.9 19.5\
-C10.4 19.9 12.4 20.7 13.8 21.8\
-C14.6 22.4 15.2 23.1 15.6 23.8\
-C17.4 24.6 20.6 26.4 24.6 26.4\
-L24.6 20.6\
-C22.2 20.6 20.3 19.7 19.2 18.4\
-C18.2 18.05 17.2 17.8 16.12 17.62\
-C15.5 18.05 14.8 17.55 14.05 17.1\
-C12.3 16.05 10.2 15.35 7.9 15.0\
-C7.2 12.6 5.6 10.6 3.2 9.1\
-Z"/>\
-<ellipse cx="24.6" cy="26.0" rx="5.6" ry="5.0"/>\
+<rect x="3.4" y="6.2" width="2.6" height="19.6" rx="0.5"/>\
+<path d="M6.0 7.2c0.9 3.9 4.4 5.9 10.1 6.8 4.4 0.7 8.4 0.9 11.6 0.7 0.5-0.03 0.9 0.25 1.0 0.6l0-1.1c0-0.5 0.4-0.9 0.9-0.9v5.0c-0.5 0-0.9-0.4-0.9-0.9l0-1.0c-0.15 0.35-0.5 0.6-0.95 0.6-1.5-0.05-3.1-0.02-4.8 0.1l0-2.4c-3.0 0.15-6.6-0.05-10.6-0.7C7.6 12.7 4.6 10.6 3.4 6.9z"/>\
+<path d="M6.0 24.8c0.75-3.2 3.3-5.1 7.4-6.1l0 2.5c-3.1 0.8-5.0 2.2-5.6 4.6z"/>\
+<path d="M17.4 17.6c4.6 0 8.3 1.9 8.3 4.3s-3.7 4.3-8.3 4.3-8.3-1.9-8.3-4.3 3.7-4.3 8.3-4.3zm0 1.9c-3.4 0-6.1 1.1-6.1 2.4s2.7 2.4 6.1 2.4 6.1-1.1 6.1-2.4-2.7-2.4-6.1-2.4z"/>\
 </svg>');
 }
 #horn.on i{ filter:brightness(1.35); transform:translateY(2px) }
@@ -230,7 +246,16 @@ body.pedals-left #pedals{ right:auto; left:calc(env(safe-area-inset-left,0px) + 
 body.pedals-left #nitro{ right:auto; left:0 }
 
 /* no touch, no pedals — a desktop showing them looks broken */
-body.no-touch #pedals{ display:none }
+/* Desktop has a keyboard, so the thumb controls are dead weight and look
+   broken. The GAUGES stay — they are instruments, not controls — and the
+   dials drop to the bottom of the cluster since there is nothing beneath
+   them any more. */
+body.no-touch #pedals,
+body.no-touch #shifter{ display:none }
+body.no-touch #dials,
+body.no-touch.manual #dials{
+  bottom:calc(env(safe-area-inset-bottom,0px) + 16px);
+}
 
 /* ---- the shifter ---------------------------------------------------------
    A six-speed H-gate: two rails with three positions each, and reverse below.
@@ -242,11 +267,19 @@ body.no-touch #pedals{ display:none }
    the way they sit in a car. The linear bar and the separate MPH text were
    two different idioms doing the same job in two different places.
    -------------------------------------------------------------------------- */
+/* The cluster stacks bottom-up: pedals, bottle, then the shifter ONLY when the
+   manual box is on, then the dials. The dials used to sit at a fixed height and
+   the shifter was drawn over them; each now takes its place in the stack and
+   the dials drop back down when there is no shifter to clear. */
 #dials{
   position:absolute;z-index:13;pointer-events:none;
   right:calc(env(safe-area-inset-right,0px) + 8px);
-  bottom:calc(env(safe-area-inset-bottom,0px) + 142px);
+  bottom:calc(env(safe-area-inset-bottom,0px) + 138px);
   width:115px;height:59px;
+  transition:bottom .18s ease-out;
+}
+body.manual #dials{
+  bottom:calc(env(safe-area-inset-bottom,0px) + 242px);
 }
 #dials canvas{width:115px;height:59px;display:block}
 body.pedals-left #dials{ right:auto; left:calc(env(safe-area-inset-left,0px) + 8px) }
@@ -281,7 +314,7 @@ body.pedals-left #dials{ right:auto; left:calc(env(safe-area-inset-left,0px) + 8
 #shifter{
   position:absolute;z-index:13;pointer-events:auto;
   right:calc(env(safe-area-inset-right,0px) + 10px);
-  bottom:calc(env(safe-area-inset-bottom,0px) + 176px);
+  bottom:calc(env(safe-area-inset-bottom,0px) + 140px);
   width:86px;height:94px;touch-action:none;
 }
 #shifter[hidden]{ display:none }
@@ -374,7 +407,7 @@ h1 u{text-decoration:none;display:block;font-size:.34em;letter-spacing:.26em;col
       <div id="pursuit">PURSUIT</div>
     </div>
     <div class="botrow">
-      <div class="speedo"><b id="kmh">0</b><span>MPH</span></div>
+      <!-- speed now lives on the dial, where a car keeps it -->
       <div class="bars">
         <!-- The two bars lived down here under the pedals, where the controls
              covered them. Damage is smoke off the bonnet now and nitrous is the
@@ -385,7 +418,7 @@ h1 u{text-decoration:none;display:block;font-size:.34em;letter-spacing:.26em;col
 
   <div id="warn"></div>
   <div id="pedals">
-    <button id="nitro" disabled aria-label="Nitrous"><i></i></button>
+    <button id="nitro" disabled aria-label="Nitrous"><i></i><b>NOS</b></button>
     <button id="gas" aria-label="Accelerator"><i></i></button>
     <button id="brake" aria-label="Brake"><i></i></button>
     <button id="horn" aria-label="Horn"><i></i></button>
@@ -1302,11 +1335,22 @@ function autoGear(dt){
   /* DOWN: revs have fallen out of the useful band. A second of lag, and then
      it drops as far as it needs to in one movement rather than one gear at a
      time — which is what you want when you brake hard into a corner. */
-  if(gear > 1 && rpm < REDLINE * 0.30){
-    autoDownT += (dt || 1/60);
-    if(autoDownT >= 1.0){
+  /* 30% of the redline is 3600rpm — you have to be almost stopped to reach it,
+     so it effectively never downshifted. A real box drops at part throttle
+     around 45%, and KICKS DOWN at once when you ask for power it cannot give
+     in this gear. */
+  const wantPower = (gas || nosOn);
+  const dropBelow = wantPower ? 0.56 : 0.45;
+  if(gear > 1 && rpm < REDLINE * dropBelow){
+    /* A full second was longer than it takes to stop from 120mph, so the box
+       only ever dropped once you were already stationary. Off power it is
+       0.18s, under power a quarter of that. Braking from 135mph to a stop
+       takes barely a second, so anything longer means the box only ever drops
+       once you have already stopped. */
+    autoDownT += (dt || 1/60) * (wantPower ? 4 : 1);
+    if(autoDownT >= 0.18){
       let g = gear;
-      while(g > 1 && gearRpm(g, spd) < REDLINE * 0.42) g--;
+      while(g > 1 && gearRpm(g-1, spd) < REDLINE * 0.97) g--;
       if(g !== gear){
         gear = g; autoHold = 0.22; snd.shift(gear);
         engineBrake();
@@ -1317,6 +1361,95 @@ function autoGear(dt){
 }
 
 let horning = false, hornCool = 0, bustT = 0, behindT = 2, slowFor = 0;
+
+/* ---- rubber on the road --------------------------------------------------
+   One system for every car out here. A mark is a short world-space segment at
+   a lane position; they scroll past with everything else and fade, so the road
+   carries a record of what has been happening on it. Smoke rises off the same
+   events, which is what makes a hard corner read as hard rather than as the
+   car simply being somewhere else.
+   -------------------------------------------------------------------------- */
+let skids = [], tyreSmoke = [], lastPX;
+const SKID_MAX = 420, SMOKE_MAX = 90;
+
+/* `heat` is 0-1: how badly the tyres are letting go */
+function layRubber(x, z, heat, w){
+  if(heat <= 0.05) return;
+  const half = (w || 0.26) * 0.42;
+  for(const side of [-half, half]){
+    skids.push({ x: x + side, z, t: 1, heat });
+  }
+  if(skids.length > SKID_MAX) skids.splice(0, skids.length - SKID_MAX);
+  /* smoke only once it is really scrubbing */
+  if(heat > 0.45 && Math.random() < heat * 0.8){
+    tyreSmoke.push({
+      x: x + (Math.random()-0.5)*0.10, z,
+      t: 1, r: 0.10 + Math.random()*0.10,
+      drift: (Math.random()-0.5)*0.35
+    });
+    if(tyreSmoke.length > SMOKE_MAX) tyreSmoke.shift();
+  }
+}
+
+/* how hard a car is scrubbing: sideways rate against speed, plus braking */
+function scrubOf(o, dx, dt, v, isBraking){
+  const fast = clamp(v / (MAX_SPD*0.42), 0, 1);        /* nothing at a crawl */
+  if(fast <= 0.02) return 0;
+  const lateral = clamp(Math.abs(dx) / (dt || 1/60) / 1.9, 0, 1);
+  const brake = isBraking ? 0.75 : 0;
+  return clamp(Math.max(lateral, brake) * fast, 0, 1);
+}
+
+function stepRubber(dt){
+  for(let i=skids.length-1;i>=0;i--){
+    const s2 = skids[i];
+    s2.t -= dt * 0.055;                     /* rubber lasts a good while */
+    if(s2.t <= 0 || s2.z < pos - 2000) skids.splice(i,1);
+  }
+  for(let i=tyreSmoke.length-1;i>=0;i--){
+    const m = tyreSmoke[i];
+    m.t -= dt * 0.9;
+    m.r += dt * 0.5;
+    m.x += m.drift * dt;
+    if(m.t <= 0 || m.z < pos - 1200) tyreSmoke.splice(i,1);
+  }
+}
+
+/* laid down before the cars, so they sit on top of their own rubber */
+function drawRubber(){
+  for(const s2 of skids){
+    const d = s2.z - pos;
+    /* the near cull was 30, which threw marks away while they were still on
+       screen sliding past the car — the one moment you can actually see your
+       own rubber in a forward view */
+    if(d < 4 || d > 5200) continue;
+    const p1 = proj(s2.x*ROAD, s2.z);
+    if(!p1.ok) continue;
+    /* wider and darker: at 5% of a lane and 27% opacity they were invisible
+       against tarmac that is already almost black */
+    const w = Math.max(1.4, p1.scale * ROAD * W * 0.10);
+    const h = Math.max(2, p1.scale * 320);
+    ctx.fillStyle = 'rgba(8,8,10,' + Math.min(0.85, 0.9 * s2.t * (0.45 + s2.heat*0.55)) + ')';
+    ctx.fillRect(p1.x - w/2, p1.y - h, w, h);
+    /* a scuffed edge, so it is not a flat black bar */
+    ctx.fillStyle = 'rgba(40,38,42,' + Math.min(0.4, 0.4 * s2.t) + ')';
+    ctx.fillRect(p1.x - w*0.72, p1.y - h, w*0.26, h);
+    ctx.fillRect(p1.x + w*0.46, p1.y - h, w*0.26, h);
+  }
+  for(const m of tyreSmoke){
+    const d = m.z - pos;
+    if(d < 30 || d > 5200) continue;
+    const p1 = proj(m.x*ROAD, m.z);
+    if(!p1.ok) continue;
+    const rad = Math.max(2, p1.scale * ROAD * W * m.r * 2.2);
+    const a = m.t * 0.34;
+    const gr = ctx.createRadialGradient(p1.x, p1.y, 0, p1.x, p1.y, rad);
+    gr.addColorStop(0, 'rgba(214,214,220,' + a + ')');
+    gr.addColorStop(1, 'rgba(190,190,200,0)');
+    ctx.fillStyle = gr;
+    ctx.beginPath(); ctx.arc(p1.x, p1.y, rad, 0, 6.2832); ctx.fill();
+  }
+}
 
 /* ---- race mode ----------------------------------------------------------
    Twelve runners over twelve miles. You start LAST and you are slightly the
@@ -1418,6 +1551,11 @@ function stepRacers(dt){
     want *= (1 + band);
     r.spd += clamp(want - r.spd, -5200*dt, 5600*dt);
     r.z += r.spd*dt;
+    /* rivals lay rubber on the same terms you do */
+    const rdx = r.x - (r.lastX === undefined ? r.x : r.lastX);
+    r.lastX = r.x;
+    const rs = scrubOf(r, rdx, dt, r.spd, r.spd < want*0.7);
+    if(rs > 0.05) layRubber(r.x, r.z, rs, r.w);
 
     /* they can put a cruiser out, and be put out by one */
     if(!optEasy){
@@ -1720,6 +1858,17 @@ function step(dt){
   spd += clamp(top - spd, -rate*dt, rate*dt);
   /* The floor was 1700 — about 22mph — so the car could never actually stop.
      It can now sit still, which is what a brake pedal is for. */
+  /* the player's own rubber: hard steering at speed, or hard on the brakes */
+  const pdx = playerX - (lastPX === undefined ? playerX : lastPX);
+  lastPX = playerX;
+  const pScrub = scrubOf(null, pdx, dt, spd, braking && spd > MAX_SPD*0.22);
+  /* Laid BEHIND the car, not under it. At the car's own z the sprite covers
+     its own rubber completely — the marks were there the whole time and
+     hidden by the thing making them. Half a car back puts them on the tarmac
+     below the bumper where you can actually see them. */
+  if(pScrub > 0.05) layRubber(playerX, pos + PLAYER_Z - 340, pScrub, 0.265);
+  stepRubber(dt);
+
   if(hornCool > 0) hornCool -= dt;
   /* ---- traffic coming up behind ------------------------------------------
      Only once you have been slower than the flow for a while. A brief lift or
@@ -1913,6 +2062,10 @@ function step(dt){
     const boxing = spd < MAX_SPD*0.10;
     k.spd = clamp(k.spd, boxing ? -2600 : 2000, MAX_SPD * 1.05);
     k.z += k.spd*dt;
+    const kdx = k.x - (k.lastX === undefined ? k.x : k.lastX);
+    k.lastX = k.x;
+    const ks = scrubOf(k, kdx, dt, k.spd, false);
+    if(ks > 0.05) layRubber(k.x, k.z, ks, k.w || 0.27);
     let aim = aggro ? playerX : clamp(playerX + (k.side||1)*0.55, -1.05, 1.05);
     /* Boxing in: each cruiser takes a station AROUND the car rather than
        chasing its centre — one either side, one across the front — so the
@@ -2069,7 +2222,10 @@ function step(dt){
      so the screech follows what the car is doing rather than what the pedal is */
   const lost = Math.max(0, prevSpd - spd);
   const decel = braking ? Math.min(1, lost / Math.max(1, 9000 * dt)) : 0;
-  snd.drive(spd, MAX_SPD, offRoad, nosOn, near, decel);
+  /* Tyres sing when they are scrubbing, not only when the brake is on — a
+     hard change of lane at speed should squeal too, and now the same number
+     that lays the rubber drives the sound. */
+  snd.drive(spd, MAX_SPD, offRoad, nosOn, near, Math.max(decel, pScrub * 0.9));
 
   /* ---- stopping with the law behind you --------------------------------
      Braking to a halt is free on an empty road and fatal in a pursuit. A
@@ -2508,6 +2664,8 @@ function drawCopLights(box, phase){
 }
 
 function drawWorld(){
+  drawRubber();
+
   const items = [];
   for(const c of traffic) items.push({z:c.z, kind:'t', o:c});
   for(const k of cops)    items.push({z:k.z, kind:'k', o:k});
@@ -3013,12 +3171,16 @@ function drawDials(){
 
   const rpm = engineRpm();
   face(g, 30, 30, 26, rpm / REDLINE, (rpm/1000).toFixed(1), 'x1000',
-       0.86, '#5ff0d8', '#ff3b5c');
+       0.86, '#5ff0d8', '#ff3b5c', undefined, gearLabel());
   const mph = spd / MAX_SPD;
   face(g, 85, 30, 26, mph, Math.round(spd/MAX_SPD*200), 'MPH',
        0.94, '#ffd98a', '#ff3b5c', dist);
 }
-function face(g, cx, cy, r, frac, big, label, redAt, tint, red, odo){
+function gearLabel(){
+  if(!optManual) return (gear >= 1 && gear <= GEARS.length) ? 'D' + gear : 'D';
+  return (gear >= 1 && gear <= GEARS.length) ? String(gear) : 'N';
+}
+function face(g, cx, cy, r, frac, big, label, redAt, tint, red, odo, gearTag){
   const A0 = Math.PI*0.75, A1 = Math.PI*2.25;      /* 7 o'clock to 5 o'clock */
   frac = clamp(frac, 0, 1.02);
   /* needed by the numerals AND the needle, and the needle is now drawn last,
@@ -3114,6 +3276,20 @@ function face(g, cx, cy, r, frac, big, label, redAt, tint, red, odo){
     g.restore();
   }
 
+  /* the selected gear, at twelve o'clock inside the bezel — the one number
+     you glance at without taking your eyes far from the needle */
+  if(gearTag !== undefined){
+    g.save();
+    g.textAlign = 'center';
+    g.fillStyle = 'rgba(6,8,12,.9)';
+    g.beginPath(); g.arc(cx, cy - r*0.46, 6.2, 0, 6.2832); g.fill();
+    g.strokeStyle = 'rgba(150,160,180,.34)'; g.lineWidth = 0.7; g.stroke();
+    g.font = '700 7px ' + getComputedStyle(document.body).getPropertyValue('--disp');
+    g.fillStyle = optManual ? '#5ff0d8' : 'rgba(200,210,228,.85)';
+    g.fillText(gearTag, cx, cy - r*0.46 + 2.5);
+    g.restore();
+  }
+
   /* ---- the needle, LAST ---------------------------------------------------
      It has to sweep over everything else on the face. The drum, the ticks and
      the numerals are printed on the dial; the needle is a physical pointer
@@ -3159,8 +3335,7 @@ function drawBust(){
 }
 
 function hud(){
-  const kmh = Math.round(spd/MAX_SPD*200);
-  if(kmh!==lastKmh){ $('kmh').textContent = kmh; lastKmh=kmh; }
+
 
   $('score').textContent = Math.round(score).toLocaleString();
   /* the bottle empties as you burn it */
@@ -3328,6 +3503,7 @@ if (AR && AR.options) AR.options.define([
   if(key === 'mirror') optMirror = val;
   if(key === 'manual'){
     optManual = !!val;
+    document.body.classList.toggle('manual', !!val);
     const sh = document.getElementById('shifter');
     if(sh) sh.hidden = !val;
     if(!val) autoGear();
