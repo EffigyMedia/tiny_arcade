@@ -1,0 +1,846 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#140f0a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Burrow</title>
+<meta name="arcade-home" content="../../index.html#golden">
+<meta name="arcade-title" content="Burrow">
+<meta name="arcade-accent" content="#e0a458">
+<script src="../../audio.js"></script>
+<script src="../../arcade.js"></script>
+<style>
+@font-face{font-family:"Chivo Mono";font-style:normal;font-weight:100 900;font-display:swap;src:url("../../fonts/chivomono-var.woff2") format("woff2")}
+@font-face{font-family:"Syne";font-style:normal;font-weight:400 800;font-display:swap;src:url("../../fonts/syne-var.woff2") format("woff2")}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;overflow:hidden;background:#140f0a;
+  font-family:"Chivo Mono",ui-monospace,monospace;color:#e8dcc8;
+  user-select:none;-webkit-user-select:none}
+#stage{position:fixed;inset:0;display:flex;flex-direction:column;padding-top:var(--safe-top,0px)}
+#head{flex:none;display:flex;justify-content:space-between;align-items:baseline;
+  padding:9px 14px 5px;font-size:9px;letter-spacing:.20em;color:#8a7455}
+#head b{font-size:17px;color:#e0a458;font-weight:700;font-variant-numeric:tabular-nums}
+#wrap{flex:1;position:relative;display:grid;place-items:center;min-height:0;
+  padding:0 6px calc(6px + var(--safe-bot,0px))}
+#section{display:block;touch-action:none;border-radius:2px;
+  box-shadow:0 0 0 1px #2a1f14, 0 18px 50px -20px #000}
+#veil{position:fixed;inset:0;background:rgba(16,11,7,.95);display:grid;place-items:center;
+  padding:26px;text-align:center;z-index:40}
+#veil.hidden{display:none}
+#veilBody{max-width:330px;width:100%}
+.eyebrow{font-size:9px;letter-spacing:.26em;color:#e0a458;margin-bottom:9px}
+h1{font-family:"Syne",sans-serif;font-size:42px;font-weight:800;margin:0;
+  letter-spacing:-.02em;line-height:1;color:#f6ecd8}
+h1 em{display:block;font-family:"Chivo Mono",monospace;font-size:9.5px;font-style:normal;
+  font-weight:400;letter-spacing:.24em;color:#8a7455;margin-top:9px}
+.tmenu{display:flex;flex-direction:column;gap:8px;max-width:240px;margin:24px auto 0}
+.btn{padding:14px 0;width:100%;border:0;border-radius:3px;cursor:pointer;font:inherit;
+  font-size:11.5px;letter-spacing:.18em;background:#e0a458;color:#20150a}
+.btn.ghost{background:transparent;color:#e0a458;border:1px solid rgba(224,164,88,.34)}
+.btn:active{opacity:.85}
+.ctrls{margin:16px auto 0;max-width:290px}
+.crow{display:flex;justify-content:space-between;gap:12px;align-items:baseline;padding:7px 2px;
+  border-bottom:1px solid rgba(255,255,255,.07);font-size:12px;text-align:left}
+.crow b{font-weight:600;white-space:nowrap}
+.crow i{font-style:normal;color:#a89madd;text-align:right}
+.crow i{color:#a8967a}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:18px}
+.gc{border:1px solid #2e2317;border-radius:3px;padding:9px}
+.gc span{display:block;font-size:8px;letter-spacing:.18em;color:#8a7455}
+.gc b{display:block;font-size:17px;margin-top:3px;font-variant-numeric:tabular-nums}
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="head">
+    <div>SCORE <b id="sc">0</b></div>
+    <div>LEVEL <b id="lvl">1</b></div>
+    <div>LIVES <b id="lv">3</b></div>
+  </div>
+  <div id="wrap"><canvas id="section"></canvas></div>
+</div>
+<div id="veil"><div id="veilBody"></div></div>
+<script>
+(function(){
+"use strict";
+const AR = window.Arcade, $ = id => document.getElementById(id);
+const cv = $('section'), g = cv.getContext('2d');
+const veil = $('veil'), veilBody = $('veilBody');
+
+const COLS = 15, ROWS = 20, U = 21;
+const W = COLS*U, H = ROWS*U;
+const SKY = 2;                 /* rows of open air at the top */
+let S = 1;
+
+let soil, you, foes, rocks, pump, state;
+let score, lives, level, best, runs = 0, deadT = 0, clearT = 0;
+let dust, moving = 0;
+
+/* ---- the section --------------------------------------------------------
+   Four strata. Colour and grain differ per band, so depth is legible at a
+   glance and the cutaway reads as an archaeological drawing.
+   -------------------------------------------------------------------------- */
+const STRATA = [
+  { to: 6,  c:'#6b4f31', g:'#7d5e3c', name:'topsoil' },
+  { to: 11, c:'#8a6234', c2:'#9a7040', name:'clay' },
+  { to: 16, c:'#7a5a44', c2:'#8a6a52', name:'silt' },
+  { to: 99, c:'#5e4a3e', c2:'#6d5748', name:'bedrock' }
+];
+function stratumAt(r){
+  for(const s of STRATA) if(r < s.to) return s;
+  return STRATA[STRATA.length-1];
+}
+
+const idx = (c,r) => r*COLS + c;
+const solid = (c,r) => c>=0 && c<COLS && r>=0 && r<ROWS && soil[idx(c,r)] === 1;
+const open  = (c,r) => c>=0 && c<COLS && r>=0 && r<ROWS && soil[idx(c,r)] === 0;
+
+function buildLevel(){
+  soil = new Array(COLS*ROWS).fill(1);
+  for(let r=0;r<SKY;r++) for(let c=0;c<COLS;c++) soil[idx(c,r)] = 0;
+
+  /* a few pre-cut galleries, so the board is not a solid block */
+  const gal = 2 + ((level-1) % 3);
+  for(let i=0;i<gal;i++){
+    const r = SKY + 2 + ((i*5 + level) % (ROWS-SKY-4));
+    const c0 = 1 + ((i*4 + level*3) % (COLS-7));
+    for(let c=c0;c<c0+5;c++) soil[idx(c,r)] = 0;
+  }
+
+  you = { c:7, r:SKY, x:7*U, y:SKY*U, dir:{c:0,r:1}, face:1 };
+  soil[idx(7,SKY)] = 0;
+
+  foes = [];
+  const n = Math.min(7, 3 + level);
+  for(let i=0;i<n;i++){
+    const r = SKY + 3 + ((i*4 + level*2) % (ROWS-SKY-4));
+    const c = 1 + ((i*6 + level*5) % (COLS-2));
+    soil[idx(c,r)] = 0;
+    foes.push({ c, r, x:c*U, y:r*U, kind: i%3===2 ? 'wisp' : 'grub',
+                mc:c, mr:r, t:0, ghost:0, frust:0, alive:true, breath:2.5+Math.random()*3, flame:0,
+                inflate:0, pumping:false, dead:0 });
+  }
+
+  rocks = [];
+  const nr = 2 + (level % 3);
+  for(let i=0;i<nr;i++){
+    const c = 1 + ((i*5 + level*7) % (COLS-2));
+    const r = SKY + 2 + ((i*3 + level) % (ROWS-SKY-6));
+    if(!solid(c,r)) continue;
+    rocks.push({ c, r, y:r*U, falling:false, vy:0, settled:true, shake:0 });
+  }
+
+  pump = null; dust = []; deadT = 0; clearT = 0;
+}
+
+function reset(){
+  score=0; lives=3; level=1;
+  buildLevel(); paintHud();
+}
+
+/* ---- moving ------------------------------------------------------------- */
+let moveAcc = 0;
+function tryStep(dc, dr){
+  const nc = you.c + dc, nr = you.r + dr;
+  if(nc<0||nc>=COLS||nr<SKY-1||nr>=ROWS) return false;
+  if(nr < SKY && dr < 0) return false;
+  const wasSolid = solid(nc,nr);
+  soil[idx(nc,nr)] = 0;
+  you.c = nc; you.r = nr;
+  if(dc) you.face = dc > 0 ? 1 : -1;
+  if(wasSolid){
+    snd.dig();
+    for(let i=0;i<3;i++)
+      dust.push({ x:nc*U+U/2, y:nr*U+U/2, vx:(Math.random()-0.5)*1.4,
+                  vy:(Math.random()-0.5)*1.4, t:1, col: stratumAt(nr).c2 || stratumAt(nr).g });
+    score += 1;
+  }
+  /* undermining a rock lets it go */
+  for(const rk of rocks) if(rk.c === nc && rk.r === nr-1 && !rk.falling) rk.shake = 0.5;
+  moving = 0.22;
+  return true;
+}
+
+/* ---- the pump -----------------------------------------------------------
+   Hold to inflate. Release and it deflates. Four stages; the fourth pops.
+   You cannot move while pumping, which is the commitment.
+   -------------------------------------------------------------------------- */
+function startPump(){
+  if(state!=='play' || deadT>0 || pump) return;
+  /* the first thing in a straight line in front of you, through open ground */
+  let c = you.c, r = you.r;
+  for(let i=0;i<5;i++){
+    c += you.dir.c; r += you.dir.r;
+    if(!open(c,r)) break;
+    /* you cannot get a hose into something that is currently inside rock */
+    const f = foes.find(f2 => f2.alive && f2.c===c && f2.r===r && !f2.dead && f2.ghost<=0);
+    if(f){ pump = { foe:f, t:0, len:i+1 }; f.pumping = true; snd.pump(0); return; }
+  }
+  snd.miss();
+}
+function stopPump(){
+  if(pump){ pump.foe.pumping = false; pump = null; }
+}
+
+function step(dt){
+  if(state!=='play') return;
+  const k = Math.min(2.4, dt*60);
+
+  if(clearT > 0){
+    clearT -= dt;
+    if(clearT <= 0){ level++; buildLevel(); paintHud(); }
+    return;
+  }
+  if(deadT > 0){
+    deadT -= dt;
+    if(deadT <= 0){
+      if(lives > 0){ buildLevel(); }
+      else { gameOver(); return; }
+    }
+    return;
+  }
+
+  if(moving > 0) moving -= dt;
+
+  /* pumping */
+  if(pump){
+    pump.t += dt;
+    const f = pump.foe;
+    f.inflate = Math.min(4, pump.t / 0.42);
+    if(f.inflate >= 4){
+      f.alive = false; f.dead = 0.6;
+      /* deeper kills pay more — the whole reason to go down */
+      const depth = f.r - SKY;
+      score += (f.kind==='wisp' ? 300 : f.kind==='drake' ? 400 : 200) + depth * 40;
+      snd.pop();
+      for(let i=0;i<10;i++)
+        dust.push({ x:f.x+U/2, y:f.y+U/2, vx:(Math.random()-0.5)*3.4,
+                    vy:(Math.random()-0.5)*3.4, t:1, col:'#e8dcc8' });
+      stopPump();
+    } else if(Math.floor(f.inflate) !== Math.floor((pump.t-dt)/0.42)) snd.pump(Math.floor(f.inflate));
+  }
+  for(const f of foes){
+    if(!f.pumping && f.inflate > 0) f.inflate = Math.max(0, f.inflate - dt*1.6);
+    if(f.dead > 0) f.dead -= dt;
+  }
+
+  /* movement is discrete but animated between cells */
+  /* Cutting fresh soil is SLOW. Running a tunnel you already cut is FAST.
+     Without that split the terrain you author is worth nothing, and Dig Dug
+     is entirely about tunnels becoming your highways — you dig a loop early
+     so you can outrun something down it later. */
+  moveAcc += dt;
+  if(!pump && held.dir){
+    const nc = you.c + held.dir.c, nr = you.r + held.dir.r;
+    const cutting = solid(nc, nr);
+    const stepEvery = cutting ? 0.235 : 0.095;
+    if(moveAcc >= stepEvery){
+      moveAcc = 0;
+      you.dir = held.dir;
+      tryStep(held.dir.c, held.dir.r);
+    }
+  } else moveAcc = 0;
+  you.x += (you.c*U - you.x) * Math.min(1, dt*14);
+  you.y += (you.r*U - you.y) * Math.min(1, dt*14);
+
+  /* foes */
+  for(const f of foes){
+    if(!f.alive || f.pumping) continue;
+    f.t -= dt;
+    if(f.t <= 0){
+      f.t = f.ghost > 0 ? 0.34 : (0.30 - level*0.008);
+      moveFoe(f);
+    }
+    f.x += (f.c*U - f.x) * Math.min(1, dt*10);
+    f.y += (f.r*U - f.y) * Math.min(1, dt*10);
+    if(f.ghost > 0) f.ghost -= dt;
+    /* the drake breathes along its row: three cells of open ground, and it
+       telegraphs by rearing for a moment first */
+    if(f.kind === 'drake' && f.ghost <= 0 && !f.pumping){
+      f.breath -= dt;
+      if(f.breath <= 0 && f.flame <= 0){
+        f.breath = 4.5 + Math.random()*3;
+        f.flame = 1.15;
+        f.fdir = you.x < f.x ? -1 : 1;
+        snd.breathe();
+      }
+      if(f.flame > 0){
+        f.flame -= dt;
+        /* the first third is the rear-up; only after that does it burn */
+        if(f.flame < 0.78){
+          for(let i=1;i<=3;i++){
+            const c = f.c + f.fdir*i;
+            if(!open(c, f.r)) break;
+            if(deadT<=0 && you.r===f.r && you.c===c) die();
+          }
+        }
+      }
+    }
+    if(f.dead <= 0 && Math.abs(f.x - you.x) < U*0.7 && Math.abs(f.y - you.y) < U*0.7) die();
+  }
+
+  /* rocks */
+  for(let i=rocks.length-1;i>=0;i--){
+    const rk = rocks[i];
+    if(rk.shake > 0 && !rk.falling){
+      rk.shake -= dt;
+      if(rk.shake <= 0 && !solid(rk.c, rk.r+1)){ rk.falling = true; rk.vy = 0; snd.rumble(); }
+    }
+    if(!rk.falling){
+      if(!solid(rk.c, rk.r+1) && rk.settled && !open(rk.c,rk.r+1)) {}
+      continue;
+    }
+    rk.vy += 0.42*k; rk.y += rk.vy*k;
+    const landRow = Math.floor(rk.y / U);
+    /* it crushes anything in the column as it goes */
+    for(const f of foes){
+      if(f.alive && f.c===rk.c && Math.abs(f.y - rk.y) < U*0.8){
+        f.alive=false; f.dead=0.6;
+        score += 500 + (f.r-SKY)*40;
+        snd.crush();
+      }
+    }
+    if(deadT<=0 && you.c===rk.c && Math.abs(you.y - rk.y) < U*0.8) die();
+    if(solid(rk.c, landRow+1) || landRow+1 >= ROWS){
+      rk.r = landRow; rk.y = landRow*U; rk.falling = false;
+      soil[idx(rk.c, rk.r)] = 0;
+      snd.thud();
+      for(let d2=0;d2<8;d2++)
+        dust.push({ x:rk.c*U+U/2, y:rk.y+U, vx:(Math.random()-0.5)*3,
+                    vy:-Math.random()*1.6, t:1, col:'#8a6234' });
+      /* a rock that has fallen crumbles away, as in the original */
+      setTimeout(()=>{ const j = rocks.indexOf(rk); if(j>=0) rocks.splice(j,1); }, 500);
+    }
+  }
+
+  for(let i=dust.length-1;i>=0;i--){
+    const d = dust[i];
+    d.x += d.vx*k; d.y += d.vy*k; d.vy += 0.10*k; d.t -= dt*1.5;
+    if(d.t<=0) dust.splice(i,1);
+  }
+
+  if(!foes.some(f=>f.alive) && clearT<=0){ clearT = 1.0; score += 600; snd.clear(); }
+  paintHud();
+}
+
+function moveFoe(f){
+  const dc = Math.sign(you.c - f.c), dr = Math.sign(you.r - f.r);
+  const opts = [];
+  if(dc && open(f.c+dc, f.r)) opts.push({c:dc,r:0});
+  if(dr && open(f.c, f.r+dr)) opts.push({c:0,r:dr});
+  for(const o of [{c:1,r:0},{c:-1,r:0},{c:0,r:1},{c:0,r:-1}])
+    if(open(f.c+o.c, f.r+o.r)) opts.push(o);
+
+  /* In the original BOTH types give up on tunnels and come through the dirt
+     as a pair of eyes. The wisp does it sooner and more often; the grub needs
+     to be properly stuck. Either way, a hole you sit in is not a hiding place. */
+  const patience = f.kind === 'wisp' ? 1.4 : 3.2;
+  if(f.ghost > 0){
+    /* while ghosting it goes straight at you, through anything */
+    const nc = f.c + dc, nr = f.r + dr;
+    if(nc>=0 && nc<COLS && nr>=SKY && nr<ROWS){ f.c = nc; f.r = nr; }
+    /* it re-forms the moment it reaches open ground */
+    if(open(f.c, f.r)) f.ghost = 0;
+    return;
+  }
+  if(opts.length && f.frust < patience){
+    const o = opts[0];
+    f.c += o.c; f.r += o.r;
+    f.frust = opts.length > 1 ? 0 : f.frust + 0.4;
+    return;
+  }
+  f.ghost = 3.0; f.frust = 0;
+}
+
+function die(){
+  lives--; deadT = 1.3; stopPump();
+  snd.die();
+  for(let i=0;i<12;i++)
+    dust.push({ x:you.x+U/2, y:you.y+U/2, vx:(Math.random()-0.5)*3.4,
+                vy:(Math.random()-0.5)*3.4, t:1, col:'#e0a458' });
+  paintHud();
+}
+
+/* ---- audio -------------------------------------------------------------
+   The walking loop plays ONLY while you are moving. The silence when you
+   stop is the signature of this game. */
+const WALK = [0,3,5,3,7,5,3,0];
+const snd = {
+  tick(stp, t){
+    if(!AR || state !== 'play') return;
+    if(moving <= 0) return;               /* stop moving, the music stops */
+    AR.sfx.tone({ t, freq: 98 * Math.pow(2, WALK[stp % 8]/12), dur:0.10,
+                  type:'square', gain:0.050, attack:0.004, cutoff:1700, bus:'music' });
+    if(stp % 4 === 0)
+      AR.sfx.tone({ t, freq: 49, dur:0.18, type:'triangle', gain:0.060,
+                    attack:0.004, cutoff:340, bus:'music' });
+  },
+  dig(){ if(AR) AR.sfx.noise({ freq:900, to:300, dur:0.07, gain:0.045, filter:'bandpass' }); },
+  pump(stage){ if(AR) AR.sfx.tone({ freq: 260 + stage*130, to: 340 + stage*150,
+                                    dur:0.13, type:'square', gain:0.055, cutoff:2200 }); },
+  pop(){ if(AR){ AR.sfx.noise({ freq:1600, to:300, dur:0.26, gain:0.09, filter:'bandpass' });
+                 AR.sfx.tone({ freq:520, to:120, dur:0.20, type:'square', gain:0.05 }); } },
+  miss(){ if(AR) AR.sfx.tone({ freq:200, dur:0.06, type:'square', gain:0.035, cutoff:700 }); },
+  rumble(){ if(AR) AR.sfx.noise({ freq:120, dur:0.5, gain:0.06, filter:'lowpass' }); },
+  thud(){ if(AR){ AR.sfx.noise({ freq:220, to:60, dur:0.30, gain:0.10, filter:'lowpass' });
+                  AR.sfx.tone({ freq:70, to:36, dur:0.32, type:'sine', gain:0.07 }); } },
+  crush(){ if(AR) AR.sfx.noise({ freq:500, to:80, dur:0.34, gain:0.09, filter:'lowpass' }); },
+  die(){ if(AR){ AR.sfx.noise({ freq:700, to:70, dur:0.7, gain:0.10, filter:'lowpass' });
+                 AR.sfx.tone({ freq:220, to:44, dur:0.75, type:'sawtooth', gain:0.07, cutoff:600 }); } },
+  breathe(){ if(AR){ AR.sfx.noise({ freq:300, to:1400, dur:0.30, gain:0.055, filter:'bandpass' });
+                     AR.sfx.tone({ freq:110, to:70, dur:0.34, type:'sawtooth', gain:0.045, cutoff:700 }); } },
+  clear(){ if(!AR) return; [0,4,7,12].forEach((n,i) =>
+    AR.sfx.tone({ t:AR.audio.now()+i*0.09, freq:262*Math.pow(2,n/12), dur:0.34,
+                  type:'square', gain:0.07, cutoff:2600, verb:0.4 })); }
+};
+
+/* ---- draw --------------------------------------------------------------- */
+function fit(){
+  const wrap = $('wrap');
+  S = Math.min((wrap.clientWidth-4)/W, (wrap.clientHeight-4)/H);
+  const dpr = Math.min(2, window.devicePixelRatio||1);
+  cv.width=Math.round(W*S*dpr); cv.height=Math.round(H*S*dpr);
+  cv.style.width=(W*S)+'px'; cv.style.height=(H*S)+'px';
+  g.setTransform(dpr*S,0,0,dpr*S,0,0);
+  draw();
+}
+function fitTight(){
+  fit();
+  for(let i=0;i<6;i++){
+    const r = cv.getBoundingClientRect();
+    if(r.right <= window.innerWidth && r.bottom <= $('wrap').getBoundingClientRect().bottom+1) break;
+    S *= 0.97;
+    const dpr = Math.min(2, window.devicePixelRatio||1);
+    cv.width=Math.round(W*S*dpr); cv.height=Math.round(H*S*dpr);
+    cv.style.width=(W*S)+'px'; cv.style.height=(H*S)+'px';
+    g.setTransform(dpr*S,0,0,dpr*S,0,0);
+  }
+  draw();
+}
+
+function draw(){
+  /* the air above, then the cutaway */
+  g.fillStyle='#1b2530'; g.fillRect(0,0,W,SKY*U);
+  g.fillStyle='#0f0b07'; g.fillRect(0,SKY*U,W,H-SKY*U);
+
+  for(let r=SKY;r<ROWS;r++){
+    const st = stratumAt(r);
+    for(let c=0;c<COLS;c++){
+      if(!solid(c,r)) continue;
+      const x=c*U, y=r*U;
+      g.fillStyle = st.c;
+      g.fillRect(x,y,U,U);
+      /* grain: short strokes, denser in clay, sparse in bedrock */
+      const seed = (c*13 + r*29) % 7;
+      g.fillStyle = st.c2 || st.g;
+      for(let i=0;i<3;i++){
+        const gx = x + ((seed*5 + i*7) % (U-4)), gy = y + ((seed*3 + i*11) % (U-3));
+        g.fillRect(gx, gy, 3 + (seed%3), 1.4);
+      }
+      /* the lit top edge only where soil meets air, so tunnels read as cut */
+      if(!solid(c,r-1)){
+        g.fillStyle='rgba(255,225,180,.20)'; g.fillRect(x,y,U,1.6);
+      }
+      if(!solid(c,r+1)){
+        g.fillStyle='rgba(0,0,0,.35)'; g.fillRect(x,y+U-2,U,2);
+      }
+    }
+  }
+
+  /* stratum labels down the left, as on a section drawing */
+  g.save();
+  g.font='7px "Chivo Mono", monospace';
+  for(const st of STRATA){
+    const r = Math.min(ROWS-1, st.to) - 1;
+    if(r < SKY) continue;
+    g.fillStyle='rgba(232,220,200,.22)';
+    g.fillText(st.name.toUpperCase(), 3, r*U - 3);
+  }
+  g.restore();
+
+  for(const rk of rocks){
+    const x = rk.c*U, y = rk.falling ? rk.y : rk.r*U;
+    const sh = rk.shake > 0 ? (Math.random()-0.5)*2 : 0;
+    g.save(); g.translate(x+sh, y);
+    g.fillStyle='#4a4038';
+    g.beginPath();
+    g.moveTo(2,U-1); g.lineTo(1,6); g.lineTo(7,1); g.lineTo(U-3,4);
+    g.lineTo(U-1,U-3); g.lineTo(U-6,U-1); g.closePath(); g.fill();
+    g.fillStyle='rgba(255,255,255,.22)';
+    g.beginPath(); g.moveTo(1,6); g.lineTo(7,1); g.lineTo(U-3,4); g.lineTo(6,7); g.closePath(); g.fill();
+    g.strokeStyle='rgba(0,0,0,.4)'; g.lineWidth=1;
+    g.beginPath(); g.moveTo(6,7); g.lineTo(U-5,U-4); g.stroke();
+    g.restore();
+  }
+
+  for(const f of foes){
+    if(!f.alive && f.dead <= 0) continue;
+    if(f.kind === 'drake' && f.flame > 0 && f.ghost <= 0) flame(f);
+    specimen(f);
+  }
+
+  if(pump){
+    /* The hose: a segmented brass line from the lance to the harpoon, with a
+       bulge travelling down it on every stroke — so you can SEE the air going
+       in rather than just watching a number of stages tick over. */
+    const f = pump.foe;
+    const x0 = you.x+U/2 + you.dir.c*11, y0 = you.y+U/2 + you.dir.r*11;
+    const x1 = f.x+U/2, y1 = f.y+U/2;
+    const dx = x1-x0, dy = y1-y0, len = Math.hypot(dx,dy) || 1;
+    const ux = dx/len, uy = dy/len;
+    const nx = -uy, ny = ux;
+
+    g.strokeStyle='#6b5230'; g.lineWidth=3.4;
+    g.beginPath(); g.moveTo(x0,y0); g.lineTo(x1,y1); g.stroke();
+    g.strokeStyle='#b08c4a'; g.lineWidth=2.2;
+    g.beginPath(); g.moveTo(x0,y0); g.lineTo(x1,y1); g.stroke();
+    g.strokeStyle='rgba(255,235,190,.45)'; g.lineWidth=0.9;
+    g.beginPath(); g.moveTo(x0+nx*0.7,y0+ny*0.7); g.lineTo(x1+nx*0.7,y1+ny*0.7); g.stroke();
+    /* ribs along the hose */
+    g.strokeStyle='rgba(40,28,14,.45)'; g.lineWidth=1;
+    for(let d=6; d<len-4; d+=5){
+      g.beginPath();
+      g.moveTo(x0+ux*d+nx*2.2, y0+uy*d+ny*2.2);
+      g.lineTo(x0+ux*d-nx*2.2, y0+uy*d-ny*2.2);
+      g.stroke();
+    }
+    /* the stroke travelling down it */
+    const q = (pump.t / 0.42) % 1;
+    const bd = 6 + q*(len-10);
+    g.fillStyle='rgba(255,225,150,.85)';
+    g.beginPath();
+    g.ellipse(x0+ux*bd, y0+uy*bd, 3.6, 2.6, Math.atan2(uy,ux), 0, 6.2832);
+    g.fill();
+    /* the harpoon head, buried in it */
+    g.save(); g.translate(x1,y1); g.rotate(Math.atan2(uy,ux));
+    g.fillStyle='#d8d2c4';
+    g.beginPath(); g.moveTo(-5,-2.4); g.lineTo(0,0); g.lineTo(-5,2.4); g.closePath(); g.fill();
+    g.restore();
+  }
+
+  if(deadT <= 0 && state==='play') driller();
+
+  for(const d of dust){
+    g.globalAlpha=Math.max(0,d.t);
+    g.fillStyle=d.col;
+    g.fillRect(d.x-1.2, d.y-1.2, 2.4, 2.4);
+    g.globalAlpha=1;
+  }
+}
+
+/* ---- the surveyor -------------------------------------------------------
+   A person, not a drill bit. Field kit: hard hat with a lamp, a canvas jacket,
+   a brass pump rig slung on the back with a hose that feeds the lance in both
+   hands. Drawn facing the direction of travel.
+   -------------------------------------------------------------------------- */
+function driller(){
+  const a = Math.atan2(you.dir.r, you.dir.c);
+  g.save(); g.translate(you.x+U/2, you.y+U/2);
+
+  /* the pack rides behind, opposite the way you are pointing */
+  g.save(); g.rotate(a);
+  g.fillStyle='#8a6a3f';
+  g.fillRect(-9,-4.5, 5, 9);                     /* brass tank */
+  g.fillStyle='rgba(255,235,190,.40)';
+  g.fillRect(-9,-4.5, 5, 1.6);
+  g.fillStyle='rgba(0,0,0,.35)';
+  g.fillRect(-9, 3, 5, 1.6);
+  g.strokeStyle='#6b5230'; g.lineWidth=1;        /* the strap */
+  g.beginPath(); g.arc(-2,0,4.6,-1.1,1.1); g.stroke();
+  g.restore();
+
+  /* body: canvas jacket, shoulders squared toward travel */
+  g.save(); g.rotate(a);
+  g.fillStyle='#c9762f';
+  g.beginPath();
+  g.moveTo(-4,-5.4); g.lineTo(4,-4.6); g.lineTo(5,4.6); g.lineTo(-4,5.4);
+  g.closePath(); g.fill();
+  g.fillStyle='rgba(255,255,255,.22)';
+  g.beginPath();
+  g.moveTo(-4,-5.4); g.lineTo(4,-4.6); g.lineTo(4,-3.2); g.lineTo(-4,-4);
+  g.closePath(); g.fill();
+  /* the hi-vis band, so you can always find yourself in the dirt */
+  g.fillStyle='#ffd23c';
+  g.fillRect(-1.4,-5.0, 2.2, 10.2);
+  /* both arms forward, holding the lance */
+  g.strokeStyle='#c9762f'; g.lineWidth=2.2; g.lineCap='round';
+  g.beginPath(); g.moveTo(2,-3.4); g.lineTo(7.5,-1.8); g.stroke();
+  g.beginPath(); g.moveTo(2, 3.4); g.lineTo(7.5, 1.8); g.stroke();
+  /* the lance itself, held out front */
+  g.strokeStyle='#b8b2a6'; g.lineWidth=1.8;
+  g.beginPath(); g.moveTo(5,0); g.lineTo(10.5,0); g.stroke();
+  g.fillStyle='#d8d2c4';
+  g.beginPath(); g.moveTo(10.5,-1.8); g.lineTo(13.5,0); g.lineTo(10.5,1.8); g.closePath(); g.fill();
+  /* the hose looping from pack to lance */
+  g.strokeStyle='#5e4a2e'; g.lineWidth=1.3;
+  g.beginPath(); g.moveTo(-6,3.4);
+  g.quadraticCurveTo(0,7.5, 6,1.6); g.stroke();
+  g.restore();
+
+  /* the head stays upright whichever way you are digging */
+  g.fillStyle='#e8c9a0';
+  g.beginPath(); g.arc(0,-0.6, 3.1, 0, 6.2832); g.fill();
+  g.fillStyle='#f2e4cc';
+  g.beginPath(); g.arc(0,-1.6, 3.4, Math.PI, 0); g.fill();
+  g.fillStyle='#d8c4a4';
+  g.fillRect(-3.6,-2.0, 7.2, 1.2);              /* brim */
+  /* the lamp, throwing a little light the way you face */
+  g.fillStyle='#fff6d0';
+  g.beginPath(); g.arc(0,-2.6, 1.1, 0, 6.2832); g.fill();
+  const lg = g.createRadialGradient(Math.cos(a)*4, Math.sin(a)*4 - 1, 0,
+                                    Math.cos(a)*4, Math.sin(a)*4 - 1, 13);
+  lg.addColorStop(0,'rgba(255,240,190,.22)');
+  lg.addColorStop(1,'rgba(255,240,190,0)');
+  g.fillStyle=lg;
+  g.fillRect(-16,-16,32,32);
+  g.restore();
+}
+
+/* the drake's breath, running along its gallery */
+function flame(f){
+  const rear = f.flame > 0.78;
+  if(rear){
+    /* the telegraph: a glow gathering at its mouth */
+    const a = (1.15-f.flame)/0.37;
+    g.fillStyle='rgba(255,170,60,'+(a*0.6)+')';
+    g.beginPath(); g.arc(f.x+U/2+f.fdir*5, f.y+U/2, 2+a*2.5, 0, 6.2832); g.fill();
+    return;
+  }
+  const life = f.flame/0.78;
+  for(let i=1;i<=3;i++){
+    const c = f.c + f.fdir*i;
+    if(!open(c, f.r)) break;
+    const x = c*U, y = f.r*U;
+    const gr = g.createLinearGradient(x, y, x+U, y);
+    const a = 0.30 + life*0.55;
+    gr.addColorStop(0,'rgba(255,225,140,'+a+')');
+    gr.addColorStop(0.5,'rgba(255,140,40,'+(a*0.85)+')');
+    gr.addColorStop(1,'rgba(200,60,20,'+(a*0.4)+')');
+    g.fillStyle=gr;
+    const h = U*0.62 * (0.7+life*0.3);
+    g.fillRect(x+1, y+(U-h)/2, U-2, h);
+    g.fillStyle='rgba(255,245,200,'+(a*0.5)+')';
+    g.fillRect(x+1, y+U/2-1.6, U-2, 3.2);
+  }
+}
+
+/* the things down there, drawn like specimen illustrations */
+function specimen(f){
+  const x=f.x+U/2, y=f.y+U/2;
+  /* In the original the player and the monsters are the SAME SIZE — one cell
+     each. Ours were not: the grub was 14 wide with a 17px ring against a
+     surveyor about 10 wide, so it read as a boss rather than a peer.
+     Everything now sits inside one cell and inflation grows from parity. */
+  const sc = 1 + f.inflate*0.22;
+  g.save(); g.translate(x,y); g.scale(sc,sc);
+  if(f.dead > 0) g.globalAlpha = Math.max(0, f.dead/0.6);
+  if(f.ghost > 0){
+    /* eyes travelling through the soil: the clearest warning in the genre */
+    g.restore();
+    g.save(); g.translate(x,y);
+    g.fillStyle='rgba(255,240,210,.92)';
+    g.beginPath(); g.arc(-2.6,0,2.1,0,6.2832); g.fill();
+    g.beginPath(); g.arc( 2.6,0,2.1,0,6.2832); g.fill();
+    g.fillStyle='#2a1c10';
+    const lx = Math.sign(you.x - f.x)*0.8, ly = Math.sign(you.y - f.y)*0.8;
+    g.beginPath(); g.arc(-2.6+lx,ly,1.0,0,6.2832); g.fill();
+    g.beginPath(); g.arc( 2.6+lx,ly,1.0,0,6.2832); g.fill();
+    g.restore();
+    g.globalAlpha=1;
+    return;
+  }
+
+  if(f.kind === 'drake'){
+    g.fillStyle='#d88a56';
+    g.beginPath(); g.ellipse(0,0,5.4,4.6,0,0,6.2832); g.fill();
+    g.strokeStyle='rgba(80,34,14,.45)'; g.lineWidth=0.9;
+    for(let i=-2;i<=2;i++){
+      g.beginPath(); g.ellipse(i*1.9,0,1.2,4.3,0,0,6.2832); g.stroke();
+    }
+    /* a dorsal crest, so you can tell it apart at a glance */
+    g.fillStyle='#a8481e';
+    for(let i=-1;i<=1;i++){
+      g.beginPath(); g.moveTo(i*2.6-1.1,-4.2); g.lineTo(i*2.6,-6.4);
+      g.lineTo(i*2.6+1.1,-4.2); g.closePath(); g.fill();
+    }
+    g.fillStyle='#3a1a08';
+    g.beginPath(); g.arc(f.fdir===-1?-3:3,-1.3,1.0,0,6.2832); g.fill();
+  } else if(f.kind === 'grub'){
+    g.fillStyle='#d8b48a';
+    g.beginPath(); g.ellipse(0,0,5.4,4.6,0,0,6.2832); g.fill();
+    /* segments, ruled like a plate illustration */
+    g.strokeStyle='rgba(60,40,24,.45)'; g.lineWidth=0.9;
+    for(let i=-2;i<=2;i++){
+      g.beginPath(); g.ellipse(i*1.9,0,1.2,4.3,0,0,6.2832); g.stroke();
+    }
+    g.fillStyle='#3a2a18';
+    g.beginPath(); g.arc(f.face===-1?-3:3,-1.3,1.0,0,6.2832); g.fill();
+  } else {
+    g.fillStyle='#c9d8e0';
+    g.beginPath();
+    g.moveTo(0,-5.6);
+    g.bezierCurveTo(4.8,-4, 4.8,2.4, 0,5.6);
+    g.bezierCurveTo(-4.8,2.4, -4.8,-4, 0,-5.6);
+    g.closePath(); g.fill();
+    g.strokeStyle='rgba(50,70,84,.45)'; g.lineWidth=0.9;
+    for(let i=0;i<3;i++){
+      g.beginPath(); g.moveTo(-4+i*4,-4.8); g.quadraticCurveTo(-2.4+i*4,0,-4+i*4,4.8); g.stroke();
+    }
+    g.fillStyle='#2a3a44';
+    g.beginPath(); g.arc(-1.5,-2.0,0.95,0,6.2832); g.fill();
+    g.beginPath(); g.arc( 1.5,-2.0,0.95,0,6.2832); g.fill();
+  }
+  /* inflation shows as a taut outline */
+  if(f.inflate > 0.1){
+    g.strokeStyle='rgba(255,225,180,'+(0.3+f.inflate*0.15)+')'; g.lineWidth=1.2;
+    g.beginPath(); g.arc(0,0,6.6,0,6.2832); g.stroke();
+  }
+  g.restore();
+  g.globalAlpha=1;
+}
+
+function paintHud(){
+  $('sc').textContent=score.toLocaleString();
+  $('lvl').textContent=level;
+  $('lv').textContent=Math.max(0,lives);
+}
+
+let last=0;
+function frame(now){
+  requestAnimationFrame(frame);
+  const dt=Math.min(0.05,(now-last)/1000)||0; last=now;
+  step(dt); draw();
+}
+
+/* ---- state ------------------------------------------------------------- */
+function start(){
+  runs++; reset(); state='play'; veil.classList.add('hidden'); fitTight();
+  if(AR && AR.music){ AR.music.stop(); AR.music.start(150, 4, snd.tick); }
+}
+function gameOver(){
+  state='over';
+  if(AR && AR.music) AR.music.stop();
+  const sv = AR&&AR.save ? AR.save.get('burrow') : null;
+  best = Math.max((sv&&sv.best)||0, score);
+  if(AR && AR.save) AR.save.merge('burrow', { best, depth:level, label:'BEST '+best.toLocaleString() });
+  showOver();
+}
+
+function openVeil(html, acts){
+  veilBody.innerHTML=html; veil.classList.remove('hidden');
+  veilBody.querySelectorAll('[data-act]').forEach(b =>
+    b.addEventListener('click', ()=>{ const fn=acts&&acts[b.dataset.act]; if(fn) fn(); }));
+}
+function showTitle(){
+  state='title';
+  openVeil('<h1>Burrow</h1>' +
+    '<div class="tmenu">' +
+      '<button class="btn" data-act="play">PLAY</button>' +
+      '<button class="btn ghost" data-act="opts">OPTIONS</button>' +
+      '<button class="btn ghost" data-act="quit">QUIT</button>' +
+    '</div>', { play:start, opts:showOptions, quit:()=>{ if(AR&&AR.home) AR.home(); } });
+}
+function showOptions(){
+  openVeil('<div class="eyebrow">BURROW</div><h1>Options</h1>' +
+    '<div class="tmenu">' +
+      '<button class="btn ghost" data-act="ctrl">CONTROLS</button>' +
+      '<button class="btn" data-act="back">BACK</button>' +
+    '</div>', { ctrl:showControls, back:showTitle });
+}
+function showControls(){
+  const touch=!!(AR&&AR.touch);
+  const rows=[
+    [touch?'Drag a direction':'Arrow keys','dig, and keep digging'],
+    [touch?'Hold still, then hold':'Hold space','pump whatever is in front of you'],
+    ['Let go and it deflates','four stages, the fourth pops it'],
+    ['Undermine a rock','it falls, and it crushes'],
+    ['The pale ones','come through soil when cornered']
+  ];
+  openVeil('<div class="eyebrow">'+(touch?'TOUCH':'KEYBOARD')+'</div><h1>Controls</h1>' +
+    '<div class="ctrls">'+rows.map(r=>'<div class="crow"><b>'+r[0]+'</b><i>'+r[1]+'</i></div>').join('')+'</div>' +
+    '<button class="btn" data-act="back" style="margin-top:16px">BACK</button>', { back:showOptions });
+}
+function showOver(){
+  openVeil('<div class="eyebrow">THE SECTION CLOSED</div>' +
+    '<h1>'+score.toLocaleString()+'<em>FINAL SCORE</em></h1>' +
+    '<div class="grid2">' +
+      '<div class="gc"><span>LEVEL</span><b>'+level+'</b></div>' +
+      '<div class="gc"><span>BEST</span><b>'+best.toLocaleString()+'</b></div>' +
+    '</div>' +
+    '<div class="tmenu">' +
+      '<button class="btn" data-act="again">PLAY AGAIN</button>' +
+      '<button class="btn ghost" data-act="title">TITLE</button>' +
+    '</div>', { again:start, title:showTitle });
+}
+
+/* ---- input ------------------------------------------------------------- */
+const held = { dir:null };
+let sx=0, sy=0, down=false, downT=0, pumpTimer=null;
+const toLocal=(cx,cy)=>{ const r=cv.getBoundingClientRect(); return {x:(cx-r.left)/S,y:(cy-r.top)/S}; };
+cv.addEventListener('pointerdown', e => {
+  cv.setPointerCapture(e.pointerId);
+  down=true; downT=performance.now();
+  const p=toLocal(e.clientX,e.clientY); sx=p.x; sy=p.y;
+  /* holding without dragging is the pump */
+  pumpTimer = setTimeout(()=>{ if(down && !held.dir) startPump(); }, 260);
+});
+cv.addEventListener('pointermove', e => {
+  if(!down) return;
+  const p=toLocal(e.clientX,e.clientY);
+  const dx=p.x-sx, dy=p.y-sy;
+  if(Math.hypot(dx,dy) < 10) return;
+  held.dir = Math.abs(dx)>Math.abs(dy) ? {c:dx>0?1:-1,r:0} : {c:0,r:dy>0?1:-1};
+  if(pumpTimer){ clearTimeout(pumpTimer); pumpTimer=null; }
+  stopPump();
+});
+function up(){
+  down=false; held.dir=null; stopPump();
+  if(pumpTimer){ clearTimeout(pumpTimer); pumpTimer=null; }
+}
+cv.addEventListener('pointerup', up);
+cv.addEventListener('pointercancel', up);
+
+window.addEventListener('keydown', e => {
+  if(state!=='play'){
+    if(e.key==='Enter'||e.key===' '){ const b=veilBody.querySelector('.btn'); if(b){ e.preventDefault(); b.click(); } }
+    return;
+  }
+  const m={ArrowLeft:{c:-1,r:0},ArrowRight:{c:1,r:0},ArrowUp:{c:0,r:-1},ArrowDown:{c:0,r:1}}[e.key];
+  if(m){ e.preventDefault(); held.dir=m; stopPump(); }
+  else if(e.key===' '){ e.preventDefault(); if(!pump) startPump(); }
+});
+window.addEventListener('keyup', e => {
+  const m={ArrowLeft:1,ArrowRight:1,ArrowUp:1,ArrowDown:1}[e.key];
+  if(m) held.dir=null;
+  if(e.key===' ') stopPump();
+});
+if(AR && AR.pad) AR.pad.onPress(name => {
+  if(AR.paused&&AR.paused()) return;
+  if(state!=='play'){ if(name==='a'||name==='start'){ const b=veilBody.querySelector('.btn'); if(b) b.click(); } return; }
+  if(name==='a'){ if(!pump) startPump(); else stopPump(); }
+});
+setInterval(() => {
+  if(!AR || !AR.pad || !AR.pad.connected || !AR.pad.connected()) return;
+  if(state!=='play') return;
+  if(AR.pad.down('left')) held.dir={c:-1,r:0};
+  else if(AR.pad.down('right')) held.dir={c:1,r:0};
+  else if(AR.pad.down('up')) held.dir={c:0,r:-1};
+  else if(AR.pad.down('down')) held.dir={c:0,r:1};
+  else held.dir=null;
+}, 16);
+
+if(AR && AR.onRestart) AR.onRestart(start);
+window.addEventListener('resize', fitTight);
+if(window.ResizeObserver) new ResizeObserver(fitTight).observe($('wrap'));
+
+const sv0 = AR&&AR.save ? AR.save.get('burrow') : null;
+best=(sv0&&sv0.best)||0;
+reset(); fit(); showTitle();
+requestAnimationFrame(()=>{ fitTight(); setTimeout(fitTight,200); });
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0a0c10">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Ribbit</title>
+<meta name="arcade-home" content="../../index.html#golden">
+<meta name="arcade-title" content="Ribbit">
+<meta name="arcade-accent" content="#5bd66c">
+<script src="../../audio.js"></script>
+<script src="../../arcade.js"></script>
+<style>
+@font-face{font-family:"Chivo Mono";font-style:normal;font-weight:100 900;font-display:swap;src:url("../../fonts/chivomono-var.woff2") format("woff2")}
+@font-face{font-family:"Syne";font-style:normal;font-weight:400 800;font-display:swap;src:url("../../fonts/syne-var.woff2") format("woff2")}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;overflow:hidden;background:#0a0c10;
+  font-family:"Chivo Mono",ui-monospace,monospace;color:#dfe6e2;
+  user-select:none;-webkit-user-select:none}
+#stage{position:fixed;inset:0;display:flex;flex-direction:column;padding-top:var(--safe-top,0px)}
+#head{flex:none;display:flex;justify-content:space-between;align-items:baseline;
+  padding:9px 14px 5px;font-size:9px;letter-spacing:.20em;color:#6b7a72}
+#head b{font-size:17px;color:#5bd66c;font-weight:700;font-variant-numeric:tabular-nums}
+#bar{flex:none;height:3px;margin:0 14px 5px;background:#1a221e;border-radius:2px;overflow:hidden}
+#barIn{height:100%;background:#5bd66c;width:100%}
+#wrap{flex:1;position:relative;display:grid;place-items:center;min-height:0;
+  padding:0 6px calc(6px + var(--safe-bot,0px))}
+#road{display:block;touch-action:none;border-radius:2px;
+  box-shadow:0 0 0 1px #1e2620, 0 18px 50px -20px #000}
+#veil{position:fixed;inset:0;background:rgba(8,10,13,.95);display:grid;place-items:center;
+  padding:26px;text-align:center;z-index:40}
+#veil.hidden{display:none}
+#veilBody{max-width:330px;width:100%}
+.eyebrow{font-size:9px;letter-spacing:.26em;color:#5bd66c;margin-bottom:9px}
+h1{font-family:"Syne",sans-serif;font-size:42px;font-weight:800;margin:0;
+  letter-spacing:-.02em;line-height:1;color:#eef4f0}
+h1 em{display:block;font-family:"Chivo Mono",monospace;font-size:9.5px;font-style:normal;
+  font-weight:400;letter-spacing:.24em;color:#6b7a72;margin-top:9px}
+.tmenu{display:flex;flex-direction:column;gap:8px;max-width:240px;margin:24px auto 0}
+.btn{padding:14px 0;width:100%;border:0;border-radius:3px;cursor:pointer;font:inherit;
+  font-size:11.5px;letter-spacing:.18em;background:#5bd66c;color:#07200e}
+.btn.ghost{background:transparent;color:#5bd66c;border:1px solid rgba(91,214,108,.34)}
+.btn:active{opacity:.85}
+.ctrls{margin:16px auto 0;max-width:290px}
+.crow{display:flex;justify-content:space-between;gap:12px;align-items:baseline;padding:7px 2px;
+  border-bottom:1px solid rgba(255,255,255,.07);font-size:12px;text-align:left}
+.crow b{font-weight:600;white-space:nowrap}
+.crow i{font-style:normal;color:#8b9a92;text-align:right}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:18px}
+.gc{border:1px solid #232b26;border-radius:3px;padding:9px}
+.gc span{display:block;font-size:8px;letter-spacing:.18em;color:#6b7a72}
+.gc b{display:block;font-size:17px;margin-top:3px;font-variant-numeric:tabular-nums}
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="head">
+    <div>SCORE <b id="sc">0</b></div>
+    <div>LEVEL <b id="lvl">1</b></div>
+    <div>LIVES <b id="lv">3</b></div>
+  </div>
+  <div id="bar"><div id="barIn"></div></div>
+  <div id="wrap"><canvas id="road"></canvas></div>
+</div>
+<div id="veil"><div id="veilBody"></div></div>
+<script>
+(function(){
+"use strict";
+const AR = window.Arcade, $ = id => document.getElementById(id);
+const cv = $('road'), g = cv.getContext('2d');
+const veil = $('veil'), veilBody = $('veilBody');
+
+/* 13 rows of 32: home, river x5, median, road x5, kerb. */
+const COLS = 13, ROWS = 14, U = 24;
+const W = COLS*U, H = ROWS*U;
+let S = 1;
+
+let lanes, you, homes, state, score, lives, level, best, timer, runs = 0;
+let hop, deaths, ripples, splash;
+
+/* ---- lanes ------------------------------------------------------------- */
+function buildLanes(){
+  lanes = [];
+  const sp = 0.55 + (level-1)*0.16;
+  /* row 0 is the home bank, row 7 the median, row 13 the kerb */
+  for(let r=0;r<ROWS;r++){
+    if(r === 0 || r === 7 || r === 13){ lanes.push({ kind:'safe', r }); continue; }
+    if(r < 7){
+      /* the river: floating things, and the gaps are what kill you */
+      const kind = (r % 2) ? 'log' : 'pad';
+      const dir = (r % 2) ? 1 : -1;
+      const len = kind === 'log' ? 3 : 2;
+      const gap = kind === 'log' ? 3 : 4;
+      const items = [];
+      for(let x=-2; x<COLS+3; x += len+gap)
+        items.push({ x, len, sink: kind==='pad' ? (x*0.7) % 6 : -1 });
+      lanes.push({ kind, r, dir, speed: sp*(0.5+ (r%3)*0.14), items, off:0 });
+    } else {
+      /* the road: things that kill you on contact */
+      const dir = (r % 2) ? -1 : 1;
+      const len = [1,2,1,3,2][r-8] || 1;
+      const gap = [4,5,3,6,4][r-8] || 4;
+      const items = [];
+      for(let x=-3; x<COLS+4; x += len+gap) items.push({ x, len });
+      lanes.push({ kind:'car', r, dir, speed: sp*(0.6 + ((r*3)%4)*0.18), items, len, off:0 });
+    }
+  }
+}
+
+function reset(){
+  score=0; lives=3; level=1; deaths=[]; ripples=[]; splash=null;
+  homes = [false,false,false,false,false];
+  buildLanes(); placeYou(); paintHud();
+}
+function placeYou(){
+  you = { c: 6, r: 13, x: 6*U, y: 13*U, ride: null, dead: 0 };
+  hop = null; timer = 1;
+}
+
+/* ---- movement ---------------------------------------------------------- */
+function move(dc, dr){
+  if(state !== 'play' || you.dead > 0 || hop) return;
+  const nc = you.c + dc, nr = you.r + dr;
+  if(nc < 0 || nc >= COLS || nr < 0 || nr >= ROWS) return;
+  hop = { fc: you.c, fr: you.r, tc: nc, tr: nr, t: 0 };
+  you.c = nc; you.r = nr;
+  you.ride = null;
+  if(dr < 0) score += 10;
+  snd.hop(nr);
+}
+
+function landed(){
+  const lane = lanes[you.r];
+  if(you.r === 0){ tryHome(); return; }
+  if(!lane) return;
+  if(lane.kind === 'safe') return;
+
+  if(lane.kind === 'car'){
+    /* the road kills you if you touch anything */
+    for(const it of lane.items){
+      const x = wrapX(it.x, lane);
+      if(you.c >= Math.floor(x) && you.c < Math.floor(x)+it.len){ die('squash'); return; }
+    }
+    return;
+  }
+  /* the river kills you if you touch NOTHING */
+  for(const it of lane.items){
+    const x = wrapX(it.x, lane);
+    if(it.sink >= 0 && sunk(it)) continue;
+    if(you.c >= Math.floor(x) && you.c < Math.floor(x)+it.len){
+      you.ride = { lane, it }; return;
+    }
+  }
+  die('drown');
+}
+
+function sunk(it){
+  /* pads submerge on a timer, so a route that worked once may not twice */
+  const p = (performance.now()/1000 + it.sink) % 6;
+  return p > 4.2;
+}
+function wrapX(x, lane){
+  /* `off` was only created on the first step(), so the very first draw ran with
+     undefined -> NaN -> a non-finite gradient, and the title never appeared. */
+  const span = COLS + 8;
+  let v = x + lane.dir * (lane.off || 0);
+  v = ((v + 4) % span + span) % span - 4;
+  return v;
+}
+
+function tryHome(){
+  /* only the five slots count; the bank between them is a drowning */
+  const slot = [1,3,6,9,11].indexOf(you.c);
+  if(slot < 0){ die('drown'); return; }
+  if(homes[slot]){ die('drown'); return; }
+  homes[slot] = true;
+  score += 60 + Math.round(timer*120);
+  snd.home();
+  ripples.push({ c:you.c, r:0, t:1 });
+  if(homes.every(Boolean)) nextLevel();
+  else placeYou();
+  paintHud();
+}
+
+function die(how){
+  you.dead = 1.1;
+  deaths.push({ x:you.x, y:you.y, how, t:1 });
+  if(how === 'drown'){ splash = { x:you.x, y:you.y, t:1 }; snd.splash(); }
+  else snd.squash();
+  lives--;
+  paintHud();
+  if(lives <= 0) setTimeout(gameOver, 700);
+}
+
+function nextLevel(){
+  level++;
+  score += 500;
+  homes = [false,false,false,false,false];
+  buildLanes();
+  placeYou();
+  snd.clear();
+  paintHud();
+}
+
+/* ---- step -------------------------------------------------------------- */
+function step(dt){
+  if(state !== 'play') return;
+
+  for(const lane of lanes){
+    if(lane.kind === 'safe') continue;
+    lane.off = (lane.off || 0) + lane.speed * dt;
+  }
+
+  if(you.dead > 0){
+    you.dead -= dt;
+    if(you.dead <= 0 && lives > 0) placeYou();
+    return;
+  }
+
+  if(hop){
+    hop.t += dt * 7;
+    const q = Math.min(1, hop.t);
+    /* a discrete arc, not free movement */
+    you.x = (hop.fc + (hop.tc-hop.fc)*q) * U;
+    you.y = (hop.fr + (hop.tr-hop.fr)*q) * U - Math.sin(q*Math.PI) * 9;
+    if(q >= 1){ hop = null; you.x = you.c*U; you.y = you.r*U; landed(); }
+    return;
+  }
+
+  /* riding: the float carries you, and the edge is fatal */
+  if(you.ride){
+    const { lane, it } = you.ride;
+    const x = wrapX(it.x, lane);
+    you.c = Math.round(x) + Math.min(it.len-1, Math.max(0, you.c - Math.floor(x)));
+    you.x = (x + (you.c - Math.floor(x))) * U;
+    you.y = you.r * U;
+    if(you.x < -U*0.6 || you.x > W - U*0.4){ die('drown'); return; }
+    if(it.sink >= 0 && sunk(it)){ die('drown'); return; }
+  } else {
+    you.x = you.c*U; you.y = you.r*U;
+    const lane = lanes[you.r];
+    if(lane && lane.kind === 'car'){
+      for(const it of lane.items){
+        const x = wrapX(it.x, lane);
+        if(you.c >= Math.floor(x) && you.c < Math.floor(x)+it.len){ die('squash'); break; }
+      }
+    }
+  }
+
+  timer -= dt / (26 - Math.min(12, level));
+  if(timer <= 0){ timer = 0; die('drown'); }
+  $('barIn').style.width = Math.max(0, timer*100) + '%';
+  $('barIn').style.background = timer < 0.25 ? '#e8484f' : '#5bd66c';
+  if(timer < 0.25 && Math.random() < 0.02) snd.warn();
+
+  for(let i=ripples.length-1;i>=0;i--){ ripples[i].t -= dt*1.4; if(ripples[i].t<=0) ripples.splice(i,1); }
+  for(let i=deaths.length-1;i>=0;i--){ deaths[i].t -= dt*1.1; if(deaths[i].t<=0) deaths.splice(i,1); }
+  if(splash){ splash.t -= dt*1.3; if(splash.t<=0) splash=null; }
+}
+
+/* ---- audio ------------------------------------------------------------- */
+const PENT = [0,2,4,7,9,12];
+const snd = {
+  tick(stp, t){
+    if(!AR || state !== 'play') return;
+    const base = 196;
+    if(stp % 4 === 0)
+      AR.sfx.tone({ t, freq: base/2, dur:0.22, type:'triangle', gain:0.055,
+                    attack:0.005, cutoff:460, bus:'music' });
+    if(stp % 2 === 1)
+      AR.sfx.tone({ t, freq: base * Math.pow(2, PENT[stp % PENT.length]/12),
+                    dur:0.09, type:'square', gain:0.030, attack:0.004,
+                    cutoff:2200, bus:'music' });
+    /* a percussion layer per level, so the road gets busier as it gets harder */
+    if(level > 1 && stp % 8 === 4)
+      AR.sfx.noise({ t, freq:2400, dur:0.05, gain:0.020 + level*0.004,
+                     filter:'highpass', bus:'music' });
+    if(level > 3 && stp % 8 === 2)
+      AR.sfx.noise({ t, freq:900, dur:0.07, gain:0.022, filter:'bandpass', bus:'music' });
+  },
+  hop(r){ if(AR) AR.sfx.tone({ freq: 300 + (ROWS-r)*24, to: 420 + (ROWS-r)*24,
+                               dur:0.07, type:'square', gain:0.05, cutoff:2400 }); },
+  splash(){ if(AR){ AR.sfx.noise({ freq:900, to:180, dur:0.4, gain:0.08, filter:'lowpass' });
+                    AR.sfx.tone({ freq:300, to:90, dur:0.35, type:'sine', gain:0.05 }); } },
+  squash(){ if(AR) AR.sfx.noise({ freq:400, to:70, dur:0.30, gain:0.10, filter:'lowpass' }); },
+  home(){ if(!AR) return; [0,4,7].forEach((n,i) =>
+    AR.sfx.tone({ t:AR.audio.ctx.currentTime + i*0.06, freq:440*Math.pow(2,n/12),
+                  dur:0.22, type:'sine', gain:0.07, verb:0.4 })); },
+  warn(){ if(AR) AR.sfx.tone({ freq:1200, dur:0.05, type:'square', gain:0.035 }); },
+  clear(){ if(!AR) return; [0,4,7,12].forEach((n,i) =>
+    AR.sfx.tone({ t:AR.audio.ctx.currentTime + i*0.09, freq:440*Math.pow(2,n/12),
+                  dur:0.30, type:'square', gain:0.075, cutoff:2600, verb:0.4 })); }
+};
+
+/* ---- draw: night storm drain ------------------------------------------- */
+function fit(){
+  const wrap = $('wrap');
+  S = Math.min((wrap.clientWidth-4)/W, (wrap.clientHeight-4)/H);
+  const dpr = Math.min(2, window.devicePixelRatio||1);
+  cv.width=Math.round(W*S*dpr); cv.height=Math.round(H*S*dpr);
+  cv.style.width=(W*S)+'px'; cv.style.height=(H*S)+'px';
+  g.setTransform(dpr*S,0,0,dpr*S,0,0);
+  draw();
+}
+function fitTight(){
+  fit();
+  for(let i=0;i<6;i++){
+    const r = cv.getBoundingClientRect();
+    if(r.right <= window.innerWidth && r.bottom <= $('wrap').getBoundingClientRect().bottom+1) break;
+    S *= 0.97;
+    const dpr = Math.min(2, window.devicePixelRatio||1);
+    cv.width=Math.round(W*S*dpr); cv.height=Math.round(H*S*dpr);
+    cv.style.width=(W*S)+'px'; cv.style.height=(H*S)+'px';
+    g.setTransform(dpr*S,0,0,dpr*S,0,0);
+  }
+  draw();
+}
+
+function draw(){
+  /* the culvert above, the wet road below, sodium light across both */
+  g.fillStyle='#0d1114'; g.fillRect(0,0,W,H);
+  g.fillStyle='#0a1418'; g.fillRect(0, 0, W, 7*U);          /* water */
+  g.fillStyle='#15171a'; g.fillRect(0, 8*U, W, 5*U);        /* asphalt */
+  g.fillStyle='#1b1f22'; g.fillRect(0, 7*U, W, U);          /* median */
+  g.fillStyle='#1b1f22'; g.fillRect(0, 13*U, W, U);         /* kerb */
+
+  /* sodium pools on the wet road */
+  for(let i=0;i<3;i++){
+    const cx = (i+0.5) * W/3;
+    const gr = g.createRadialGradient(cx, 10.5*U, 4, cx, 10.5*U, U*3.4);
+    gr.addColorStop(0,'rgba(255,176,88,.16)');
+    gr.addColorStop(1,'rgba(255,150,60,0)');
+    g.fillStyle = gr; g.fillRect(0, 8*U, W, 5*U);
+  }
+  /* lane markings */
+  g.strokeStyle='rgba(220,220,200,.10)'; g.lineWidth=1; g.setLineDash([7,9]);
+  for(let r=9;r<13;r++){ g.beginPath(); g.moveTo(0,r*U+0.5); g.lineTo(W,r*U+0.5); g.stroke(); }
+  g.setLineDash([]);
+
+  /* the home bank */
+  g.fillStyle='#12211a'; g.fillRect(0,0,W,U);
+  [1,3,6,9,11].forEach((c,i) => {
+    g.fillStyle = homes[i] ? 'rgba(91,214,108,.30)' : 'rgba(10,20,24,.85)';
+    g.fillRect(c*U+1, 1, U-2, U-2);
+    g.strokeStyle='rgba(91,214,108,.45)'; g.lineWidth=1;
+    g.strokeRect(c*U+1.5, 1.5, U-3, U-3);
+    if(homes[i]) creature(c*U, 0, true);
+  });
+
+  for(const lane of lanes){
+    if(lane.kind === 'safe') continue;
+    for(const it of lane.items){
+      const x = wrapX(it.x, lane) * U, y = lane.r * U;
+      if(lane.kind === 'car') vehicle(x, y, it.len, lane.dir, lane.r);
+      else float_(x, y, it, lane.kind);
+    }
+  }
+
+  for(const rp of ripples){
+    g.strokeStyle = 'rgba(150,255,190,'+rp.t+')'; g.lineWidth=1.4;
+    g.beginPath(); g.arc(rp.c*U+U/2, rp.r*U+U/2, (1-rp.t)*U*1.4, 0, 6.2832); g.stroke();
+  }
+
+  if(you.dead <= 0 && state === 'play')
+    creature(you.x, you.y, false, hop ? Math.min(1, hop.t) : 0);
+
+  if(splash){
+    g.strokeStyle='rgba(150,220,255,'+splash.t+')'; g.lineWidth=1.5;
+    for(let i=0;i<3;i++){
+      g.beginPath(); g.arc(splash.x+U/2, splash.y+U/2, (1-splash.t)*U*(0.7+i*0.5), 0, 6.2832); g.stroke();
+    }
+  }
+  for(const d of deaths){
+    g.globalAlpha = Math.min(1,d.t);
+    if(d.how === 'squash'){
+      g.fillStyle='#c9d6cf';
+      g.fillRect(d.x+2, d.y+U*0.55, U-4, U*0.22);
+    }
+    g.globalAlpha = 1;
+  }
+}
+
+/* A frog, seen from directly above, and mid-hop the legs extend. Pale rather
+   than bright green — a tree frog under a sodium lamp reads cream, which keeps
+   the night palette without making the thing a blob. */
+function creature(x, y, home, hopQ){
+  g.save(); g.translate(x+U/2, y+U/2);
+  if(home) g.scale(0.78, 0.78);
+  const ext = hopQ ? Math.sin(hopQ*Math.PI) : 0;   /* legs kick out mid-hop */
+
+  /* pale lime, warm enough to hold up under the sodium pools */
+  const skin = '#c8e86a', shade = '#a3c94e', dark = '#7fa338';
+
+  /* hind legs: big thigh, shin folded back alongside, webbed foot */
+  for(const sx of [-1, 1]){
+    g.save(); g.scale(sx, 1);
+    g.fillStyle = shade;
+    /* thigh */
+    g.beginPath(); g.ellipse(5.2, 2.6, 3.4, 2.2, -0.5, 0, 6.2832); g.fill();
+    /* shin, straightening as it hops */
+    g.save();
+    g.translate(6.4, 4.2); g.rotate(0.55 - ext*0.75);
+    g.fillStyle = shade;
+    g.beginPath(); g.ellipse(2.4, 0, 3.4 + ext*1.6, 1.5, 0, 0, 6.2832); g.fill();
+    /* foot: three splayed toes */
+    g.strokeStyle = shade; g.lineWidth = 1.1; g.lineCap = 'round';
+    for(const a of [-0.5, 0, 0.5]){
+      g.beginPath(); g.moveTo(5 + ext*1.6, 0);
+      g.lineTo(5 + ext*1.6 + Math.cos(a)*3.4, Math.sin(a)*3.4);
+      g.stroke();
+    }
+    g.restore();
+    g.restore();
+  }
+
+  /* front legs: short, angled forward */
+  for(const sx of [-1, 1]){
+    g.save(); g.scale(sx, 1);
+    g.strokeStyle = shade; g.lineWidth = 1.6; g.lineCap = 'round';
+    g.beginPath(); g.moveTo(3.2, -1.6);
+    g.quadraticCurveTo(5.4, -4.2, 4.6, -6.4);
+    g.stroke();
+    for(const a of [-0.6, 0, 0.6]){
+      g.beginPath(); g.moveTo(4.6, -6.4);
+      g.lineTo(4.6 + Math.sin(a)*2.4, -6.4 - Math.cos(a)*2.4);
+      g.stroke();
+    }
+    g.restore();
+  }
+
+  /* body: a rounded triangle, widest at the shoulders, tapering back */
+  g.fillStyle = skin;
+  g.beginPath();
+  g.moveTo(0, -7.4);
+  g.bezierCurveTo(5.6, -6.4, 5.4, 0.5, 3.0, 5.4);
+  g.bezierCurveTo(1.4, 7.2, -1.4, 7.2, -3.0, 5.4);
+  g.bezierCurveTo(-5.4, 0.5, -5.6, -6.4, 0, -7.4);
+  g.closePath(); g.fill();
+  /* the back is darker than the flanks, so it reads as rounded */
+  g.fillStyle = 'rgba(112,150,54,.34)';
+  g.beginPath(); g.ellipse(0, 0.6, 2.6, 4.4, 0, 0, 6.2832); g.fill();
+  /* a couple of blotches, because a plain frog looks like a pebble */
+  g.fillStyle = 'rgba(112,150,54,.44)';
+  g.beginPath(); g.ellipse(-2.0, 1.4, 1.3, 1.0, 0.4, 0, 6.2832); g.fill();
+  g.beginPath(); g.ellipse( 2.2, 3.0, 1.0, 0.8, -0.3, 0, 6.2832); g.fill();
+
+  /* eyes: bulging, ON TOP of the head near the front, which is the single
+     feature that makes a shape read as a frog rather than a mouse */
+  for(const sx of [-1, 1]){
+    g.fillStyle = skin;
+    g.beginPath(); g.arc(sx*2.9, -6.0, 2.5, 0, 6.2832); g.fill();
+    g.fillStyle = '#f4ffd8';
+    g.beginPath(); g.arc(sx*2.9, -6.2, 1.9, 0, 6.2832); g.fill();
+    g.fillStyle = '#c8a02a';
+    g.beginPath(); g.arc(sx*2.9, -6.2, 1.5, 0, 6.2832); g.fill();
+    g.fillStyle = '#101511';
+    g.beginPath(); g.ellipse(sx*2.9, -6.2, 0.6, 1.2, 0, 0, 6.2832); g.fill();
+    g.fillStyle = 'rgba(255,255,255,.9)';
+    g.beginPath(); g.arc(sx*2.9 - 0.6, -6.9, 0.5, 0, 6.2832); g.fill();
+  }
+  /* the snout line between them */
+  g.strokeStyle = 'rgba(112,150,54,.55)'; g.lineWidth = 0.8;
+  g.beginPath(); g.moveTo(-1.6, -5.0); g.quadraticCurveTo(0, -3.8, 1.6, -5.0); g.stroke();
+
+  g.restore();
+}
+
+function vehicle(x, y, len, dir, row){
+  const w = len*U - 4, h = U - 7, px = x+2, py = y+3.5;
+  const body = ['#8a3f45','#3f5f8a','#6a6a72','#8a6a3f','#4a7a5f'][row % 5];
+  g.fillStyle = body; g.fillRect(px, py, w, h);
+  g.fillStyle = 'rgba(255,255,255,.20)'; g.fillRect(px, py, w, 2.5);
+  g.fillStyle = 'rgba(0,0,0,.42)'; g.fillRect(px, py+h-3, w, 3);
+  g.fillStyle = 'rgba(180,210,230,.30)';
+  g.fillRect(px + (dir>0 ? w*0.55 : w*0.14), py+3, w*0.30, h-8);
+  /* headlights, and their smear on the wet road */
+  const hx = dir > 0 ? px+w : px;
+  g.fillStyle = 'rgba(255,240,190,.95)';
+  g.fillRect(hx - (dir>0?3:0), py+2, 3, 3);
+  g.fillRect(hx - (dir>0?3:0), py+h-5, 3, 3);
+  const gr = g.createLinearGradient(hx, 0, hx + dir*U*1.6, 0);
+  gr.addColorStop(0,'rgba(255,230,170,.20)'); gr.addColorStop(1,'rgba(255,230,170,0)');
+  g.fillStyle = gr;
+  g.fillRect(Math.min(hx, hx+dir*U*1.6), py, U*1.6, h);
+}
+
+function float_(x, y, it, kind){
+  const w = it.len*U, px = x, py = y+4, h = U-9;
+  if(kind === 'log'){
+    g.fillStyle = '#3a2f26'; g.fillRect(px, py, w, h);
+    g.fillStyle = 'rgba(255,255,255,.10)'; g.fillRect(px, py, w, 2);
+    g.fillStyle = 'rgba(0,0,0,.35)'; g.fillRect(px, py+h-2.5, w, 2.5);
+    g.strokeStyle = 'rgba(0,0,0,.25)'; g.lineWidth=1;
+    for(let i=1;i<it.len;i++){ g.beginPath(); g.moveTo(px+i*U, py); g.lineTo(px+i*U, py+h); g.stroke(); }
+  } else {
+    const s = sunk(it);
+    g.globalAlpha = s ? 0.22 : 1;
+    g.fillStyle = '#24463a'; 
+    g.beginPath(); g.ellipse(px+w/2, py+h/2, w/2-2, h/2, 0, 0, 6.2832); g.fill();
+    g.fillStyle = 'rgba(140,220,170,.18)';
+    g.beginPath(); g.ellipse(px+w/2, py+h/2-1.5, w/2-4, h/2-3, 0, 0, 6.2832); g.fill();
+    g.globalAlpha = 1;
+    if(!s){
+      /* about to go under: a warning you can act on */
+      const p = (performance.now()/1000 + it.sink) % 6;
+      if(p > 3.4){
+        g.strokeStyle = 'rgba(255,120,120,.7)'; g.lineWidth=1.4;
+        g.beginPath(); g.ellipse(px+w/2, py+h/2, w/2-2, h/2, 0, 0, 6.2832); g.stroke();
+      }
+    }
+  }
+}
+
+function paintHud(){
+  $('sc').textContent = score.toLocaleString();
+  $('lvl').textContent = level;
+  $('lv').textContent = Math.max(0,lives);
+}
+
+let last=0;
+function frame(now){
+  requestAnimationFrame(frame);
+  const dt=Math.min(0.05,(now-last)/1000)||0; last=now;
+  step(dt); draw();
+}
+
+/* ---- state ------------------------------------------------------------- */
+function start(){
+  runs++; reset(); state='play'; veil.classList.add('hidden'); fitTight();
+  if(AR && AR.music){ AR.music.stop(); AR.music.start(112, 4, snd.tick); }
+}
+function gameOver(){
+  state='over';
+  if(AR && AR.music) AR.music.stop();
+  const sv = AR&&AR.save ? AR.save.get('ribbit') : null;
+  best = Math.max((sv&&sv.best)||0, score);
+  if(AR && AR.save) AR.save.merge('ribbit', { best, label:'BEST '+best.toLocaleString() });
+  showOver();
+}
+
+function openVeil(html, acts){
+  veilBody.innerHTML=html; veil.classList.remove('hidden');
+  veilBody.querySelectorAll('[data-act]').forEach(b =>
+    b.addEventListener('click', ()=>{ const fn=acts&&acts[b.dataset.act]; if(fn) fn(); }));
+}
+function showTitle(){
+  state='title';
+  openVeil('<h1>Ribbit</h1>' +
+    '<div class="tmenu">' +
+      '<button class="btn" data-act="play">PLAY</button>' +
+      '<button class="btn ghost" data-act="opts">OPTIONS</button>' +
+      '<button class="btn ghost" data-act="quit">QUIT</button>' +
+    '</div>', { play:start, opts:showOptions, quit:()=>{ if(AR&&AR.home) AR.home(); } });
+}
+function showOptions(){
+  openVeil('<div class="eyebrow">RIBBIT</div><h1>Options</h1>' +
+    '<div class="tmenu">' +
+      '<button class="btn ghost" data-act="ctrl">CONTROLS</button>' +
+      '<button class="btn" data-act="back">BACK</button>' +
+    '</div>', { ctrl:showControls, back:showTitle });
+}
+function showControls(){
+  const touch = !!(AR&&AR.touch);
+  const rows = [
+    [touch?'Swipe':'Arrow keys','one hop, in that direction'],
+    [touch?'Tap ahead':'Up','hop forward'],
+    ['The road','kills you if you touch anything'],
+    ['The water','kills you if you touch nothing'],
+    ['Riding to the edge','also kills you \u2014 get off in time']
+  ];
+  openVeil('<div class="eyebrow">'+(touch?'TOUCH':'KEYBOARD')+'</div><h1>Controls</h1>' +
+    '<div class="ctrls">'+rows.map(r=>'<div class="crow"><b>'+r[0]+'</b><i>'+r[1]+'</i></div>').join('')+'</div>' +
+    '<button class="btn" data-act="back" style="margin-top:16px">BACK</button>', { back:showOptions });
+}
+function showOver(){
+  openVeil('<div class="eyebrow">NOTHING GOT ACROSS</div>' +
+    '<h1>'+score.toLocaleString()+'<em>FINAL SCORE</em></h1>' +
+    '<div class="grid2">' +
+      '<div class="gc"><span>LEVEL</span><b>'+level+'</b></div>' +
+      '<div class="gc"><span>BEST</span><b>'+best.toLocaleString()+'</b></div>' +
+    '</div>' +
+    '<div class="tmenu">' +
+      '<button class="btn" data-act="again">PLAY AGAIN</button>' +
+      '<button class="btn ghost" data-act="title">TITLE</button>' +
+    '</div>', { again:start, title:showTitle });
+}
+
+/* ---- input ------------------------------------------------------------- */
+let sx=0, sy=0, sw=false;
+cv.addEventListener('pointerdown', e => { sw=true; sx=e.clientX; sy=e.clientY; });
+cv.addEventListener('pointerup', e => {
+  if(!sw) return; sw=false;
+  const dx=e.clientX-sx, dy=e.clientY-sy;
+  if(Math.hypot(dx,dy) < 18){ move(0,-1); return; }      /* a tap is forward */
+  if(Math.abs(dx) > Math.abs(dy)) move(dx>0?1:-1, 0);
+  else move(0, dy>0?1:-1);
+});
+window.addEventListener('keydown', e => {
+  if(state!=='play'){
+    if(e.key==='Enter'||e.key===' '){ const b=veilBody.querySelector('.btn'); if(b){ e.preventDefault(); b.click(); } }
+    return;
+  }
+  const m={ArrowLeft:[-1,0],ArrowRight:[1,0],ArrowUp:[0,-1],ArrowDown:[0,1]}[e.key];
+  if(m){ e.preventDefault(); move(m[0],m[1]); }
+});
+if(AR && AR.pad) AR.pad.onPress(name => {
+  if(AR.paused&&AR.paused()) return;
+  if(state!=='play'){ if(name==='a'||name==='start'){ const b=veilBody.querySelector('.btn'); if(b) b.click(); } return; }
+  const m={left:[-1,0],right:[1,0],up:[0,-1],down:[0,1]}[name];
+  if(m) move(m[0],m[1]);
+});
+if(AR && AR.onRestart) AR.onRestart(start);
+window.addEventListener('resize', fitTight);
+if(window.ResizeObserver) new ResizeObserver(fitTight).observe($('wrap'));
+
+const sv0 = AR&&AR.save ? AR.save.get('ribbit') : null;
+best=(sv0&&sv0.best)||0;
+reset(); fit(); showTitle();
+requestAnimationFrame(()=>{ fitTight(); setTimeout(fitTight,200); });
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
