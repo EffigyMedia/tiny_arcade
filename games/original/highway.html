@@ -142,7 +142,10 @@ canvas{display:block;width:100%;height:100%;touch-action:none}
 
 /* the nitrous bottle, lying on its side over the accelerator */
 #nitro{
-  right:0;bottom:92px;width:72px;height:30px;
+  /* The dials and the gate were landing on top of it. 92px cleared the pedals
+     but nothing above, so it needed the gap raising — not by much, or it
+     drifts away from the thumb that presses it. */
+  right:0;bottom:100px;width:72px;height:30px;
 }
 body.no-touch #nitro{ transform-origin:100% 100%; transform:scale(var(--ark-ui,1)) }
 #nitro i{
@@ -288,12 +291,12 @@ body.no-touch.manual #dials{
   transform-origin:100% 100%;
   transform:scale(var(--ark-ui,1));
   right:calc(env(safe-area-inset-right,0px) + 8px);
-  bottom:calc(env(safe-area-inset-bottom,0px) + 138px);
+  bottom:calc(env(safe-area-inset-bottom,0px) + 152px);
   width:115px;height:59px;
   transition:bottom .18s ease-out;
 }
 body.manual #dials{
-  bottom:calc(env(safe-area-inset-bottom,0px) + 242px);
+  bottom:calc(env(safe-area-inset-bottom,0px) + 252px);
 }
 #dials canvas{width:115px;height:59px;display:block}
 body.pedals-left #dials{ right:auto; left:calc(env(safe-area-inset-left,0px) + 8px) }
@@ -330,7 +333,7 @@ body.pedals-left #dials{ right:auto; left:calc(env(safe-area-inset-left,0px) + 8
   transform-origin:100% 100%;
   transform:scale(var(--ark-ui,1));
   right:calc(env(safe-area-inset-right,0px) + 10px);
-  bottom:calc(env(safe-area-inset-bottom,0px) + 140px);
+  bottom:calc(env(safe-area-inset-bottom,0px) + 150px);
   width:86px;height:94px;touch-action:none;
 }
 #shifter[hidden]{ display:none }
@@ -523,7 +526,7 @@ var snd = {
     if (snd.armed || !AR.audio.onReset) return;
     snd.armed = true;
     AR.audio.onReset(function(){ snd.eng = null; snd.thrust = null;
-      snd.screech = snd.screechMid = snd.screechLow = null; snd.begin(); });
+      snd.sqA = snd.sqB = snd.sqC = snd.screechLow = null; snd.begin(); });
   },
   begin: function(){
     if (!AR) return;
@@ -545,13 +548,23 @@ var snd = {
          speed. Held at a fixed pitch it would drone; it tracks the rate of
          deceleration instead, so it screeches on the stop and dies as you
          settle. */
-      /* One tight high band on its own is a hiss. Real tyre screech is a LOW
-         roar of rubber tearing with a squeal riding on top, so this is three
-         voices: a broad low body, a mid grind, and the high squeal that
-         actually sings. */
-      snd.screech    = AR.sfx.holdNoise({ freq:4600, q:9 });      /* squeal */
-      snd.screechMid = AR.sfx.holdNoise({ freq:1250, q:2.2 });    /* grind  */
-      snd.screechLow = AR.sfx.holdNoise({ freq:280,  q:0.8 });    /* body   */
+      /* ---- what a tyre actually does -----------------------------------
+         A squealing tyre is not noise. The contact patch grips, stretches,
+         releases and grips again hundreds of times a second — STICK-SLIP —
+         and that is a periodic oscillation, so it has a pitch and a stack of
+         harmonics. Filtering noise can only ever give you a hiss, however
+         many bands you use, because there is no periodicity in it to hear.
+
+         So the squeal is now TONAL: a sawtooth fundamental around 700Hz with
+         two harmonic partials above it, each detuned slightly so they beat
+         against one another, run through a sharp resonant filter. Noise stays,
+         but only as the scrub underneath — the roar of rubber abrading —
+         rather than as the sound itself.
+         ------------------------------------------------------------------- */
+      snd.sqA = AR.sfx.hold({ freq:700,  type:'sawtooth', cutoff:2400, q:9 });
+      snd.sqB = AR.sfx.hold({ freq:1057, type:'square',   cutoff:3000, q:7, detune:12 });
+      snd.sqC = AR.sfx.hold({ freq:1412, type:'sawtooth', cutoff:3600, q:6, detune:-16 });
+      snd.screechLow = AR.sfx.holdNoise({ freq:320, q:0.7 });   /* the scrub */
     }
     AR.music.start(152, 4, snd.bed);
   },
@@ -678,29 +691,25 @@ var snd = {
     /* screech: only while genuinely shedding speed. `decel` is 0-1, how hard
        the car is slowing right now, so once it settles at the brake floor the
        sound stops even though the pedal is still down. */
-    if (snd.screech){
+    if (snd.sqA){
       var sq = Math.max(0, Math.min(1, decel || 0));
-      /* Higher and thinner than the first cut, with a shiver on it — tyres
-         chattering rather than a flat hiss. It cuts off hard: the old release
-         let it ring on after the car had already settled. */
+      /* the slip rate is never steady, so the pitch shivers */
       snd.scrPhase = (snd.scrPhase || 0) + 0.94;
       var wob = 1 + Math.sin(snd.scrPhase) * 0.115;
-      /* also silent at a crawl: tyres do not sing at 46mph. `r` is the speed
-         as a fraction of top, so 46/180 is the floor. */
+      /* silent at a crawl: tyres do not sing at 46mph */
       if (sq > 0.14 && r > 46/200){
-        /* three voices together: the LOW body is the loudest of them, which is
-           what turns a hiss into rubber tearing off a tyre */
-        /* Harder across the board, and the SQUEAL now carries real level
-           rather than sitting under the body — tyres tearing loose sing, they
-           do not rumble politely. The wobble is deeper too, so it chatters. */
-        snd.screech.set((4300 + r*3000) * wob, 0.048 + sq*0.165, 0.020);
-        if (snd.screechMid)
-          snd.screechMid.set((1050 + r*1150) * wob, 0.085 + sq*0.235, 0.024);
+        /* The fundamental climbs with speed; the partials track it so the
+           whole stack moves as one voice rather than three sounds. */
+        var f0 = (620 + r*420) * wob;
+        snd.sqA.set(f0,      0.055 + sq*0.150, f0*3.4, 0.018);
+        if (snd.sqB) snd.sqB.set(f0*1.51, 0.030 + sq*0.090, f0*4.2, 0.018);
+        if (snd.sqC) snd.sqC.set(f0*2.02, 0.018 + sq*0.055, f0*5.0, 0.018);
         if (snd.screechLow)
-          snd.screechLow.set(190 + r*200, 0.100 + sq*0.250, 0.032);
+          snd.screechLow.set(260 + r*180, 0.045 + sq*0.105, 0.030);
       } else {
-        snd.screech.set(4600, 0, 0.05);
-        if (snd.screechMid) snd.screechMid.set(1250, 0, 0.06);
+        snd.sqA.set(620, 0, 2000, 0.05);
+        if (snd.sqB) snd.sqB.set(940, 0, 2600, 0.05);
+        if (snd.sqC) snd.sqC.set(1260, 0, 3200, 0.05);
         if (snd.screechLow) snd.screechLow.set(280, 0, 0.08);
       }
     }
@@ -720,8 +729,9 @@ var snd = {
     snd.wind.set(400, 0, 0.4);
     snd.siren.set(undefined, 0, undefined, 0.3);
     if (snd.thrust)  snd.thrust.set(1500, 0, 0.3);
-    if (snd.screech) snd.screech.set(3000, 0, 0.3);
-    if (snd.screechMid) snd.screechMid.set(1250, 0, 0.3);
+    if (snd.sqA) snd.sqA.set(620, 0, 2000, 0.3);
+    if (snd.sqB) snd.sqB.set(940, 0, 2600, 0.3);
+    if (snd.sqC) snd.sqC.set(1260, 0, 3200, 0.3);
     if (snd.screechLow) snd.screechLow.set(280, 0, 0.3);
   },
 
@@ -1864,7 +1874,7 @@ function step(dt){
                 pull — two penalties stacking. A sports car in a low gear snaps
                 to its limiter. The rate is now high and flat, and the gear cap
                 is what stops you rather than the engine going soft. */
-             : spd < top ? (nosOn ? 15000 : 13000) * gearFactor()
+             : spd < top ? (nosOn ? 12200 : 10400) * gearFactor()
              : (offRoad ? 11000 : 2400);
   /* Approach the target without crossing it. It used to add or subtract a
      fixed step, so on the brakes the car overshot the floor and juddered
@@ -2241,7 +2251,13 @@ function step(dt){
   /* Tyres sing when they are scrubbing, not only when the brake is on — a
      hard change of lane at speed should squeal too, and now the same number
      that lays the rubber drives the sound. */
-  snd.drive(spd, MAX_SPD, offRoad, nosOn, near, Math.max(decel, pScrub * 0.9));
+  /* An engine note tracks REVS. Tied to road speed it swept smoothly from 0
+     to 200 and never changed when you shifted — the one moment an engine most
+     obviously changes pitch. Feeding it rpm means every upshift drops the note
+     and every downshift blips it, for free. */
+  const revFrac = clamp((engineRpm() - IDLE) / (REDLINE - IDLE), 0, 1);
+  snd.drive(revFrac * MAX_SPD, MAX_SPD, offRoad, nosOn, near,
+            Math.max(decel, pScrub * 0.9));
 
   /* ---- stopping with the law behind you --------------------------------
      Braking to a halt is free on an empty road and fatal in a pursuit. A
