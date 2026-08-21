@@ -483,7 +483,10 @@ body.pedals-left #tacho{ right:auto; left:calc(env(safe-area-inset-left,0px) + 1
 #veil *{max-width:100%;overflow-wrap:anywhere}
 #veil h1{overflow-wrap:break-word;hyphens:auto}
 #veil{position:absolute;inset:0;z-index:30;display:grid;place-items:center;padding:30px 24px;
-  background:radial-gradient(110% 70% at 50% 62%,rgba(20,8,24,.72),rgba(8,5,15,.96));
+  /* OPAQUE. A road running behind the menu is motion nobody asked for while
+     they are reading stats, and it kept the whole simulation warm for no
+     reason. Solid, with a soft vignette so it is not a flat slab. */
+  background:radial-gradient(120% 80% at 50% 40%,#1b1424 0%,#0d0912 62%,#07050b 100%);
   text-align:center}
 #veil.hidden{display:none}
 .vw{width:100%;max-width:330px}
@@ -505,6 +508,36 @@ h1 u{text-decoration:none;display:block;font-size:.34em;letter-spacing:.26em;col
 .go:focus-visible{outline:2px solid var(--pale);outline-offset:3px}
 .tip{margin-top:16px;font-size:10px;line-height:1.8;color:var(--dim)}
 .tip b{color:var(--pale)}
+
+.gwrap{margin:2px auto 10px}
+#gcar{display:block;margin:0 auto}
+.gname{font-family:var(--disp);font-size:20px;letter-spacing:.10em;color:#fff3e2;margin-top:2px}
+.gnote{font-size:9px;letter-spacing:.14em;color:#8a7f92;margin:4px 0 10px}
+.gstat{display:flex;justify-content:space-between;align-items:center;
+  padding:5px 4px;border-bottom:1px solid rgba(255,255,255,.07);
+  font-size:10px;letter-spacing:.12em;color:#9aa0ae}
+.gstat b{font-weight:400;color:#fff3e2;font-size:12px}
+.bar{display:flex;gap:3px}
+.bar i{display:block;width:13px;height:7px;border-radius:2px;background:rgba(255,255,255,.13)}
+.bar i.on{background:var(--sodium,#ff8a3d)}
+/* ONE ROW, always. Twelve fixed-width circles at any gap will wrap on a
+   narrow phone, so they are sized as a FRACTION of the row instead: a grid of
+   twelve equal columns that shrinks with the screen rather than spilling. */
+.swatches{display:grid;grid-template-columns:repeat(12,1fr);gap:4px;
+  align-items:center;margin:12px 0 4px}
+.sw{width:100%;aspect-ratio:1;border-radius:50%;
+  border:2px solid rgba(255,255,255,.20);cursor:pointer;padding:0;
+  min-width:0}
+.sw.on{border-color:#fff;box-shadow:0 0 0 2px rgba(255,255,255,.25)}
+.gbox{display:flex;align-items:stretch;margin-top:12px}
+.gbox .go{flex:1;border-radius:0;margin:0;border-right-width:0}
+.gbox .go:first-child{flex:0 0 46px;border-radius:3px 0 0 3px}
+.gbox .go:last-child{flex:0 0 46px;border-radius:0 3px 3px 0;border-right-width:1px}
+/* the whole cluster reads as one control: no gaps, shared edges, and the
+   DRIVE button closes it off at the bottom */
+.gstack{display:flex;flex-direction:column;margin-top:0}
+.gstack .go{border-radius:0;margin:0;border-top-width:0}
+.gstack .go:last-child{border-radius:0 0 3px 3px}
 </style>
 </head>
 <body>
@@ -701,8 +734,14 @@ var snd = {
     if(snd.horn1 && snd.horn1.set){
       /* set() is (freq, level, CUTOFF, glide) — passing the glide third was
          setting the filter to 0.012Hz, which silenced the horn completely. */
-      snd.horn1.set(440,   on ? 0.085 : 0, 1500, on ? 0.008 : 0.04);
-      if(snd.horn2) snd.horn2.set(554.4, on ? 0.070 : 0, 1700, on ? 0.008 : 0.04);
+      /* ---- each car has its own horn --------------------------------
+         Same two-note chord, transposed per body: TYPE-F is a bright,
+         high Italian bark, TYPE-P sits a tone and a half below it, and
+         TYPE-L is between them. None goes lower than the original note by
+         much — a supercar horn is not a lorry's. */
+      const hp = (BODY[optBody] && BODY[optBody].horn) || 1;
+      snd.horn1.set(440*hp,   on ? 0.085 : 0, 1500*hp, on ? 0.008 : 0.04);
+      if(snd.horn2) snd.horn2.set(554.4*hp, on ? 0.070 : 0, 1700*hp, on ? 0.008 : 0.04);
     } else if(on){
       /* no holdable voice: a short blast instead, still two notes */
       AR.sfx.tone({ freq:440,   dur:0.22, type:'sawtooth', gain:0.075, cutoff:1500 });
@@ -1208,7 +1247,7 @@ const BODY = {
               /* cabOff shifts the cabin SIDEWAYS, not backwards — 0.04 was putting the
                  greenhouse visibly off centre on the body. The long-nose look
                  comes from the deck height, not from moving the roof. */
-              hip:0.055, wing:'lip',   nose:0.30, spoiler:true, rear:'F', wide:0.075, arch:0.85,
+              hip:0.055, wing:'lip',   nose:0.30, spoiler:true, rear:'F', wide:0.075, arch:0.85, horn:1.19,
               /* 200mph is the ceiling the whole game is scaled to, so the
                  fastest car sits AT it and the others come down from there —
                  anything above 1.0 was simply clamped and two cars tied. */
@@ -1217,13 +1256,13 @@ const BODY = {
                  drive away from the thing you had chosen to drive. The slowest
                  of the three is 188 now: they still differ, but the floor is
                  above anything else on the road. */
-              pull:0.84, vmax:1.00, note:'SLOWER OFF THE LINE \u00B7 HIGHEST TOP END' },
+              pull:0.84, vmax:1.03, note:'SLOWER OFF THE LINE \u00B7 HIGHEST TOP END' },
   'TYPE-L': { bodyTop:0.52, cabinTop:0.24, cabW:0.44, cabOff:0.00, roofR:0.02,
-              hip:0.105, wing:'high',  nose:0.16, spoiler:true, rear:'L', wide:0.045, arch:1.30,
-              pull:1.24, vmax:0.94, note:'FASTEST OFF THE LINE \u00B7 LOWEST TOP END' },
+              hip:0.105, wing:'high',  nose:0.16, spoiler:true, rear:'L', wide:0.045, arch:1.30, horn:1.06,
+              pull:1.24, vmax:0.97, note:'FASTEST OFF THE LINE \u00B7 LOWEST TOP END' },
   'TYPE-P': { bodyTop:0.40, cabinTop:0.10, cabW:0.48, cabOff:0, roofR:0.30,
-              hip:0.085, wing:'ducktail', nose:0.24, spoiler:true, rear:'P', wide:0.010, arch:1.15, dome:true,
-              pull:1.02, vmax:0.97, note:'BALANCED' }
+              hip:0.085, wing:'ducktail', nose:0.24, spoiler:true, rear:'P', wide:0.010, arch:1.15, dome:true, horn:0.94,
+              pull:1.02, vmax:1.00, note:'BALANCED' }
 };
 function bodyStat(k){ return (BODY[optBody] || BODY['TYPE-L'])[k]; }
 let optBody = 'TYPE-L';
@@ -1707,6 +1746,14 @@ function paintCar(o){
         g.strokeStyle = lamp1; g.lineWidth = Math.max(0.6, th*0.14);
         g.stroke();
       }
+    }
+
+    /* The marque, small, high on the panel. TYPE-P wears a full-width light
+       bar rather than separate lamps, so its badge sits ABOVE the bar on the
+       engine lid — the others have a panel between their lamps to sit on. */
+    if(B && B.rear){
+      const badgeY = B.rear === 'P' ? ty - h*0.085 : ty - h*0.045;
+      drawMarque(g, B.rear, w*0.5, badgeY, h*0.030);
     }
 
     /* ---- diffuser and pipes ---------------------------------------------- */
@@ -2825,6 +2872,74 @@ function stepWheel(dt){
   if(Math.abs(steerTurn) < 0.004) steerTurn = 0;
 }
 
+
+/* ===========================================================================
+   THE THREE MARQUES
+
+   One drawing routine used in two places: the boss of the steering wheel and
+   the badge on the tail. Drawn at whatever radius is asked for, so the same
+   shape reads at 26px on a wheel and at 8px on the back of a car.
+
+   Ours, not anybody's: a rearing horse, a charging bull, a crest with a bird.
+   =========================================================================== */
+function drawMarque(g, kind, cx, cy, r, tint){
+  g.save();
+  g.translate(cx, cy);
+  g.scale(r/10, r/10);
+  /* ---- BOLD, NOT DETAILED ------------------------------------------------
+     These are read at about twenty pixels across on a wheel boss and eight on
+     the back of a car. The first pass drew little animals with fifteen-point
+     outlines, which at that size is grey mush — three ovals with a smudge in
+     them. What separates a badge at a glance is its SHAPE and its COLOUR, so
+     each is now a distinct outline in a distinct metal with one heavy device
+     inside it.
+     ---------------------------------------------------------------------- */
+  if(kind === 'F'){
+    /* WIDE YELLOW OVAL, black bar, three red stripes — racing colours */
+    g.fillStyle = '#0e1014';
+    g.beginPath(); g.ellipse(0,0,10,6.6,0,0,6.2832); g.fill();
+    g.fillStyle = '#f2c53d';
+    g.beginPath(); g.ellipse(0,0,8.4,5.2,0,0,6.2832); g.fill();
+    g.fillStyle = '#0e1014';
+    g.fillRect(-8.4,-1.1,16.8,2.2);
+    g.fillStyle = '#c8102e';
+    g.fillRect(-4.0,-4.6,1.9,3.2);
+    g.fillRect(-0.9,-4.6,1.9,3.2);
+    g.fillRect( 2.2,-4.6,1.9,3.2);
+  } else if(kind === 'L'){
+    /* TALL BLACK HEXAGON with a gold rim and a single heavy chevron */
+    g.fillStyle = '#c2a86a';
+    g.beginPath();
+    g.moveTo(0,-9.2); g.lineTo(6.2,-5.0); g.lineTo(6.2,5.0);
+    g.lineTo(0,9.2);  g.lineTo(-6.2,5.0); g.lineTo(-6.2,-5.0);
+    g.closePath(); g.fill();
+    g.fillStyle = '#0e1014';
+    g.beginPath();
+    g.moveTo(0,-7.2); g.lineTo(4.8,-3.9); g.lineTo(4.8,3.9);
+    g.lineTo(0,7.2);  g.lineTo(-4.8,3.9); g.lineTo(-4.8,-3.9);
+    g.closePath(); g.fill();
+    g.fillStyle = '#c2a86a';
+    g.beginPath();
+    g.moveTo(-3.4,-2.2); g.lineTo(0,1.4); g.lineTo(3.4,-2.2);
+    g.lineTo(3.4,1.0);   g.lineTo(0,4.6); g.lineTo(-3.4,1.0);
+    g.closePath(); g.fill();
+  } else {
+    /* ROUND SILVER DISC, red quarters, a bold cross */
+    g.fillStyle = '#c9ced8';
+    g.beginPath(); g.arc(0,0,9.2,0,6.2832); g.fill();
+    g.fillStyle = '#0e1014';
+    g.beginPath(); g.arc(0,0,7.6,0,6.2832); g.fill();
+    g.fillStyle = '#c8102e';
+    g.beginPath(); g.moveTo(0,0); g.arc(0,0,7.6,-Math.PI/2,0); g.closePath(); g.fill();
+    g.beginPath(); g.moveTo(0,0); g.arc(0,0,7.6,Math.PI/2,Math.PI); g.closePath(); g.fill();
+    g.fillStyle = '#c9ced8';
+    g.fillRect(-8.0,-1.2,16.0,2.4);
+    g.fillRect(-1.2,-8.0,2.4,16.0);
+  }
+  g.restore();
+}
+
+
 function drawWheel(){
   if(!wheelCx) return;
   if(document.body.classList.contains('no-touch')) return;
@@ -2840,14 +2955,18 @@ function drawWheel(){
      with your hands still on the rim. */
   g.rotate(clamp(steerTurn, -1, 1) * 1.5708);
 
-  const TH = 9.5;                       /* rim thickness */
+  const MK = (BODY[optBody] && BODY[optBody].rear) || 'L';
+  /* ONE rim for all three. Three shapes was a distinction nobody asked for and
+     it made the wheel unfamiliar every time you changed car — the badge is
+     what should tell you which one you are in. */
+  const TH = 9.5;
   /* ---- the rim ----------------------------------------------------------
      A flat-bottomed sports wheel: circular through the top and sides, cut off
      square along the bottom, with the corners squared off where the leather
      grips are. Drawn as a stroked path rather than a circle so the flat is
      real geometry rather than something painted over it.
      -------------------------------------------------------------------------- */
-  const flatY = R*0.62;                 /* where the bottom is cut */
+  const flatY = R*0.62;
   const aFlat = Math.asin(flatY/R);
   function rimPath(){
     /* In canvas, increasing angle goes DOWN the screen — so sweeping from
@@ -2958,22 +3077,12 @@ function drawWheel(){
   g.strokeStyle = 'rgba(255,255,255,.10)'; g.lineWidth = 1;
   g.beginPath(); g.arc(0,0,bR-0.5,0,6.2832); g.stroke();
 
-  /* the badge: a chrome oval with a running horse, ours in silhouette */
-  g.save();
-  g.fillStyle = '#c9d0da';
-  g.beginPath(); g.ellipse(0,0,13,9.5,0,0,6.2832); g.fill();
-  g.fillStyle = '#14161a';
-  g.beginPath(); g.ellipse(0,0,11.4,8.1,0,0,6.2832); g.fill();
-  /* the horse, at a gallop, left-facing */
-  g.fillStyle = '#d8dee8';
-  g.beginPath();
-  g.moveTo(-8.4,-0.6); g.lineTo(-6.2,-2.2); g.lineTo(-3.0,-2.6);
-  g.lineTo(-0.4,-3.6); g.lineTo(2.6,-3.2); g.lineTo(5.0,-4.4);
-  g.lineTo(7.2,-2.0); g.lineTo(8.6,-3.2); g.lineTo(7.8,-0.4);
-  g.lineTo(5.4,1.0);  g.lineTo(6.4,3.4);  g.lineTo(3.8,2.0);
-  g.lineTo(1.2,3.6);  g.lineTo(-0.6,1.6); g.lineTo(-3.4,3.4);
-  g.lineTo(-2.4,1.0); g.lineTo(-5.6,2.2); g.lineTo(-4.4,-0.2);
-  g.closePath(); g.fill();
+  /* THE CAR'S OWN BADGE. A hard-coded horse lived here, drawn after the
+     marque call, so every car wore the same emblem however the marque table
+     was changed — which is why three different badges kept rendering
+     identically. One call, and the badge belongs to the car. */
+  drawMarque(g, MK, 0, 0, 12);
+
   g.restore();
 
   g.restore();
@@ -3100,9 +3209,13 @@ setInterval(() => {
    never have to aim for it, and it is never where your thumb is not.
    -------------------------------------------------------------------------- */
 if(wheelCv){
+  /* A thumb sitting ON the wheel hides most of it. The wheel is placed a
+     thumb's height ABOVE where you are touching, so your hand is below the
+     rim and you can actually watch it turn. */
+  const THUMB = 62;
   const placeWheel = (cx, cy) => {
     wheelCv.style.left = Math.round(cx - 57.5) + 'px';
-    wheelCv.style.bottom = Math.round(window.innerHeight - cy - 57.5) + 'px';
+    wheelCv.style.bottom = Math.round(window.innerHeight - cy - 57.5 + THUMB) + 'px';
   };
   const grabStart = (e) => {
     if(document.body.classList.contains('no-touch')) return;
@@ -5109,15 +5222,10 @@ function frameLoop(now){
     acc += dt;
     let g=0;
     while(acc>=FIXED && state==='driving' && g++<8){ step(FIXED); acc-=FIXED; }
-  } else if(state==='title'){
-    /* the car is already rolling on the title card — the road moves before you
-       press anything, so starting is pulling away rather than a standing start */
-    spd = IDLE_SPD;
-    pos += spd*dt;
-    for(const f of fx){ f.age+=dt; f.x+=(f.vx||0)*dt; f.y+=(f.vy||0)*dt; if(f.vx!==undefined) f.vy+=700*dt; }
-    fx = fx.filter(f=>f.age<f.life);
-    shake=Math.max(0,shake-dt*2.2);
-    sirenPhase += dt*7;
+  } else if(state==='title' || state==='garage'){
+    /* Nothing. The veil is opaque, so advancing the world behind it was work
+       thrown away sixty times a second — and on the garage screen it was
+       competing with the car you are trying to look at. */
   } else {
     pos += Math.max(0, spd*=0.985)*dt;   /* wrecked: rolling to a stop */
     for(const f of fx){ f.age+=dt; f.x+=(f.vx||0)*dt; f.y+=(f.vy||0)*dt; if(f.vx!==undefined) f.vy+=700*dt; }
@@ -5125,7 +5233,7 @@ function frameLoop(now){
     shake=Math.max(0,shake-dt*2.2);
     sirenPhase += dt*7;
   }
-  draw();
+  if(state !== 'title' && state !== 'garage') draw();
   /* NO frame-stamp blur here. Drawing the canvas back onto itself under a
      setTransform tiled the frame into quadrants: the backing store is in
      DEVICE pixels (W*dpr) while the draw was in CSS units, and reading a
@@ -5149,6 +5257,14 @@ function openVeil(html, go){
     if(b) b.addEventListener('click', ()=>{ veil.classList.add('hidden'); if(go) go(); });
     return;
   }
+  /* a swatch carries its colour in the action name */
+  veilBody.querySelectorAll('[data-act^="paint:"]').forEach(b =>
+    b.addEventListener('click', () => {
+      optPaint = b.dataset.act.slice(6);
+      buildSprites();
+      if(AR && AR.save) AR.save.merge('highway-opts', { paint:optPaint });
+      showGarage();
+    }));
   veilBody.querySelectorAll('[data-act]').forEach(b => {
     b.addEventListener('click', () => {
       const fn = go && go[b.dataset.act];
@@ -5157,6 +5273,93 @@ function openVeil(html, go){
     });
   });
 }
+
+/* ===========================================================================
+   THE GARAGE
+
+   Between PLAY and the first mile. Car, paint and gearbox are choices about
+   how the run will FEEL, so they belong together and in front of you — not
+   buried three taps deep in a pause menu you open mid-corner.
+
+   The car is drawn live from its own sprite, so what you pick is what you get,
+   and the numbers are read straight off the BODY table rather than being
+   written out by hand — they cannot drift from the physics.
+   =========================================================================== */
+function garageCard(){
+  const B = BODY[optBody];
+  const top = Math.round(200 * B.vmax);
+  /* pull is a torque multiplier; shown as a 5-bar rating so it can be
+     compared at a glance rather than being an unexplained decimal */
+  const bars = (v, lo, hi) => {
+    const n = Math.max(1, Math.min(5, Math.round(1 + (v-lo)/(hi-lo)*4)));
+    return '<u class="bar">' + '<i class="on"></i>'.repeat(n) +
+           '<i></i>'.repeat(5-n) + '</u>';
+  };
+  return '<div class="gwrap">' +
+    '<canvas id="gcar" width="300" height="180"></canvas>' +
+    '<div class="gname">' + optBody + '</div>' +
+    '<div class="gnote">' + B.note + '</div>' +
+    '<div class="gstat"><span>TOP SPEED</span><b>' + top + ' MPH</b></div>' +
+    '<div class="gstat"><span>ACCELERATION</span>' + bars(B.pull, 0.80, 1.28) + '</div>' +
+    '<div class="gstat"><span>TOP END</span>' + bars(B.vmax, 0.93, 1.04) + '</div>' +
+  '</div>';
+}
+function paintSwatches(){
+  return '<div class="swatches">' + PAINT_KEYS.map(k =>
+    '<button class="sw' + (k === optPaint ? ' on' : '') + '" data-act="paint:' + k +
+    '" style="background:' + PAINT[k].body + '" aria-label="' + k + '"></button>'
+  ).join('') + '</div>';
+}
+function drawGarageCar(){
+  const cv = document.getElementById('gcar');
+  if(!cv) return;
+  const g2 = cv.getContext('2d');
+  const dpr = Math.min(2, window.devicePixelRatio||1);
+  cv.width = 300*dpr; cv.height = 180*dpr;
+  cv.style.width='300px'; cv.style.height='180px';
+  g2.setTransform(dpr,0,0,dpr,0,0);
+  g2.clearRect(0,0,300,180);
+  const img = SP.player;
+  if(!img) return;
+  const bw = 240, bh = bw*img.height/img.width;
+  g2.drawImage(img, (300-bw)/2, 176-bh, bw, bh);
+}
+function showGarage(){
+  state = 'garage';
+  openVeil(
+    '<div class="eyebrow">CHOOSE YOUR CAR</div>' +
+    garageCard() +
+    paintSwatches() +
+    '<div class="gbox">' +
+      '<button class="go ghost" data-act="prev">\u2039</button>' +
+      '<button class="go ghost" data-act="box">GEARBOX \u00B7 <b>' +
+        (optManual ? 'MANUAL' : 'AUTO') + '</b></button>' +
+      '<button class="go ghost" data-act="next">\u203A</button>' +
+    '</div>' +
+    '<div class="gstack">' +
+      '<button class="go" data-act="drive">DRIVE</button>' +
+      '<button class="go ghost" data-act="back">BACK</button>' +
+    '</div>',
+    {
+      prev: () => cycleBody(-1),
+      next: () => cycleBody(1),
+      box:  () => { optManual = !optManual; syncBoxClass();
+                    if(AR && AR.save) AR.save.merge('highway-opts', { manual:optManual });
+                    showGarage(); },
+      drive: start,
+      back: showTitle
+    });
+  drawGarageCar();
+}
+function cycleBody(d){
+  const ks = Object.keys(BODY);
+  const i = (ks.indexOf(optBody) + d + ks.length) % ks.length;
+  optBody = ks[i];
+  buildSprites();
+  if(AR && AR.save) AR.save.merge('highway-opts', { body:optBody });
+  showGarage();
+}
+
 function showTitle(){
   openVeil(
     '<h1>Highway</h1>' +
@@ -5173,7 +5376,7 @@ function showTitle(){
       '<button class="go ghost" data-act="quit">QUIT</button>' +
     '</div>',
     {
-      play: start,
+      play: showGarage,
       mode: () => { mode = (mode === 'race' ? 'endless' : 'race'); showTitle(); },
       chase: () => { optEasy = !optEasy; showTitle(); },
       opts: () => showOptions(),
@@ -5236,11 +5439,8 @@ reset();
 /* Options live in the pause menu, rendered and remembered by the shell. */
 if (AR && AR.options) AR.options.define([
   { key:'side',  label:'CONTROLS', type:'cycle', of:['RIGHT','LEFT'],                    def:'RIGHT' },
-  { key:'paint', label:'PAINT',    type:'cycle', of:Object.keys(PAINT),                  def:'WHITE' },
-  { key:'manual', label:'MANUAL BOX',  type:'bool',                                      def:false },
   { key:'mirror', label:'MIRROR',      type:'cycle', of:['FULL','CHEAP','OFF'],           def:'FULL' },
-  { key:'touchui',label:'TOUCH CONTROLS', type:'cycle', of:['AUTO','ON','OFF'],            def:'AUTO' },
-  { key:'body',   label:'CAR',          type:'cycle', of:['TYPE-F','TYPE-L','TYPE-P'],     def:'TYPE-L' }
+  { key:'touchui',label:'TOUCH CONTROLS', type:'cycle', of:['AUTO','ON','OFF'],            def:'AUTO' }
 ], function(key, val){
   if(key === 'side')  document.body.classList.toggle('pedals-left', val === 'LEFT');
   /* the toggle now names what it ADDS, so off is the quiet road */
@@ -5267,6 +5467,17 @@ if (AR && AR.options) AR.options.define([
 
 /* Apply the saved gearbox setting once at startup. The options callback only
    fires on CHANGE, so without this the class never matched the saved value. */
+/* the garage choices are saved separately from the in-run options, since they
+   no longer live in that menu */
+(function(){
+  const g0 = AR && AR.save ? AR.save.get('highway-opts') : null;
+  if(g0){
+    if(g0.body && BODY[g0.body]) optBody = g0.body;
+    if(g0.paint && PAINT[g0.paint]) optPaint = g0.paint;
+    if(typeof g0.manual === 'boolean') optManual = g0.manual;
+  }
+  buildSprites();
+})();
 syncBoxClass();
 applyTouchUI();
 
