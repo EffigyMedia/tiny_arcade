@@ -185,13 +185,23 @@ window.TINY_ARCADE = [
     attract:'grid'
   },
   {
-    file:  'games/original/highway.html',
-    id:    'highway',
+    file:  'games/original/highway0.html',
+    id:    'highway0',
     cat:   'original',
-    name:  'Highway',
+    name:  'Highway0',
     accent:'#ff8a3d',
     genre: 'DRIVING \u00B7 ENDLESS',
-    hook:  '180 with the county behind you.',
+    hook:  'Dead straight, foot down, county behind you.',
+    attract:'road'
+  },
+  {
+    file:  'games/second/highway.html',
+    id:    'highway',
+    cat:   'second',
+    name:  'Highway',
+    accent:'#ff8a3d',
+    genre: 'DRIVING \u00B7 ENDLESS \u00B7 RACE',
+    hook:  'The road bends now. Sixteen bodies of traffic and nowhere to hide.',
     attract:'road'
   }
 ];
