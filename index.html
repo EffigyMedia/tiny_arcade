@@ -510,6 +510,7 @@ footer{margin-top:30px;border-top:1px solid var(--line);padding-top:26px;text-al
 
 <script src="audio.js"></script>
 <script src="arcade.js"></script>
+<script src="assets.js"></script>
 <script src="games.js"></script>
 <script>
 (function(){
@@ -2035,7 +2036,56 @@ function soap(g,s,t){
   }
 }
 
-var draw = { dive:dive, grid:grid, road:road, maze:maze, blocks:blocks, scope:scope, ranks:ranks, fold:fold, drain:drain, scaffold:scaffold, fibre:fibre, radar:radar, ice:ice, strata:strata, profile:profile, soap:soap };
+/* ---- Ziggurat: a folded card pyramid, tiles turning as it is climbed --- */
+function fold2(g,s,t){
+  g.fillStyle='#191420'; g.fillRect(0,0,s.w,s.h);
+  var bg=g.createRadialGradient(s.w/2,s.h*0.34,10,s.w/2,s.h*0.5,s.h*0.8);
+  bg.addColorStop(0,'rgba(255,179,71,.08)'); bg.addColorStop(1,'rgba(0,0,0,.35)');
+  g.fillStyle=bg; g.fillRect(0,0,s.w,s.h);
+  var R=5, TW=s.w/(R+1.4), TH=TW*0.55, TD=TW*0.42;
+  var CARD=[['#e8dcc6','#c9b795','#a8956f'],['#ffb347','#d98a2b','#a86416']];
+  function xy(r,c){ return { x:s.w/2+(c-r/2)*TW, y:s.h*0.18+r*(TD+TH*0.34) }; }
+  var lit=Math.floor(((t*0.5)%1)*(R*(R+1)/2));
+  var n=0;
+  for(var r=0;r<R;r++){
+    for(var c=0;c<=r;c++){
+      var p=xy(r,c), C=CARD[n<lit?1:0]; n++;
+      g.beginPath();
+      g.moveTo(p.x,p.y-TH/2); g.lineTo(p.x+TW/2,p.y);
+      g.lineTo(p.x,p.y+TH/2); g.lineTo(p.x-TW/2,p.y); g.closePath();
+      g.fillStyle=C[0]; g.fill();
+      g.beginPath();
+      g.moveTo(p.x-TW/2,p.y); g.lineTo(p.x,p.y+TH/2);
+      g.lineTo(p.x,p.y+TH/2+TD); g.lineTo(p.x-TW/2,p.y+TD); g.closePath();
+      g.fillStyle=C[1]; g.fill();
+      g.beginPath();
+      g.moveTo(p.x+TW/2,p.y); g.lineTo(p.x,p.y+TH/2);
+      g.lineTo(p.x,p.y+TH/2+TD); g.lineTo(p.x+TW/2,p.y+TD); g.closePath();
+      g.fillStyle=C[2]; g.fill();
+      g.strokeStyle='rgba(70,56,44,.5)'; g.lineWidth=1;
+      g.beginPath();
+      g.moveTo(p.x,p.y-TH/2); g.lineTo(p.x+TW/2,p.y); g.lineTo(p.x+TW/2,p.y+TD);
+      g.lineTo(p.x,p.y+TH/2+TD); g.lineTo(p.x-TW/2,p.y+TD); g.lineTo(p.x-TW/2,p.y);
+      g.closePath(); g.stroke();
+    }
+  }
+  /* the folded figure, hopping down the face */
+  var step=Math.floor(t*1.5)%6;
+  var hr=Math.min(R-1,step), hc=Math.floor(step/2);
+  var hp=xy(hr,hc);
+  var bob=Math.abs(Math.sin(t*1.5*Math.PI))*TH*0.35;
+  var hx=hp.x, hy=hp.y-bob;
+  g.fillStyle='#f7f2e6';
+  g.beginPath();
+  g.moveTo(hx,hy-TH*0.95); g.lineTo(hx+TW*0.20,hy-TH*0.12);
+  g.lineTo(hx-TW*0.20,hy-TH*0.12); g.closePath(); g.fill();
+  g.strokeStyle='rgba(70,56,44,.55)'; g.lineWidth=1; g.stroke();
+  g.fillStyle='#2a1a06';
+  g.beginPath(); g.arc(hx-TW*0.06,hy-TH*0.45,TW*0.030,0,6.2832); g.fill();
+  g.beginPath(); g.arc(hx+TW*0.06,hy-TH*0.45,TW*0.030,0,6.2832); g.fill();
+}
+
+var draw = { fold2:fold2, dive:dive, grid:grid, road:road, maze:maze, blocks:blocks, scope:scope, ranks:ranks, fold:fold, drain:drain, scaffold:scaffold, fibre:fibre, radar:radar, ice:ice, strata:strata, profile:profile, soap:soap };
 
 function paint(now){
   for(var i=0;i<screens.length;i++){
@@ -2105,30 +2155,53 @@ onScroll();
     }, wait);
   }
 
-  if(!navigator.serviceWorker){ finish('READY'); return; }
+  /* ---------------------------------------------------------------------
+     THE PAGE DOES THE CACHING ITSELF.
 
-  navigator.serviceWorker.addEventListener('message', function(e){
-    var d = e.data; if(!d) return;
-    if(d.type === 'precache' || d.type === 'precache-done'){
-      var pc = d.total ? d.done / d.total : 0;
-      fill.style.width = (pc*100) + '%';
-      ct.textContent = d.done + ' / ' + d.total;
-      if(d.type === 'precache-done') finish('READY \u00B7 OFFLINE');
-    }
-  });
+     Asking the service worker to do it needed a handshake, and every step of
+     that handshake was a way to fail: on a first visit the page is not yet
+     controlled, `ready` can resolve with the PREVIOUS worker which knows
+     nothing about the new file list, and a message sent to the wrong worker
+     is silently dropped — which is exactly what left the cache empty while
+     the loader reported success.
 
-  /* ASK on every load rather than relying on the install event — a device that
-     already had a worker registered never fires install, which is why this sat
-     at 0/0 and then 404ed every cabinet. `ready` guarantees there is an active
-     worker to talk to; `controller` may still be null on the very first visit,
-     so fall back to the registration's active worker. */
-  navigator.serviceWorker.ready.then(function(reg){
-    var w = navigator.serviceWorker.controller || reg.active;
-    if(!w){ finish('READY'); return; }
-    w.postMessage({ type:'precache' });
-  }).catch(function(){ finish('READY'); });
+     `caches` is available to the page directly. No worker, no messaging, no
+     race: fetch each file, put it in the same cache the worker reads from,
+     and report as we go.
+     --------------------------------------------------------------------- */
+  var files = window.ARCADE_ASSETS || [];
+  if(!window.caches || !files.length){ finish('READY'); return; }
 
-  /* never hold the arcade hostage to a slow network */
+  (function(){
+    var done = 0, total = files.length;
+    ct.textContent = '0 / ' + total;
+    caches.open('tiny-arcade-core-v17').then(function(cache){
+      var queue = files.slice();
+      /* four at a time: quick on a good line, and it does not stampede */
+      function next(){
+        var f = queue.shift();
+        if(f === undefined) return Promise.resolve();
+        return cache.match(f).then(function(hit){
+          if(hit) return;                       /* already have it */
+          return fetch(f, { cache:'reload' }).then(function(res){
+            if(res && res.ok) return cache.put(f, res.clone());
+          }).catch(function(){});
+        }).then(function(){
+          done++;
+          var pc = done/total;
+          fill.style.width = (pc*100) + '%';
+          ct.textContent = done + ' / ' + total;
+          return next();
+        });
+      }
+      var lanes = [];
+      for(var i=0;i<4;i++) lanes.push(next());
+      return Promise.all(lanes);
+    }).then(function(){
+      finish('READY \u00B7 OFFLINE');
+    }).catch(function(){ finish('READY'); });
+  })();
+
   setTimeout(function(){ finish('READY'); }, 20000);
 })();
 </script>

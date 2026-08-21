@@ -556,7 +556,7 @@ rendered like specimen illustrations.
 
 #### 12 · ZIGGURAT — *isometric hopper*
 *After **Q*bert** — Gottlieb, 1982.*
-**Status:** ☐ **Size:** M **Accent:** `#ffb347`
+**Status:** ☑ BUILT **Size:** M **Accent:** `#ffb347`
 
 **The idea.** Diagonal-only movement on an isometric pyramid, which makes your
 own controls the primary obstacle. Lean into it.
@@ -2888,6 +2888,36 @@ tuning by feel rather than by more numbers from me.
 Real tyre screech is a low roar of rubber tearing with a squeal riding on it, so
 it is now three voices — a broad low body at 200-380Hz carrying the most level,
 a mid grind around 1-1.9kHz, and the original high squeal on top.
+
+# 15. ZIGGURAT — built
+
+`games/golden/ziggurat.html`, accent `#ffb347`. Seventeenth cabinet.
+
+**The controls ARE the obstacle and they are never softened.** Four diagonals,
+no orthogonal move at all. Down-left and down-right take you a row further down;
+the two up moves come back toward the apex. A swipe is split by the two
+diagonals into four quadrants, so there is nowhere for a sideways input to go.
+
+**The mapping is the barrier**, so the spec's rotated d-pad diagram is on the
+TITLE screen rather than buried in options, and an on-screen line names the
+scheme for the first four moves of a run before removing itself.
+
+Also built: seven rows in correct back-to-front draw order, tiles needing TWO
+visits every third level, falling off the edge as a real and frequent death,
+three enemies — a crumpled ball that tumbles down the face, a paper dart that
+actually chases you, and an eraser that takes the colour back off the card —
+escape wheels at the edges that lift you to the top, and level complete when
+every tile is turned.
+
+**A 7/8 bed.** Seven beats to the bar with the bass on 1, 4 and 6, so it never
+lets you settle — the same joke the controls are playing. It is the only cabinet
+in the arcade not in four.
+
+**Look: paper model.** A folded card ziggurat. Visible tabs at every corner,
+a crease ruled across each tile top, pencil-line edges, and tiles that turn from
+card through amber to rose as they are claimed. The player is a folded cone with
+two ink eyes; deaths print gibberish curses in a paper speech flag — ours, not
+the original's.
 
 # 15. POPSHOT — built
 

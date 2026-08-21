@@ -85,6 +85,16 @@ window.TINY_ARCADE = [
     attract:'blocks'
   },
   {
+    file:  'games/golden/ziggurat.html',
+    id:    'ziggurat',
+    cat:   'golden',
+    name:  'Ziggurat',
+    accent:'#ffb347',
+    genre: 'ARCADE \u00B7 ISOMETRIC HOPPER',
+    hook:  'Four diagonals and no sideways. Your own hands are the obstacle.',
+    attract:'fold2'
+  },
+  {
     file:  'games/golden/vector.html',
     id:    'vector',
     cat:   'golden',
