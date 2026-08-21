@@ -237,9 +237,14 @@ body.no-touch #pedals{ display:none }
    The knob is dragged between them. It sits above the pedals so the same
    thumb can reach it without leaving the wheel hand.
    -------------------------------------------------------------------------- */
-/* the tacho sits on top of the gate, because revs are what tell you to shift */
+/* The tacho used to live inside the shifter, so it vanished in automatic —
+   but revs are useful whoever is doing the shifting. It now sits above the
+   pedal cluster in its own right, and the shifter slides up when shown. */
 #tacho{
-  position:absolute;left:0;right:0;top:-26px;height:22px;
+  position:absolute;z-index:13;
+  right:calc(env(safe-area-inset-right,0px) + 10px);
+  bottom:calc(env(safe-area-inset-bottom,0px) + 146px);
+  width:104px;height:22px;
   border-radius:5px;background:#0d0f13;border:1px solid #333941;
   box-shadow:inset 0 2px 4px rgba(0,0,0,.8);
   overflow:hidden;
@@ -269,7 +274,7 @@ body.no-touch #pedals{ display:none }
 #shifter{
   position:absolute;z-index:13;pointer-events:auto;
   right:calc(env(safe-area-inset-right,0px) + 10px);
-  bottom:calc(env(safe-area-inset-bottom,0px) + 150px);
+  bottom:calc(env(safe-area-inset-bottom,0px) + 176px);
   width:86px;height:94px;touch-action:none;
 }
 #shifter[hidden]{ display:none }
@@ -307,7 +312,8 @@ body.no-touch #pedals{ display:none }
   position:absolute;font-family:var(--disp);font-size:9px;font-weight:800;
   color:#5c6570;letter-spacing:.04em;
 }
-body.pedals-left #shifter{ right:auto; left:calc(env(safe-area-inset-left,0px) + 14px) }
+body.pedals-left #shifter{ right:auto; left:calc(env(safe-area-inset-left,0px) + 10px) }
+body.pedals-left #tacho{ right:auto; left:calc(env(safe-area-inset-left,0px) + 10px) }
 #nitro.hot{background:rgba(95,240,216,.3);color:#eafffb;box-shadow:0 0 26px rgba(95,240,216,.45)}
 #nitro:focus-visible{outline:2px solid var(--cyan);outline-offset:3px}
 
@@ -375,8 +381,8 @@ h1 u{text-decoration:none;display:block;font-size:.34em;letter-spacing:.26em;col
     <button id="brake" aria-label="Brake"><i></i></button>
     <button id="horn" aria-label="Horn"><i></i></button>
   </div>
+  <div id="tacho"><i></i><b>0</b></div>
   <div id="shifter" hidden>
-    <div id="tacho"><i></i><b>0</b></div>
     <div id="gate"></div>
     <div id="knob" data-gear="1"><b>1</b></div>
   </div>
@@ -1172,11 +1178,14 @@ function setBrake(on){
    pulled at a third of first. A real sports car makes more POWER higher up
    even though torque multiplication falls, so pull stays high across the box
    and only softens at the very top. */
+/* Short gears that snap. Pull is highest low down where the ratio multiplies
+   torque most, and the whole box is quick — you should be grabbing the next
+   gear almost as soon as you are in this one. */
 const GEARS = [
-  { g:1, ratio:3.65, from:0,    to:0.24, pull:1.30 },
-  { g:2, ratio:2.16, from:0.18, to:0.46, pull:1.18 },
-  { g:3, ratio:1.44, from:0.38, to:0.72, pull:1.02 },
-  { g:4, ratio:1.00, from:0.62, to:1.40, pull:0.86 }
+  { g:1, ratio:3.65, from:0,    to:0.24, pull:1.55 },
+  { g:2, ratio:2.16, from:0.18, to:0.46, pull:1.40 },
+  { g:3, ratio:1.44, from:0.38, to:0.72, pull:1.20 },
+  { g:4, ratio:1.00, from:0.62, to:1.40, pull:1.00 }
 ];
 const REDLINE = 7200;
 /* Engine speed, from road speed and whatever ratio is selected. In neutral it
@@ -1581,21 +1590,41 @@ function step(dt){
   /* Off the gas the car is in neutral: it does not hold a speed, it rolls.
      Engine braking and rolling resistance bleed it off slowly — much gentler
      than the brake, so lifting is a real choice rather than a soft brake. */
-  const onGas = gas || nosOn;
+  /* in neutral the throttle is connected to nothing, so it coasts however
+     hard you press */
+  const inNeutral = optManual && (gear < 1 || gear > GEARS.length);
+  const onGas = (gas || nosOn) && !inNeutral;
   /* THE COAST EXPLOIT: boost to well past MAX_SPD, then lift, and the car
      coasted down from 19,200 at the gentle neutral rate — so laying off the
      throttle was FASTER than using it. Above the natural top speed the car
      now sheds back to it quickly whatever the pedals are doing; only below
      that does neutral coast gently. */
   const overRun = spd > MAX_SPD && !nosOn;
+  /* ---- THE GEAR IS A SPEED LIMIT ----------------------------------------
+     This was the whole problem: `top` was MAX_SPD in every gear, so first
+     would happily pull you to 180mph and the box was just an acceleration
+     modifier. A gear physically cannot exceed its ratio times the redline.
+     First now tops out at 24% of MAX_SPD, second 46%, third 72%, fourth all
+     of it — so you MUST shift to go faster, which is what a gearbox is.
+     -------------------------------------------------------------------------- */
+  const gearCap = (optManual && gear >= 1 && gear <= GEARS.length)
+                ? MAX_SPD * GEARS[gear-1].to
+                : MAX_SPD;
   const top = braking ? BRAKE_SPD
             : overRun ? MAX_SPD
             : !onGas  ? 0
-            : (offRoad ? OFF_SPD : (nosOn ? NOS_SPD : MAX_SPD));
+            : (offRoad ? OFF_SPD
+               : nosOn  ? NOS_SPD
+               : Math.min(MAX_SPD, gearCap));
   const rate = braking ? 9000
              : overRun ? 5200         /* aero drag above the limiter is brutal */
              : !onGas ? 420           /* neutral: it rolls, it does not stop */
-             : spd < top ? (nosOn ? 6200 : (spd < MAX_SPD*0.5 ? 5200 : 3000)) * gearFactor()
+             /* It felt sluggish because the base rate FELL as you gained speed
+                (5200 then 3000) at the same time as the gear ratio was cutting
+                pull — two penalties stacking. A sports car in a low gear snaps
+                to its limiter. The rate is now high and flat, and the gear cap
+                is what stops you rather than the engine going soft. */
+             : spd < top ? (nosOn ? 11000 : 9400) * gearFactor()
              : (offRoad ? 11000 : 2400);
   /* Approach the target without crossing it. It used to add or subtract a
      fixed step, so on the brakes the car overshot the floor and juddered
@@ -2865,7 +2894,7 @@ function hud(){
     $('place').textContent = place + '/12';
     $('dist').innerHTML = dist.toFixed(1) + '<i>/' + RACE_MILES + ' MI</i>';
   }
-  if(optManual && tachoEl){
+  if(tachoEl){
     const rpm = engineRpm();
     const frac = clamp(rpm / (REDLINE + 400), 0, 1);
     /* the needle travels the width of the plate, minus its own width */

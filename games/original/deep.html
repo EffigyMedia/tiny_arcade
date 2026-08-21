@@ -518,7 +518,8 @@ if (AR && AR.gesture) AR.gesture.onDrag(g => {
 window.addEventListener('pointerdown', e => {
   if (AR && AR.paused && AR.paused()) return;
   if (e.target.closest && e.target.closest('button, a, input')) return;
-  if (state === 'ready' && !menuOpen) start();
+  if (state === 'launch') release();
+  else if (state === 'ready' && !menuOpen) start();
   else if (state === 'lost' && performance.now() - deadAt > 550) start();
 }, { passive:true });
 
@@ -528,7 +529,8 @@ window.addEventListener('keydown', e => {
   if (['ArrowLeft','ArrowRight','ArrowUp','ArrowDown',' '].includes(e.key)) e.preventDefault();
   keys[e.key] = true;
   if (e.key === ' ' || e.key === 'Enter'){
-    if (state === 'ready' && !menuOpen) start();
+    if (state === 'launch') release();
+    else if (state === 'ready' && !menuOpen) start();
     else if (state === 'lost' && performance.now() - deadAt > 550) start();
   }
 });
@@ -625,7 +627,7 @@ function start(){
 
 /* released: the hook lets go and gravity takes over */
 function release(){
-  if(launched) return;
+  if(state !== 'launch' || launched) return;
   launched = true;
   snd.release();
 }
@@ -1070,6 +1072,61 @@ function drawLedge(x, y, w, isLeft){
 
   ctx.fillStyle = 'rgba(150,200,215,.18)';
   ctx.fillRect(x, y, w, 1.5);
+
+  /* ---- runner lights ------------------------------------------------------
+     Not warning lamps but a CHASE — a pulse of light running along the ledge
+     toward the opening, the way approach lighting does on a runway. Marking
+     the hazard only tells you where you cannot go; a runner tells you where
+     you can, and does it without a word of UI.
+     -------------------------------------------------------------------------- */
+  const step = 22;
+  const n = Math.max(2, Math.floor(w / step));
+  /* which end is the gap: the left ledge runs rightward, the right ledge left */
+  const toward = isLeft ? 1 : -1;
+  /* the pulse position travels 0 -> 1 along the run, and each obstacle is
+     offset by its own depth so the whole course does not blink in unison */
+  /* tied to how fast you are falling: at depth the course rushes past, and a
+     runner still chasing at a fixed 1.7Hz reads as sluggish against it */
+  const rate = 0.9 + (speed / 260) * 2.2;
+  const cycle = ((performance.now()/1000) * rate + y * 0.004) % 1;
+
+  for (let i = 0; i <= n; i++){
+    const lx = x + (w / n) * i;
+    /* f is 0 at the far end and 1 at the gap, whichever ledge this is */
+    const f = toward > 0 ? i / n : 1 - i / n;
+    /* distance from this lamp to the travelling pulse, wrapped, so the chase
+       is continuous rather than restarting with a jump */
+    let d = f - cycle;
+    if (d < -0.5) d += 1;
+    if (d >  0.5) d -= 1;
+    const hit = Math.max(0, 1 - Math.abs(d) * 5.5);      /* a short bright head */
+    /* a low ember so the line is readable between pulses, plus the runner */
+    /* Darkness has to bite these too. At full dark the runner was the only
+       thing on screen at full strength, so the red flooded a frame that is
+       supposed to be almost black — it was washing the darkness out rather
+       than reading as a light IN it. */
+    const a = (0.16 + hit * 0.84) * (1 - dk * 0.45);
+
+    const ly = y + TH*0.5;
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    const rad = 7 + hit * 13;
+    const gl = ctx.createRadialGradient(lx, ly, 0, lx, ly, rad);
+    gl.addColorStop(0, 'rgba(255,70,80,' + (a*0.8) + ')');
+    gl.addColorStop(1, 'rgba(255,30,50,0)');
+    ctx.fillStyle = gl;
+    ctx.beginPath(); ctx.arc(lx, ly, rad, 0, 6.2832); ctx.fill();
+    ctx.restore();
+
+    /* the lamp: a small sphere, brighter and whiter as the pulse passes over */
+    const bulb = ctx.createRadialGradient(lx-1, ly-1.2, 0, lx, ly, 3.6);
+    bulb.addColorStop(0,    'rgba(255,' + Math.round(150+hit*105) + ',' +
+                            Math.round(150+hit*105) + ',' + Math.min(1,a+0.2) + ')');
+    bulb.addColorStop(0.45, 'rgba(255,64,74,' + Math.min(1, a+0.1) + ')');
+    bulb.addColorStop(1,    'rgba(140,10,24,' + (a*0.85) + ')');
+    ctx.fillStyle = bulb;
+    ctx.beginPath(); ctx.arc(lx, ly, 2.6 + hit*1.4, 0, 6.2832); ctx.fill();
+  }
 }
 
 /* the boat on the swell, the davit, the wire, and the sub hanging off it */
@@ -1102,10 +1159,14 @@ function drawLaunch(now){
   ctx.stroke();
 
   /* the boat, rolling on it */
-  ctx.save();
-  ctx.translate(W*0.34, wl - H*0.012);
-  ctx.rotate(roll);
   const bw = W*0.46, bh = H*0.045;
+  ctx.save();
+  /* The davit has to put the sub where it will be diving — dead centre —
+     or it visibly slides across the screen the moment control is handed over.
+     The boat is offset LEFT by exactly the davit reach so the wire hangs on
+     the centre line. */
+  ctx.translate(W*0.5 - bw*0.62, wl - H*0.012);
+  ctx.rotate(roll);
   ctx.fillStyle = '#1d2b34';
   ctx.beginPath();
   ctx.moveTo(-bw/2, -bh); ctx.lineTo(bw/2, -bh);
@@ -1127,7 +1188,8 @@ function drawLaunch(now){
   ctx.restore();
 
   /* where the wire leaves the davit, in world space */
-  const ax = W*0.34 + Math.cos(roll)*(bw*0.62) - Math.sin(roll)*(-bh*3.4);
+  const bx0 = W*0.5 - bw*0.62;
+  const ax = bx0 + Math.cos(roll)*(bw*0.62) - Math.sin(roll)*(-bh*3.4);
   const ay = wl - H*0.012 + Math.sin(roll)*(bw*0.62) + Math.cos(roll)*(-bh*3.4);
 
   if(!launched){
@@ -1145,6 +1207,19 @@ function drawLaunch(now){
     ctx.strokeStyle = 'rgba(200,225,235,.35)'; ctx.lineWidth = 1.2;
     ctx.beginPath(); ctx.moveTo(ax, ay);
     ctx.lineTo(ax + Math.sin(t*9)*6, ay + H*0.05); ctx.stroke();
+  }
+
+  if(!launched){
+    /* it will hang here all day, so say what to do */
+    const pulse = 0.55 + Math.abs(Math.sin(swing*2.2))*0.45;
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.font = '600 ' + Math.round(H*0.017) + 'px ' +
+               getComputedStyle(document.body).getPropertyValue('--px');
+    ctx.fillStyle = 'rgba(210,240,255,' + pulse + ')';
+    ctx.fillText(AR && AR.touch ? 'TAP TO RELEASE' : 'PRESS TO RELEASE',
+                 W/2, H*0.80);
+    ctx.restore();
   }
 
   if(splashT > 0){
@@ -1169,18 +1244,21 @@ function drawDiver(now){
   /* Nose into the turn. It used to bank away from the direction of travel,
      which read as being dragged sideways rather than cutting a line. */
   const tilt = -clamp(vxSmoothed/900, -1, 1);
-  ctx.save();
-  ctx.translate(px, playerY);
-  ctx.rotate(tilt * 0.42);
-
+  /* The halo is drawn BEFORE the tilt and in world space. It used to live
+     inside the rotate, so banking sheared the pool of light into an ellipse —
+     a lamp throws a round pool whichever way the hull is leaning. */
   ctx.save();
   ctx.globalCompositeOperation = 'lighter';
-  const halo = ctx.createRadialGradient(0,0,0,0,0,R*4.2);
+  const halo = ctx.createRadialGradient(px, playerY, 0, px, playerY, R*4.2);
   halo.addColorStop(0,'rgba(77,224,200,.42)');
   halo.addColorStop(1,'rgba(77,224,200,0)');
   ctx.fillStyle = halo;
-  ctx.beginPath(); ctx.arc(0,0,R*4.2,0,6.2832); ctx.fill();
+  ctx.beginPath(); ctx.arc(px, playerY, R*4.2, 0, 6.2832); ctx.fill();
   ctx.restore();
+
+  ctx.save();
+  ctx.translate(px, playerY);
+  ctx.rotate(tilt * 0.42);
 
   // teardrop body, nose down
   ctx.fillStyle = '#eafff8';
@@ -1211,7 +1289,9 @@ function frame(now){
     swing += dt;
     /* the boat rolls, and the sub on its wire swings a beat behind it */
     snd.swell(dt, swing);
-    if(!launched && launchT > 1.15) release();
+    /* It used to cut loose on a timer. Now it hangs there, rolling with the
+       swell, until YOU let it go — the run starts on your input, not on a
+       stopwatch, so nobody arrives in the water still reading the screen. */
     if(launched){
       /* falls, then the water grabs it */
       playerY += (playerY < WATERLINE ? 640 : 190) * dt;

@@ -243,6 +243,7 @@ canvas.cine{
   flex:none;height:clamp(94px,15.5vh,128px);border:1px solid var(--seam);background:var(--panel);
   padding:8px 10px;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-end;
 }
+#log.under{margin-top:7px;padding-top:6px;border-top:1px solid rgba(255,255,255,.09);opacity:.92}
 #log{font-size:10.5px;line-height:1.65;color:var(--dim)}
 #log div{white-space:normal;overflow-wrap:anywhere;padding-bottom:1px}
 #log div:last-child{color:var(--text)}
@@ -872,6 +873,41 @@ function rangePenalty(w, dist){
 
 /* the corner rule: nothing swings diagonally past a bulkhead. If both squares
    flanking the diagonal are solid there is no line through it, for anyone. */
+/* ---- cover ---------------------------------------------------------------
+   A bulkhead corner between you and a target does not FORBID the attack — it
+   spoils it. Refusing the swing outright was the first fix and it was the
+   wrong one: it turned a tactical situation into a locked door. Instead the
+   corner costs you accuracy, so fighting round one is a real but bad option,
+   and stepping clear first is rewarded rather than required.
+
+   Returns the number of blocked corners on a diagonal: 0 clean, 1 partial
+   cover, 2 almost entirely screened.
+   -------------------------------------------------------------------------- */
+function coverCount(ax, ay, bx, by){
+  const dx = bx - ax, dy = by - ay;
+  if(!dx || !dy) return 0;                       /* orthogonal: nothing to hide behind */
+  if(Math.abs(dx) > 1 || Math.abs(dy) > 1){
+    /* at range, sample the two cells flanking the midpoint of the line */
+    const mx = Math.round((ax+bx)/2), my = Math.round((ay+by)/2);
+    const c1 = at(mx + Math.sign(dx), my), c2 = at(mx, my + Math.sign(dy));
+    let n = 0;
+    if(!c1 || c1.wall || (c1.door && !c1.door.open)) n++;
+    if(!c2 || c2.wall || (c2.door && !c2.door.open)) n++;
+    return n;
+  }
+  const a = at(ax + dx, ay), b = at(ax, ay + dy);
+  let n = 0;
+  if(!a || a.wall || (a.door && !a.door.open)) n++;
+  if(!b || b.wall || (b.door && !b.door.open)) n++;
+  return n;
+}
+/* the to-hit cost of that cover */
+function coverPenalty(m){
+  if(!m) return 0;
+  const n = coverCount(P.x, P.y, m.x, m.y);
+  return n === 0 ? 0 : n === 1 ? -3 : -6;
+}
+
 function cornerOpen(ax, ay, bx, by){
   const dx = bx - ax, dy = by - ay;
   if(!dx || !dy) return true;
@@ -889,6 +925,9 @@ function resolve(atk, def, dice, opts){
   const ra = d20(), rd = d20();
   /* kept so the log can show the whole sum rather than two bare dice */
   const _atk = atk, _def = def;
+  /* snapshot the named terms that produced these two numbers, so the log can
+     print the whole arithmetic instead of a total nobody can check */
+  const _ap = atkParts.slice(), _dp = defParts.slice();
   const A = atk + ra, D = def + rd;
   const critA = ra === 20, failA = ra === 1;
   const critD = rd === 20, failD = rd === 1;
@@ -898,27 +937,49 @@ function resolve(atk, def, dice, opts){
      roughly half of them out of nowhere. It is a finisher instead: it only
      kills something already under half, otherwise it is simply a brutal hit. */
   if(critA && failD){
-    if(opts.frail) return { kind:'execute', dmg:9999, ra, rd, atk:_atk, def:_def };
-    return { kind:'crit', dmg:Math.max(1, dice() * 2 + 2), ra, rd, atk:_atk, def:_def };
+    if(opts.frail) return { kind:'execute', dmg:9999, ra, rd, atk:_atk, def:_def, ap:_ap, dp:_dp };
+    return { kind:'crit', dmg:Math.max(1, dice() * 2 + 2), ra, rd, atk:_atk, def:_def, ap:_ap, dp:_dp };
   }
-  if(failA && critD) return { kind:'reflect', dmg:dice(), ra, rd, atk:_atk, def:_def };
-  if(failA)          return { kind:'miss', dmg:0, ra, rd, atk:_atk, def:_def };
-  if(!critA && A <= D) return { kind:'miss', dmg:0, ra, rd, atk:_atk, def:_def };
+  if(failA && critD) return { kind:'reflect', dmg:dice(), ra, rd, atk:_atk, def:_def, ap:_ap, dp:_dp };
+  if(failA)          return { kind:'miss', dmg:0, ra, rd, atk:_atk, def:_def, ap:_ap, dp:_dp };
+  if(!critA && A <= D) return { kind:'miss', dmg:0, ra, rd, atk:_atk, def:_def, ap:_ap, dp:_dp };
 
   let dmg = dice();
   dmg += Math.floor(Math.max(0, A - D) / 5);      /* margin */
   if(critA && !critD) dmg *= 2;
   else if(critD && !critA) dmg = Math.max(1, Math.round(dmg / 2));
-  return { kind: critA ? 'crit' : 'hit', dmg:Math.max(1, Math.round(dmg)), ra, rd, atk:_atk, def:_def };
+  return { kind: critA ? 'crit' : 'hit', dmg:Math.max(1, Math.round(dmg)), ra, rd, atk:_atk, def:_def, ap:_ap, dp:_dp };
 }
 
+/* Every modifier is recorded as it is applied, so the log can show the whole
+   sum with each term named rather than a single opaque total. `parts` is read
+   straight afterwards by the roll and carried into the report. */
+let atkParts = [], defParts = [];
+/* The defender's number, with cover folded in on THIS side — a corner between
+   you and a target is the target being harder to hit, not you being worse at
+   hitting, and it reads far more clearly that way in the log. */
+function mobDef(m){
+  defParts = [];
+  let d = m.def;
+  defParts.push([d, 'DEF']);
+  const n = coverCount(P.x, P.y, m.x, m.y);
+  if(n){
+    const c = n === 1 ? 3 : 6;
+    d += c;
+    defParts.push([c, n === 1 ? 'P-CVR' : 'H-CVR']);
+  }
+  return d;
+}
 function playerAtk(w, m, dist){
-  let a = 3 + P.lvl + (w.atk || 0) + rangePenalty(w, dist || 1);
-  if(P.buff.dmg > 0) a += 1;
+  atkParts = [];
+  const add = (v, tag) => { if(v) atkParts.push([v, tag]); };
+  let a = 3 + P.lvl + (w.atk || 0);
+  atkParts.push([a, 'ATK']);
+  const rp = rangePenalty(w, dist || 1); a += rp; add(rp, 'RANGE');
+  if(P.buff.dmg > 0){ a += 1; add(1, 'BUFF'); }
   /* long guns are hopeless with something in your face; the pistol is not */
-  if(w.kind === 'ranged' && w.trait !== 'QUICKDRAW' && adjacentMob()) a -= 4;
-  if(m && !isLit(m.x, m.y)) a -= 4;               /* firing at a noise */
-  if(m && m.supp) a += 0;
+  if(w.kind === 'ranged' && w.trait !== 'QUICKDRAW' && adjacentMob()){ a -= 4; add(-4, 'POINT-BLANK'); }
+  if(m && !isLit(m.x, m.y)){ a -= 4; add(-4, 'UNLIT'); }
   return a;
 }
 /* DEF is the whole defensive story. There used to be a separate `resist`
@@ -2901,10 +2962,6 @@ function label(m){ return SPECIES[m.type].name.toUpperCase() + ' L' + m.lvl; }
 
 function strike(m){
   if(!m || !m.alive || !adjacent(m) || busy || dead) return;
-  if(!cornerOpen(P.x, P.y, m.x, m.y)){
-    say('No angle \u2014 the bulkhead corner is in the way.');
-    snd.denied(); render(); return;
-  }
   const w = wep();
   const cost = swingCost(w);
   if(P.stam < cost){
@@ -2922,7 +2979,7 @@ function strike(m){
   if(first){ if(hurtPlayer(m)) return; }
   snd.swing(P.weapon, w);
 
-  const r = resolve(playerAtk(w, m, 1), m.def, weaponDice(w, m, false), { frail: m.hp < m.maxHp/2 });
+  const r = resolve(playerAtk(w, m, 1), mobDef(m), weaponDice(w, m, false), { frail: m.hp < m.maxHp/2 });
   reportPlayer(w, m, r);
   if(r.kind === 'reflect'){ if(hurtPlayer(m, r.dmg, true)) return; }
   else if(r.dmg > 0){
@@ -2966,7 +3023,7 @@ function strike(m){
   if(w.cleave){
     for(const o of mobs){
       if(o === m || !o.alive || !adjacent(o) || !cornerOpen(P.x,P.y,o.x,o.y)) continue;
-      const rr = resolve(playerAtk(w, o, 1), o.def, weaponDice(w, o, false));
+      const rr = resolve(playerAtk(w, o, 1), mobDef(o), weaponDice(w, o, false));
       if(rr.dmg > 0 && rr.kind !== 'reflect'){
         say('  \u2026and through ' + label(o) + ' \u2212' + rr.dmg);
         o.hp -= rr.dmg;
@@ -2978,10 +3035,19 @@ function strike(m){
   endTurn(m);
 }
 
+/* The whole sum with every term named:
+     (20) + 3 (ATK) vs (13) + 6 (DEF) + 6 (H-CVR)
+   The die is in brackets because it is the only part you did not choose. */
+function side(die, parts, total){
+  let out = '(' + die + ')';
+  for(const [v, tag] of parts) out += ' ' + (v < 0 ? '- ' + (-v) : '+ ' + v) + ' (' + tag + ')';
+  return out + ' = ' + (die + total);
+}
 function rollTag(r){
   if(r.atk === undefined) return ' [' + r.ra + 'v' + r.rd + ']';
-  const A = r.atk + r.ra, D = r.def + r.rd;
-  return ' [' + r.ra + '+' + r.atk + '=' + A + ' v ' + r.rd + '+' + r.def + '=' + D + ']';
+  const ap = r.ap && r.ap.length ? r.ap : [[r.atk, 'ATK']];
+  const dp = r.dp && r.dp.length ? r.dp : [[r.def, 'DEF']];
+  return ' ' + side(r.ra, ap, r.atk) + ' vs ' + side(r.rd, dp, r.def);
 }
 
 function reportPlayer(w, m, r){
@@ -3038,7 +3104,7 @@ function fire(m){
 
   for(const t of targets){
     const d = Math.max(Math.abs(t.x-P.x), Math.abs(t.y-P.y));
-    const r = resolve(playerAtk(w, t, d), t.def, weaponDice(w, t, blind), { frail: t.hp < t.maxHp/2 });
+    const r = resolve(playerAtk(w, t, d), mobDef(t), weaponDice(w, t, blind), { frail: t.hp < t.maxHp/2 });
     if(t === m) reportPlayer(w, t, r);
     else if(r.dmg > 0) say('  spray \u2192 ' + label(t) + ' \u2212' + r.dmg);
     if(r.kind === 'reflect') continue;          /* a gun cannot cut you */
@@ -3125,6 +3191,15 @@ function attack(m){
 
 function rest(){
   if(busy || dead) return;
+  /* At full stamina there is nothing to recover, but passing a turn is still a
+     real decision — letting something come to you, or waiting out a stun. The
+     button becomes WAIT rather than going dead. */
+  if(P.stam >= P.maxStam){
+    say('You wait, and listen.');
+    snd.step();
+    endTurn(null);
+    return;
+  }
   const g = restGain();
   P.stam = Math.min(P.maxStam, P.stam + g);
   P.rested = true;
@@ -5356,6 +5431,15 @@ function renderPanel(){
             ? (inShotRange(sel) ? 'Tap it again or press FIRE.'
                : 'Needs light and a clear line inside ' + maxRange(wep()) + ' squares.')
             : (adjacent(sel) ? 'Tap it again or press STRIKE.' : 'Closing in\u2026'))+'</div>' +
+      '</div>' +
+      /* The target card used to REPLACE the log, which meant the roll was
+         hidden at exactly the moment you were rolling — you saw it only when
+         nothing was selected, i.e. never during a fight. The last few lines
+         now ride under the card. */
+      '<div id="log" class="under">' +
+        logLines.slice(-3).map(function(t){
+          return '<div>\u203A ' + t.replace(/&/g,'&amp;').replace(/</g,'&lt;') + '</div>';
+        }).join('') +
       '</div>';
   } else {
     panelEl.innerHTML = '<div id="log"></div>';
@@ -5381,11 +5465,14 @@ function renderActions(){
   b.disabled = !canHit || busy || dead ||
                (w.kind === 'ranged' && P.ammo < (w.cost || 1));
   $('bGear').disabled = busy || dead;
-  $('bRest').disabled = busy || dead || P.stam >= P.maxStam;
+  $('bRest').disabled = busy || dead;
+  /* the label tells you which of the two things it will do */
+  const full = P.stam >= P.maxStam;
+  $('bRest').firstChild.nodeValue = full ? 'WAIT' : 'REST';
   /* show what you will actually get back, not the theoretical maximum —
      at 13/14 a "+4" is a lie the bar immediately contradicts */
   $('bRest').querySelector('.cost').textContent =
-    '+' + Math.max(0, Math.min(restGain(), P.maxStam - P.stam));
+    full ? '\u2014' : '+' + Math.max(0, Math.min(restGain(), P.maxStam - P.stam));
   b.disabled = b.disabled || (w.kind !== 'ranged' && P.stam < swingCost(w));
 }
 
