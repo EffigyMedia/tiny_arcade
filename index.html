@@ -1359,7 +1359,441 @@ function ranks(g,s,t){
   g.beginPath(); g.moveTo(0,s.h-s.h*0.045); g.lineTo(s.w,s.h-s.h*0.045); g.stroke();
 }
 
-var draw = { dive:dive, grid:grid, road:road, maze:maze, blocks:blocks, scope:scope, ranks:ranks };
+/* ---- Swarm: paper craft peeling out of formation ---------------------- */
+function fold(g,s,t){
+  g.fillStyle='#100d1a'; g.fillRect(0,0,s.w,s.h);
+  function craft(x,y,a,col,sc){
+    g.save(); g.translate(x,y); g.rotate(a); g.scale(sc,sc);
+    g.fillStyle=col;
+    g.beginPath(); g.moveTo(0,-9); g.lineTo(-7,7); g.lineTo(0,4); g.closePath(); g.fill();
+    g.fillStyle='rgba(255,255,255,.28)';
+    g.beginPath(); g.moveTo(0,-9); g.lineTo(7,7); g.lineTo(0,4); g.closePath(); g.fill();
+    g.fillStyle='rgba(0,0,0,.22)';
+    g.beginPath(); g.moveTo(-2,-2); g.lineTo(-11,3); g.lineTo(-3,6); g.closePath(); g.fill();
+    g.beginPath(); g.moveTo(2,-2); g.lineTo(11,3); g.lineTo(3,6); g.closePath(); g.fill();
+    g.strokeStyle='rgba(10,8,18,.5)'; g.lineWidth=0.7;
+    g.beginPath(); g.moveTo(0,-9); g.lineTo(0,6); g.stroke();
+    g.restore();
+  }
+  var sc=Math.max(0.5, s.w/150);
+  /* the ranks, breathing */
+  var cols=5, rows=3;
+  for(var r=0;r<rows;r++)
+    for(var c=0;c<cols;c++){
+      var idx=r*cols+c;
+      /* two of them are away on a dive at any moment */
+      if(((idx*7+Math.floor(t*0.7))%11)<2) continue;
+      var x=s.w*0.20+c*s.w*0.15+Math.sin(t*1.1+r*0.5)*s.w*0.02;
+      var y=s.h*0.16+r*s.h*0.10+Math.sin(t*0.7+c*0.4)*s.h*0.008;
+      craft(x,y,0, r===0?'#b06cff':r===1?'#ff7ac0':'#7ad4ff', sc);
+    }
+  /* one diving on a curve */
+  var q=(t*0.42)%1, m=1-q;
+  var p0={x:s.w*0.75,y:s.h*0.20}, p1={x:s.w*1.05,y:s.h*0.40},
+      p2={x:s.w*0.15,y:s.h*0.62}, p3={x:s.w*0.45,y:s.h*1.05};
+  var bx=m*m*m*p0.x+3*m*m*q*p1.x+3*m*q*q*p2.x+q*q*q*p3.x;
+  var by=m*m*m*p0.y+3*m*m*q*p1.y+3*m*q*q*p2.y+q*q*q*p3.y;
+  var q2=Math.min(1,q+0.03);
+  var m2=1-q2;
+  var nx=m2*m2*m2*p0.x+3*m2*m2*q2*p1.x+3*m2*q2*q2*p2.x+q2*q2*q2*p3.x;
+  var ny=m2*m2*m2*p0.y+3*m2*m2*q2*p1.y+3*m2*q2*q2*p2.y+q2*q2*q2*p3.y;
+  craft(bx,by,Math.atan2(ny-by,nx-bx)+Math.PI/2,'#b06cff',sc*1.15);
+  /* your ship, and a shot */
+  var gx=s.w*0.5+Math.sin(t*1.5)*s.w*0.22;
+  craft(gx, s.h*0.90, 0, '#c3ff4a', sc*1.05);
+  g.fillStyle='#f2eefb';
+  g.fillRect(gx-1, s.h*0.86-((t*160)%(s.h*0.6)), 2, s.h*0.03);
+}
+
+/* ---- Ribbit: the wet road under sodium, something small crossing ------ */
+function drain(g,s,t){
+  var U=s.h/14;
+  g.fillStyle='#0a1418'; g.fillRect(0,0,s.w,s.h*0.5);
+  g.fillStyle='#15171a'; g.fillRect(0,s.h*0.57,s.w,s.h*0.36);
+  g.fillStyle='#1b1f22'; g.fillRect(0,s.h*0.50,s.w,s.h*0.07);
+  g.fillStyle='#12211a'; g.fillRect(0,0,s.w,U);
+  /* sodium pools */
+  for(var i=0;i<2;i++){
+    var cx=(i+0.5)*s.w/2;
+    var gr=g.createRadialGradient(cx,s.h*0.75,3,cx,s.h*0.75,s.w*0.42);
+    gr.addColorStop(0,'rgba(255,176,88,.20)'); gr.addColorStop(1,'rgba(255,150,60,0)');
+    g.fillStyle=gr; g.fillRect(0,s.h*0.57,s.w,s.h*0.36);
+  }
+  /* traffic, alternating */
+  var cars=[[0.62,1,2],[0.71,-1,1],[0.80,1,3],[0.88,-1,2]];
+  for(var c=0;c<cars.length;c++){
+    var row=cars[c], y=s.h*row[0], dir=row[1], len=row[2];
+    for(var k=-1;k<4;k++){
+      var x=((t*26*dir + k*s.w*0.45) % (s.w+80) + s.w+80) % (s.w+80) - 40;
+      var w=len*U*0.8, h=U*0.62;
+      g.fillStyle=['#8a3f45','#3f5f8a','#6a6a72','#8a6a3f'][c%4];
+      g.fillRect(x,y,w,h);
+      g.fillStyle='rgba(255,255,255,.22)'; g.fillRect(x,y,w,h*0.2);
+      g.fillStyle='rgba(0,0,0,.4)'; g.fillRect(x,y+h*0.78,w,h*0.22);
+      g.fillStyle='rgba(255,240,190,.9)';
+      g.fillRect(dir>0?x+w-2:x, y+2, 2, 2.5);
+    }
+  }
+  /* logs on the water */
+  for(var r=0;r<3;r++){
+    var y2=s.h*0.10+r*U*1.6, d2=r%2?1:-1;
+    for(var k2=-1;k2<3;k2++){
+      var x2=((t*17*d2 + k2*s.w*0.55) % (s.w+70) + s.w+70) % (s.w+70) - 35;
+      g.fillStyle='#3a2f26'; g.fillRect(x2,y2,U*2.4,U*0.6);
+      g.fillStyle='rgba(255,255,255,.10)'; g.fillRect(x2,y2,U*2.4,1.5);
+    }
+  }
+  /* the crosser, hopping up a row at a time */
+  var hopN=Math.floor(t*1.6)%9;
+  var cy=s.h*0.92-hopN*U*0.95;
+  var bob=Math.abs(Math.sin(t*1.6*Math.PI))*4;
+  var cx2=s.w*0.5;
+  g.fillStyle='#dfe6e2';
+  g.beginPath(); g.ellipse(cx2,cy-bob,U*0.30,U*0.24,0,0,6.2832); g.fill();
+  g.strokeStyle='#dfe6e2'; g.lineWidth=Math.max(1,U*0.09); g.lineCap='round';
+  g.beginPath(); g.moveTo(cx2-U*0.18,cy-bob+U*0.08); g.lineTo(cx2-U*0.36,cy-bob+U*0.26); g.stroke();
+  g.beginPath(); g.moveTo(cx2+U*0.18,cy-bob+U*0.08); g.lineTo(cx2+U*0.36,cy-bob+U*0.26); g.stroke();
+  g.fillStyle='#12181a';
+  g.beginPath(); g.arc(cx2-U*0.10,cy-bob-U*0.09,U*0.07,0,6.2832); g.fill();
+  g.beginPath(); g.arc(cx2+U*0.10,cy-bob-U*0.09,U*0.07,0,6.2832); g.fill();
+}
+
+/* ---- Girder: scaffolding, and something rolling down it --------------- */
+function scaffold(g,s,t){
+  g.fillStyle='#1a1712'; g.fillRect(0,0,s.w,s.h);
+  g.fillStyle='#221d16';
+  for(var y=0;y<s.h;y+=s.h*0.055)
+    for(var x=((y/(s.h*0.055))%2)*s.w*0.12-s.w*0.12; x<s.w; x+=s.w*0.24)
+      g.fillRect(x+1,y+1,s.w*0.22,s.h*0.045);
+  /* the window */
+  var wx=s.w*0.5, wy=s.h*0.24;
+  g.fillStyle='rgba(150,190,210,.15)';
+  g.beginPath(); g.moveTo(wx-s.w*0.10,wy+s.h*0.20); g.lineTo(wx-s.w*0.10,wy-s.h*0.03);
+  g.quadraticCurveTo(wx,wy-s.h*0.12,wx+s.w*0.10,wy-s.h*0.03);
+  g.lineTo(wx+s.w*0.10,wy+s.h*0.20); g.closePath(); g.fill();
+  /* five sloped decks */
+  var decks=[[0.92,0.92],[0.78,0.74],[0.63,0.66],[0.48,0.45],[0.33,0.36],[0.20,0.19]];
+  for(var d=0;d<decks.length;d++){
+    var yl=s.h*decks[d][0], yr=s.h*decks[d][1];
+    g.beginPath(); g.moveTo(0,yl); g.lineTo(s.w,yr); g.lineTo(s.w,yr+s.h*0.022);
+    g.lineTo(0,yl+s.h*0.022); g.closePath();
+    g.fillStyle='#5a4830'; g.fill();
+    g.strokeStyle='rgba(255,225,180,.35)'; g.lineWidth=1;
+    g.beginPath(); g.moveTo(0,yl+1); g.lineTo(s.w,yr+1); g.stroke();
+  }
+  /* masonry rolling down, deck by deck */
+  var cyc=(t*0.5)%6, deck=Math.min(5,Math.floor(cyc));
+  var yl2=s.h*decks[5-deck][0], yr2=s.h*decks[5-deck][1];
+  var dir=(deck%2)?-1:1;
+  var px=dir>0 ? (cyc-deck)*s.w : s.w-(cyc-deck)*s.w;
+  var py=yl2+(yr2-yl2)*(px/s.w)-s.h*0.016;
+  g.save(); g.translate(px,py); g.rotate(t*3*dir);
+  g.fillStyle='#7d6f5c'; g.fillRect(-s.w*0.022,-s.w*0.022,s.w*0.044,s.w*0.044);
+  g.fillStyle='rgba(255,255,255,.22)'; g.fillRect(-s.w*0.022,-s.w*0.022,s.w*0.044,s.w*0.014);
+  g.restore();
+  /* the climber */
+  var fx=s.w*0.22+Math.sin(t*1.2)*s.w*0.10;
+  var fy=s.h*0.92+(s.h*0.92-s.h*0.92)-s.h*0.022;
+  g.fillStyle='#ff6b2c'; g.fillRect(fx-s.w*0.018,fy-s.h*0.030,s.w*0.036,s.h*0.024);
+  g.fillStyle='#d9b48a';
+  g.beginPath(); g.arc(fx,fy-s.h*0.038,s.w*0.014,0,6.2832); g.fill();
+  /* the gargoyle up top */
+  g.fillStyle='#5f5a52';
+  g.beginPath(); g.ellipse(s.w*0.20,s.h*0.16,s.w*0.055,s.h*0.026,0,0,6.2832); g.fill();
+  g.fillStyle='#4a453e';
+  g.beginPath(); g.moveTo(s.w*0.17,s.h*0.15); g.lineTo(s.w*0.11,s.h*0.11);
+  g.lineTo(s.w*0.13,s.h*0.17); g.closePath(); g.fill();
+  g.fillStyle='#ff6b2c';
+  g.beginPath(); g.arc(s.w*0.235,s.h*0.152,s.w*0.008,0,6.2832); g.fill();
+}
+
+/* ---- Coil: a light pulse working its way round a dark bundle ---------- */
+function fibre(g,s,t){
+  g.fillStyle='#070d10'; g.fillRect(0,0,s.w,s.h);
+  var C=11, R=14, U=Math.min(s.w/C, s.h/R);
+  var ox=(s.w-C*U)/2, oy=(s.h-R*U)/2;
+  g.strokeStyle='rgba(60,120,95,.10)'; g.lineWidth=1;
+  for(var c=0;c<=C;c++){ g.beginPath(); g.moveTo(ox+c*U,oy); g.lineTo(ox+c*U,oy+R*U); g.stroke(); }
+  for(var r=0;r<=R;r++){ g.beginPath(); g.moveTo(ox,oy+r*U); g.lineTo(ox+C*U,oy+r*U); g.stroke(); }
+  /* a fixed spiral route, walked at a steady pace */
+  var path=[];
+  for(var i=2;i<9;i++) path.push([i,11]);
+  for(var j=11;j>3;j--) path.push([8,j]);
+  for(var i2=8;i2>2;i2--) path.push([i2,3]);
+  for(var j2=3;j2<9;j2++) path.push([2,j2]);
+  for(var i3=2;i3<7;i3++) path.push([i3,8]);
+  var L=14, head=Math.floor(t*4)%path.length;
+  for(var k=L-1;k>=0;k--){
+    var idx=(head-k+path.length*3)%path.length, p=path[idx];
+    var q=1-k/L;
+    var x=ox+p[0]*U+U/2, y=oy+p[1]*U+U/2;
+    var gl=g.createRadialGradient(x,y,0,x,y,U*0.85);
+    gl.addColorStop(0,'rgba(124,245,160,'+(0.10+q*0.5)+')');
+    gl.addColorStop(1,'rgba(124,245,160,0)');
+    g.fillStyle=gl; g.fillRect(x-U,y-U,U*2,U*2);
+    g.fillStyle='rgba(160,255,200,'+(0.18+q*0.75)+')';
+    g.beginPath(); g.arc(x,y,U*0.30+q*U*0.13,0,6.2832); g.fill();
+  }
+  var hp=path[head];
+  g.fillStyle='#fff';
+  g.beginPath(); g.arc(ox+hp[0]*U+U/2, oy+hp[1]*U+U/2, U*0.20, 0, 6.2832); g.fill();
+  /* a junction node ahead of it */
+  var np=path[(head+7)%path.length];
+  var nx=ox+np[0]*U+U/2, ny=oy+np[1]*U+U/2;
+  var pu=0.75+Math.sin(t*4)*0.25;
+  g.globalAlpha=0.35*pu; g.fillStyle='#7cf5a0';
+  g.beginPath(); g.arc(nx,ny,U*0.62,0,6.2832); g.fill();
+  g.globalAlpha=1; g.fillStyle='#7cf5a0';
+  g.beginPath(); g.arc(nx,ny,U*0.24,0,6.2832); g.fill();
+  g.strokeStyle='#7cf5a0'; g.lineWidth=1.4; g.globalAlpha=0.55;
+  for(var a=0;a<4;a++){
+    var ang=a*1.5708+0.7854;
+    g.beginPath();
+    g.moveTo(nx+Math.cos(ang)*U*0.30, ny+Math.sin(ang)*U*0.30);
+    g.lineTo(nx+Math.cos(ang)*U*0.52, ny+Math.sin(ang)*U*0.52); g.stroke();
+  }
+  g.globalAlpha=1;
+}
+
+/* ---- Aegis: a radar sweep, contacts falling, bursts opening ----------- */
+function radar(g,s,t){
+  g.fillStyle='#070d0b'; g.fillRect(0,0,s.w,s.h);
+  var ox=s.w/2, oy=s.h*0.90;
+  g.strokeStyle='rgba(90,200,140,.11)'; g.lineWidth=1;
+  for(var r=s.h*0.13;r<=s.h*1.1;r+=s.h*0.13){ g.beginPath(); g.arc(ox,oy,r,Math.PI,0); g.stroke(); }
+  for(var a=0;a<=6;a++){
+    var ang=Math.PI+a*Math.PI/6;
+    g.beginPath(); g.moveTo(ox,oy); g.lineTo(ox+Math.cos(ang)*s.h*1.1, oy+Math.sin(ang)*s.h*1.1); g.stroke();
+  }
+  /* the sweep */
+  var sa=Math.PI+((t*0.5)%1)*Math.PI;
+  var sw=g.createRadialGradient(ox,oy,0,ox,oy,s.h*1.1);
+  sw.addColorStop(0,'rgba(120,240,170,.18)'); sw.addColorStop(1,'rgba(120,240,170,0)');
+  g.beginPath(); g.moveTo(ox,oy); g.arc(ox,oy,s.h*1.1,sa-0.32,sa); g.closePath();
+  g.fillStyle=sw; g.fill();
+  /* three contacts falling on their tracks */
+  for(var i=0;i<3;i++){
+    var q=((t*0.32+i*0.34)%1);
+    var sx=s.w*(0.18+i*0.30), tx=s.w*(0.30+i*0.22);
+    var x=sx+(tx-sx)*q, y=q*oy;
+    g.strokeStyle='rgba(255,59,92,.16)'; g.setLineDash([3,5]); g.lineWidth=1;
+    g.beginPath(); g.moveTo(x,y); g.lineTo(tx,oy); g.stroke(); g.setLineDash([]);
+    g.strokeStyle='rgba(255,120,140,.34)';
+    g.beginPath(); g.moveTo(sx,0); g.lineTo(x,y); g.stroke();
+    g.fillStyle='#ff3b5c'; g.beginPath(); g.arc(x,y,2.6,0,6.2832); g.fill();
+  }
+  /* a burst opening and fading */
+  var bq=(t*0.5)%2;
+  if(bq<1){
+    var bx=s.w*0.56, by=s.h*0.42, br=bq*s.w*0.20;
+    var bg=g.createRadialGradient(bx,by,0,bx,by,Math.max(1,br));
+    bg.addColorStop(0,'rgba(230,255,240,'+(1-bq)*0.9+')');
+    bg.addColorStop(0.55,'rgba(127,224,164,'+(1-bq)*0.4+')');
+    bg.addColorStop(1,'rgba(127,224,164,0)');
+    g.fillStyle=bg; g.beginPath(); g.arc(bx,by,Math.max(1,br),0,6.2832); g.fill();
+  }
+  /* ground, cities, batteries */
+  g.strokeStyle='rgba(127,224,164,.30)'; g.lineWidth=1.4;
+  g.beginPath(); g.moveTo(0,oy); g.lineTo(s.w,oy); g.stroke();
+  for(var c=0;c<5;c++){
+    var cx=s.w*(0.18+c*0.16);
+    for(var k=0;k<5;k++){
+      var hh=s.h*(0.012+((k*7)%4)*0.006);
+      g.fillStyle='rgba(127,224,164,'+(0.35+((k*11)%5)*0.10)+')';
+      g.fillRect(cx-4+k*2, oy-hh, 1.6, hh);
+    }
+  }
+  g.fillStyle='rgba(127,224,164,.75)';
+  for(var bnum=0;bnum<3;bnum++){
+    var bxx=s.w*(0.10+bnum*0.40);
+    g.beginPath(); g.moveTo(bxx-6,oy); g.lineTo(bxx,oy-8); g.lineTo(bxx+6,oy); g.closePath(); g.fill();
+  }
+}
+
+/* ---- Shards: ice tumbling, a dark wedge coasting through it ----------- */
+function ice(g,s,t){
+  g.fillStyle='#070b18'; g.fillRect(0,0,s.w,s.h);
+  for(var i=0;i<40;i++){
+    var sx=(i*137.5)%s.w, sy=(i*79.3)%s.h;
+    g.fillStyle='rgba(190,210,255,'+(0.05+((i*13)%7)/40)+')';
+    g.fillRect(sx,sy,1,1);
+  }
+  function rock(x,y,r,rot,seed){
+    g.save(); g.translate(x,y); g.rotate(rot);
+    g.beginPath();
+    for(var k=0;k<9;k++){
+      var ang=k/9*6.2832, rr=r*(0.66+((seed*7+k*13)%9)/22);
+      var px=Math.cos(ang)*rr, py=Math.sin(ang)*rr;
+      k?g.lineTo(px,py):g.moveTo(px,py);
+    }
+    g.closePath();
+    var gr=g.createLinearGradient(-r,-r,r,r);
+    gr.addColorStop(0,'rgba(190,215,255,.55)');
+    gr.addColorStop(0.45,'rgba(120,150,220,.30)');
+    gr.addColorStop(1,'rgba(60,80,150,.20)');
+    g.fillStyle=gr; g.fill();
+    g.strokeStyle='rgba(210,230,255,.65)'; g.lineWidth=1.2; g.stroke();
+    g.save(); g.clip();
+    g.strokeStyle='rgba(220,238,255,.30)'; g.lineWidth=1;
+    for(var f=0;f<3;f++){
+      var fa=(seed+f)*1.1;
+      g.beginPath();
+      g.moveTo(Math.cos(fa)*r*1.3, Math.sin(fa)*r*1.3);
+      g.lineTo(Math.cos(fa+Math.PI)*r*1.3, Math.sin(fa+Math.PI)*r*1.3);
+      g.stroke();
+    }
+    g.fillStyle='rgba(255,255,255,.18)';
+    g.beginPath(); g.ellipse(-r*0.25,-r*0.28,r*0.30,r*0.18,-0.6,0,6.2832); g.fill();
+    g.restore(); g.restore();
+  }
+  var big=Math.min(s.w,s.h)*0.13;
+  rock((s.w*0.24+t*11)%(s.w+60)-30, s.h*0.24, big, t*0.3, 1);
+  rock((s.w*0.70-t*8+s.w)%(s.w+60)-30, s.h*0.60, big*0.62, -t*0.4, 5);
+  rock((s.w*0.42+t*14)%(s.w+60)-30, s.h*0.84, big*0.40, t*0.6, 9);
+  /* the ship, coasting and thrusting */
+  var sx2=s.w*0.5+Math.cos(t*0.7)*s.w*0.18, sy2=s.h*0.48+Math.sin(t*0.7)*s.h*0.14;
+  var ang2=t*0.7+Math.PI/2;
+  g.save(); g.translate(sx2,sy2); g.rotate(ang2);
+  var k2=Math.max(0.6,s.w/150);
+  g.scale(k2,k2);
+  var fl=g.createLinearGradient(-8,0,-22,0);
+  fl.addColorStop(0,'rgba(255,220,140,.9)');
+  fl.addColorStop(0.5,'rgba(255,140,60,.5)');
+  fl.addColorStop(1,'rgba(255,90,40,0)');
+  g.fillStyle=fl;
+  g.beginPath(); g.moveTo(-7,-3.4); g.lineTo(-8-11-Math.random()*6,0); g.lineTo(-7,3.4);
+  g.closePath(); g.fill();
+  g.fillStyle='#0d1330';
+  g.beginPath(); g.moveTo(12,0); g.lineTo(-8,-7); g.lineTo(-4,0); g.lineTo(-8,7); g.closePath(); g.fill();
+  g.strokeStyle='#cfe0ff'; g.lineWidth=1.3;
+  g.beginPath(); g.moveTo(12,0); g.lineTo(-8,-7); g.lineTo(-4,0); g.lineTo(-8,7); g.closePath(); g.stroke();
+  g.restore();
+  /* a shot in flight */
+  var bq=(t*1.4)%1;
+  g.fillStyle='#eef2ff';
+  g.fillRect(sx2+Math.cos(ang2)*(14+bq*s.w*0.5)-1, sy2+Math.sin(ang2)*(14+bq*s.w*0.5)-1, 2.2, 2.2);
+}
+
+/* ---- Burrow: a cutaway with a tunnel opening through it --------------- */
+function strata(g,s,t){
+  var C=10, R=13, U=Math.min(s.w/C, s.h/R);
+  var ox=(s.w-C*U)/2, oy=0;
+  g.fillStyle='#1b2530'; g.fillRect(0,0,s.w,U*1.6);
+  var bands=[[1.6,4,'#6b4f31','#7d5e3c'],[4,7,'#8a6234','#9a7040'],
+             [7,10,'#7a5a44','#8a6a52'],[10,13,'#5e4a3e','#6d5748']];
+  for(var b=0;b<bands.length;b++){
+    g.fillStyle=bands[b][2];
+    g.fillRect(0, oy+bands[b][0]*U, s.w, (bands[b][1]-bands[b][0])*U);
+    g.fillStyle=bands[b][3];
+    for(var k=0;k<26;k++){
+      var gx=(k*53)%s.w, gy=oy+bands[b][0]*U+((k*31)%((bands[b][1]-bands[b][0])*U));
+      g.fillRect(gx,gy,4,1.4);
+    }
+  }
+  /* the tunnel the driller has cut, opening as it goes */
+  var prog=(t*0.45)%3;
+  var cells=[];
+  for(var i=0;i<7;i++) cells.push([3,2+i]);
+  for(var i2=3;i2<8;i2++) cells.push([i2,8]);
+  for(var i3=8;i3>3;i3--) cells.push([7,i3]);
+  var cut=Math.floor((prog/3)*cells.length*1.3);
+  g.fillStyle='#0f0b07';
+  for(var n=0;n<Math.min(cut,cells.length);n++){
+    var cc=cells[n];
+    g.fillRect(ox+cc[0]*U, oy+cc[1]*U, U, U);
+    g.fillStyle='rgba(255,225,180,.18)';
+    g.fillRect(ox+cc[0]*U, oy+cc[1]*U, U, 1.4);
+    g.fillStyle='#0f0b07';
+  }
+  /* the drill at the head of it */
+  var hp=cells[Math.max(0,Math.min(cut,cells.length-1))];
+  var hx=ox+hp[0]*U+U/2, hy=oy+hp[1]*U+U/2;
+  g.save(); g.translate(hx,hy);
+  g.fillStyle='#e0a458';
+  g.beginPath(); g.moveTo(0,-U*0.42); g.lineTo(U*0.21,-U*0.09); g.lineTo(-U*0.21,-U*0.09);
+  g.closePath(); g.fill();
+  g.fillStyle='#c98f3f'; g.fillRect(-U*0.19,-U*0.09,U*0.38,U*0.38);
+  g.fillStyle='rgba(255,255,255,.35)'; g.fillRect(-U*0.19,-U*0.09,U*0.38,U*0.08);
+  g.restore();
+  /* a grub further down the same gallery */
+  var gx2=ox+6*U+U/2, gy2=oy+8*U+U/2;
+  g.fillStyle='#d8b48a';
+  g.beginPath(); g.ellipse(gx2,gy2,U*0.33,U*0.26,0,0,6.2832); g.fill();
+  g.strokeStyle='rgba(60,40,24,.45)'; g.lineWidth=0.9;
+  for(var q=-2;q<=2;q++){
+    g.beginPath(); g.ellipse(gx2+q*U*0.11,gy2,U*0.08,U*0.25,0,0,6.2832); g.stroke();
+  }
+  /* a rock, poised */
+  g.fillStyle='#4a4038';
+  g.beginPath();
+  g.moveTo(ox+5*U+2, oy+5*U+U-1); g.lineTo(ox+5*U+1, oy+5*U+6);
+  g.lineTo(ox+5*U+7, oy+5*U+1); g.lineTo(ox+6*U-3, oy+5*U+4);
+  g.lineTo(ox+6*U-1, oy+5*U+U-3); g.closePath(); g.fill();
+  g.fillStyle='rgba(255,255,255,.22)';
+  g.fillRect(ox+5*U+2, oy+5*U+3, U-6, 2);
+}
+
+/* ---- Feather: an altimeter profile, a craft settling onto a pad -------- */
+function profile(g,s,t){
+  g.fillStyle='#080c0f'; g.fillRect(0,0,s.w,s.h);
+  g.strokeStyle='rgba(127,212,232,.06)'; g.lineWidth=1;
+  for(var x=0;x<=s.w;x+=s.w/8){ g.beginPath(); g.moveTo(x,0); g.lineTo(x,s.h); g.stroke(); }
+  for(var y=0;y<=s.h;y+=s.h/10){ g.beginPath(); g.moveTo(0,y); g.lineTo(s.w,y); g.stroke(); }
+  /* the terrain profile, with a flat pad in the middle */
+  var pts=[], n=26;
+  for(var i=0;i<=n;i++){
+    var h=s.h*0.72 + Math.sin(i*1.7)*s.h*0.055 + Math.sin(i*0.6)*s.h*0.045;
+    if(i>=12 && i<=16) h=s.h*0.74;
+    pts.push([i/n*s.w, h]);
+  }
+  g.beginPath(); g.moveTo(pts[0][0],pts[0][1]);
+  for(var k=1;k<pts.length;k++) g.lineTo(pts[k][0],pts[k][1]);
+  g.lineTo(s.w,s.h); g.lineTo(0,s.h); g.closePath();
+  g.fillStyle='rgba(20,40,50,.55)'; g.fill();
+  g.beginPath(); g.moveTo(pts[0][0],pts[0][1]);
+  for(var k2=1;k2<pts.length;k2++) g.lineTo(pts[k2][0],pts[k2][1]);
+  g.strokeStyle='rgba(127,212,232,.75)'; g.lineWidth=1.4; g.stroke();
+  /* the pad and its beacon */
+  g.strokeStyle='#7fd4e8'; g.lineWidth=3;
+  g.beginPath(); g.moveTo(pts[12][0],pts[12][1]); g.lineTo(pts[16][0],pts[16][1]); g.stroke();
+  var pu=0.5+Math.sin(t*4)*0.5;
+  g.fillStyle='rgba(127,212,232,'+(0.25+pu*0.45)+')';
+  g.beginPath(); g.arc((pts[12][0]+pts[16][0])/2, pts[12][1]-3, s.w*0.012, 0, 6.2832); g.fill();
+  /* the craft, descending and settling, then starting over */
+  var cyc=(t*0.30)%1;
+  var cx=(pts[12][0]+pts[16][0])/2 + Math.cos(t*0.9)*s.w*0.05*(1-cyc);
+  var cy=s.h*0.16 + cyc*(pts[12][1]-s.h*0.16-8);
+  var thr=(Math.sin(t*7)*0.5+0.5)*(0.4+cyc*0.6);
+  var z=Math.max(0.7, s.w/150);
+  g.save(); g.translate(cx,cy); g.rotate(Math.sin(t*0.9)*0.10*(1-cyc)); g.scale(z,z);
+  if(thr>0.1){
+    var fl=g.createLinearGradient(0,7,0,7+15*thr);
+    fl.addColorStop(0,'rgba(255,235,180,.9)');
+    fl.addColorStop(0.45,'rgba(255,150,60,.5)');
+    fl.addColorStop(1,'rgba(255,90,40,0)');
+    g.fillStyle=fl;
+    g.beginPath(); g.moveTo(-3.2,7); g.lineTo(0,7+13*thr); g.lineTo(3.2,7); g.closePath(); g.fill();
+  }
+  g.strokeStyle='#cfd8e3'; g.lineWidth=1.1; g.lineCap='round';
+  g.beginPath(); g.moveTo(-4,4); g.lineTo(-7,8); g.stroke();
+  g.beginPath(); g.moveTo(4,4); g.lineTo(7,8); g.stroke();
+  g.beginPath();
+  g.moveTo(-5,-2); g.lineTo(-3,-6); g.lineTo(3,-6); g.lineTo(5,-2);
+  g.lineTo(5,3); g.lineTo(3,6); g.lineTo(-3,6); g.lineTo(-5,3); g.closePath();
+  g.fillStyle='rgba(20,34,42,.9)'; g.fill();
+  g.strokeStyle='#eaf2f8'; g.lineWidth=1.3; g.stroke();
+  g.restore();
+  /* a couple of HUD figures, because this is a glass game */
+  g.font=Math.max(6,s.w*0.045)+'px "Chivo Mono", monospace';
+  g.fillStyle='rgba(95,107,120,.9)'; g.fillText('ALT', s.w*0.05, s.h*0.09);
+  g.fillStyle='#cfd8e3';
+  g.fillText(Math.round((1-cyc)*180)+'', s.w*0.28, s.h*0.09);
+  g.fillStyle='rgba(95,107,120,.9)'; g.fillText('V.SPD', s.w*0.05, s.h*0.16);
+  g.fillStyle= cyc>0.8 ? '#7fd4e8' : '#ff6b6b';
+  g.fillText((3.4-cyc*3).toFixed(1), s.w*0.34, s.h*0.16);
+}
+
+var draw = { dive:dive, grid:grid, road:road, maze:maze, blocks:blocks, scope:scope, ranks:ranks, fold:fold, drain:drain, scaffold:scaffold, fibre:fibre, radar:radar, ice:ice, strata:strata, profile:profile };
 
 function paint(now){
   for(var i=0;i<screens.length;i++){

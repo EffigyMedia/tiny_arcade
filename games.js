@@ -25,6 +25,26 @@
    ===================================================================== */
 window.TINY_ARCADE = [
   {
+    file:  'games/golden/ribbit.html',
+    id:    'ribbit',
+    cat:   'golden',
+    name:  'Ribbit',
+    accent:'#5bd66c',
+    genre: 'ARCADE \u00B7 LANE CROSSER',
+    hook:  'The road kills you if you touch anything. The water, if you touch nothing.',
+    attract:'drain'
+  },
+  {
+    file:  'games/golden/swarm.html',
+    id:    'swarm',
+    cat:   'golden',
+    name:  'Swarm',
+    accent:'#b06cff',
+    genre: 'ARCADE \u00B7 DIVE SHOOTER',
+    hook:  'One of them will take your ship. Take it back and fly doubled.',
+    attract:'fold'
+  },
+  {
     file:  'games/golden/phalanx.html',
     id:    'phalanx',
     cat:   'golden',
@@ -53,6 +73,66 @@ window.TINY_ARCADE = [
     genre: 'PUZZLE \u00B7 FALLING',
     hook:  'The wall builds itself. You only choose where the gaps go.',
     attract:'blocks'
+  },
+  {
+    file:  'games/golden/vector.html',
+    id:    'vector',
+    cat:   'golden',
+    name:  'Vector',
+    accent:'#9fb4ff',
+    genre: 'ARCADE \u00B7 INERTIA SHOOTER',
+    hook:  'Nothing here slows you down. Every shot commits you to a course.',
+    attract:'ice'
+  },
+  {
+    file:  'games/golden/aegis.html',
+    id:    'aegis',
+    cat:   'golden',
+    name:  'Aegis',
+    accent:'#ff3b5c',
+    genre: 'ARCADE \u00B7 POINT DEFENCE',
+    hook:  'You cannot win. You can only be slow to lose.',
+    attract:'radar'
+  },
+  {
+    file:  'games/golden/burrow.html',
+    id:    'burrow',
+    cat:   'golden',
+    name:  'Burrow',
+    accent:'#e0a458',
+    genre: 'ARCADE \u00B7 DIG AND POP',
+    hook:  'Every tunnel you cut is an escape route. It is also a trap.',
+    attract:'strata'
+  },
+  {
+    file:  'games/golden/coil.html',
+    id:    'coil',
+    cat:   'golden',
+    name:  'Coil',
+    accent:'#7cf5a0',
+    genre: 'ARCADE \u00B7 SNAKE',
+    hook:  'Winning is the losing condition. Every node leaves you less room.',
+    attract:'fibre'
+  },
+  {
+    file:  'games/golden/feather.html',
+    id:    'feather',
+    cat:   'golden',
+    name:  'Feather',
+    accent:'#cfd8e3',
+    genre: 'ARCADE \u00B7 LANDER',
+    hook:  'A game about arriving slowly. Everything else is fuel arithmetic.',
+    attract:'profile'
+  },
+  {
+    file:  'games/golden/girder.html',
+    id:    'girder',
+    cat:   'golden',
+    name:  'Girder',
+    accent:'#ff6b2c',
+    genre: 'ARCADE \u00B7 CLIMB AND DODGE',
+    hook:  'The masonry rolls downhill. Read the slope and you can read the stage.',
+    attract:'scaffold'
   },
   {
     file:  'games/golden/penboy.html',

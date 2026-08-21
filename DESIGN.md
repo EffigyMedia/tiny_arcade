@@ -122,7 +122,7 @@ machine it descends from on the right.
 | Coil | Snake / Blockade | | Horde | Gauntlet |
 | Popshot | Puzzle Bobble | | Burrow | Dig Dug |
 | Ziggurat | Q*bert | | Feather | Lunar Lander |
-| Shards | Asteroids | | | |
+| Vector | Asteroids | | | |
 
 **Deep**, **Derelict** and **Highway** are ours outright and descend from nothing.
 
@@ -140,7 +140,7 @@ Claimed so far, keep new ones clear of these:
 | `#ff3b5c` | Aegis | | `#7cf5a0` | Coil |
 | `#ff9ecd` | Popshot | | `#e0a458` | Burrow |
 | `#ffb347` | Ziggurat | | `#cfd8e3` | Feather |
-| `#9fb4ff` | Shards | | `#8cff6a` | Myriapod |
+| `#9fb4ff` | Vector | | `#8cff6a` | Myriapod |
 | `#ff2d95` | The Well | | `#ff5d3a` | Grid Riot |
 | `#f2c14e` | Lance | | `#ff7a45` | Fuse |
 | `#ffe066` | Southpaw | | `#4ec9d6` | Plumb |
@@ -165,7 +165,7 @@ arrives**, not before — but design them for the second and third.
       shared results screen. Very arcade, and it makes the save layer earn its keep.
 - [ ] **`Arcade.haptics`** — `navigator.vibrate` with a no-op fallback.
 - [ ] **`Arcade.sticks`** — on-screen twin-stick overlay. Grid Riot needs it;
-      Shards may want it.
+      Vector may want it.
 - [ ] **`Arcade.tilt`** — device orientation, including the iOS
       `requestPermission()` gesture dance. Only Tilt needs it, and Tilt is held
       for last, so this is the final piece of engine work.
@@ -276,7 +276,7 @@ kick tables, input repeat rate. Budget a tuning pass as long as the build.
 
 #### 03 · RIBBIT — *lane crosser*
 *After **Frogger** — Konami, 1981.*
-**Status:** ☐ **Size:** S **Accent:** `#5bd66c`
+**Status:** ☑ BUILT **Size:** S **Accent:** `#5bd66c`
 
 **The idea.** Two halves that fail in opposite ways — the road kills you if you
 touch anything, the river kills you if you touch nothing.
@@ -373,7 +373,7 @@ structure visible inside them.
 
 #### 06 · SWARM — *formation dive shooter*
 *After **Galaga** — Namco, 1981.*
-**Status:** ☐ **Size:** M **Accent:** `#b06cff`
+**Status:** ☑ BUILT **Size:** M **Accent:** `#b06cff`
 
 **The idea.** They arrive along paths, sit in ranks, then peel off and come at
 you individually. And one of them can steal your ship — which you can steal back
@@ -404,7 +404,7 @@ or define them mathematically from the start.
 
 #### 07 · GIRDER — *climb and dodge*
 *After **Donkey Kong** — Nintendo, 1981.*
-**Status:** ☐ **Size:** M **Accent:** `#ff6b2c`
+**Status:** ☑ BUILT **Size:** M **Accent:** `#ff6b2c`
 
 **The idea.** Everything the antagonist throws obeys gravity and slopes, so the
 hazards are readable and the route is a puzzle.
@@ -434,7 +434,7 @@ gargoyle throwing masonry. Stone, rust, tarpaulin.
 
 #### 08 · AEGIS — *point defence*
 *After **Missile Command** — Atari, 1980.*
-**Status:** ☐ **Size:** S **Accent:** `#ff3b5c`
+**Status:** ☑ BUILT **Size:** S **Accent:** `#ff3b5c`
 
 **The idea.** You cannot win. You can only be slow to lose, and the game is
 honest about that at the end.
@@ -466,7 +466,7 @@ tracked contacts with faint prediction lines.
 
 #### 09 · COIL — *snake*
 *After **Snake / Blockade** — Gremlin, 1976.*
-**Status:** ☐ **Size:** S **Accent:** `#7cf5a0`
+**Status:** ☑ BUILT **Size:** S **Accent:** `#7cf5a0`
 
 **The idea.** Winning is the losing condition. The better you do, the less room
 you have.
@@ -525,7 +525,7 @@ droplets.
 
 #### 11 · BURROW — *dig and pop*
 *After **Dig Dug** — Namco, 1982.*
-**Status:** ☐ **Size:** M **Accent:** `#e0a458`
+**Status:** ☑ BUILT **Size:** M **Accent:** `#e0a458`
 
 **The idea.** You author the terrain by moving through it, which means you're
 building your own escape routes and your own traps.
@@ -589,7 +589,7 @@ brief on-screen hint the first few times they move.
 
 #### 13 · FEATHER — *lander*
 *After **Lunar Lander** — Atari, 1979.*
-**Status:** ☐ **Size:** S **Accent:** `#cfd8e3`
+**Status:** ☑ BUILT **Size:** S **Accent:** `#cfd8e3`
 
 **The idea.** A game about arriving slowly. Everything else is fuel arithmetic.
 
@@ -622,9 +622,9 @@ schematic. All information, barely any scenery.
 
 ---
 
-#### 14 · SHARDS — *inertia shooter*
+#### 14 · VECTOR — *inertia shooter*
 *After **Asteroids** — Atari, 1979.*
-**Status:** ☐ **Size:** M **Accent:** `#9fb4ff`
+**Status:** ☑ BUILT **Size:** M **Accent:** `#9fb4ff`
 
 **The idea.** Momentum you cannot cancel. Every shot fired is a course you're
 now committed to.
@@ -1014,6 +1014,9 @@ picked, in the same shape as the entries above.
 | Ours | After | Fit | The one idea worth keeping |
 |---|---|---|---|
 | **DOWNBEAT** | DDR / Guitar Hero · Konami / Harmonix, 1998/2005 | ● | Notes falling to a line, scored on **timing windows** rather than hits. Runs on the synth engine we already have, so the chart *is* the music — no samples, and the track can be generated from the same sequencer that plays every other bed on this floor. Supersedes **SIXTEENTH** above; keep one, not both. |
+| **TABLETOP** | Micro Machines · Codemasters, 1991 | ● | Overhead, tiny cars on household surfaces, and the whole game is the **shared camera**: everyone races in one frame, and anyone who falls off the edge of it is out. That single rule makes the lead worth having — a leader pulls the frame forward and drags the field off the back of it — and it works on a phone because it needs two thumbs and no map. |
+| **RUT** | Ironman Off-Road / 4x4 · Jaleco, 1989 | ◐ | Isometric truck racing over terrain that *deforms*: ruts deepen where the field has driven, so lap three is rougher than lap one and the racing line you inherited is the one you made. Prize money between heats buys tyres, suspension and a bigger engine. Heavier and slower than TABLETOP — the two are not the same game and should not share a cabinet. |
+| **SISTERS** | Super Mario Bros. · Nintendo, 1985 | ◐ | Two sisters, one controlled at a time, and **tagging resumes from wherever the other is standing** — so a level becomes a question of where you parked her. Working title; see the note in the spec about not echoing the original's name. |
 
 ### Accents for these, when they get scheduled
 
@@ -1061,7 +1064,7 @@ Three at a time, always mixed so no two consecutive builds feel the same.
 - **Batch D** — ☐ Swarm · ☐ Girder · ☐ Burrow
   *The three medium arcade classics. Ships `Arcade.fx`.*
 
-- **Batch E** — ☐ Ziggurat · ☐ Myriapod · ☐ Shards
+- **Batch E** — ☐ Ziggurat · ☐ Myriapod · ☑ Vector
   *Awkward-controls tier. Prototype each control scheme before committing.*
 
 - **Batch F** — ☐ The Well · ☐ Lance · ☐ Plumb
@@ -2684,6 +2687,321 @@ blocks drawn as stamped metal — mitred bevels with a lit corner and a deep
 shadowed one, plus a hairline of wear. Title carries СОВЕТСКИЕ БЛОКИ; game over
 reads ИГРА ОКОНЧЕНА. Accent moved `#e8484f` → `#c8102e`.
 
+# 15. FEATHER — built
+
+`games/golden/feather.html`, accent `#cfd8e3`. Fifteenth cabinet.
+
+**The camera zoom is the moment, and it works.** Below 120 units of altitude the
+view scales in toward the craft — measured **1.00 at height, 2.33 at
+touchdown** — so the ground stops being a profile line and becomes a place. The
+bed thins at the same time, near-silent on final approach, so the last few
+seconds are quiet and close.
+
+**All three checks, and the failure tells you which one.** Verified:
+
+    slow, level, no drift  ->  DOWN · x1 PAD · +562
+    too fast down          ->  TOO FAST DOWN
+    drifting sideways      ->  DRIFTING
+    not level              ->  NOT LEVEL
+
+Naming the fault matters: "crashed" teaches nothing, "DRIFTING" teaches you to
+watch H.SPD next time.
+
+**Pads pay by how small they are** — x1 for nine cells down to x6 for three —
+and the count drops as the sites go on. Score is the multiplier times a base,
+plus a softness bonus for touching down slower than you had to, plus whatever
+fuel is left, which carries the arithmetic into the next site.
+
+**Look: instrument glass.** The terrain is a radar altimeter profile, the craft
+a schematic octagon with legs and an attitude tick, and the HUD figures ARE the
+scenery — ALT, V.SPD, H.SPD and ATT, each turning red the moment it leaves
+tolerance. An arrow at the screen edge points to the nearest pad with its
+distance, so you are never lost in a world three times wider than the glass.
+
+# 15. BURROW — built
+
+`games/golden/burrow.html`, accent `#e0a458`. Fourteenth cabinet.
+
+**The bed plays only while you are moving.** `snd.tick` returns immediately if
+`moving <= 0`, and `moving` is set to 0.22s on every dug step. Stop and the music
+stops with you — the spec called that the signature and it is, because the
+silence is where the fear is.
+
+**Cutting is slow. Running your own tunnel is fast.** Measured: **302 ms per
+cell through fresh soil, 101 ms through a tunnel — 3x.** This is the mechanic
+that makes the whole premise work, and the first build did not have it: both
+cost the same, so terrain you authored was worth nothing and there was no reason
+to plan a route. Now you cut a loop early so you can outrun something down it
+later, which is what the genre is actually about.
+
+**Both types ghost, not just one.** In the original, anything that gets stuck
+gives up on tunnels and comes through the dirt as a pair of eyes. The wisp loses
+patience after 1.4, the grub needs 3.2 — so the grub ghosting is an event and
+the wisp ghosting is a habit. A ghost re-forms the instant it reaches open
+ground, cannot be pumped while it is inside rock, and is drawn as **eyes only,
+tracking toward you**, which is the clearest warning the genre has.
+
+**Two enemy types, and the second is the point.** A grub follows tunnels. A wisp
+follows tunnels until it is frustrated — boxed in with only one option for a few
+turns — and then comes **straight through the soil** at you. That is what stops
+you digging a hole and sitting in it, so it earns its place rather than being a
+second sprite.
+
+**Rocks are undermined, not triggered.** Digging the cell directly beneath one
+sets it shaking for half a second, then it drops, crushes anything in the column
+for 500 plus depth, and crumbles away half a second after landing.
+
+**Depth pays.** A kill is worth its base plus 40 a row below the surface, so the
+whole incentive is to go down into the strata where the walls are further apart
+than your nerve.
+
+**Everything is one cell.** In the original the player and the monsters are the
+same size, and ours were not — the grub was 14 wide with a 17px taut ring
+against a surveyor about 10 wide, so it read as a boss rather than a peer.
+All four now sit inside a single cell and inflation grows from parity.
+
+**Three monsters, matching the original's roles.** Grub follows tunnels. Wisp
+loses patience fast and ghosts. **Drake breathes fire along its row** — three
+cells of open ground, and it rears with a gathering glow at its mouth for a
+third of a second before it burns, so the attack is dodgeable rather than
+arbitrary. It is worth 400 against the grub's 200, and it carries a dorsal crest
+and a hotter palette so it is identifiable at a glance in a dark gallery.
+
+**The player is a person.** The first build drew an abstract drill bit — a
+triangle and a box — which had no character at all. It is now a surveyor: hard
+hat with a lamp that throws a small pool of light the way you face, canvas
+jacket with a hi-vis band down the middle so you can always find yourself
+against the dirt, a brass pump tank slung on the back with a strap, both arms
+forward on the lance, and a hose looping from the tank to the lance. The body
+rotates to face travel; the head stays upright.
+
+**The pump is a real harpoon and hose**, not a line. The lance fires a head
+that buries in the target, and a segmented brass hose runs back to the tank with
+ribs along it. **A bulge of air travels down the hose on every stroke**, so you
+watch the pressure going in rather than counting stages — and the target's taut
+outline swells with it.
+
+**Look: archaeological section.** Four strata — topsoil, clay, silt, bedrock —
+each with its own colour and grain, labelled down the left margin as on a
+section drawing. Soil is lit along the top edge only where it meets air, so a
+tunnel reads as freshly cut. The player is a surveyor's drill; the things down
+there are drawn like specimen plates, the grub ruled into segments and the wisp
+with faint internal structure.
+
+# 15. VECTOR — built
+
+`games/golden/vector.html`, accent `#9fb4ff`. Thirteenth cabinet.
+
+**Named VECTOR, not Shards.** "Shards" described the debris rather than the
+experience, and the word is worn thin by loot-game currencies. The game is about
+momentum you cannot cancel, so the maths is what is killing you — which is what
+VECTOR says. It also holds the house pattern: every cabinet on this floor is one
+plain word.
+
+**The touch scheme was built first**, as the spec instructed. Drag anywhere: the
+vector from where you pressed to where your thumb is now gives heading AND
+throttle together, so aiming and accelerating are one gesture rather than two
+controls. Release and thrust stops — momentum does not. A press that never
+became a drag is a shot. Two fingers is hyperspace.
+
+It works: 480 points in a first run, and it cost two ships, which is about right.
+A dashed aiming line draws from the ship while you drag, so the scheme teaches
+itself in the first few seconds.
+
+There is a **whisper of drag** — 0.995 per frame — so a long run is not one
+endless slide, but nowhere near enough to be a brake. The momentum is still
+yours to live with.
+
+**Rocks spall along their fault lines.** Each carries three fault angles drawn
+faintly inside the crystal, and when it breaks the halves fly apart
+perpendicular to the first fault rather than in random directions — so the
+break looks like a consequence of the shape you were looking at.
+
+Also built: wrap for everything including bullets, three sizes each faster than
+the last, hyperspace that checks whether it dropped you inside a rock (and has a
+6% chance of killing you anyway), a big saucer that fires at random and a small
+one from wave 3 that **leads its shots**, and a bed of two alternating bass
+notes that speeds up every second wave. No melody — tension only.
+
+**Look: ice.** Fractured translucent crystal lit from the upper left, blue-white
+on deep navy, the ship a dark wedge with a lit leading edge and a thrust flame
+scaled by throttle.
+
+# 15. AEGIS — built
+
+`games/golden/aegis.html`, accent `#ff3b5c`. Twelfth cabinet.
+
+**The ending is the reason this one exists.** When the last city falls,
+everything stops — spawning halts, the sky freezes, the bursts finish opening in
+slow motion and the screen washes red. Then it says what happened rather than
+"game over":
+
+> You were never going to win this. There is no wave at which they stop coming
+> — there is only how long you kept six lights on a dark map.
+
+**Tempo is the sky.** The dread pulse fires every 6th step with nothing in the
+air, every 2nd with more than eight tracks, and gains a high tick above seven.
+A busy sky sounds busy without a single new asset.
+
+Also built: three batteries with separate ammo and nearest-battery auto-select,
+so **where you tap chooses the gun**; interceptors that fly to the point and
+*then* detonate, which makes leading the target the whole skill; chaining
+bursts; splitting incoming from wave 3; darts from wave 4 that steer away from
+any burst within 34 units, so you bracket them rather than chase; wave bonus on
+unused ammo and surviving cities; and a city rebuilt every fifth wave if there
+is a gap for it.
+
+**Look: weather radar.** Range rings and bearing lines centred on the middle
+battery, a phosphor wedge sweeping the sky, cities as clustered returns, and
+every contact carrying a faint dashed prediction line to where it will land —
+which is what turns panic into triage.
+
+# 15. COIL — built
+
+`games/golden/coil.html`, accent `#7cf5a0`. Eleventh cabinet.
+
+**The bed runs on the MOVEMENT clock**, not a bpm — `frame()` advances a step
+counter by `dt / tickTime()` and fires a note whenever it crosses an integer, so
+the music cannot drift from the motion and both accelerate as one. The shell's
+scheduler is only holding the bus open. It also thickens as you fill the board:
+a sine at length 12, a hat at length 24.
+
+Verified with a bot steered at the food: 110 points, grew 3 to 11, tick tightened
+0.185s to 0.157s, bonus node spawned, died on a wall.
+
+**The tail square is free the tick it leaves**, which is the difference between
+a snake that feels fair and one that kills you for following your own tail.
+
+**One turn is buffered**, and a long drag re-arms mid-swipe, so a fast double
+turn round a corner actually lands rather than being eaten.
+
+**The bonus node is deliberately awkward** — it scores candidate squares by how
+close they are to an edge and picks from the worst few, so it is worth 150 and
+usually somewhere you would rather not go. It expires in seven seconds.
+
+**Look: fibre optic.** A light pulse travelling a dark bundle — head a white
+core, body a glow fading to nothing along its length, food and bonus as junction
+nodes with four short fibres running off them. The tail ring brightens through
+the tick so you can see exactly when the end is about to move off.
+
+# 15. GIRDER — built
+
+`games/golden/girder.html`, accent `#ff6b2c`. Tenth cabinet.
+
+**The slope is the whole design.** A deck is two numbers — y at the left, y at
+the right — and everything derives from that: the walking surface, where the
+masonry lands, and how fast it rolls, since speed scales with `Math.abs(slope)`.
+Four layouts with different slope patterns cycle, so reading a stage means
+reading its gradients.
+
+**The jump is committal.** The horizontal component is sampled at the moment you
+leave the plank and cannot be changed in the air. Jumping a block you misjudged
+is a mistake you have to watch happen, which is the genre.
+
+**The hammer costs something.** Seven seconds, smashes masonry for 300 a piece,
+and **disables climbing while you hold it** — so taking it commits you to
+clearing the deck you are on rather than escaping upward. It also sits where
+fetching it is a detour.
+
+Also built: masonry that sometimes takes a ladder down instead of running to the
+end of a plank, 100 for a clean jump-over, a bonus timer paying out on the top
+deck, and a "hurry" tick that enters the bed when the timer drops under a
+quarter.
+
+**Look: scaffolded cathedral.** Stone courses, a lancet window with cold
+daylight — the one thing in the frame that is not warm — sagging tarpaulin,
+timber decks lit along their top edge. The antagonist is a gargoyle with folded
+ribbed wings and a single lit eye, leaning back as it winds up.
+
+# 15. RIBBIT — built
+
+`games/golden/ribbit.html`, accent `#5bd66c`. Ninth cabinet, and the one that
+had been skipped over — 03 in the list, built after 06.
+
+Everything on the spec's build list is in: discrete hopping on a grid, road
+lanes of differing widths and speeds alternating direction, floating logs and
+pads where **the pads submerge on a six-second timer** and outline red before
+they go, five home slots, a per-life timer paying a bonus on what is left, and
+three distinct deaths — squash, drown, and occupied slot.
+
+**Riding to the edge kills you**, which the spec flagged as load-bearing: without
+it the river half has no tension, because you could simply sit on a log.
+
+**It is a frog.** The spec proposed "something small and pale, not a green
+frog", and as drawn that read as a pebble. It is now an actual frog seen from
+directly above — broad shouldered body tapering to the rear, big thighs with
+shins folded alongside, three splayed webbed toes, short forelegs angled
+forward, and **bulging gold eyes sitting on TOP of the head near the front**,
+which is the single feature that makes a top-down shape read as a frog rather
+than as a mouse. The hind legs kick out and straighten through the arc of a hop.
+
+**Pale lime** (`#c8e86a` skin, `#a3c94e` shading), warm enough to hold up
+against the sodium pools without going fluorescent. The gold eyes still read
+against it because the iris is a deeper amber than the skin.
+
+**Look: night storm drain.** Something small and pale crossing a wet road under
+sodium, then a culvert. Three pools of sodium light on the asphalt, headlights
+that smear along the road ahead of each vehicle, and the water above it all
+nearly black.
+
+**A boot bug worth recording.** `lane.off` was created on the first `step()`,
+but `draw()` ran first — so `wrapX` returned NaN, `createLinearGradient` threw
+on a non-finite value, and the title screen never appeared at all. The game was
+completely dead on load and the only symptom was an empty veil. Initialise
+scroll offsets where the lane is built.
+
+# 15. SWARM — built
+
+`games/golden/swarm.html`, accent `#b06cff`. Eighth cabinet.
+
+**Paths are mathematical, as the spec warned to make them.** A cubic bezier from
+an off-screen control point to a formation slot, four entry shapes used in
+rotation, and dive paths generated from the slot and the player's current x. No
+path editor, nothing hand-authored to maintain, and every wave flies differently
+because the dives are built against wherever you happen to be standing.
+
+**The capture is the hook and it works.** Measured:
+
+    capture   lives 3 -> 2, ship held under the captor
+    rescue    lives 3, doubled true, captor gone
+
+    shots in flight, firing 8 times
+      single ship  2
+      doubled      4
+
+So the trade is real in both directions: twice the guns, twice the width to be
+hit, and you have to kill the thing holding your ship to get it.
+
+**Orientation bug, fixed.** Every hull is drawn nose-UP in local space, and the
+caller rotates. The player was being drawn at `Math.PI` — upside down — and
+ranked enemies sat at `0`, so the entire formation faced AWAY from the player it
+was about to dive at. Ranked and entering foes are now `Math.PI` (facing you),
+the player is `0`, and a captured ship hangs nose-down under its captor.
+
+**The hulls are modelled per kind** rather than one silhouette in three colours:
+
+| | |
+|---|---|
+| flagship | broad delta, twin outboard nacelles, a shadowed lip along the base |
+| escort | swept wings with a lit leading edge, single engine bell |
+| drone | small and blunt, stubby wing pair |
+| player | narrow interceptor, long nose, two outboard engines with exhaust |
+
+All four share the specular spine seam and a domed canopy with a highlight, so
+they read as one fleet built by one yard.
+
+**Look: machined hulls, not origami.** The paper idea was dropped so the Golden
+Era shelf reads as one set. Same language as Soviet Blocks and Ricochet: a solid
+body with a lit upper facet, a shadowed lower one, a bright specular seam down
+the spine, a dark under-plate for the wings, and a spherically shaded canopy lit
+from the upper left. The field gains the machined grid and vignette the other
+two use. On death the hull throws lit, tumbling fragments rather than unfolding.
+
+**Bonus stage — built.** Every fourth wave. They fly the entry curves and never
+rank up, never shoot, never ram; anything you miss simply leaves. Scored on the
+percentage hit, 200 a kill, and **5000 for a clean sweep**. Verified: wave 4
+triggers it, 15 of 16 scored as 94%, and it rolls into wave 5.
+
 # 15. PHALANX — built
 
 `games/golden/phalanx.html`, accent `#c3ff4a`. Seventh cabinet.
@@ -2853,3 +3171,107 @@ scenes drawn at runtime, a shared grade, a frame sequence between title and run
 with SKIP, once-per-device memory and the replay entry handled by the shell
 rather than re-implemented per game. Derelict becomes the first caller instead
 of the only implementation.
+
+
+---
+
+#### SW-04 · TABLETOP — *overhead elimination racer*
+*After **Micro Machines** — Codemasters, 1991.*
+**Status:** ☐ **Size:** M **Accent:** `#ff8a3d`
+
+**The idea.** One camera for the whole field, and the frame is the arena. Fall
+off the edge and you are out of the race — so the lead is not just position, it
+is a weapon. Pull far enough ahead and the trailing cars drop off the back of
+the screen by themselves.
+
+That single rule does the work three systems would otherwise do: it is the
+catch-up mechanic, the tension curve and the win condition at once, and it needs
+no minimap, no lap counter in the corner, and no rubber-band AI to explain.
+
+**Controls.** Auto-throttle, two thumbs: **hold left, hold right.** No pedal.
+The original was two buttons and it is still the right answer on a phone — the
+skill is when to lift, not how hard to press.
+
+**Build**
+- [ ] Overhead surfaces, not tracks: a breakfast table, a workbench, a pool
+      table, a bathroom shelf. Hazards are objects — cereal, a spilled mug, a
+      razor, the pockets.
+- [ ] The shared frame: it follows the centre of the pack, weighted toward the
+      leader. Falling outside costs a point and respawns you at the back.
+- [ ] Points, not places: a point per car eliminated, race ends at a target.
+- [ ] Grip model per surface — wood, glass, felt, water — so a corner taken the
+      same way behaves differently on the pool table than on the workbench.
+- [ ] Four opponents with different aggression, not one AI with four speeds.
+
+**Audio.** Bed: a small, cheap, upbeat loop that pitches up as the frame
+tightens. SFX: engine (pitch by speed), skid, edge-fall (a receding tumble),
+elimination chime, surface change.
+
+**Save.** `{best, wins, label:'BEST 24 POINTS'}`
+
+**Look.** Not toy cars on a photo. Proposal: **scale model** — real materials
+seen from directly above, strong single light so every object throws a hard
+shadow onto the surface, cars small enough that they read as die-cast.
+
+**Watch out.** The camera IS the game, so it has to be tuned before anything
+else. Too loose and nobody is ever eliminated; too tight and the race is a
+coin-flip. Build the frame logic first and race two dumb cars in it until it
+feels right.
+
+---
+
+
+---
+
+#### SW-05 · SISTERS — *side-scrolling platformer*
+*After **Super Mario Bros.** — Nintendo, 1985.*
+**Status:** ☐ **Size:** L **Accent:** `#4ec9d6`
+
+**On the name.** Working title. Every other clone on this floor is named at
+arm's length — Penboy, Soviet Blocks, Ricochet, Phalanx, Swarm — and none of
+them echo the original's name. **SISTERS** keeps the two-hander premise without
+borrowing the cadence. Alternatives in the same register: **RELAY**, **KIN**,
+**TAG**, **PIPEWORK**, **OVERALLS**.
+
+**The idea.** Two sisters, and you are only ever controlling one — **the other
+is where you left her.** Tag at any time and play resumes from wherever the
+other sister is standing, so the level is a puzzle about parking one of them
+somewhere useful. A gap you cannot clear alone is trivial if the other is
+already on the far side holding a switch.
+
+That is the one addition that earns the clone. Everything else is honest
+platforming: run, jump, stomp, a run button that raises your top speed and your
+stopping distance.
+
+**Controls.** Two thumbs. Left thumb steers, right thumb has **JUMP** and
+**TAG**. Hold JUMP for height; the run modifier is automatic above a speed
+threshold rather than a third button.
+
+**Build**
+- [ ] Tile world with solid, one-way and breakable tiles.
+- [ ] Momentum with real acceleration and skid — the feel is the whole genre.
+- [ ] Variable jump height by hold length, coyote time, and a jump buffer.
+      Without those three it will feel wrong however good the rest is.
+- [ ] Stomp, with a bounce, and a chain bonus for stomping without landing.
+- [ ] The TAG swap, the level built around it, and a camera that eases rather
+      than cuts when control changes hands.
+- [ ] Four enemies with honest patterns: a walker that turns at ledges, one
+      that does not, a jumper, and a thrower.
+- [ ] Pipes, a hidden room per level, and a flag at the end scored on height.
+- [ ] Eight levels across two surfaces, plus a boss that needs both sisters.
+
+**Audio.** Bed: bright, major, and it **transposes up a third when you tag**, so
+the swap is audible. SFX: jump, stomp, brick break, coin, pipe, flag, death.
+
+**Save.** `{best, level, coins, label:'WORLD 2-3'}`
+
+**Look.** Not mushrooms and pipes in primary colours. Proposal: **enamel signs**
+— chipped painted metal, thick outlines, a limited sign-writer's palette, and
+weathering on every surface. It reads as period without reading as theft.
+
+**Watch out.** This is the biggest build on the floor: L, not M. The jump feel
+alone is a week of tuning in a normal project. Build the movement in an empty
+room and get it right before a single level exists — if the jump is wrong the
+levels cannot save it, and if the jump is right the levels are easy.
+
+---

@@ -139,6 +139,12 @@ this is not a document you have to remember.
 
 ### Enforced by pack.sh
 
+- [ ] **no calls to shell methods that do not exist.** `Arcade.pad` exports
+      `connected, axis, down, onPress, confirm, cancel` and nothing else.
+      Girder called `pad.onHold()`, which would have thrown the instant a
+      gamepad connected — and no test rig here has one, so it would have
+      shipped.
+
 - [ ] `arcade-home`, `arcade-title`, `arcade-accent` meta tags
 - [ ] loads `audio.js` and `arcade.js`
 - [ ] title screen with **PLAY / OPTIONS / QUIT** (and CONTINUE if it saves)
