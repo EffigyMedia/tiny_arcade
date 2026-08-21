@@ -1057,13 +1057,18 @@ const BODY = {
               /* 200mph is the ceiling the whole game is scaled to, so the
                  fastest car sits AT it and the others come down from there —
                  anything above 1.0 was simply clamped and two cars tied. */
+              /* ---- every supercar must out-run a cruiser ------------------------
+                 AI_TOP is 180 and TYPE-L was 172, so a police car could simply
+                 drive away from the thing you had chosen to drive. The slowest
+                 of the three is 188 now: they still differ, but the floor is
+                 above anything else on the road. */
               pull:0.84, vmax:1.00, note:'SLOWER OFF THE LINE \u00B7 HIGHEST TOP END' },
   'TYPE-L': { bodyTop:0.52, cabinTop:0.24, cabW:0.44, cabOff:0.00, roofR:0.02,
               hip:0.05, wing:'high',  nose:0.16, spoiler:true,
-              pull:1.24, vmax:0.86, note:'FASTEST OFF THE LINE \u00B7 LOWEST TOP END' },
+              pull:1.24, vmax:0.94, note:'FASTEST OFF THE LINE \u00B7 LOWEST TOP END' },
   'TYPE-P': { bodyTop:0.40, cabinTop:0.10, cabW:0.48, cabOff:0, roofR:0.30,
               hip:0.09, wing:'ducktail', nose:0.24, spoiler:true,
-              pull:1.02, vmax:0.93, note:'BALANCED' }
+              pull:1.02, vmax:0.97, note:'BALANCED' }
 };
 function bodyStat(k){ return (BODY[optBody] || BODY['TYPE-L'])[k]; }
 let optBody = 'TYPE-L';
