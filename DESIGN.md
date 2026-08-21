@@ -2706,6 +2706,189 @@ into about eleven lines at 88px and washes the whole field. Halved to 2.8% and
 the vignette deepened; sampled pixel is now `rgb(39,32,14)`, which is the warm
 near-black the game uses.
 
+### Deep — the launch
+
+You no longer begin in the water. You begin hanging off a davit under a boat on
+the surface: the hull rolls on the swell, the sub swings on its wire a beat
+behind it, then the catch lets go and it falls and hits the water. Three seconds,
+and it tells the player where they are, which nothing else in the game did.
+
+Built as a `launch` state ahead of `diving`, with its own draw pass — sky above
+the waterline, a moving swell drawn twice (filled and stroked), the boat rocking
+with a wheelhouse and a lit window, the davit arm, and a taut wire whose anchor
+point is transformed through the boat's roll so it stays attached as she moves.
+On release the wire whips back and the sub falls; the splash is expanding rings
+and droplets. Sounds: a winch groan under load, a hard clack on release, and the
+hit.
+
+### Highway — what happens if you stop in a pursuit
+
+The honest answer before this pass was **nothing**, which made the brake pedal
+free and the whole HOT PURSUIT mode weaker for it. Cops only ever hurt you by
+ramming, so a stationary car was the safest car on the road.
+
+Now a cruiser that holds station on a car doing under 10% of top speed **boxes
+it in**, and three seconds later the run ends as BUSTED. A loud-hailer barks
+twice a second, the edges of the screen close in red, and a bar drains with the
+count on it. The only way out is to move.
+
+**They stop AROUND you.** Each cruiser takes a station rather than chasing your
+centre: one either side at 0.42 off your lane, one across the front 620 ahead.
+So the stop reads as being surrounded rather than tailgated.
+
+Verified end to end — brake to zero with three cruisers out:
+
+    spd 2040  bustT 0.00   closing
+    spd    0  bustT 0.65
+    spd    0  bustT 1.33
+    spd    0  bustT 2.05
+    spd    0  bustT 2.75
+    spd    0  bustT 3.01   BUSTED
+
+**Three things had to change for that rule to be reachable at all:**
+
+- `k.spd` was clamped to a **minimum of 2000**, so a cruiser could never stop
+  and therefore could never surround a stationary car — it just circled past
+  forever.
+- It also had to be able to **reverse**. Clamping the boxing speed at zero left
+  a cruiser that had overshot frozen four thousand units up the road, unable to
+  come back, so the box never closed.
+
+- Cops carried on down the road when you stopped. `want` targets `spd + closing
+  rate`, which is right at speed, but a stationary player meant every cruiser
+  drove off over the horizon and never came back — measured gap growing past
+  17,000 and still climbing. A pursuing car now holds within 400 of your speed
+  when you are crawling.
+- `BRAKE_SPD` was 45mph and `spd` was floored at 1700, so "stopped" was never
+  actually reachable.
+
+Verified: brake to zero with a cruiser on you and `bustT` climbs 0.55 -> 1.3 ->
+2.05 -> BUSTED.
+
+### Deep — the surface has its own sound
+
+The deep drone used to start the moment you pressed PLAY, which gave away where
+the game was going before the sub had left the hook. It now waits for the water.
+
+On the boat: a broad wash of noise that **rises and falls on the same swell
+phase the hull is riding**, and gulls — two or three descending cries at
+irregular intervals, each an up-then-down slide, so they never sound metered.
+The splash cuts the wash and brings in the drone and the bed together.
+
+Measured on the bus: 0.084 on the surface, 0.114 once under.
+
+### Highway — gauges moved onto the objects
+
+**The gate was a four-speed.** It drew two vertical rails, which is four slots,
+however the code labelled them. Three rails now, and the SLOT table and the drag
+clamp were rescaled to match or the knob would snap to positions the plate does
+not have.
+
+**The bottle IS the nitrous gauge.** The `#nosFill` bar sat under the pedals
+where the controls covered it. A CSS variable set each frame fills the bottle
+from the neck end; the empty part reads as dark glass.
+
+**Damage is smoke off the bonnet.** Nothing under 25%, a wisp by half, a plume
+and an orange flicker under it past 88%.
+
+Two things about that smoke are worth keeping:
+
+- **It is driven off the clock, not off distance travelled.** Tied to `pos` the
+  plume froze whenever the car was slow or stopped — exactly when you are most
+  likely to be badly damaged.
+- **It is grey, not black.** True black smoke on a dark night road is invisible.
+  It runs pale grey down to dirty charcoal and leans on volume and opacity to
+  say "bad" rather than on darkness.
+
+**Still not right:** the plume reads at high damage where the fire glow carries
+it, but the mid-range wisp is too subtle to notice in play. Needs eyes on a real
+screen rather than more guesses from me.
+
+### Highway — reverse lamps, and the controls were too big
+
+**Reverse lamps.** A cruiser backing up to close the box now shows white lamps
+low on its tail, with a glow. Without them a car sliding toward you does it for
+no visible reason.
+
+**A 25mph floor was the alternative and it is the wrong fix** — it would undo the
+brake pedal, which is the thing that made stopping possible in the first place.
+The lamps cost a dozen lines and add a detail; the floor would remove a feature.
+
+**The control cluster covered the player's own car.** Measured: pedals 62x122
+inside a 150x186 box, a 118x132 shifter, a 96x44 bottle and a 52px horn, all
+stacked in the lower right and running past the bottom edge of the screen.
+
+Everything is about 70% of what it was and tucked into the corner:
+
+    pedals    46x84 in a 104x126 box   (was 62x122 in 150x186)
+    shifter   86x94                    (was 118x132)
+    bottle    72x30                    (was 96x44)
+    horn      40x40                    (was 52x52)
+
+The gate slots and the drag clamp were rescaled with it, or the knob would have
+snapped to positions the plate no longer has. Nothing now overlaps anything else
+and the whole cluster ends 12px above the safe area.
+
+### Highway — stop, horn, gearbox
+
+**It can stop.** `BRAKE_SPD` was 45mph and the speed was clamped to a floor of
+1700 — about 22mph — so the car could never actually halt. Both removed:
+braking now reaches zero in about two seconds.
+
+**The horn** is a chrome boss beside the pedals, and it is TWO sawtooth notes a
+third apart held together — a single tone reads as a doorbell. Sounding it gives
+cars ahead in your lane a **55% chance each** of moving over, and only if there
+is a lane free. A horn is a request, not a command, and the ones that stay put
+are what make the ones that move feel like a break.
+
+**Six-speed manual**, off by default, toggled in options. An H-gate with two
+rails cut into the plate and a chrome knob you drag between six slots; it
+follows your thumb and snaps to the nearest on release, so you can feel your way
+to a gear. Each ratio has a speed band and a pull factor — measured at about a
+third of top speed:
+
+    gear 1 -> 0.12   on the limiter, nothing left
+    gear 3 -> 0.82   in its band
+    gear 5 -> 0.34   lugging
+    gear 6 -> 0.34   lugging
+
+With the box on automatic the game picks for you and every ratio pulls 1.00, so
+nothing changes for a player who never turns it on.
+
+### Deep and Highway — earlier changes
+
+**Deep's title buttons did nothing.** Two causes. The veil carried
+`pointer-events:none` — correct when it was a tap-anywhere panel, fatal once it
+held a menu, because the canvas won `elementFromPoint`. And `.mbtn`/`.tmenu` had
+no CSS at all: an earlier insert missed its anchor, so they rendered as bare
+**37x19** buttons. Now 250x48 with a real style, and the whole
+opts->ctrl->back->back chain works.
+
+**Highway: HOT PURSUIT.** The toggle now names what turning it ON does, and the
+default road is empty. Cops are opt-in.
+
+**Highway: pedals.** Brake and accelerator side by side as rubber pads on steel
+arms, hinged at the top, tilting away and brightening on press. The nitrous is a
+**bottle lying on its side above the accelerator** — pressing it is gas and
+nitrous together, which is what the button always did.
+
+**Highway: neutral.** Off the gas the car no longer holds a speed. `top` drops
+to zero with a gentle rate, so it rolls:
+
+    on the gas   13800
+    coast 2s      5241
+    coast 6s      3547     (26% of cruise, still moving)
+    brake 0.7s   12513 -> 6063
+
+Braking is still far harder than lifting, so the two are distinct choices.
+**The first second of lift-off drops more sharply than the rest** — worth
+tuning by feel rather than by more numbers from me.
+
+**Highway: the brake screech was a hiss** because it was one tight high band.
+Real tyre screech is a low roar of rubber tearing with a squeal riding on it, so
+it is now three voices — a broad low body at 200-380Hz carrying the most level,
+a mid grind around 1-1.9kHz, and the original high squeal on top.
+
 # 15. POPSHOT — built
 
 `games/golden/popshot.html`, accent `#ff9ecd`. Sixteenth cabinet.
