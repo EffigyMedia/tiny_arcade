@@ -2093,12 +2093,11 @@ onScroll();
   shelves.style.display = 'none';
   var t0 = Date.now(), settled = false;
 
-  /* A flat 500ms floor, always. On a warm cache the work finishes in about
-     forty milliseconds, and a panel that flashes and vanishes reads as a
-     glitch rather than as loading — so it holds for half a second whatever
-     happens. Long enough to see, short enough not to be in the way. */
-  function finish(){
+  /* A flat 500ms floor. On a warm cache the work takes milliseconds, and a
+     panel that flashes and vanishes reads as a glitch rather than as loading. */
+  function finish(msg){
     if(settled) return; settled = true;
+    if(msg) sub.textContent = msg;
     var wait = Math.max(0, 500 - (Date.now() - t0));
     setTimeout(function(){
       panel.classList.add('done');
@@ -2106,35 +2105,31 @@ onScroll();
     }, wait);
   }
 
-  if(!navigator.serviceWorker){ sub.textContent = 'READY'; finish(); return; }
+  if(!navigator.serviceWorker){ finish('READY'); return; }
 
   navigator.serviceWorker.addEventListener('message', function(e){
-    var d = e.data; if(!d || d.type !== 'precache') return;
-    var pc = d.done / d.total;
-    fill.style.width = (pc*100) + '%';
-    ct.textContent = d.done + ' / ' + d.total;
-    if(d.done >= d.total){ sub.textContent = 'READY'; finish(); }
+    var d = e.data; if(!d) return;
+    if(d.type === 'precache' || d.type === 'precache-done'){
+      var pc = d.total ? d.done / d.total : 0;
+      fill.style.width = (pc*100) + '%';
+      ct.textContent = d.done + ' / ' + d.total;
+      if(d.type === 'precache-done') finish('READY \u00B7 OFFLINE');
+    }
   });
 
-  /* If the worker is already installed there will be no install event and so
-     no messages at all — ask it what it has instead of waiting forever. */
-  navigator.serviceWorker.ready.then(function(){
-    return caches.keys().then(function(names){
-      var core = names.filter(function(n){ return n.indexOf('core') >= 0; })[0];
-      if(!core) return;
-      return caches.open(core).then(function(c){ return c.keys(); }).then(function(k){
-        if(k.length > 40){
-          fill.style.width = '100%';
-          ct.textContent = k.length + ' / ' + k.length;
-          sub.textContent = 'READY \u00B7 OFFLINE';
-          finish();
-        }
-      });
-    });
-  });
+  /* ASK on every load rather than relying on the install event — a device that
+     already had a worker registered never fires install, which is why this sat
+     at 0/0 and then 404ed every cabinet. `ready` guarantees there is an active
+     worker to talk to; `controller` may still be null on the very first visit,
+     so fall back to the registration's active worker. */
+  navigator.serviceWorker.ready.then(function(reg){
+    var w = navigator.serviceWorker.controller || reg.active;
+    if(!w){ finish('READY'); return; }
+    w.postMessage({ type:'precache' });
+  }).catch(function(){ finish('READY'); });
 
   /* never hold the arcade hostage to a slow network */
-  setTimeout(function(){ sub.textContent = 'READY'; finish(); }, 6000);
+  setTimeout(function(){ finish('READY'); }, 20000);
 })();
 </script>
 </body>

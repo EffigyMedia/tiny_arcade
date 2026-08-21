@@ -104,19 +104,50 @@ self.addEventListener('install', event => {
       cache.add(new Request(f, { cache: 'reload' })).catch(() => {})
     ));
     await self.skipWaiting();
-    /* The rest is fetched straight after, NOT awaited — the arcade opens the
-       moment the shell is there, and the cabinets fill in behind it. Report
-       progress to any page listening so the launcher can say so. */
-    (async () => {
-      let done = 0;
-      for(const f of ALL_FILES){
-        try { await cache.add(new Request(f, { cache: 'reload' })); } catch(e){}
-        done++;
-        const cs = await self.clients.matchAll({ includeUncontrolled: true });
-        for(const c of cs) c.postMessage({ type:'precache', done, total: ALL_FILES.length });
-      }
-    })();
   })());
+});
+
+/* ---------------------------------------------------------------------------
+   Filling the cache is driven by the PAGE, not by install.
+
+   It used to run inside the install handler, which meant it ran exactly once —
+   on a device that already had a worker registered no install ever fires, so
+   nothing downloaded, no progress arrived, and the launcher sat at 0/0 until it
+   timed out and then 404ed every game. Worse, the loop was started outside
+   `waitUntil`, so even on a real install the browser was free to kill the
+   worker halfway through.
+
+   The page now asks on every load. The worker reports progress, skips what it
+   already has, and answers 'precache-done' when the arcade is complete.
+   --------------------------------------------------------------------------- */
+let filling = null;
+async function fillCache(){
+  const cache = await caches.open(CORE);
+  const all = CORE_FILES.concat(ALL_FILES);
+  const total = all.length;
+  let done = 0;
+  const tell = async (type) => {
+    const cs = await self.clients.matchAll({ includeUncontrolled: true });
+    for(const c of cs) c.postMessage({ type, done, total });
+  };
+  for(const f of all){
+    const req = new Request(f, { cache: 'reload' });
+    /* skip what is already there so a warm start costs nothing */
+    const have = await cache.match(f);
+    if(!have){
+      try { await cache.add(req); } catch(e){}
+    }
+    done++;
+    if(done % 2 === 0 || done === total) await tell('precache');
+  }
+  await tell('precache-done');
+  return total;
+}
+
+self.addEventListener('message', event => {
+  if(!event.data || event.data.type !== 'precache') return;
+  if(!filling) filling = fillCache().finally(() => { filling = null; });
+  event.waitUntil(filling);
 });
 
 self.addEventListener('activate', event => {
