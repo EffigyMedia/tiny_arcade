@@ -20,7 +20,6 @@
 @font-face{font-family:"Saira Condensed";font-style:normal;font-weight:800;font-display:swap;src:url("../../fonts/sairacondensed-800.woff2") format("woff2")}
 @font-face{font-family:"Archivo";font-style:normal;font-weight:100 900;font-display:swap;src:url("../../fonts/archivo-var.woff2") format("woff2")}
 
-
 :root{
   --sodium:#ff8a3d;
   --pale:#ffeede;
@@ -147,7 +146,7 @@ canvas{display:block;width:100%;height:100%;touch-action:none}
      drifts away from the thumb that presses it. */
   right:0;bottom:100px;width:72px;height:30px;
 }
-body.no-touch #nitro{ transform-origin:100% 100%; transform:scale(var(--ark-ui,1)) }
+
 #nitro i{
   display:block;width:100%;height:100%;position:relative;overflow:hidden;
   /* The DOMED BASE is on the right and the tapered shoulder on the left,
@@ -211,13 +210,7 @@ body.no-touch #nitro{ transform-origin:100% 100%; transform:scale(var(--ark-ui,1
 #horn{
   left:-46px;bottom:4px;width:40px;height:40px;
 }
-#horn i{
-  display:block;width:100%;height:100%;border-radius:50%;
-  background:radial-gradient(circle at 38% 32%, #f2f5fa 0%, #b7c0cc 34%, #6f7783 70%, #3a4049 100%);
-  box-shadow:inset 0 2px 0 rgba(255,255,255,.6), inset 0 -5px 8px rgba(0,0,0,.5),
-             0 4px 10px -2px #000;
-  border:1px solid #565e69;position:relative;
-}
+
 /* A POST HORN, drawn from the reference: the bell is a flat vertical mouth on
    the left, the tube sweeps away to the right and narrows, and the coiled loop
    hangs below it as an open ellipse. Nothing about it can be mistaken for a
@@ -280,19 +273,14 @@ body.no-touch.manual /* ---- the wheel -----------------------------------------
    where you first pressed, which means the grab point is wherever you happen
    to land rather than a fixed hit target.
    -------------------------------------------------------------------------- */
-#wheel{
-  position:absolute;z-index:12;
-  left:calc(env(safe-area-inset-left,0px) + 10px);
-  bottom:calc(env(safe-area-inset-bottom,0px) + 16px);
-  width:115px;height:115px;
-  touch-action:none;
-  transition:left .10s ease-out, bottom .10s ease-out;
-}
-body.no-touch #wheel{ display:none }
 
-#dials{
-  bottom:calc(env(safe-area-inset-bottom,0px) + 16px);
-}
+/* Every touch control follows the same rule, not just the wheel: with a
+   keyboard or a pad in use the whole thumb cluster is clutter over the road. */
+body.no-touch #wheel,
+body.hardware #wheel,
+body.hardware #gas,
+body.hardware #brake,
+body.hardware #horn,
 
 /* ---- the shifter ---------------------------------------------------------
    A six-speed H-gate: two rails with three positions each, and reverse below.
@@ -315,15 +303,14 @@ body.no-touch #wheel{ display:none }
    where you first pressed, which means the grab point is wherever you happen
    to land rather than a fixed hit target.
    -------------------------------------------------------------------------- */
-#wheel{
-  position:absolute;z-index:12;
-  left:calc(env(safe-area-inset-left,0px) + 10px);
-  bottom:calc(env(safe-area-inset-bottom,0px) + 16px);
-  width:115px;height:115px;
-  touch-action:none;
-  transition:left .10s ease-out, bottom .10s ease-out;
-}
-body.no-touch #wheel{ display:none }
+
+/* Every touch control follows the same rule, not just the wheel: with a
+   keyboard or a pad in use the whole thumb cluster is clutter over the road. */
+body.no-touch #wheel,
+body.hardware #wheel,
+body.hardware #gas,
+body.hardware #brake,
+body.hardware #horn,
 
 #dials{
   position:absolute;z-index:13;pointer-events:none;
@@ -339,28 +326,28 @@ body.no-touch #wheel{ display:none }
   width:115px;height:59px;
   transition:bottom .18s ease-out;
 }
-body.manual /* ---- the wheel ----------------------------------------------------------
-   Bottom-left, opposite the pedals. It ROTATES with the car and it FOLLOWS the
-   thumb: press anywhere in its quadrant and the wheel re-centres under your
-   finger, so you never have to find it. Steering is by how far you drag from
-   where you first pressed, which means the grab point is wherever you happen
-   to land rather than a fixed hit target.
-   -------------------------------------------------------------------------- */
-#wheel{
-  position:absolute;z-index:12;
-  left:calc(env(safe-area-inset-left,0px) + 10px);
-  bottom:calc(env(safe-area-inset-bottom,0px) + 16px);
-  width:115px;height:115px;
-  touch-action:none;
-  transition:left .10s ease-out, bottom .10s ease-out;
-}
-body.no-touch #wheel{ display:none }
-
-#dials{
+body.manual #dials{
   bottom:calc(env(safe-area-inset-bottom,0px) + 262px * var(--ark-ui,1));
 }
+/* ---- the wheel ----------------------------------------------------------
+   Bottom-left, opposite the pedals. It ROTATES with the car and it FOLLOWS the
+   thumb: press anywhere in its quadrant and the wheel re-centres under your
+   finger, so you never have to find it. Steering is by how far you drag from
+   where you first pressed, which means the grab point is wherever you happen
+   to land rather than a fixed hit target.
+   -------------------------------------------------------------------------- */
+
+/* Every touch control follows the same rule, not just the wheel: with a
+   keyboard or a pad in use the whole thumb cluster is clutter over the road. */
+body.no-touch #wheel,
+body.hardware #wheel,
+body.hardware #gas,
+body.hardware #brake,
+body.hardware #horn,
+
 #dials canvas{width:115px;height:59px;display:block}
-body.pedals-left /* ---- the wheel ----------------------------------------------------------
+
+/* ---- the wheel ----------------------------------------------------------
    Bottom-left, opposite the pedals. It ROTATES with the car and it FOLLOWS the
    thumb: press anywhere in its quadrant and the wheel re-centres under your
    finger, so you never have to find it. Steering is by how far you drag from
@@ -375,7 +362,15 @@ body.pedals-left /* ---- the wheel ---------------------------------------------
   touch-action:none;
   transition:left .10s ease-out, bottom .10s ease-out;
 }
-body.no-touch #wheel{ display:none }
+/* Every touch control follows the same rule, not just the wheel: with a
+   keyboard or a pad in use the whole thumb cluster is clutter over the road. */
+body.no-touch #wheel,
+body.hardware #wheel,
+body.hardware #gas,
+body.hardware #brake,
+body.hardware #horn,
+body.hardware #shifter{ display:none }
+body.hardware #pedals{ pointer-events:none }
 
 /* This lost its `body.pedals-left` prefix in an earlier edit, so the LEFT-HANDED
    rule applied to everyone and the dials sat on the left for every player. */
@@ -465,7 +460,7 @@ body.pedals-left #tacho{ right:auto; left:calc(env(safe-area-inset-left,0px) + 1
    to push the word off the side of the screen, and it is invisible on any
    machine where the real font is available. Cap everything and let long words
    break rather than trusting the typeface. */
-#veil{overflow-x:hidden;}
+
 #veil *{max-width:100%;overflow-wrap:anywhere}
 #veil h1{overflow-wrap:break-word;hyphens:auto}
 #veil{position:absolute;inset:0;z-index:30;display:grid;place-items:center;padding:30px 24px;
@@ -1533,6 +1528,13 @@ function torqueAt(rpm){
   return 0.06;                                     /* on the limiter */
 }
 let optManual = false, gear = 1, bogT = 0;
+/* keeps the body class, the shifter and the dial height agreeing with the
+   gearbox setting — called on change AND once at startup */
+function syncBoxClass(){
+  document.body.classList.toggle('manual', !!optManual);
+  const sh = document.getElementById('shifter');
+  if(sh) sh.hidden = !optManual;
+}
 
 /* how well the current gear suits the speed you are at */
 function gearFactor(){
@@ -1878,9 +1880,49 @@ const shifterEl = document.getElementById('shifter');
 const wheelCv = document.getElementById('wheel');
 const wheelCx = wheelCv ? wheelCv.getContext('2d') : null;
 let wheelGrab = null, wheelDpr = 0;
+/* ---- what the wheel is actually showing ---------------------------------
+   It was reading `playerX` — WHERE you are across the road — so it barely
+   moved at full lock and it stayed put when you let go, because your lane
+   position stays put. A steering wheel shows how hard you are TURNING, which
+   is a rate, not a position: it winds on as you drag and unwinds to straight
+   the moment you stop, exactly as the car stops changing lanes.
+   -------------------------------------------------------------------------- */
+let steerTurn = 0;            /* -1 hard left, +1 hard right */
+
+/* ---- the wheel is for thumbs only ---------------------------------------
+   A player with a keyboard or a pad is not going to drag a wheel, so showing
+   one is clutter over the road. It hides the moment real hardware is used and
+   comes back if they go back to touching the glass — the last input WINS,
+   rather than a guess made once at load.
+   -------------------------------------------------------------------------- */
+let usingHardware = false, optTouchUI = 'AUTO';
+function applyTouchUI(){
+  /* AUTO follows the last input; ON and OFF are the player overriding it,
+     because a phone with a pad propped up may still want thumb pedals, and
+     someone playing one-handed may want them gone. */
+  const hide = optTouchUI === 'OFF' ? true
+             : optTouchUI === 'ON'  ? false
+             : usingHardware;
+  document.body.classList.toggle('hardware', hide);
+  if(hide) steerTurn = 0;
+}
+function setInputSource(hardware){
+  if(usingHardware === hardware) return;
+  usingHardware = hardware;
+  applyTouchUI();
+}
+function stepWheel(dt){
+  if(!wheelGrab){
+    /* self-centring: springs back at the same rate the car settles */
+    steerTurn += (0 - steerTurn) * Math.min(1, dt*9);
+    if(Math.abs(steerTurn) < 0.002) steerTurn = 0;
+  }
+}
 
 function drawWheel(){
-  if(!wheelCx || document.body.classList.contains('no-touch')) return;
+  if(!wheelCx) return;
+  if(document.body.classList.contains('no-touch')) return;
+  if(document.body.classList.contains('hardware')) return;
   const dpr = Math.min(2, window.devicePixelRatio || 1);
   if(dpr !== wheelDpr){ wheelDpr = dpr; wheelCv.width = 115*dpr; wheelCv.height = 115*dpr; }
   const g = wheelCx, R = 47, cx = 57.5, cy = 57.5;
@@ -1888,7 +1930,9 @@ function drawWheel(){
   g.clearRect(0,0,115,115);
   g.save();
   g.translate(cx, cy);
-  g.rotate(clamp(playerX/1.18, -1, 1) * 0.85);
+  /* 90 degrees at full lock — a quarter turn, which is what you actually do
+     with your hands still on the rim. */
+  g.rotate(clamp(steerTurn, -1, 1) * 1.5708);
 
   const TH = 9.5;                       /* rim thickness */
   /* ---- the rim ----------------------------------------------------------
@@ -2117,6 +2161,11 @@ knobEl.addEventListener('pointercancel', dropKnob);
 /* Arrow keys walk the knob through the gate, same as a thumb would. They are
    the shifter only while the manual box is on, so steering is unaffected
    otherwise. */
+/* any real key press, not only the steering ones */
+window.addEventListener('keydown', () => setInputSource(true), true);
+/* a pad appearing is hardware even before it is touched */
+window.addEventListener('gamepadconnected', () => setInputSource(true));
+
 window.addEventListener('keydown', e => {
   if(!optManual || state !== 'driving') return;
   if(e.key === 'i' || e.key === 'I'){ e.preventDefault(); shiftStep(0,-1); }
@@ -2151,6 +2200,9 @@ if(wheelCv){
   };
   const grabStart = (e) => {
     if(document.body.classList.contains('no-touch')) return;
+    if(optTouchUI === 'OFF') return;
+    /* a thumb on the glass means we are back on touch */
+    if(e.pointerType === 'touch' || e.pointerType === 'pen') setInputSource(false);
     /* the wheel's half of the screen, clear of the pedals and the dials */
     if(e.clientX > window.innerWidth * 0.52) return;
     if(e.clientY < window.innerHeight * 0.42) return;
@@ -2166,6 +2218,12 @@ if(wheelCv){
     /* no roll, no steering — the same rule the rest of the car obeys */
     const grip = clamp(spd / (MAX_SPD*0.07), 0, 1);
     targetX = clamp(targetX + (dx * grip) / (W*0.26), -1.18, 1.18);
+    /* the wheel winds on with the drag and holds while you keep dragging */
+    steerTurn = clamp(steerTurn + dx / 46, -1, 1);
+    /* a thumb that has stopped moving is a wheel being held, not turned
+       further — bleed it back slowly so it tracks the drag rather than
+       accumulating from every small movement */
+    if(Math.abs(dx) < 0.5) steerTurn *= 0.94;
     wheelGrab.x = e.clientX; wheelGrab.y = e.clientY;
     placeWheel(e.clientX, e.clientY);
   };
@@ -2235,13 +2293,19 @@ function step(dt){
   if(keys.ArrowLeft||keys.a) kd-=1;
   if(keys.ArrowRight||keys.d) kd+=1;
   const pax = AR && AR.pad ? AR.pad.axis().x : 0;
-  if(pax) kd = pax;
+  if(pax){ kd = pax; setInputSource(true); }
   else if(AR && AR.pad){
     if(AR.pad.down('left'))  kd = -1;
     if(AR.pad.down('right')) kd =  1;
   }
   /* keyboard steering obeys the same rule: no roll, no steering */
-  if(kd) targetX = clamp(targetX + kd*2.1*dt*clamp(spd/(MAX_SPD*0.07),0,1), -1.18, 1.18);
+  if(kd){
+    setInputSource(true);
+    targetX = clamp(targetX + kd*2.1*dt*clamp(spd/(MAX_SPD*0.07),0,1), -1.18, 1.18);
+    /* keys and pad wind the wheel too, and stop winding when released, so the
+       instrument agrees with the input whichever way you are driving */
+    steerTurn = clamp(steerTurn + kd*dt*3.4, -1, 1);
+  }
 
   // right trigger / A holds the nitrous down
   if(AR && AR.pad && (AR.pad.down('rt') || AR.pad.down('a'))){
@@ -2323,6 +2387,7 @@ function step(dt){
   stepRubber(dt);
 
   updateViewShift();
+  stepWheel(dt);
   if(hornCool > 0) hornCool -= dt;
   /* ---- traffic coming up behind ------------------------------------------
      Only once you have been slower than the flow for a while. A brief lift or
@@ -3496,62 +3561,88 @@ function drawFinish(){
 function drawMirrorFull(mx, my, mw, mh){
   ctx.save();
   ctx.beginPath(); ctx.roundRect(mx, my, mw, mh, 5); ctx.clip();
-  /* sky and ground for the reverse view */
-  const sky = ctx.createLinearGradient(mx, my, mx, my+mh*0.42);
-  sky.addColorStop(0,'#101827'); sky.addColorStop(1,'#243247');
-  ctx.fillStyle = sky; ctx.fillRect(mx, my, mw, mh*0.42);
-  ctx.fillStyle = '#191d24'; ctx.fillRect(mx, my+mh*0.42, mw, mh*0.58);
 
-  /* the vanishing point is BEHIND you, so the road opens toward the bottom */
-  const vpx = mx + mw/2, vpy = my + mh*0.42;
-  const SEG = 260, N = 26;
+  /* ---- a reverse view that uses the REAL projection -----------------------
+     The old one invented its own perspective: an ad-hoc `1/(1+d/900)` scale
+     with the road opening downward, which is not how any of the rest of the
+     game works — so the lanes splayed, the cars sat at the wrong sizes, and
+     nothing lined up with what you could see out of the front.
+
+     This mirrors the actual `proj()` maths with the z axis reversed. The
+     vanishing point is at the TOP of the glass and the road widens toward the
+     bottom, exactly as it does out of the back window, and a car 20,000 units
+     behind is the same size in here as one 20,000 ahead is out there.
+     -------------------------------------------------------------------------- */
+  const vpy = my + mh*0.16;            /* the horizon, near the top */
+  const H_M = mh - (vpy - my);         /* usable depth below it */
+  /* the same camera constants as the forward view, remapped to this glass */
+  function rproj(worldX, worldZ){
+    const dz = pos - worldZ;           /* BEHIND is positive here */
+    if(dz <= 200) return null;
+    const scale = CAM_D/dz;
+    return {
+      scale,
+      x: mx + mw/2 + scale*(worldX - camX*ROAD)*mw/2,
+      y: vpy + scale*CAM_H*H_M/2,
+      w: scale*ROAD*mw/2
+    };
+  }
+
+  /* sky above the horizon, tarmac below */
+  const sky = ctx.createLinearGradient(mx, my, mx, vpy);
+  sky.addColorStop(0,'#0d1220'); sky.addColorStop(1,'#28324a');
+  ctx.fillStyle = sky; ctx.fillRect(mx, my, mw, vpy - my);
+  ctx.fillStyle = '#141821'; ctx.fillRect(mx, vpy, mw, mh - (vpy - my));
+
+  /* the road, drawn far-to-near in real z steps so it converges properly */
+  const SEG = 900;
   let prev = null;
-  for(let i=N;i>=1;i--){
-    const d = i*SEG;
-    const sc = 1 / (1 + d/900);
-    const y = vpy + (mh - mh*0.42) * (1 - sc);
-    const halfW = (mw*0.62) * sc;
-    /* lateral offset: your own lane position shifts the road in the glass */
-    const cx = vpx - (playerX * 0.42) * halfW;
-    if(prev){
-      ctx.fillStyle = (Math.floor((pos - d)/SEG) % 2) ? '#20242c' : '#1b1f26';
-      ctx.beginPath();
-      ctx.moveTo(prev.cx - prev.hw, prev.y); ctx.lineTo(prev.cx + prev.hw, prev.y);
-      ctx.lineTo(cx + halfW, y); ctx.lineTo(cx - halfW, y);
-      ctx.closePath(); ctx.fill();
-      /* lane markings */
-      ctx.strokeStyle = 'rgba(220,210,170,.20)'; ctx.lineWidth = 1;
+  for(let d2 = 34000; d2 > 200; d2 -= SEG){
+    const a = rproj(0, pos - d2), b2 = rproj(0, pos - d2 + SEG);
+    if(!a || !b2) continue;
+    const idx = Math.floor((pos - d2)/SEG);
+    ctx.fillStyle = (idx % 2) ? '#1e232c' : '#191d25';
+    ctx.beginPath();
+    ctx.moveTo(a.x - a.w, a.y); ctx.lineTo(a.x + a.w, a.y);
+    ctx.lineTo(b2.x + b2.w, b2.y); ctx.lineTo(b2.x - b2.w, b2.y);
+    ctx.closePath(); ctx.fill();
+    /* lane markings, dashed on the same cycle as the road ahead */
+    if(idx % 2){
+      ctx.strokeStyle = 'rgba(226,214,168,.55)';
       for(let L=1;L<LANES;L++){
         const f = L/LANES - 0.5;
+        ctx.lineWidth = Math.max(0.6, a.w*0.035);
         ctx.beginPath();
-        ctx.moveTo(prev.cx + f*prev.hw*2, prev.y);
-        ctx.lineTo(cx + f*halfW*2, y);
+        ctx.moveTo(a.x + f*a.w*2, a.y);
+        ctx.lineTo(b2.x + f*b2.w*2, b2.y);
         ctx.stroke();
       }
     }
-    prev = { cx, hw:halfW, y };
+    /* the hard shoulder either side */
+    ctx.strokeStyle = 'rgba(232,232,236,.5)';
+    ctx.lineWidth = Math.max(0.5, a.w*0.03);
+    ctx.beginPath(); ctx.moveTo(a.x-a.w, a.y); ctx.lineTo(b2.x-b2.w, b2.y); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(a.x+a.w, a.y); ctx.lineTo(b2.x+b2.w, b2.y); ctx.stroke();
+    prev = b2;
   }
 
-  /* everything behind, by the same projection */
+  /* everything behind you, far to near, at the size the projection says */
   const back = [];
-  for(const c of traffic){ const d = pos - c.z; if(d>60 && d<N*SEG) back.push({d, x:c.x, kind:'t', o:c}); }
-  for(const k of cops){ if(k.wreck>0) continue; const d = pos - k.z; if(d>60 && d<N*SEG) back.push({d, x:k.x, kind:'k', o:k}); }
-  for(const r of racers){ const d = pos - r.z; if(d>60 && d<N*SEG) back.push({d, x:r.x, kind:'g', o:r}); }
-  back.sort((a,b)=>b.d-a.d);
-  for(const o of back){
-    const sc = 1 / (1 + o.d/900);
-    const y = vpy + (mh - mh*0.42) * (1 - sc);
-    const halfW = (mw*0.62) * sc;
-    const cx = vpx - (playerX*0.42)*halfW + (o.x/1.18)*halfW;
-    const sw = Math.max(2, halfW*0.34), sh = sw*0.66;
-    const img = o.kind==='k' ? SP.cop
-              : o.kind==='g' ? (RIVAL_SP[o.o.paint] || SP.player)
-              : SP[o.o.type];
-    if(img) ctx.drawImage(img, cx - sw/2, y - sh, sw, sh);
-    if(o.kind==='k'){
+  for(const c of traffic){ if(c.z < pos) back.push({ o:c, img:SP[c.type], w:c.w, cop:false }); }
+  for(const k of cops){ if(k.wreck>0||k.z>=pos) continue; back.push({ o:k, img:SP.cop, w:k.w||0.27, cop:true }); }
+  for(const r of racers){ if(r.z < pos) back.push({ o:r, img:(RIVAL_SP[r.paint]||SP.player), w:r.w, cop:false }); }
+  back.sort((a,b) => a.o.z - b.o.z);
+  for(const it of back){
+    const p1 = rproj(it.o.x*ROAD, it.o.z);
+    if(!p1) continue;
+    const sw = p1.scale * it.w * ROAD * mw;
+    if(sw < 1.2) continue;
+    const sh = sw * (it.img ? it.img.height/it.img.width : 0.62);
+    if(it.img) ctx.drawImage(it.img, p1.x - sw/2, p1.y - sh, sw, sh);
+    if(it.cop){
       const on = Math.floor(sirenPhase*1.4) % 2;
       ctx.fillStyle = on ? '#3b6bff' : '#ff2b4a';
-      ctx.fillRect(cx-sw/2, y-sh-2, sw, 2);
+      ctx.fillRect(p1.x - sw/2, p1.y - sh - Math.max(1, sh*0.10), sw, Math.max(1, sh*0.10));
     }
   }
   ctx.restore();
@@ -3688,7 +3779,8 @@ function drawDials(){
        0.94, '#ffd98a', '#ff3b5c', dist);
 }
 function gearLabel(){
-  if(!optManual) return (gear >= 1 && gear <= GEARS.length) ? 'D' + gear : 'D';
+  /* Just the number. The D prefix was noise — you know which box you chose,
+     and the only thing worth reading at a glance is which gear you are in. */
   return (gear >= 1 && gear <= GEARS.length) ? String(gear) : 'N';
 }
 function dialCurve(f){ return clamp(f, 0, 1.02); }
@@ -4009,14 +4101,20 @@ if (AR && AR.options) AR.options.define([
   { key:'side',  label:'CONTROLS', type:'cycle', of:['RIGHT','LEFT'],                    def:'RIGHT' },
   { key:'paint', label:'PAINT',    type:'cycle', of:Object.keys(PAINT),                  def:'WHITE' },
   { key:'manual', label:'MANUAL BOX',  type:'bool',                                      def:false },
-  { key:'mirror', label:'MIRROR',      type:'cycle', of:['FULL','CHEAP','OFF'],           def:'FULL' }
+  { key:'mirror', label:'MIRROR',      type:'cycle', of:['FULL','CHEAP','OFF'],           def:'FULL' },
+  { key:'touchui',label:'TOUCH CONTROLS', type:'cycle', of:['AUTO','ON','OFF'],            def:'AUTO' }
 ], function(key, val){
   if(key === 'side')  document.body.classList.toggle('pedals-left', val === 'LEFT');
   /* the toggle now names what it ADDS, so off is the quiet road */
   if(key === 'mirror') optMirror = val;
+  if(key === 'touchui'){ optTouchUI = val; applyTouchUI(); }
   if(key === 'manual'){
     optManual = !!val;
-    document.body.classList.toggle('manual', !!val);
+    /* This is the ONLY place the class was set, and the callback fires only
+       when an option CHANGES — so on load it was never applied and the dials
+       sat at the manual height whatever the box was set to. `syncBoxClass()`
+       below runs it at startup too. */
+    syncBoxClass();
     const sh = document.getElementById('shifter');
     if(sh) sh.hidden = !val;
     if(!val) autoGear();
@@ -4027,6 +4125,11 @@ if (AR && AR.options) AR.options.define([
     buildSprites();          /* repaint the coupe */
   }
 });
+
+/* Apply the saved gearbox setting once at startup. The options callback only
+   fires on CHANGE, so without this the class never matched the saved value. */
+syncBoxClass();
+applyTouchUI();
 
 /* a desktop has no thumbs to put buttons under */
 if (AR && !AR.touch) document.body.classList.add('no-touch');
