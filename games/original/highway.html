@@ -101,6 +101,8 @@ canvas{display:block;width:100%;height:100%;touch-action:none}
    what it was, tucked into the corner, and nothing overlaps anything else. */
 #pedals{
   position:absolute;z-index:12;pointer-events:none;
+  transform-origin:100% 100%;
+  transform:scale(var(--ark-ui,1));
   right:calc(env(safe-area-inset-right,0px) + 10px);
   bottom:calc(env(safe-area-inset-bottom,0px) + 12px);
   width:104px;height:126px;
@@ -142,6 +144,7 @@ canvas{display:block;width:100%;height:100%;touch-action:none}
 #nitro{
   right:0;bottom:92px;width:72px;height:30px;
 }
+body.no-touch #nitro{ transform-origin:100% 100%; transform:scale(var(--ark-ui,1)) }
 #nitro i{
   display:block;width:100%;height:100%;position:relative;overflow:hidden;
   /* The DOMED BASE is on the right and the tapered shoulder on the left,
@@ -252,6 +255,15 @@ body.pedals-left #nitro{ right:auto; left:0 }
    them any more. */
 body.no-touch #pedals,
 body.no-touch #shifter{ display:none }
+/* The bottle is a GAUGE as much as a button — it is the nitrous level — so it
+   stays on desktop, just not as something you press. */
+body.no-touch #nitro{
+  display:block;pointer-events:none;
+  right:calc(env(safe-area-inset-right,0px) + 8px);
+  bottom:calc(env(safe-area-inset-bottom,0px) + 86px);
+  left:auto;
+}
+body.no-touch #horn{ display:none }
 body.no-touch #dials,
 body.no-touch.manual #dials{
   bottom:calc(env(safe-area-inset-bottom,0px) + 16px);
@@ -273,6 +285,8 @@ body.no-touch.manual #dials{
    the dials drop back down when there is no shifter to clear. */
 #dials{
   position:absolute;z-index:13;pointer-events:none;
+  transform-origin:100% 100%;
+  transform:scale(var(--ark-ui,1));
   right:calc(env(safe-area-inset-right,0px) + 8px);
   bottom:calc(env(safe-area-inset-bottom,0px) + 138px);
   width:115px;height:59px;
@@ -313,6 +327,8 @@ body.pedals-left #dials{ right:auto; left:calc(env(safe-area-inset-left,0px) + 8
 
 #shifter{
   position:absolute;z-index:13;pointer-events:auto;
+  transform-origin:100% 100%;
+  transform:scale(var(--ark-ui,1));
   right:calc(env(safe-area-inset-right,0px) + 10px);
   bottom:calc(env(safe-area-inset-bottom,0px) + 140px);
   width:86px;height:94px;touch-action:none;
