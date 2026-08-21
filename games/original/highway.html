@@ -237,14 +237,21 @@ body.no-touch #pedals{ display:none }
    The knob is dragged between them. It sits above the pedals so the same
    thumb can reach it without leaving the wheel hand.
    -------------------------------------------------------------------------- */
-/* The tacho used to live inside the shifter, so it vanished in automatic —
-   but revs are useful whoever is doing the shifting. It now sits above the
-   pedal cluster in its own right, and the shifter slides up when shown. */
-#tacho{
-  position:absolute;z-index:13;
-  right:calc(env(safe-area-inset-right,0px) + 10px);
-  bottom:calc(env(safe-area-inset-bottom,0px) + 146px);
-  width:104px;height:22px;
+/* ---- the instrument binnacle -------------------------------------------
+   Two round dials side by side: revs on the left, road speed on the right,
+   the way they sit in a car. The linear bar and the separate MPH text were
+   two different idioms doing the same job in two different places.
+   -------------------------------------------------------------------------- */
+#dials{
+  position:absolute;z-index:13;pointer-events:none;
+  right:calc(env(safe-area-inset-right,0px) + 8px);
+  bottom:calc(env(safe-area-inset-bottom,0px) + 142px);
+  width:115px;height:59px;
+}
+#dials canvas{width:115px;height:59px;display:block}
+body.pedals-left #dials{ right:auto; left:calc(env(safe-area-inset-left,0px) + 8px) }
+#tachoOLD{
+  position:absolute;z-index:13;display:none;
   border-radius:5px;background:#0d0f13;border:1px solid #333941;
   box-shadow:inset 0 2px 4px rgba(0,0,0,.8);
   overflow:hidden;
@@ -358,7 +365,9 @@ h1 u{text-decoration:none;display:block;font-size:.34em;letter-spacing:.26em;col
   <div id="hud">
     <div>
       <div class="toprow">
-        <div class="stat"><span>DISTANCE</span><b id="dist">0.0<i>KM</i></b></div>
+        <!-- DISTANCE moved into the speedometer as a mechanical odometer. In
+             RACE it comes back, because how far is left is the whole point. -->
+        <div class="stat" id="distWrap" hidden><span>TO GO</span><b id="dist">0.0<i>MI</i></b></div>
         <div class="stat c" id="placeWrap" hidden><span>PLACE</span><b id="place">12/12</b></div>
         <div class="stat r"><span>SCORE</span><b id="score">0</b></div>
       </div>
@@ -381,7 +390,9 @@ h1 u{text-decoration:none;display:block;font-size:.34em;letter-spacing:.26em;col
     <button id="brake" aria-label="Brake"><i></i></button>
     <button id="horn" aria-label="Horn"><i></i></button>
   </div>
-  <div id="tacho"><i></i><b>0</b></div>
+  <div id="dials">
+    <canvas id="gauges" width="230" height="118"></canvas>
+  </div>
   <div id="shifter" hidden>
     <div id="gate"></div>
     <div id="knob" data-gear="1"><b>1</b></div>
@@ -422,8 +433,12 @@ const CAM_D = 1/Math.tan((FOV/2)*Math.PI/180);
 const PLAYER_Z = CAM_H*CAM_D;
 const LANE_X = [-0.75,-0.25,0.25,0.75];
 
-const MAX_SPD = 13800;
-const NOS_SPD = 19200;
+const MAX_SPD = 15333;   /* 200 mph at the top of fourth */
+/* NOS no longer raises the ceiling. With a real gearbox the limiter is the
+   limiter — a bottle of nitrous cannot make fourth gear turn faster than it
+   turns. What it does is get you THROUGH the gears, so it is pure acceleration
+   now, and the top speed is the same with it or without. */
+const NOS_SPD = MAX_SPD;
 const OFF_SPD = 4200;
 
 let W=360, H=640, dpr=1, horizon=0;
@@ -623,7 +638,7 @@ var snd = {
       var wob = 1 + Math.sin(snd.scrPhase) * 0.115;
       /* also silent at a crawl: tyres do not sing at 46mph. `r` is the speed
          as a fraction of top, so 46/180 is the floor. */
-      if (sq > 0.14 && r > 46/180){
+      if (sq > 0.14 && r > 46/200){
         /* three voices together: the LOW body is the loudest of them, which is
            what turns a hiss into rubber tearing off a tyre */
         /* Harder across the board, and the SQUEAL now carries real level
@@ -1101,7 +1116,7 @@ let nextWaveZ=0, nextCopT=0, nextBlockT=0, nextCrateT=0;
    anything, so the game starts from a car that is going rather than a car
    that is stopped — and pulling away feels like acceleration instead of a
    standing start. */
-const IDLE_SPD = MAX_SPD * (60/180);   /* exactly 60 on the readout */
+const IDLE_SPD = MAX_SPD * (60/200);   /* exactly 60 on the readout */
 const BRAKE_SPD = 0;   /* the brakes stop the car, they do not settle it */
 
 function start(){
@@ -1476,7 +1491,8 @@ function setGas(on){
    having to hit a target exactly.
    -------------------------------------------------------------------------- */
 const shifterEl = document.getElementById('shifter');
-const tachoEl   = document.getElementById('tacho');
+const dialCv = document.getElementById('gauges');
+const dialCx = dialCv ? dialCv.getContext('2d') : null;
 const knobEl    = document.getElementById('knob');
 /* left/top of each slot inside the 118x132 plate */
 /* three rails at x = 5, 27, 49; up and down on each */
@@ -2316,22 +2332,71 @@ function drawRoad(){
 
     /* every eighth segment carries a lamp, alternating sides, throwing an
        ellipse of sodium light across the near lanes */
-    if(lamp > 0.01 && idx % 8 === 0){
+    /* ---- street lighting -------------------------------------------------
+       The POLE is always there. Lamp posts do not vanish at sunrise — only the
+       light does. Previously the whole thing was gated on `lamp`, so at noon
+       the roadside was bare, and any residual glow read as lamps burning in
+       daylight. Now the column and head draw at every hour and only the bulb
+       and its bloom are switched.
+       ---------------------------------------------------------------------- */
+    if(idx % 8 === 0){
       const side = ((idx/8)|0) % 2 ? 1 : -1;
       const lx = p1.x + side * p1.scale * ROAD * W * 1.15;
-      const rw = Math.max(6, p1.scale * ROAD * W * 2.6);
-      const rh = Math.max(2, (y1 - y2) * 5.5);
-      const g2 = ctx.createRadialGradient(lx, y1, 0, lx, y1, rw);
-      g2.addColorStop(0,   'rgba(255,196,110,' + (0.30 * lamp * fade) + ')');
-      g2.addColorStop(0.5, 'rgba(255,168,80,'  + (0.11 * lamp * fade) + ')');
-      g2.addColorStop(1,   'rgba(255,150,60,0)');
+      const sc = p1.scale * ROAD * W;
+      const poleH = Math.max(4, sc * 1.05);
+      const poleW = Math.max(1, sc * 0.045);
+      const armL  = Math.max(2, sc * 0.30) * -side;
+      const topY  = y1 - poleH;
+
+      /* the column: solid, and it reads against sky or tarmac alike */
       ctx.save();
-      ctx.globalCompositeOperation = 'lighter';
-      ctx.fillStyle = g2;
+      ctx.globalAlpha = fade;
+      ctx.fillStyle = '#2b3038';
+      ctx.fillRect(lx - poleW/2, topY, poleW, poleH);
+      ctx.fillStyle = 'rgba(255,255,255,.16)';
+      ctx.fillRect(lx - poleW/2, topY, Math.max(0.6, poleW*0.35), poleH);
+      /* the arm out over the carriageway, and the head on the end of it */
+      ctx.strokeStyle = '#2b3038';
+      ctx.lineWidth = Math.max(1, poleW*0.85);
       ctx.beginPath();
-      ctx.ellipse(lx, y1, rw, rh, 0, 0, 6.2832);
-      ctx.fill();
+      ctx.moveTo(lx, topY + poleW*0.5);
+      ctx.quadraticCurveTo(lx + armL*0.6, topY - poleH*0.06, lx + armL, topY + poleH*0.03);
+      ctx.stroke();
+      const hx = lx + armL, hy = topY + poleH*0.03;
+      const hw = Math.max(1.6, sc*0.13), hh = Math.max(1, sc*0.05);
+      ctx.fillStyle = '#3a4048';
+      ctx.beginPath();
+      ctx.moveTo(hx - hw, hy); ctx.lineTo(hx + hw, hy);
+      ctx.lineTo(hx + hw*0.7, hy + hh); ctx.lineTo(hx - hw*0.7, hy + hh);
+      ctx.closePath(); ctx.fill();
       ctx.restore();
+
+      /* the emissive bulb and the pool it throws — night only, whitish blue */
+      if(lamp > 0.01){
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        /* the bulb itself, on the underside of the head */
+        const bg = ctx.createRadialGradient(hx, hy+hh*0.6, 0, hx, hy+hh*0.6, Math.max(2, sc*0.22));
+        bg.addColorStop(0,   'rgba(236,246,255,' + (0.85*lamp*fade) + ')');
+        bg.addColorStop(0.4, 'rgba(176,214,255,' + (0.40*lamp*fade) + ')');
+        bg.addColorStop(1,   'rgba(140,190,255,0)');
+        ctx.fillStyle = bg;
+        ctx.beginPath();
+        ctx.arc(hx, hy+hh*0.6, Math.max(2, sc*0.22), 0, 6.2832);
+        ctx.fill();
+        /* the pool on the tarmac below it */
+        const rw = Math.max(6, sc * 2.6);
+        const rh = Math.max(2, (y1 - y2) * 5.5);
+        const g2 = ctx.createRadialGradient(hx, y1, 0, hx, y1, rw);
+        g2.addColorStop(0,   'rgba(226,240,255,' + (0.26 * lamp * fade) + ')');
+        g2.addColorStop(0.5, 'rgba(168,204,255,' + (0.10 * lamp * fade) + ')');
+        g2.addColorStop(1,   'rgba(140,185,255,0)');
+        ctx.fillStyle = g2;
+        ctx.beginPath();
+        ctx.ellipse(hx, y1, rw, rh, 0, 0, 6.2832);
+        ctx.fill();
+        ctx.restore();
+      }
     }
 
     // rumble strip
@@ -2929,6 +2994,147 @@ function drawMirror(){
   ctx.restore();
 }
 
+/* ---- the dials ----------------------------------------------------------
+   Drawn once per frame into their own small canvas, at device resolution so
+   the needles stay crisp. Sweep runs from 7 o'clock round to 5 o'clock, which
+   is the arc every car instrument has used since they stopped being vertical.
+   -------------------------------------------------------------------------- */
+let dialDpr = 0;
+function drawDials(){
+  if(!dialCx) return;
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  if(dpr !== dialDpr){
+    dialDpr = dpr;
+    dialCv.width = 115*dpr; dialCv.height = 59*dpr;
+  }
+  const g = dialCx;
+  g.setTransform(dpr,0,0,dpr,0,0);
+  g.clearRect(0,0,115,59);
+
+  const rpm = engineRpm();
+  face(g, 30, 30, 26, rpm / REDLINE, (rpm/1000).toFixed(1), 'x1000',
+       0.86, '#5ff0d8', '#ff3b5c');
+  const mph = spd / MAX_SPD;
+  face(g, 85, 30, 26, mph, Math.round(spd/MAX_SPD*200), 'MPH',
+       0.94, '#ffd98a', '#ff3b5c', dist);
+}
+function face(g, cx, cy, r, frac, big, label, redAt, tint, red, odo){
+  const A0 = Math.PI*0.75, A1 = Math.PI*2.25;      /* 7 o'clock to 5 o'clock */
+  frac = clamp(frac, 0, 1.02);
+  /* needed by the numerals AND the needle, and the needle is now drawn last,
+     so it has to be computed up here rather than beside the pointer */
+  const hot = frac >= redAt;
+  /* the bezel */
+  g.beginPath(); g.arc(cx,cy,r,0,6.2832);
+  g.fillStyle='rgba(10,12,16,.92)'; g.fill();
+  g.strokeStyle='rgba(150,160,180,.30)'; g.lineWidth=1.2; g.stroke();
+  /* the red zone, painted into the dial face */
+  g.beginPath();
+  g.arc(cx,cy,r-4, A0+(A1-A0)*redAt, A1);
+  g.strokeStyle='rgba(255,59,92,.30)'; g.lineWidth=3.4; g.stroke();
+  /* ticks */
+  for(let i=0;i<=10;i++){
+    const a = A0 + (A1-A0)*(i/10);
+    const inr = (i%5===0) ? r-7 : r-4.5;
+    g.beginPath();
+    g.moveTo(cx+Math.cos(a)*inr, cy+Math.sin(a)*inr);
+    g.lineTo(cx+Math.cos(a)*(r-2), cy+Math.sin(a)*(r-2));
+    g.strokeStyle = (i/10 >= redAt) ? 'rgba(255,120,140,.75)' : 'rgba(190,200,220,.55)';
+    g.lineWidth = (i%5===0) ? 1.5 : 0.9;
+    g.stroke();
+  }
+  /* the reading */
+  g.textAlign='center';
+  /* Both of these were overflowing the bezel: 9px numerals plus a label at
+     0.84r on a 26px face put the unit outside the glass. Pulled in and
+     shrunk so everything sits INSIDE the dial. */
+  g.font='700 7.5px ' + getComputedStyle(document.body).getPropertyValue('--disp');
+  g.fillStyle = hot ? red : '#e6ecf6';
+  g.fillText(big, cx, cy+r*0.40);
+  g.font='400 3.2px ' + getComputedStyle(document.body).getPropertyValue('--px');
+  g.fillStyle='rgba(150,160,180,.72)';
+  g.fillText(label, cx, cy+r*0.62);
+
+  /* ---- the odometer -----------------------------------------------------
+     A mechanical drum inside the speedometer face, where a car keeps it,
+     rather than a separate DISTANCE readout at the top of the screen. The
+     last digit SCROLLS continuously the way a real trip meter does, which is
+     also the only motion on the dial when you are holding a steady speed.
+     ---------------------------------------------------------------------- */
+  if(odo !== undefined){
+    const dw = 4.8, dh = 6.2, n = 5;
+    const bx = cx - (n*dw)/2, by = cy - r*0.56;
+    g.save();
+    g.fillStyle = 'rgba(6,8,12,.95)';
+    g.fillRect(bx-1, by-1, n*dw+2, dh+2);
+    g.strokeStyle = 'rgba(150,160,180,.28)'; g.lineWidth = 0.7;
+    g.strokeRect(bx-1, by-1, n*dw+2, dh+2);
+    /* ---- a real drum stack -----------------------------------------------
+       Every drum is geared to the one on its right, so when a digit passes 9
+       the one beside it starts turning too — 1 2 8 9 9 rolling to 1 2 9 0 0
+       moves FOUR drums at once, not one. Only the last one was animating,
+       which read as a digital counter with a gimmick on the end rather than
+       as a mechanical odometer.
+
+       Each drum rolls only through the last tenth of its own revolution,
+       which is the carry; the tenths drum is geared directly and turns
+       continuously.
+       ---------------------------------------------------------------------- */
+    const tenths = odo * 10;
+    for(let i=0;i<n;i++){
+      const place = Math.pow(10, n-1-i);
+      const v = tenths / place;
+      const digit = Math.floor(v) % 10;
+      const f = v - Math.floor(v);
+      const last = (i === n-1);
+      /* Continuous on the tenths drum; a TIGHT carry on the rest. A 10%
+         window meant every drum was mid-roll at once and 1289.9 already read
+         1290 — the reading was running ahead of the distance. The carry now
+         happens in the last 3% of a revolution, so a digit shows its true
+         value almost all the time and snaps through the change. */
+      const roll = last ? f : (f > 0.97 ? (f - 0.97) / 0.03 : 0);
+      g.save();
+      g.beginPath(); g.rect(bx + i*dw, by, dw, dh); g.clip();
+      g.textAlign='center';
+      g.font = '700 5.2px ' + getComputedStyle(document.body).getPropertyValue('--disp');
+      g.fillStyle = last ? '#ffd98a' : '#dfe6f2';
+      const cxd = bx + i*dw + dw/2, base = by + dh - 1.4;
+      if(roll > 0){
+        g.fillText(digit,        cxd, base - roll*dh);
+        g.fillText((digit+1)%10, cxd, base + (1-roll)*dh);
+      } else {
+        g.fillText(digit, cxd, base);
+      }
+      g.restore();
+      if(i < n-1){
+        g.strokeStyle='rgba(255,255,255,.10)'; g.lineWidth=0.5;
+        g.beginPath(); g.moveTo(bx+(i+1)*dw, by); g.lineTo(bx+(i+1)*dw, by+dh); g.stroke();
+      }
+    }
+    g.restore();
+  }
+
+  /* ---- the needle, LAST ---------------------------------------------------
+     It has to sweep over everything else on the face. The drum, the ticks and
+     the numerals are printed on the dial; the needle is a physical pointer
+     above the glass, so it passes across the odometer rather than under it.
+     Drawn here, after all the face furniture, for exactly that reason.
+     -------------------------------------------------------------------------- */
+  /* the needle */
+  const a = A0 + (A1-A0)*frac;
+  g.save();
+  g.strokeStyle = hot ? red : tint;
+  g.shadowColor = hot ? red : tint; g.shadowBlur = 6;
+  g.lineWidth = 1.9; g.lineCap='round';
+  g.beginPath();
+  g.moveTo(cx-Math.cos(a)*4, cy-Math.sin(a)*4);
+  g.lineTo(cx+Math.cos(a)*(r-6), cy+Math.sin(a)*(r-6));
+  g.stroke();
+  g.restore();
+  g.beginPath(); g.arc(cx,cy,2.4,0,6.2832);
+  g.fillStyle = hot ? red : tint; g.fill();
+}
+
 function drawBust(){
   if(bustT <= 0) return;
   const q = Math.min(1, bustT/3);
@@ -2953,26 +3159,20 @@ function drawBust(){
 }
 
 function hud(){
-  const kmh = Math.round(spd/MAX_SPD*180);
+  const kmh = Math.round(spd/MAX_SPD*200);
   if(kmh!==lastKmh){ $('kmh').textContent = kmh; lastKmh=kmh; }
-  $('dist').innerHTML = dist.toFixed(1)+'<i>MI</i>';
+
   $('score').textContent = Math.round(score).toLocaleString();
   /* the bottle empties as you burn it */
   nitroBtn.style.setProperty('--nos', nos + '%');
   if(mode === 'race'){
     $('placeWrap').hidden = false;
     $('place').textContent = place + '/12';
-    $('dist').innerHTML = dist.toFixed(1) + '<i>/' + RACE_MILES + ' MI</i>';
+    $('distWrap').hidden = false;
+    $('dist').innerHTML = Math.max(0, RACE_MILES - dist).toFixed(1) + '<i>MI</i>';
   }
-  if(tachoEl){
-    const rpm = engineRpm();
-    const frac = clamp((rpm - IDLE) / (REDLINE - IDLE), 0, 1);
-    /* the needle travels the width of the plate, minus its own width */
-    tachoEl.firstElementChild.style.setProperty('--rev',
-      (frac * (tachoEl.clientWidth - 8)) + 'px');
-    tachoEl.lastElementChild.textContent = (rpm/1000).toFixed(1) + 'k';
-    tachoEl.classList.toggle('red', rpm > REDLINE*0.86);
-  }
+  drawDials();
+
   const active = cops.some(k=>k.wreck<=0);
   $('pursuit').className = active ? 'on' : '';
   $('pursuit').textContent = 'PURSUIT \u00D7'+cops.filter(k=>k.wreck<=0).length+'  \u00B7  HEAT '+heat +
