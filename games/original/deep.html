@@ -82,10 +82,14 @@
     background:radial-gradient(120% 80% at 50% 45%,rgba(4,7,15,.72),rgba(2,3,7,.94));
     backdrop-filter:blur(2px);
     text-align:center;
-    pointer-events:none;
+    /* This was a tap-anywhere panel, so it deliberately let taps fall through
+       to the canvas. Now it holds a MENU, and pointer-events:none made every
+       button unclickable — the canvas was winning elementFromPoint. */
+    pointer-events:auto;
+    z-index:30;
     transition:opacity .28s ease;
   }
-  #veil.hidden{opacity:0;pointer-events:none}
+  #veil.hidden{opacity:0;pointer-events:none;display:none}
   .eyebrow{
     font-family:var(--mono);font-size:10px;letter-spacing:.34em;text-transform:uppercase;
     color:var(--lume);opacity:.75;margin-bottom:18px;
@@ -126,6 +130,34 @@
   .tally b{display:block;font-size:19px;color:var(--pale);font-weight:500;margin-top:4px}
   .tally .amber b{color:var(--spark)}
   .rule{width:44px;height:1px;background:rgba(77,224,200,.35);margin:26px auto 0}
+
+/* ---- the title menu -------------------------------------------------
+   These were never styled: an earlier insert missed its anchor, so the
+   buttons rendered as bare 37x19 <button> elements — below any reasonable
+   tap target and invisible against the panel. */
+.tmenu{
+  display:flex;flex-direction:column;gap:9px;
+  width:min(250px,78vw);margin:22px auto 0;
+}
+.mbtn{
+  width:100%;min-height:48px;padding:15px 14px;
+  font:inherit;font-size:12px;letter-spacing:.18em;
+  border:0;border-radius:4px;cursor:pointer;
+  background:#9fe3ff;color:#04121b;
+}
+.mbtn.ghost{
+  background:transparent;color:#9fe3ff;
+  border:1px solid rgba(159,227,255,.38);
+}
+.mbtn:active{opacity:.82;transform:translateY(1px)}
+.ctrls{margin:16px auto 0;max-width:290px}
+.crow{
+  display:flex;justify-content:space-between;gap:12px;align-items:baseline;
+  padding:8px 2px;border-bottom:1px solid rgba(255,255,255,.08);
+  font-size:12px;text-align:left;
+}
+.crow b{font-weight:600;white-space:nowrap}
+.crow i{font-style:normal;opacity:.62;text-align:right}
 </style>
 </head>
 <body>
@@ -180,6 +212,7 @@ let   scale = 1, dpr = 1;
 
 const UPM   = 10;              // units per metre
 const R     = 15;              // diver radius
+let WATERLINE = 0;             // set on resize: where the surface sits
 const TH    = 24;              // ledge thickness
 const ORB_R = 9;
 
@@ -205,7 +238,54 @@ const snd = {
   arm(){
     if (snd.armed || !AR.audio.onReset) return;
     snd.armed = true;
-    AR.audio.onReset(() => { snd.drone = null; snd.begin(); });
+    AR.audio.onReset(() => { snd.drone = null; snd.wash = null; snd.begin(); });
+  },
+
+  /* ---- surface -----------------------------------------------------------
+     Above the water it is wash and gulls. The deep drone does NOT start here:
+     it belongs to the water, and starting it on the boat gave away where the
+     game was going before the sub had left the hook.
+     ------------------------------------------------------------------------ */
+  surface(){
+    if (!AR) return;
+    AR.audio.init();
+    if (!AR.audio.ctx) return;
+    snd.arm();
+    /* the wash: broad low noise that breathes with the swell */
+    if (!snd.wash) snd.wash = AR.sfx.holdNoise({ freq:520, q:0.5, bus:'music' });
+    snd.wash.set(520, 0.075, 0.9);
+    snd.gullT = 0;
+  },
+  /* called every frame while on the surface */
+  swell(dt, phase){
+    if (!AR || !snd.wash) return;
+    /* the wash rises and falls with the same swell the boat is riding */
+    const s2 = 0.5 + Math.sin(phase * 0.95) * 0.5;
+    snd.wash.set(420 + s2*420, 0.050 + s2*0.055, 0.25);
+    /* gulls, at irregular intervals so they never feel metered */
+    snd.gullT = (snd.gullT || 0) - dt;
+    if (snd.gullT <= 0){
+      snd.gullT = 1.1 + Math.random()*2.4;
+      snd.gull();
+    }
+  },
+  gull(){
+    if (!AR) return;
+    /* two or three descending cries, each a quick up-then-down */
+    const n = 2 + ((Math.random()*2)|0);
+    const base = 900 + Math.random()*380;
+    for (let i=0;i<n;i++){
+      const t0 = AR.audio.now() + i*(0.17 + Math.random()*0.09);
+      const f  = base * Math.pow(0.88, i);
+      AR.sfx.tone({ t:t0,       freq:f*0.72, to:f,      dur:0.075, type:'sawtooth',
+                    gain:0.028, cutoff:2600, verb:0.45 });
+      AR.sfx.tone({ t:t0+0.07,  freq:f,      to:f*0.62, dur:0.16,  type:'sawtooth',
+                    gain:0.034, cutoff:2200, verb:0.55 });
+    }
+  },
+  /* the surface fades out as the water takes over */
+  submerge(){
+    if (snd.wash) snd.wash.set(300, 0, 0.7);
   },
 
   begin(){
@@ -254,6 +334,23 @@ const snd = {
     AR.sfx.noise({ t, freq:6000, dur:0.18, gain:0.03, filter:'highpass' });
   },
   pass(){ if (AR) AR.sfx.noise({ freq:240, dur:0.09, gain:0.05, filter:'lowpass', q:1.5 }); },
+  creak(){
+    if(!AR) return;
+    /* wire and winch under load: a low groan with a metal edge */
+    AR.sfx.tone({ freq:74, to:66, dur:1.5, type:'sawtooth', gain:0.045, cutoff:340 });
+    AR.sfx.noise({ freq:900, dur:1.3, gain:0.022, filter:'bandpass' });
+  },
+  release(){
+    if(!AR) return;
+    /* the catch lets go: a hard clack and the wire whipping free */
+    AR.sfx.noise({ freq:2600, to:600, dur:0.16, gain:0.09, filter:'bandpass' });
+    AR.sfx.tone({ freq:320, to:90, dur:0.20, type:'square', gain:0.06, cutoff:1200 });
+  },
+  splash2(){
+    if(!AR) return;
+    AR.sfx.noise({ freq:1800, to:180, dur:0.55, gain:0.10, filter:'lowpass' });
+    AR.sfx.tone({ freq:220, to:70, dur:0.45, type:'sine', gain:0.055 });
+  },
   dive(){ if (AR) AR.sfx.noise({ freq:2200, to:220, dur:0.75, gain:0.13, filter:'bandpass', q:0.7 }); },
 
   end(how){
@@ -283,6 +380,7 @@ function resize(){
   cv.height = Math.round(r.height * dpr);
   ctx.setTransform(scale*dpr, 0, 0, scale*dpr, 0, 0);
   playerY = H * 0.30;
+  WATERLINE = H * 0.42;
   if (motes) seedMotes();
 }
 window.addEventListener('resize', resize);
@@ -506,12 +604,36 @@ function showControls(){
     { back: () => showOptions() });
 }
 
+/* ---- the launch ---------------------------------------------------------
+   You do not begin in the water. You begin hanging off a hook under a boat on
+   the surface, swinging, with the swell moving under you — and PLAY releases
+   the cable and drops you in. It costs three seconds and it tells the player
+   where they are, which nothing else in the game does.
+   -------------------------------------------------------------------------- */
+let launchT = 0, launched = false, splashT = 0, swing = 0;
+
 function start(){
   dives++;
   reset();
-  state = 'diving';
+  menuOpen = false;
+  state = 'launch';
+  launchT = 0; launched = false; splashT = 0; swing = 0;
   veil.classList.add('hidden');
-  snd.begin();
+  snd.surface();          /* wash and gulls; the deep comes later */
+  snd.creak();
+}
+
+/* released: the hook lets go and gravity takes over */
+function release(){
+  if(launched) return;
+  launched = true;
+  snd.release();
+}
+
+function beginDive(){
+  state = 'diving';
+  snd.submerge();        /* the surface goes */
+  snd.begin();           /* and the drone and the bed come in under it */
   snd.dive();
 }
 
@@ -759,6 +881,7 @@ function draw(now){
   ctx.restore();
   ctx.globalAlpha = 1;
 
+  if (state === 'launch') drawLaunch(now);
   if (state !== 'lost') drawDiver(now);
 
   // clean-gap toast
@@ -949,6 +1072,99 @@ function drawLedge(x, y, w, isLeft){
   ctx.fillRect(x, y, w, 1.5);
 }
 
+/* the boat on the swell, the davit, the wire, and the sub hanging off it */
+function drawLaunch(now){
+  const t = swing;
+  const roll = Math.sin(t*1.15) * 0.075;
+  const heave = Math.sin(t*0.95) * H*0.012;
+  const wl = WATERLINE + heave;
+
+  /* sky above the line, so the surface reads as a surface */
+  const sky = ctx.createLinearGradient(0,0,0,wl);
+  sky.addColorStop(0,'#0b1a26'); sky.addColorStop(1,'#16394d');
+  ctx.fillStyle = sky; ctx.fillRect(0,0,W,wl);
+
+  /* the swell itself */
+  ctx.beginPath();
+  ctx.moveTo(0, wl+40);
+  for(let x=0;x<=W;x+=8){
+    const y = wl + Math.sin(x*0.022 + t*1.8)*5 + Math.sin(x*0.007 - t*1.1)*8;
+    x ? ctx.lineTo(x,y) : ctx.moveTo(x,y);
+  }
+  ctx.lineTo(W, wl+60); ctx.lineTo(0, wl+60); ctx.closePath();
+  ctx.fillStyle = 'rgba(20,70,92,.55)'; ctx.fill();
+  ctx.strokeStyle = 'rgba(180,240,255,.35)'; ctx.lineWidth = 1.4;
+  ctx.beginPath();
+  for(let x=0;x<=W;x+=8){
+    const y = wl + Math.sin(x*0.022 + t*1.8)*5 + Math.sin(x*0.007 - t*1.1)*8;
+    x ? ctx.lineTo(x,y) : ctx.moveTo(x,y);
+  }
+  ctx.stroke();
+
+  /* the boat, rolling on it */
+  ctx.save();
+  ctx.translate(W*0.34, wl - H*0.012);
+  ctx.rotate(roll);
+  const bw = W*0.46, bh = H*0.045;
+  ctx.fillStyle = '#1d2b34';
+  ctx.beginPath();
+  ctx.moveTo(-bw/2, -bh); ctx.lineTo(bw/2, -bh);
+  ctx.lineTo(bw/2 - bh*0.5, bh*0.6); ctx.lineTo(-bw/2 + bh*0.8, bh*0.6);
+  ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#33454f';
+  ctx.fillRect(-bw*0.10, -bh*2.1, bw*0.30, bh*1.2);
+  ctx.fillStyle = 'rgba(255,225,150,.75)';
+  ctx.fillRect(-bw*0.04, -bh*1.85, bw*0.07, bh*0.45);
+  ctx.fillStyle = 'rgba(255,255,255,.14)';
+  ctx.fillRect(-bw/2, -bh, bw, 2);
+  /* the davit arm reaching out over the water */
+  ctx.strokeStyle = '#55636d'; ctx.lineWidth = 3.5;
+  ctx.beginPath();
+  ctx.moveTo(bw*0.24, -bh*0.6);
+  ctx.lineTo(bw*0.24, -bh*3.4);
+  ctx.lineTo(bw*0.62, -bh*3.4);
+  ctx.stroke();
+  ctx.restore();
+
+  /* where the wire leaves the davit, in world space */
+  const ax = W*0.34 + Math.cos(roll)*(bw*0.62) - Math.sin(roll)*(-bh*3.4);
+  const ay = wl - H*0.012 + Math.sin(roll)*(bw*0.62) + Math.cos(roll)*(-bh*3.4);
+
+  if(!launched){
+    /* the sub swings a beat behind the boat, on a taut wire */
+    const lag = Math.sin(t*1.15 - 0.55) * 0.13;
+    px = ax + Math.sin(lag) * H*0.10;
+    playerY = ay + Math.cos(lag) * H*0.10;
+    ctx.strokeStyle = 'rgba(200,225,235,.7)'; ctx.lineWidth = 1.6;
+    ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(px, playerY); ctx.stroke();
+    /* the hook */
+    ctx.strokeStyle = '#9fb0bb'; ctx.lineWidth = 2.4;
+    ctx.beginPath(); ctx.arc(px, playerY - 9, 4.5, 0.4, 4.6); ctx.stroke();
+  } else if(splashT === 0){
+    /* falling: the wire whips back up */
+    ctx.strokeStyle = 'rgba(200,225,235,.35)'; ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.moveTo(ax, ay);
+    ctx.lineTo(ax + Math.sin(t*9)*6, ay + H*0.05); ctx.stroke();
+  }
+
+  if(splashT > 0){
+    const q = Math.min(1, splashT/0.55);
+    ctx.strokeStyle = 'rgba(210,245,255,' + (1-q) + ')';
+    ctx.lineWidth = 2;
+    for(let i=0;i<3;i++){
+      ctx.beginPath();
+      ctx.ellipse(px, WATERLINE, q*(30+i*22), q*(9+i*6), 0, 0, 6.2832);
+      ctx.stroke();
+    }
+    for(let i=0;i<10;i++){
+      const a = -Math.PI/2 + (i/9-0.5)*2.2;
+      const d = q * (34 + (i%3)*16);
+      ctx.fillStyle = 'rgba(220,248,255,' + (1-q)*0.9 + ')';
+      ctx.fillRect(px + Math.cos(a)*d - 1, WATERLINE + Math.sin(a)*d*0.7 - 1, 2.4, 2.4);
+    }
+  }
+}
+
 function drawDiver(now){
   /* Nose into the turn. It used to bank away from the direction of travel,
      which read as being dragged sideways rather than cutting a line. */
@@ -990,7 +1206,26 @@ function frame(now){
   let dt = Math.min(0.05, (now - lastTime)/1000);
   lastTime = now;
 
-  if (state === 'diving'){
+  if (state === 'launch'){
+    launchT += dt;
+    swing += dt;
+    /* the boat rolls, and the sub on its wire swings a beat behind it */
+    snd.swell(dt, swing);
+    if(!launched && launchT > 1.15) release();
+    if(launched){
+      /* falls, then the water grabs it */
+      playerY += (playerY < WATERLINE ? 640 : 190) * dt;
+      if(playerY >= WATERLINE && splashT === 0){ splashT = 0.001; snd.splash2(); }
+      if(splashT > 0){
+        splashT += dt;
+        if(splashT > 0.55) beginDive();
+      }
+    }
+    for (const m of motes){
+      m.y -= 60 * m.p * dt;
+      if (m.y < -6){ m.y = H + rand(0,60); m.x = rand(0,W); }
+    }
+  } else if (state === 'diving'){
     acc += dt;
     let guard = 0;
     while (acc >= FIXED && state === 'diving' && guard++ < 8){

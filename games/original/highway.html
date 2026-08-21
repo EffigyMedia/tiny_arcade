@@ -90,34 +90,192 @@ canvas{display:block;width:100%;height:100%;touch-action:none}
 /* Both controls under one thumb on a steep diagonal: BRAKE low and outboard
    where the thumb rests, NOS above and inboard so it takes a deliberate reach.
    `body.pedals-left` mirrors the pair. */
+/* ---- the pedal box ------------------------------------------------------
+   Brake and accelerator side by side as actual pedals, hinged at the top and
+   tilting when pressed. The nitrous is a bottle lying on its side ABOVE the
+   accelerator, because pressing it means gas AND nitrous at once.
+   -------------------------------------------------------------------------- */
+/* The whole cluster was 150x186 with 62x122 pedals — it covered the player's
+   own car and ran off the bottom of the screen. Everything is about 70% of
+   what it was, tucked into the corner, and nothing overlaps anything else. */
+#pedals{
+  position:absolute;z-index:12;pointer-events:none;
+  right:calc(env(safe-area-inset-right,0px) + 10px);
+  bottom:calc(env(safe-area-inset-bottom,0px) + 12px);
+  width:104px;height:126px;
+}
+#pedals button{
+  position:absolute;pointer-events:auto;padding:0;border:0;background:none;
+  -webkit-tap-highlight-color:transparent;
+}
+/* the two pedals: rubber pads on a steel arm, tilting on press */
+#gas, #brake{
+  bottom:0;width:46px;height:84px;
+  perspective:170px;
+}
+#brake{ left:0 }
+#gas{ right:0 }
+#gas i, #brake i{
+  display:block;width:100%;height:100%;border-radius:7px 7px 5px 5px;
+  transform-origin:50% 0%;
+  transition:transform .07s ease-out, filter .07s ease-out;
+  background:
+    repeating-linear-gradient(to bottom,
+      rgba(255,255,255,.10) 0 3px, rgba(0,0,0,.22) 3px 7px),
+    linear-gradient(to bottom, #3a3f47 0%, #23262c 55%, #15171b 100%);
+  box-shadow:
+    inset 0 2px 0 rgba(255,255,255,.22),
+    inset 0 -6px 10px rgba(0,0,0,.6),
+    0 5px 0 #0c0d10, 0 10px 16px -6px #000;
+  border:1px solid #4a505a;
+}
+#brake i{ border-color:#6b3436; box-shadow:inset 0 2px 0 rgba(255,150,150,.22),
+  inset 0 -6px 10px rgba(0,0,0,.6), 0 5px 0 #2a0e10, 0 10px 16px -6px #000 }
+#gas i{ border-color:#3f5f42; box-shadow:inset 0 2px 0 rgba(170,255,180,.20),
+  inset 0 -6px 10px rgba(0,0,0,.6), 0 5px 0 #0e2412, 0 10px 16px -6px #000 }
+/* pressed: the pad rotates away and drops onto its stop */
+#gas.on i, #brake.on i{ transform:rotateX(26deg) translateY(4px); filter:brightness(1.5) }
+#brake.on i{ filter:brightness(1.35) saturate(1.5) }
+
+/* the nitrous bottle, lying on its side over the accelerator */
 #nitro{
-  position:absolute;
-  right:calc(env(safe-area-inset-right,0px) + 104px);
-  bottom:calc(env(safe-area-inset-bottom,0px) + 158px);
-  width:88px;height:88px;border-radius:50%;pointer-events:auto;z-index:12;
-  border:2px solid rgba(95,240,216,.55);background:rgba(12,40,44,.5);
-  color:var(--cyan);font-family:var(--disp);font-weight:800;font-size:15px;letter-spacing:.14em;
-  backdrop-filter:blur(3px);
+  right:0;bottom:92px;width:72px;height:30px;
 }
-#nitro:disabled{opacity:.3}
-#brake{
-  position:absolute;
-  right:calc(env(safe-area-inset-right,0px) + 16px);
-  bottom:calc(env(safe-area-inset-bottom,0px) + 74px);
-  width:74px;height:74px;border-radius:50%;pointer-events:auto;z-index:12;
-  border:2px solid rgba(255,90,90,.5);background:rgba(48,14,16,.5);
-  color:#ff6b6b;font-family:var(--disp);font-weight:800;font-size:13px;letter-spacing:.10em;
-  backdrop-filter:blur(3px);
+#nitro i{
+  display:block;width:100%;height:100%;position:relative;overflow:hidden;
+  border-radius:14px 6px 6px 14px;
+  /* The bottle IS the gauge now — the old #nosFill bar sat under the pedals
+     where nothing could see it. --nos is set every frame; the charge fills
+     from the neck end and the empty part reads as dark glass. */
+  background:
+    linear-gradient(to right,
+      rgba(8,30,32,.92) 0%,
+      rgba(8,30,32,.92) calc(100% - var(--nos,40%)),
+      transparent      calc(100% - var(--nos,40%))),
+    linear-gradient(to bottom,#7ef0dc 0%,#2fbcae 42%,#0e5f60 100%);
+  box-shadow:inset 0 3px 0 rgba(255,255,255,.45), inset 0 -6px 10px rgba(0,0,0,.45),
+             0 4px 12px -3px #000;
+  border:1px solid rgba(140,255,238,.5);
 }
-#brake:disabled{opacity:.3}
-#brake.on{background:rgba(120,24,26,.75);color:#fff}
+/* the neck and valve at the right-hand end */
+#nitro i::after{
+  content:"";position:absolute;right:-8px;top:50%;transform:translateY(-50%);
+  width:11px;height:11px;border-radius:2px;
+  background:linear-gradient(to bottom,#cfd8e3,#6b727d);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.6);
+}
+/* a strap band across the middle, so it reads as a bottle not a pill */
+#nitro i::before{
+  content:"";position:absolute;left:34%;top:-1px;width:9px;height:calc(100% + 2px);
+  background:rgba(10,40,42,.55);border-left:1px solid rgba(160,255,240,.30);
+  border-right:1px solid rgba(160,255,240,.30);
+}
+/* the horn: a chrome boss on the wheel, left of the pedals */
+#horn{
+  left:-46px;bottom:4px;width:40px;height:40px;
+}
+#horn i{
+  display:block;width:100%;height:100%;border-radius:50%;
+  background:radial-gradient(circle at 38% 32%, #f2f5fa 0%, #b7c0cc 34%, #6f7783 70%, #3a4049 100%);
+  box-shadow:inset 0 2px 0 rgba(255,255,255,.6), inset 0 -5px 8px rgba(0,0,0,.5),
+             0 4px 10px -2px #000;
+  border:1px solid #565e69;position:relative;
+}
+/* A bulb horn as one continuous body, with a NECK you can see. The first
+   single-path version joined up correctly but drew the tube about a pixel and
+   a half wide at 40px, so it read as a bell on a bent wire. The outward and
+   return edges of the neck are now four units apart at the bell and taper to
+   two at the bulb, which is a tube rather than a line. */
+#horn i::after{
+  content:"";position:absolute;inset:13%;
+  background:rgba(24,28,34,.84);
+  -webkit-mask:var(--hornmark) center/contain no-repeat;
+          mask:var(--hornmark) center/contain no-repeat;
+}
+#horn i{
+  --hornmark:url('data:image/svg+xml;utf8,\
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">\
+<path d="\
+M3.2 6.6\
+C2.5 6.2 1.7 6.7 1.7 7.5\
+L1.7 24.5\
+C1.7 25.3 2.5 25.8 3.2 25.4\
+C5.6 23.9 7.2 21.9 7.9 19.5\
+C10.4 19.9 12.4 20.7 13.8 21.8\
+C14.6 22.4 15.2 23.1 15.6 23.8\
+C17.4 24.6 20.6 26.4 24.6 26.4\
+L24.6 20.6\
+C22.2 20.6 20.3 19.7 19.2 18.4\
+C18.2 18.05 17.2 17.8 16.12 17.62\
+C15.5 18.05 14.8 17.55 14.05 17.1\
+C12.3 16.05 10.2 15.35 7.9 15.0\
+C7.2 12.6 5.6 10.6 3.2 9.1\
+Z"/>\
+<ellipse cx="24.6" cy="26.0" rx="5.6" ry="5.0"/>\
+</svg>');
+}
+#horn.on i{ filter:brightness(1.35); transform:translateY(2px) }
+body.pedals-left #horn{ left:auto; right:-58px }
 
-/* left-handed: mirror the pair */
-body.pedals-left #nitro{ right:auto; left:calc(env(safe-area-inset-left,0px) + 104px) }
-body.pedals-left #brake{ right:auto; left:calc(env(safe-area-inset-left,0px) + 16px) }
+#nitro:disabled{opacity:.32;filter:grayscale(.5)}
+#nitro.on i{ filter:brightness(1.5); box-shadow:inset 0 3px 0 rgba(255,255,255,.6),
+  0 0 22px rgba(95,240,216,.7), 0 4px 12px -3px #000 }
 
-/* no touch, no thumb buttons — a desktop showing them looks broken */
-body.no-touch #nitro, body.no-touch #brake{ display:none }
+body.pedals-left #pedals{ right:auto; left:calc(env(safe-area-inset-left,0px) + 14px) }
+body.pedals-left #brake{ left:auto; right:0 }
+body.pedals-left #gas{ right:auto; left:0 }
+body.pedals-left #nitro{ right:auto; left:0 }
+
+/* no touch, no pedals — a desktop showing them looks broken */
+body.no-touch #pedals{ display:none }
+
+/* ---- the shifter ---------------------------------------------------------
+   A six-speed H-gate: two rails with three positions each, and reverse below.
+   The knob is dragged between them. It sits above the pedals so the same
+   thumb can reach it without leaving the wheel hand.
+   -------------------------------------------------------------------------- */
+#shifter{
+  position:absolute;z-index:13;pointer-events:auto;
+  right:calc(env(safe-area-inset-right,0px) + 10px);
+  bottom:calc(env(safe-area-inset-bottom,0px) + 150px);
+  width:86px;height:94px;touch-action:none;
+}
+#shifter[hidden]{ display:none }
+#gate{
+  position:absolute;inset:0;border-radius:9px;
+  background:linear-gradient(to bottom,#1a1d22,#0d0f13);
+  border:1px solid #333941;
+  box-shadow:inset 0 2px 0 rgba(255,255,255,.08), 0 6px 16px -6px #000;
+}
+/* the H itself, cut into the plate */
+#gate::before, #gate::after{
+  content:"";position:absolute;background:#05070a;border-radius:7px;
+  box-shadow:inset 0 2px 3px rgba(0,0,0,.9);
+}
+#gate::before{ left:20px;right:20px;top:38px;height:10px }          /* the cross rail */
+/* two rails, four slots */
+#gate::after{ left:20px;width:10px;top:11px;bottom:11px;
+  box-shadow:inset 0 2px 3px rgba(0,0,0,.9),
+             36px 0 0 #05070a }
+#knob{
+  position:absolute;width:28px;height:28px;border-radius:50%;
+  left:5px;top:4px;
+  background:radial-gradient(circle at 36% 30%, #f4f6fa 0%, #c3ccd8 30%, #79818d 68%, #363b43 100%);
+  box-shadow:inset 0 2px 0 rgba(255,255,255,.55), inset 0 -6px 9px rgba(0,0,0,.55),
+             0 5px 12px -3px #000;
+  border:1px solid #5a626d;
+  display:grid;place-items:center;
+  transition:left .09s ease-out, top .09s ease-out;
+  cursor:grab;
+}
+#knob.grab{ transition:none; cursor:grabbing; filter:brightness(1.2) }
+#knob b{ font-family:var(--disp);font-size:12px;font-weight:800;color:#1a1d22 }
+#gearNums{ position:absolute;inset:0;pointer-events:none }
+#gearNums span{
+  position:absolute;font-family:var(--disp);font-size:9px;font-weight:800;
+  color:#5c6570;letter-spacing:.04em;
+}
+body.pedals-left #shifter{ right:auto; left:calc(env(safe-area-inset-left,0px) + 14px) }
 #nitro.hot{background:rgba(95,240,216,.3);color:#eafffb;box-shadow:0 0 26px rgba(95,240,216,.45)}
 #nitro:focus-visible{outline:2px solid var(--cyan);outline-offset:3px}
 
@@ -170,15 +328,24 @@ h1 u{text-decoration:none;display:block;font-size:.34em;letter-spacing:.26em;col
     <div class="botrow">
       <div class="speedo"><b id="kmh">0</b><span>MPH</span></div>
       <div class="bars">
-        <div class="bar"><em>DMG</em><span class="trk"><i id="dmgFill"></i></span></div>
-        <div class="bar"><em>NOS</em><span class="trk"><i id="nosFill"></i></span></div>
+        <!-- The two bars lived down here under the pedals, where the controls
+             covered them. Damage is smoke off the bonnet now and nitrous is the
+             fill in the bottle, so both read where you are already looking. -->
       </div>
     </div>
   </div>
 
   <div id="warn"></div>
-  <button id="nitro" disabled>NOS</button>
-  <button id="brake" disabled>BRAKE</button>
+  <div id="pedals">
+    <button id="nitro" disabled aria-label="Nitrous"><i></i></button>
+    <button id="gas" aria-label="Accelerator"><i></i></button>
+    <button id="brake" aria-label="Brake"><i></i></button>
+    <button id="horn" aria-label="Horn"><i></i></button>
+  </div>
+  <div id="shifter" hidden>
+    <div id="gate"></div>
+    <div id="knob" data-gear="1"><b>1</b></div>
+  </div>
   <div id="veil"><div class="vw" id="veilBody"></div></div>
 </div></div>
 
@@ -199,7 +366,9 @@ const veilBody = document.getElementById('veilBody');
 const warnEl = document.getElementById('warn');
 const nitroBtn = document.getElementById('nitro');
 const brakeBtn = document.getElementById('brake');
-let braking = false;
+const gasBtn   = document.getElementById('gas');
+const hornBtn  = document.getElementById('horn');
+let braking = false, gas = false;
 
 /* ---------- road constants ---------- */
 const SEG = 200;             // segment length
@@ -249,7 +418,8 @@ var snd = {
   arm: function(){
     if (snd.armed || !AR.audio.onReset) return;
     snd.armed = true;
-    AR.audio.onReset(function(){ snd.eng = null; snd.thrust = null; snd.screech = null; snd.begin(); });
+    AR.audio.onReset(function(){ snd.eng = null; snd.thrust = null;
+      snd.screech = snd.screechMid = snd.screechLow = null; snd.begin(); });
   },
   begin: function(){
     if (!AR) return;
@@ -263,13 +433,49 @@ var snd = {
       snd.siren = AR.sfx.hold({ freq:700, type:'sine', cutoff:2600, q:1 });
       /* NOS: a wide bandpassed hiss, opened up while the bottle is live */
       snd.thrust = AR.sfx.holdNoise({ freq:1800, q:0.35 });
+      /* A real car horn is TWO notes a third apart played together, with a
+         buzzy edge — a single sine reads as a doorbell. */
+      snd.horn1 = AR.sfx.hold ? AR.sfx.hold({ freq:440, type:'sawtooth', gain:0, cutoff:1500 }) : null;
+      snd.horn2 = AR.sfx.hold ? AR.sfx.hold({ freq:554.4, type:'sawtooth', gain:0, cutoff:1700 }) : null;
       /* Brakes: a tight, high band that only sings while the tyres are losing
          speed. Held at a fixed pitch it would drone; it tracks the rate of
          deceleration instead, so it screeches on the stop and dies as you
          settle. */
-      snd.screech = AR.sfx.holdNoise({ freq:4600, q:9 });
+      /* One tight high band on its own is a hiss. Real tyre screech is a LOW
+         roar of rubber tearing with a squeal riding on top, so this is three
+         voices: a broad low body, a mid grind, and the high squeal that
+         actually sings. */
+      snd.screech    = AR.sfx.holdNoise({ freq:4600, q:9 });      /* squeal */
+      snd.screechMid = AR.sfx.holdNoise({ freq:1250, q:2.2 });    /* grind  */
+      snd.screechLow = AR.sfx.holdNoise({ freq:280,  q:0.8 });    /* body   */
     }
     AR.music.start(152, 4, snd.bed);
+  },
+
+  shift: function(){
+    if(!AR) return;
+    /* a mechanical clack, not a beep: a short knock plus a metal tick */
+    AR.sfx.noise({ freq:520, to:180, dur:0.055, gain:0.075, filter:'bandpass' });
+    AR.sfx.tone({ freq:180, to:120, dur:0.05, type:'square', gain:0.05, cutoff:900 });
+  },
+
+  warnCop: function(){
+    if(!AR) return;
+    /* the loud-hailer: a short two-tone bark, unpleasant on purpose */
+    AR.sfx.tone({ freq:660, to:520, dur:0.16, type:'square', gain:0.075, cutoff:1800 });
+    AR.sfx.noise({ freq:1400, dur:0.10, gain:0.03, filter:'bandpass' });
+  },
+
+  honk: function(on){
+    if(!AR) return;
+    if(snd.horn1 && snd.horn1.set){
+      snd.horn1.set(440,   on ? 0.075 : 0, on ? 0.012 : 0.05);
+      if(snd.horn2) snd.horn2.set(554.4, on ? 0.060 : 0, on ? 0.012 : 0.05);
+    } else if(on){
+      /* no holdable voice: a short blast instead, still two notes */
+      AR.sfx.tone({ freq:440,   dur:0.22, type:'sawtooth', gain:0.075, cutoff:1500 });
+      AR.sfx.tone({ freq:554.4, dur:0.22, type:'sawtooth', gain:0.060, cutoff:1700 });
+    }
   },
 
   bed: function(step, t){
@@ -360,9 +566,19 @@ var snd = {
       var wob = 1 + Math.sin(snd.scrPhase) * 0.055;
       /* also silent at a crawl: tyres do not sing at 46mph. `r` is the speed
          as a fraction of top, so 46/180 is the floor. */
-      if (sq > 0.14 && r > 46/180)
-             snd.screech.set((4200 + r*2600) * wob, 0.024 + sq*0.085, 0.025);
-      else   snd.screech.set(4600, 0, 0.05);
+      if (sq > 0.14 && r > 46/180){
+        /* three voices together: the LOW body is the loudest of them, which is
+           what turns a hiss into rubber tearing off a tyre */
+        snd.screech.set((4200 + r*2600) * wob, 0.020 + sq*0.062, 0.025);
+        if (snd.screechMid)
+          snd.screechMid.set((980 + r*900) * wob, 0.050 + sq*0.130, 0.030);
+        if (snd.screechLow)
+          snd.screechLow.set(200 + r*180, 0.075 + sq*0.175, 0.040);
+      } else {
+        snd.screech.set(4600, 0, 0.05);
+        if (snd.screechMid) snd.screechMid.set(1250, 0, 0.06);
+        if (snd.screechLow) snd.screechLow.set(280, 0, 0.08);
+      }
     }
 
     if (copNear > 0){
@@ -381,6 +597,8 @@ var snd = {
     snd.siren.set(undefined, 0, undefined, 0.3);
     if (snd.thrust)  snd.thrust.set(1500, 0, 0.3);
     if (snd.screech) snd.screech.set(3000, 0, 0.3);
+    if (snd.screechMid) snd.screechMid.set(1250, 0, 0.3);
+    if (snd.screechLow) snd.screechLow.set(280, 0, 0.3);
   },
 
   nearMiss: function(){
@@ -548,7 +766,7 @@ const PAINT = {
   CYAN:   { body:'#2fb8c8', hi:'#8ef0f8', lo:'#146370' },
   VIOLET: { body:'#7d4bd8', hi:'#c6a2ff', lo:'#3d1f74' }
 };
-let optPaint = 'WHITE', optEasy = false;
+let optPaint = 'WHITE', optEasy = true;   /* no cops unless HOT PURSUIT is on */
 function buildSprites(){
   SP.player = sprite(220,168, paintCar(Object.assign({
     cabin:true, spoiler:true, bodyTop:0.42, cabinTop:0.16,
@@ -755,7 +973,7 @@ function flashWarn(t){
 /* ---------- lifecycle ---------- */
 function reset(){
   pos=0; playerX=0; camX=0; targetX=0; spd=IDLE_SPD;
-  dmg=0; nos=40; nosOn=false; nosTime=0;
+  dmg=0; nos=40; nosOn=false; nosTime=0; bustT=0;
   dist=0; score=0; combo=0; comboTime=0; heat=1; heatT=0;
   /* dayClock deliberately NOT reset: the sky keeps its own time across runs */
   traffic=[]; cops=[]; blocks=[]; crates=[]; fx=[];
@@ -772,7 +990,7 @@ let nextWaveZ=0, nextCopT=0, nextBlockT=0, nextCrateT=0;
    that is stopped — and pulling away feels like acceleration instead of a
    standing start. */
 const IDLE_SPD = MAX_SPD * (60/180);   /* exactly 60 on the readout */
-const BRAKE_SPD = MAX_SPD * (45/180);  /* hard on the brakes settles at 45mph */
+const BRAKE_SPD = 0;   /* the brakes stop the car, they do not settle it */
 
 function start(){
   runs++;
@@ -822,25 +1040,202 @@ nitroBtn.addEventListener('pointercancel',()=>nosOn=false);
    cruiser instead of blowing past it, which is what makes the PIT a decision
    rather than an accident. */
 function setBrake(on){
+  brakeBtn.classList.toggle('on', on);
   braking = on;
   brakeBtn.classList.toggle('on', on);
   if(on) nosOn = false;               /* you cannot boost and brake */
 }
+/* ---- transmission -------------------------------------------------------
+   Six ratios. Each has a speed band it can pull; asking for more than the gear
+   can give bogs the engine, and holding a gear past its band hits the limiter.
+   Automatic picks the gear for you and is the default.
+   -------------------------------------------------------------------------- */
+/* Four speeds. The gate was drawing two rails all along, which IS a four-speed
+   H however the table was labelled — so the plate and the box now agree, and
+   the bands are stretched to cover the same range in four steps. */
+const GEARS = [
+  { g:1, from:0,     to:0.22, pull:1.00 },
+  { g:2, from:0.17,  to:0.46, pull:0.88 },
+  { g:3, from:0.40,  to:0.74, pull:0.72 },
+  { g:4, from:0.66,  to:1.40, pull:0.56 }
+];
+let optManual = false, gear = 1, bogT = 0;
+
+/* how well the current gear suits the speed you are at */
+function gearFactor(){
+  const r = spd / MAX_SPD;
+  const G = GEARS[gear-1];
+  if(!optManual) return 1;
+  if(r < G.from - 0.06) return 0.34;      /* lugging: it will not pull */
+  if(r > G.to)          return 0.12;      /* on the limiter: nothing left */
+  return G.pull;
+}
+/* the automatic box, when manual is off */
+function autoGear(){
+  const r = spd / MAX_SPD;
+  for(const G of GEARS) if(r <= G.to){ gear = G.g; return; }
+  gear = 4;
+}
+
+let horning = false, hornCool = 0, bustT = 0;
+function setHorn(on){
+  if(on === horning) return;
+  horning = on;
+  hornBtn.classList.toggle('on', on);
+  snd.honk(on);
+  if(on) scatter();
+}
+/* Anything ahead of you in your lane gets a chance to move over. Not a
+   certainty — a horn is a request, not a command — and a car with nowhere to
+   go stays put, which is what makes the ones that do move feel like a break. */
+function scatter(){
+  if(hornCool > 0) return;
+  hornCool = 0.55;
+  for(const c of traffic){
+    const ahead = c.z - pos;
+    if(ahead < 40 || ahead > 1500) continue;
+    if(Math.abs(c.lane - lane) > 0.6) continue;
+    if(Math.random() > 0.55) continue;
+    const room = [];
+    if(c.lane > 0) room.push(c.lane - 1);
+    if(c.lane < LANES - 1) room.push(c.lane + 1);
+    if(!room.length) continue;
+    c.lane = room[(Math.random()*room.length)|0];
+    c.swerve = 1;
+  }
+}
+
+function setGas(on){
+  gas = on;
+  gasBtn.classList.toggle('on', on);
+}
+/* ---- dragging the knob ---------------------------------------------------
+   Six slots on two rails. The knob follows the thumb while held and snaps to
+   the nearest slot on release — so you can feel your way to a gear rather than
+   having to hit a target exactly.
+   -------------------------------------------------------------------------- */
+const shifterEl = document.getElementById('shifter');
+const knobEl    = document.getElementById('knob');
+/* left/top of each slot inside the 118x132 plate */
+/* three rails at x = 5, 27, 49; up and down on each */
+/* Two rails at x = 15 and 51, joined by a cross rail at y = 33. You cannot go
+   straight from 1 to 3 — you come back through the centre and across, which is
+   what makes it an H rather than four buttons. */
+const RAIL_X = [15, 51];
+const TOP_Y = 4, MID_Y = 33, BOT_Y = 62;
+const SLOTS = [
+  { g:1, rail:0, y:TOP_Y }, { g:2, rail:0, y:BOT_Y },
+  { g:3, rail:1, y:TOP_Y }, { g:4, rail:1, y:BOT_Y }
+];
+/* where the knob physically sits — a position in the gate, not a gear */
+let knobRail = 0, knobY = TOP_Y;
+function placeKnob(){
+  knobEl.style.left = RAIL_X[knobRail] + 'px';
+  knobEl.style.top  = knobY + 'px';
+  const sl = SLOTS.find(s2 => s2.rail === knobRail && s2.y === knobY);
+  gear = sl ? sl.g : 0;                       /* mid-rail is NEUTRAL */
+  knobEl.querySelector('b').textContent = sl ? sl.g : 'N';
+  knobEl.dataset.gear = gear;
+}
+/* one step through the gate. Up and down run the rail; left and right only
+   work from the centre, which is what makes it an H rather than a grid. */
+function shiftStep(dx, dy){
+  const before = knobRail + ':' + knobY;
+  if(dy < 0) knobY = knobY === BOT_Y ? MID_Y : TOP_Y;
+  else if(dy > 0) knobY = knobY === TOP_Y ? MID_Y : BOT_Y;
+  else if(dx && knobY === MID_Y)
+    knobRail = clamp(knobRail + (dx > 0 ? 1 : -1), 0, RAIL_X.length - 1);
+  if(before !== knobRail + ':' + knobY){ placeKnob(); snd.shift(); }
+}
+let knobDrag = false;
+knobEl.addEventListener('pointerdown', e => {
+  if(!optManual) return;
+  e.preventDefault(); e.stopPropagation();
+  knobEl.setPointerCapture(e.pointerId);
+  knobDrag = true; knobEl.classList.add('grab');
+});
+knobEl.addEventListener('pointermove', e => {
+  if(!knobDrag) return;
+  const r = shifterEl.getBoundingClientRect();
+  const x = e.clientX - r.left - 14;
+  const y = e.clientY - r.top  - 14;
+  /* The thumb proposes; the GATE disposes. Off the centre rail you can only
+     move along your own rail, so 1 to 3 has to go through neutral. */
+  const wantY = y < (TOP_Y+MID_Y)/2 ? TOP_Y : y > (MID_Y+BOT_Y)/2 ? BOT_Y : MID_Y;
+  if(wantY !== knobY){
+    /* never skip the centre: step one notch at a time */
+    if(knobY === TOP_Y && wantY === BOT_Y) knobY = MID_Y;
+    else if(knobY === BOT_Y && wantY === TOP_Y) knobY = MID_Y;
+    else knobY = wantY;
+    placeKnob(); snd.shift();
+    return;
+  }
+  if(knobY === MID_Y){
+    const wantRail = x > (RAIL_X[0]+RAIL_X[1])/2 ? 1 : 0;
+    if(wantRail !== knobRail){ knobRail = wantRail; placeKnob(); snd.shift(); }
+  }
+});
+function dropKnob(e){
+  if(!knobDrag) return;
+  knobDrag = false; knobEl.classList.remove('grab');
+  placeKnob();
+}
+knobEl.addEventListener('pointerup', dropKnob);
+knobEl.addEventListener('pointercancel', dropKnob);
+/* Arrow keys walk the knob through the gate, same as a thumb would. They are
+   the shifter only while the manual box is on, so steering is unaffected
+   otherwise. */
+window.addEventListener('keydown', e => {
+  if(!optManual || state !== 'driving') return;
+  if(e.key === 'i' || e.key === 'I'){ e.preventDefault(); shiftStep(0,-1); }
+  if(e.key === 'k' || e.key === 'K'){ e.preventDefault(); shiftStep(0, 1); }
+  if(e.key === 'j' || e.key === 'J'){ e.preventDefault(); shiftStep(-1,0); }
+  if(e.key === 'l' || e.key === 'L'){ e.preventDefault(); shiftStep( 1,0); }
+});
+/* gamepad: the RIGHT stick walks the gate, one notch per push */
+let rsLatch = false;
+setInterval(() => {
+  if(!optManual || state !== 'driving') return;
+  if(!AR || !AR.pad || !AR.pad.connected || !AR.pad.connected()) return;
+  const ax = AR.pad.axis ? AR.pad.axis() : null;
+  if(!ax) return;
+  const rx = ax.rx || 0, ry = ax.ry || 0;
+  if(Math.abs(rx) < 0.55 && Math.abs(ry) < 0.55){ rsLatch = false; return; }
+  if(rsLatch) return;
+  rsLatch = true;
+  if(Math.abs(ry) > Math.abs(rx)) shiftStep(0, ry > 0 ? 1 : -1);
+  else shiftStep(rx > 0 ? 1 : -1, 0);
+}, 60);
+
+hornBtn.addEventListener('pointerdown', e=>{ e.preventDefault(); setHorn(true); });
+hornBtn.addEventListener('pointerup',     ()=>setHorn(false));
+hornBtn.addEventListener('pointerleave',  ()=>setHorn(false));
+hornBtn.addEventListener('pointercancel', ()=>setHorn(false));
+
+gasBtn.addEventListener('pointerdown', e=>{ e.preventDefault(); setGas(true); });
+gasBtn.addEventListener('pointerup',     ()=>setGas(false));
+gasBtn.addEventListener('pointerleave',  ()=>setGas(false));
+gasBtn.addEventListener('pointercancel', ()=>setGas(false));
+
 brakeBtn.addEventListener('pointerdown', e=>{ e.preventDefault(); setBrake(true); });
 brakeBtn.addEventListener('pointerup',     ()=>setBrake(false));
 brakeBtn.addEventListener('pointerleave',  ()=>setBrake(false));
 brakeBtn.addEventListener('pointercancel', ()=>setBrake(false));
 window.addEventListener('keydown', e=>{
   if(e.key === 'ArrowDown' || e.key === 's' || e.key === 'S'){ e.preventDefault(); setBrake(true); }
+  if(e.key === 'ArrowUp'   || e.key === 'w' || e.key === 'W'){ e.preventDefault(); setGas(true); }
+  if(e.key === 'h' || e.key === 'H'){ e.preventDefault(); setHorn(true); }
 });
 window.addEventListener('keyup', e=>{
   if(e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') setBrake(false);
+  if(e.key === 'ArrowUp'   || e.key === 'w' || e.key === 'W') setGas(false);
+  if(e.key === 'h' || e.key === 'H') setHorn(false);
 });
 
 window.addEventListener('keydown',e=>{
   if(['ArrowLeft','ArrowRight',' ','Shift'].includes(e.key)) e.preventDefault();
   keys[e.key]=true;
-  if((e.key===' '||e.key==='Shift')&&nos>8) nosOn=true;
+  if((e.key===' '||e.key==='Shift')&&nos>8){ nosOn=true; setGas(true); }
   if(e.key==='Enter'&&state!=='driving'){ const b=veilBody.querySelector('.go'); if(b) b.click(); }
 });
 window.addEventListener('keyup',e=>{
@@ -889,9 +1284,16 @@ function step(dt){
   const offRoad = Math.abs(playerX) > 1.0;
   if(nosOn && nos>0){ nos = Math.max(0, nos - 26*dt); if(nos<=0) nosOn=false; }
   else nosOn=false;
-  const top = braking ? BRAKE_SPD : (offRoad ? OFF_SPD : (nosOn ? NOS_SPD : MAX_SPD));
+  /* Off the gas the car is in neutral: it does not hold a speed, it rolls.
+     Engine braking and rolling resistance bleed it off slowly — much gentler
+     than the brake, so lifting is a real choice rather than a soft brake. */
+  const onGas = gas || nosOn;
+  const top = braking ? BRAKE_SPD
+            : !onGas  ? 0
+            : (offRoad ? OFF_SPD : (nosOn ? NOS_SPD : MAX_SPD));
   const rate = braking ? 9000
-             : spd < top ? (nosOn ? 6200 : (spd < MAX_SPD*0.5 ? 5200 : 3000))
+             : !onGas ? 420           /* neutral: it rolls, it does not stop */
+             : spd < top ? (nosOn ? 6200 : (spd < MAX_SPD*0.5 ? 5200 : 3000)) * gearFactor()
              : (offRoad ? 11000 : 2400);
   /* Approach the target without crossing it. It used to add or subtract a
      fixed step, so on the brakes the car overshot the floor and juddered
@@ -899,7 +1301,14 @@ function step(dt){
      it meant the car was genuinely decelerating half the time and the screech
      never stopped. */
   spd += clamp(top - spd, -rate*dt, rate*dt);
-  spd = clamp(spd, 1700, NOS_SPD);
+  /* The floor was 1700 — about 22mph — so the car could never actually stop.
+     It can now sit still, which is what a brake pedal is for. */
+  if(hornCool > 0) hornCool -= dt;
+  if(!optManual) autoGear();
+  /* a gear that cannot pull makes the engine labour, which you hear */
+  bogT = (optManual && onGas && gearFactor() < 0.4) ? Math.min(1, bogT + dt*3)
+                                                    : Math.max(0, bogT - dt*3);
+  spd = clamp(spd, 0, NOS_SPD);
   if(offRoad){
     shake = Math.max(shake, 0.22);
     targetX = clamp(targetX, -1.18, 1.18);
@@ -1047,13 +1456,36 @@ function step(dt){
     // run it down, hold station beside you, lunge, then peel off and reset
     const aggro = k.cool <= 0;
     const wantDz = aggro ? 120 : 900;
-    const want = spd + clamp((wantDz - dz)*2.2, -2600, 3400);
+    /* A pursuing cruiser does not carry on down the road when you stop — it
+       stops with you and boxes you in. Without this the whole BUSTED rule was
+       unreachable: brake to zero and every cop simply drove off over the
+       horizon and never came back. */
+    let want = spd + clamp((wantDz - dz)*2.2, -2600, 3400);
+    if(spd < MAX_SPD*0.10 && dz > 0) want = Math.min(want, spd + 400);
     k.spd += clamp(want - k.spd, -9000*dt, 9000*dt);
     /* A cruiser will run you down at speed but it has no bottle. On the
        boost you genuinely pull away, which is what the boost is for. */
-    k.spd = clamp(k.spd, 2000, MAX_SPD * 1.05);
+    /* The floor of 2000 meant a cruiser could never actually stop, so it
+       could not surround a stationary car — it just circled past forever.
+       When you are stopped, so are they. */
+    const boxing = spd < MAX_SPD*0.10;
+    k.spd = clamp(k.spd, boxing ? -2600 : 2000, MAX_SPD * 1.05);
     k.z += k.spd*dt;
     let aim = aggro ? playerX : clamp(playerX + (k.side||1)*0.55, -1.05, 1.05);
+    /* Boxing in: each cruiser takes a station AROUND the car rather than
+       chasing its centre — one either side, one across the front — so the
+       stop reads as being surrounded rather than tailgated. */
+    if(boxing){
+      k.box = k.box === undefined ? (cops.indexOf(k) % 3) : k.box;
+      const off = k.box === 0 ? -0.42 : k.box === 1 ? 0.42 : 0;
+      aim = clamp(playerX + off, -0.92, 0.92);
+      /* the one in front sits just ahead; the flankers sit level */
+      const holdDz = k.box === 2 ? 620 : 40;
+      /* It must be able to REVERSE. Clamping to zero left a cruiser that had
+         overshot frozen four thousand units up the road, unable to come back,
+         so the box never closed. */
+      k.spd = spd + clamp((holdDz - dz)*1.6, -2600, 2600);
+    }
 
     // read the road ahead and pick a line around it. Skill rises with heat,
     // so early cruisers still make a mess of it.
@@ -1196,6 +1628,28 @@ function step(dt){
   const lost = Math.max(0, prevSpd - spd);
   const decel = braking ? Math.min(1, lost / Math.max(1, 9000 * dt)) : 0;
   snd.drive(spd, MAX_SPD, offRoad, nosOn, near, decel);
+
+  /* ---- stopping with the law behind you --------------------------------
+     Braking to a halt is free on an empty road and fatal in a pursuit. A
+     cruiser that gets alongside a stationary car boxes it in, and three
+     seconds later the run is over. The bar is the only warning you get, and
+     the only way out is to move.
+     ---------------------------------------------------------------------- */
+  if(state === 'driving'){
+    const crawling = spd < MAX_SPD * 0.10;
+    let boxed = false;
+    if(crawling && !optEasy){
+      for(const k of cops){
+        if(k.wreck > 0) continue;
+        if(Math.abs(k.z - pz) < 2600){ boxed = true; break; }
+      }
+    }
+    if(boxed){
+      bustT += dt;
+      if(bustT > 3) wreck('BUSTED');
+      else if(Math.floor(bustT*2) !== Math.floor((bustT-dt)*2)) snd.warnCop();
+    } else bustT = Math.max(0, bustT - dt*1.6);
+  }
 
   if(dmg>=100 && state==='driving') wreck('WRECKED');
 }
@@ -1405,10 +1859,13 @@ function drawHaze(){
    poles to model at this scale, just pools of light on the tarmac. */
 function lampsOn(){
   const p = phase();
-  /* on from 0.10 of dusk through the night, off during dawn at 0.60 */
+  /* Dawn is phase 0.50. They used to hold full until 0.55 and not go out until
+     0.65 — a sixth of a day of street lights burning in broad morning light.
+     The fade now STRADDLES dawn: starting to drop at 0.44 and dark by 0.52, so
+     they are going out as the sun comes up rather than long after it. */
   if(p < 0.10) return p / 0.10;                      // coming up at dusk
-  if(p < 0.55) return 1;                             // lit all night
-  if(p < 0.65) return 1 - (p - 0.55) / 0.10;         // going out through dawn
+  if(p < 0.44) return 1;                             // lit all night
+  if(p < 0.52) return 1 - (p - 0.44) / 0.08;         // out across dawn
   return 0;                                          // daylight
 }
 
@@ -1519,6 +1976,26 @@ function drawSprite(img, worldX, worldZ, worldW, alpha){
   return {x:p.x, y:p.y, w, h};
 }
 
+/* Reverse lamps. A car that is backing toward you should say so — without
+   them a cruiser closing the box just slides at you for no visible reason. */
+function drawReverse(box){
+  if(!box) return;
+  const w = box.w, h = box.h, x = box.x, y = box.y;
+  const lw = w*0.13, lh = h*0.09;
+  const ly = y + h*0.70;
+  for(const side of [0,1]){
+    const lx = x + (side ? w*0.60 : w*0.27);
+    const gl = ctx.createRadialGradient(lx+lw/2, ly+lh/2, 0, lx+lw/2, ly+lh/2, lw*2.2);
+    gl.addColorStop(0,'rgba(255,255,255,.85)');
+    gl.addColorStop(0.4,'rgba(230,245,255,.35)');
+    gl.addColorStop(1,'rgba(200,230,255,0)');
+    ctx.fillStyle = gl;
+    ctx.fillRect(lx - lw, ly - lh, lw*3, lh*3);
+    ctx.fillStyle = '#f6fbff';
+    ctx.fillRect(lx, ly, lw, lh);
+  }
+}
+
 function drawCopLights(box, phase){
   if(!box || box.w < 8) return;
   const lw = box.w*0.19, lh = Math.max(2, box.h*0.055);
@@ -1552,6 +2029,8 @@ function drawWorld(){
     } else if(it.kind==='k'){
       const box = drawSprite(SP.cop, it.o.x, it.o.z, it.o.w, it.o.wreck>0?0.85:1);
       drawCopLights(box, sirenPhase + it.o.phase);
+      /* backing up: white reverse lamps, low and inboard on the tail */
+      if(it.o.spd < -60 && it.o.wreck <= 0) drawReverse(box);
     } else if(it.kind==='r'){
       drawSprite(SP.repair, it.o.x, it.o.z, 0.22);
     } else {
@@ -1574,6 +2053,126 @@ function drawPlayer(){
   const h = w*SP.player.height/SP.player.width;
   const lean = clamp((playerX-camX)*3.4, -0.28, 0.28);
   const bump = Math.abs(playerX)>1 ? Math.sin(pos*0.02)*w*0.02 : 0;
+  /* NOTE: the car's own save/translate/rotate now lives BELOW, after the
+     smoke. Leaving it here left the particles inside the car's transform —
+     they were drawn at doubled coordinates and took the car off screen with
+     them, so the player vanished entirely. */
+  /* ---- damage: smoke and fire from under the bonnet ----------------------
+     Drawn BEFORE the car and clipped to above its roofline, so it billows out
+     from the front and the body occludes the source — you never see where it
+     is coming from, which is right, because it is coming from an engine bay
+     you are sitting behind.
+
+     Smoke from 75% health down (dmg 25 up); flames from 25% health down
+     (dmg 75 up).
+     -------------------------------------------------------------------------- */
+  if(dmg > 25){
+    const q  = clamp((dmg - 25) / 50, 0, 1);        /* 0 at 25 dmg, 1 at 75 */
+    const now = performance.now();
+    ctx.save();
+    /* everything below the bonnet line is hidden by the car itself */
+    ctx.beginPath();
+    ctx.rect(0, 0, W, p.y + bump - h*0.62);
+    ctx.clip();
+
+    /* Sixteen puffs read as a wisp at this size, not a plume. The column has
+       to be dense enough to hold together as one shape while it rises, so this
+       is roughly four times as many, on two staggered emission rows. */
+    const n = Math.round(10 + q*46);
+    for(let i=0;i<n;i++){
+      /* the golden-angle offset keeps them from banding into visible rings
+         the way a uniform i*0.31 does at high counts */
+      const life = ((now*0.00040) + i*0.2361) % 1;
+      const rise = life * h * (1.4 + q*1.2);
+      const sway = Math.sin(life*3.4 + i*2.1) * w * (0.06 + life*0.30);
+      const rad  = w * (0.09 + life*0.40) * (0.55 + q*0.85);
+      /* each puff is thinner now, because there are far more of them stacking
+         — otherwise sixty at the old alpha is a solid grey wall */
+      const a    = (1 - life*0.86) * (0.13 + q*0.26);
+      const sx   = p.x + sway + ((i%3)-1) * w*0.10;
+      const sy   = p.y + bump - h*0.58 - rise;
+      /* grey to dirty charcoal: true black is invisible on a night road */
+      const tone = Math.round(180 - q*100);
+      const gr = ctx.createRadialGradient(sx, sy, 0, sx, sy, Math.max(1, rad));
+      gr.addColorStop(0, 'rgba('+tone+','+tone+','+(tone+5)+','+a+')');
+      gr.addColorStop(1, 'rgba('+tone+','+tone+','+(tone+5)+',0)');
+      ctx.fillStyle = gr;
+      ctx.beginPath(); ctx.arc(sx, sy, Math.max(1, rad), 0, 6.2832); ctx.fill();
+    }
+
+    /* flames only once it is genuinely going: 25% health and below */
+    if(dmg > 75){
+      const f = clamp((dmg - 75) / 25, 0, 1);
+      ctx.globalCompositeOperation = 'lighter';
+      const licks = Math.round(14 + f*26);
+      for(let i=0;i<licks;i++){
+        const life = ((now*0.0011) + i*0.2361) % 1;
+        const rise = life * h * (0.55 + f*0.5);
+        const sway = Math.sin(life*7 + i*1.7) * w * 0.07 * life;
+        const rad  = w * (0.09 + (1-life)*0.11) * (0.7 + f*0.6);
+        const a    = (1 - life) * (0.20 + f*0.26);
+        const fx   = p.x + sway + ((i%5)-2) * w*0.045;
+        const fy   = p.y + bump - h*0.60 - rise;
+        const gr = ctx.createRadialGradient(fx, fy, 0, fx, fy, Math.max(1, rad));
+        gr.addColorStop(0,   'rgba(255,244,205,'+a+')');
+        gr.addColorStop(0.35,'rgba(255,168,54,'+(a*0.85)+')');
+        gr.addColorStop(1,   'rgba(210,58,14,0)');
+        ctx.fillStyle = gr;
+        ctx.beginPath(); ctx.arc(fx, fy, Math.max(1, rad), 0, 6.2832); ctx.fill();
+      }
+      /* embers: small, fast, and they carry further than the flame does —
+         they are what sells it as burning rather than glowing */
+      const embers = Math.round(10 + f*22);
+      for(let i=0;i<embers;i++){
+        const life = ((now*0.0016) + i*0.2361) % 1;
+        const rise = life * h * (1.1 + f*0.9);
+        const sway = Math.sin(life*9 + i*3.3) * w * 0.16 * life;
+        const a    = (1 - life) * (0.55 + f*0.4);
+        const ex   = p.x + sway + ((i%7)-3) * w*0.035;
+        const ey   = p.y + bump - h*0.60 - rise;
+        const er   = w * 0.012 * (1 - life*0.5);
+        ctx.fillStyle = 'rgba(255,' + Math.round(200 - life*120) + ',90,' + a + ')';
+        ctx.beginPath(); ctx.arc(ex, ey, Math.max(0.6, er), 0, 6.2832); ctx.fill();
+      }
+      ctx.globalCompositeOperation = 'source-over';
+    }
+    ctx.restore();
+  }
+
+  /* ---- wind and blur ------------------------------------------------------
+     Two effects on one scale. `rush` starts at 88% of the normal top speed and
+     is full at the limiter; nitrous pushes past that into `warp`, which is
+     where the frame actually smears. Below 88% neither exists, so ordinary
+     driving is untouched.
+     -------------------------------------------------------------------------- */
+  const rush = clamp((spd - MAX_SPD*0.88) / (MAX_SPD*0.12), 0, 1);
+  const warp = clamp((spd - MAX_SPD) / (NOS_SPD - MAX_SPD), 0, 1);
+  if(rush > 0.01){
+    const now2 = performance.now();
+    ctx.save();
+    /* streaks tearing past, radiating from the vanishing point */
+    const n = Math.round(10 + rush*26 + warp*30);
+    ctx.lineCap = 'round';
+    for(let i=0;i<n;i++){
+      const life = ((now2*0.0018 * (0.6 + rush*0.9)) + i*0.2361) % 1;
+      const ang  = (i*2.39996) % 6.2832;
+      const near = 0.10 + life*1.25;
+      const cx = W/2, cy = horizon;
+      const dx = Math.cos(ang), dy = Math.sin(ang)*0.55;
+      const r0 = near * H * 0.95, r1 = r0 + H*(0.05 + rush*0.10 + warp*0.22);
+      const a  = (1 - Math.abs(life-0.55)*1.6) * (0.05 + rush*0.13 + warp*0.20);
+      if(a <= 0) continue;
+      ctx.strokeStyle = 'rgba(215,228,255,' + Math.max(0,a) + ')';
+      ctx.lineWidth = 1 + warp*1.4;
+      ctx.beginPath();
+      ctx.moveTo(cx + dx*r0, cy + dy*r0);
+      ctx.lineTo(cx + dx*r1, cy + dy*r1);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  /* the car goes on top of its own smoke */
   ctx.save();
   ctx.translate(p.x, p.y + bump);
   ctx.rotate(lean*0.12);
@@ -1701,13 +2300,36 @@ function draw(){
 
 /* ---------- HUD ---------- */
 const $=id=>document.getElementById(id);
+function drawBust(){
+  if(bustT <= 0) return;
+  const q = Math.min(1, bustT/3);
+  /* red wash closing in from the edges as they box you */
+  const gr = ctx.createRadialGradient(W/2,H*0.55,H*0.10, W/2,H*0.55,H*0.85);
+  gr.addColorStop(0,'rgba(255,40,60,0)');
+  gr.addColorStop(1,'rgba(255,30,50,'+(q*0.42)+')');
+  ctx.fillStyle = gr; ctx.fillRect(0,0,W,H);
+  ctx.save();
+  ctx.textAlign='center';
+  ctx.font = '700 ' + Math.round(H*0.030) + 'px ' + getComputedStyle(document.body).getPropertyValue('--disp');
+  ctx.fillStyle = 'rgba(255,225,225,' + (0.5 + Math.abs(Math.sin(bustT*7))*0.5) + ')';
+  ctx.fillText('PULL AWAY', W/2, H*0.34);
+  ctx.font = '600 ' + Math.round(H*0.016) + 'px monospace';
+  ctx.fillStyle = 'rgba(255,180,180,.85)';
+  ctx.fillText(Math.max(0, 3 - bustT).toFixed(1) + ' SECONDS', W/2, H*0.34 + H*0.028);
+  /* the bar draining */
+  const bw = W*0.42;
+  ctx.fillStyle='rgba(0,0,0,.5)'; ctx.fillRect(W/2-bw/2, H*0.38, bw, 5);
+  ctx.fillStyle='#ff3b5c'; ctx.fillRect(W/2-bw/2, H*0.38, bw*(1-q), 5);
+  ctx.restore();
+}
+
 function hud(){
   const kmh = Math.round(spd/MAX_SPD*180);
   if(kmh!==lastKmh){ $('kmh').textContent = kmh; lastKmh=kmh; }
   $('dist').innerHTML = dist.toFixed(1)+'<i>MI</i>';
   $('score').textContent = Math.round(score).toLocaleString();
-  $('dmgFill').style.width = dmg+'%';
-  $('nosFill').style.width = nos+'%';
+  /* the bottle empties as you burn it */
+  nitroBtn.style.setProperty('--nos', nos + '%');
   const active = cops.some(k=>k.wreck<=0);
   $('pursuit').className = active ? 'on' : '';
   $('pursuit').textContent = 'PURSUIT \u00D7'+cops.filter(k=>k.wreck<=0).length+'  \u00B7  HEAT '+heat +
@@ -1743,7 +2365,15 @@ function frameLoop(now){
     shake=Math.max(0,shake-dt*2.2);
     sirenPhase += dt*7;
   }
-  draw(); hud();
+  draw();
+  /* NO frame-stamp blur here. Drawing the canvas back onto itself under a
+     setTransform tiled the frame into quadrants: the backing store is in
+     DEVICE pixels (W*dpr) while the draw was in CSS units, and reading a
+     canvas while writing to it is fragile besides. The speed read comes from
+     the wind streaks in drawPlayer instead, which cost nothing and cannot
+     corrupt the frame. If a real smear is wanted it needs a second offscreen
+     canvas, not a self-copy. */
+  drawBust(); hud();
   requestAnimationFrame(frameLoop);
 }
 
@@ -1836,10 +2466,19 @@ reset();
 if (AR && AR.options) AR.options.define([
   { key:'side',  label:'CONTROLS', type:'cycle', of:['RIGHT','LEFT'],                    def:'RIGHT' },
   { key:'paint', label:'PAINT',    type:'cycle', of:Object.keys(PAINT),                  def:'WHITE' },
-  { key:'easy',  label:'NO COPS',  type:'bool',                                          def:false }
+  { key:'chase',  label:'HOT PURSUIT', type:'bool',                                      def:false },
+  { key:'manual', label:'MANUAL BOX',  type:'bool',                                      def:false }
 ], function(key, val){
   if(key === 'side')  document.body.classList.toggle('pedals-left', val === 'LEFT');
-  if(key === 'easy')  optEasy = !!val;
+  /* the toggle now names what it ADDS, so off is the quiet road */
+  if(key === 'chase') optEasy = !val;
+  if(key === 'manual'){
+    optManual = !!val;
+    const sh = document.getElementById('shifter');
+    if(sh) sh.hidden = !val;
+    if(!val) autoGear();
+    else { knobRail = 0; knobY = TOP_Y; placeKnob(); }
+  }
   if(key === 'paint' && val !== optPaint){
     optPaint = val;
     buildSprites();          /* repaint the coupe */
