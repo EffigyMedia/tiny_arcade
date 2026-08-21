@@ -348,14 +348,15 @@ body.pedals-left #dials{ right:auto; left:calc(env(safe-area-inset-left,0px) + 8
   content:"";position:absolute;background:#05070a;border-radius:7px;
   box-shadow:inset 0 2px 3px rgba(0,0,0,.9);
 }
-#gate::before{ left:20px;right:20px;top:38px;height:10px }          /* the cross rail */
-/* two rails, four slots */
-#gate::after{ left:20px;width:10px;top:11px;bottom:11px;
+#gate::before{ left:13px;right:13px;top:38px;height:10px }          /* the cross rail */
+/* three rails, six slots */
+#gate::after{ left:13px;width:10px;top:11px;bottom:11px;
   box-shadow:inset 0 2px 3px rgba(0,0,0,.9),
-             36px 0 0 #05070a }
+             23px 0 0 #05070a,
+             46px 0 0 #05070a }
 #knob{
   position:absolute;width:28px;height:28px;border-radius:50%;
-  left:5px;top:4px;
+  left:8px;top:4px;
   background:radial-gradient(circle at 36% 30%, #f4f6fa 0%, #c3ccd8 30%, #79818d 68%, #363b43 100%);
   box-shadow:inset 0 2px 0 rgba(255,255,255,.55), inset 0 -6px 9px rgba(0,0,0,.55),
              0 5px 12px -3px #000;
@@ -612,6 +613,86 @@ var snd = {
     }
   },
 
+  /* ---- other cars' engines ------------------------------------------------
+     A small pool of voices, handed to whichever vehicles are nearest. Each is
+     PLACED in stereo by how far off your line it sits and pitched by its own
+     revs, so a car you overtake sweeps across the ears and falls away behind
+     you — the Doppler-ish parallax you get from the real thing without any
+     Doppler maths.
+     ------------------------------------------------------------------------- */
+  voices: [],
+  traffic: function(list){
+    if(!AR || !AR.audio.ctx) return;
+    if(!snd.voices.length){
+      /* Four was a guess I never checked. Measured, 9 to 15 vehicles sit
+         inside the 36,000 falloff on a busy road, so four voices meant most of
+         the traffic was silently dropped and the road sounded emptier than it
+         looked. Sixteen covers the worst case seen; each is one oscillator,
+         one filter, one gain and one panner, which is nothing next to the
+         per-frame canvas work. Voices past the audible set are held at zero
+         gain rather than torn down, so nothing clicks as cars come and go. */
+      for(var i=0;i<16;i++){
+        snd.voices.push({
+          a: AR.sfx.hold({ freq:90, type:'sawtooth', cutoff:600, q:2.4, pan:0 }),
+          busy: null
+        });
+      }
+    }
+    var near = list.slice().sort(function(p,q){
+      return Math.abs(p.z - pos) - Math.abs(q.z - pos);
+    }).slice(0, snd.voices.length);
+
+    /* ---- keep the traffic in its place ---------------------------------
+       Web Audio has no fixed voice budget, so sixteen engines cost nothing
+       and the master measured 0.35-0.41 either way — but the COMBINED level
+       of the traffic still climbs with the count, and a crowded road should
+       not drown out your own car, the sirens or the music.
+
+       So the whole traffic bed is normalised: work out what it wants to be,
+       and if that exceeds the ceiling, scale every voice down together. Ten
+       cars nearby are then ten cars you can pick out individually, not ten
+       cars that are each as loud as one car would have been.
+       -------------------------------------------------------------------- */
+    var want = 0, i2, cc, dd;
+    for(i2=0;i2<near.length;i2++){
+      cc = near[i2];
+      dd = Math.abs(cc.z - pos);
+      want += Math.pow(Math.max(0, 1 - dd/36000), 2);
+    }
+    var TRAFFIC_CEIL = 3.4;          /* in units of one voice at full level */
+    snd.tScale = want > TRAFFIC_CEIL ? TRAFFIC_CEIL / want : 1;
+
+    for(var v=0; v<snd.voices.length; v++){
+      var vo = snd.voices[v], c = near[v];
+      if(!vo.a) continue;
+      if(!c){ vo.a.set(90, 0, 400, 0.12); continue; }
+      var d = c.z - pos;
+      var dist = Math.abs(d);
+      /* fades out by about a hundred metres either way */
+      /* THE SCALE WAS WRONG BY AN ORDER OF MAGNITUDE. I assumed a car in the
+         middle distance sat a couple of thousand units away; measured, the
+         nearest vehicle on a busy road is 20,000 to 35,000 out, because the
+         road's z axis is far coarser than the lateral one. A 4,200 falloff
+         could never reach anything, which is why every voice read silent no
+         matter how much level I threw at it.
+
+         36,000 is roughly the visible road, so a car appearing at the horizon
+         fades in and is loudest as it draws alongside. */
+      var fall = Math.max(0, 1 - dist / 36000);
+      if(fall <= 0.01){ vo.a.set(90, 0, 400, 0.12); continue; }
+      /* its own revs: speed against ITS top, through the same gearing */
+      var rr = Math.min(1, (c.spd || c.cruise || 0) / AI_TOP);
+      var hz = 54 + rr*rr*250 + rr*95;
+      /* PLACEMENT: lateral offset, exaggerated as it gets close, because a
+         car alongside is hard left or hard right and one far ahead is centred */
+      var lateral = ((c.x || 0) - playerX);
+      /* same correction: "close" is thousands of units, not hundreds */
+      var closeness = 1 - Math.min(1, dist / 14000);
+      vo.a.place(clamp(lateral * (0.9 + closeness*1.9), -1, 1), 0.07);
+      vo.a.set(hz, 0.058 * fall * fall * snd.tScale, 300 + rr*900, 0.07);
+    }
+  },
+
   bed: function(step, t){
     if (!AR) return;
     var s = step % 16, bar = Math.floor(step/16) % 8;
@@ -676,9 +757,14 @@ var snd = {
   drive: function(spd, top, off, nos, copNear, decel){
     if (!snd.eng) return;
     var r = spd / top;
-    var rpm = 62 + r * 168 + (nos ? 26 : 0);
-    snd.eng.set(rpm, 0.055 + r*0.038, 420 + r*1500, 0.06);
-    snd.eng2.set(rpm*0.5, 0.026 + r*0.019, 300 + r*900, 0.06);
+    /* The note ran 62Hz to 230Hz — under two octaves for the whole rev range,
+       so the top of a gear barely sounded different from the middle and an
+       upshift was almost inaudible. It now spans 58Hz to 470Hz, better than
+       three octaves, so the climb to the limiter is something you can hear
+       coming and the drop on a shift is unmistakable. */
+    var rpm = 58 + r * r * 300 + r * 112 + (nos ? 34 : 0);
+    snd.eng.set(rpm, 0.050 + r*0.042, 380 + r*2400, 0.05);
+    snd.eng2.set(rpm*0.5, 0.024 + r*0.021, 280 + r*1400, 0.05);
     snd.wind.set(600 + r*2100, (off ? 0.045 : 0.009) + r*0.016, 0.10);
 
     /* thruster: present the whole time the bottle is open, and it swells a
@@ -701,11 +787,13 @@ var snd = {
         /* The fundamental climbs with speed; the partials track it so the
            whole stack moves as one voice rather than three sounds. */
         var f0 = (620 + r*420) * wob;
-        snd.sqA.set(f0,      0.055 + sq*0.150, f0*3.4, 0.018);
-        if (snd.sqB) snd.sqB.set(f0*1.51, 0.030 + sq*0.090, f0*4.2, 0.018);
-        if (snd.sqC) snd.sqC.set(f0*2.02, 0.018 + sq*0.055, f0*5.0, 0.018);
+        /* about a third of the level it was: it reads as a squeal without
+           dominating the mix every time you touch the brakes */
+        snd.sqA.set(f0,      0.018 + sq*0.052, f0*3.4, 0.018);
+        if (snd.sqB) snd.sqB.set(f0*1.51, 0.010 + sq*0.030, f0*4.2, 0.018);
+        if (snd.sqC) snd.sqC.set(f0*2.02, 0.006 + sq*0.018, f0*5.0, 0.018);
         if (snd.screechLow)
-          snd.screechLow.set(260 + r*180, 0.045 + sq*0.105, 0.030);
+          snd.screechLow.set(260 + r*180, 0.018 + sq*0.042, 0.030);
       } else {
         snd.sqA.set(620, 0, 2000, 0.05);
         if (snd.sqB) snd.sqB.set(940, 0, 2600, 0.05);
@@ -1154,7 +1242,12 @@ function flashWarn(t){
 
 /* ---------- lifecycle ---------- */
 function reset(){
-  pos=0; playerX=0; camX=0; targetX=0; spd=IDLE_SPD;
+  /* You start PARKED, in first, with the engine idling. A run that begins at
+     60mph gives away the launch, and now that first gear pulls properly off
+     the line the launch is worth having. */
+  pos=0; playerX=0; camX=0; targetX=0; spd=0;
+  gear=1; idleRev=IDLE; autoHold=0; autoDownT=0;
+  if(typeof knobRail !== 'undefined'){ knobRail=0; knobY=TOP_Y; }
   dmg=0; nos=40; nosOn=false; nosTime=0; bustT=0;
   racers=[]; place=12; finished=false;
   if(mode === 'race') buildField();
@@ -1255,11 +1348,15 @@ function setBrake(on){
 /* Short gears that snap. Pull is highest low down where the ratio multiplies
    torque most, and the whole box is quick — you should be grabbing the next
    gear almost as soon as you are in this one. */
+/* Six close ratios. Back from four because the gaps were huge — a 24% jump to
+   second is a truck's gearbox, not a sports car's. */
 const GEARS = [
-  { g:1, ratio:3.65, from:0,    to:0.24, pull:1.55 },
-  { g:2, ratio:2.16, from:0.18, to:0.46, pull:1.40 },
-  { g:3, ratio:1.44, from:0.38, to:0.72, pull:1.20 },
-  { g:4, ratio:1.00, from:0.62, to:1.00, pull:1.00 }
+  { g:1, ratio:3.82, from:0,    to:0.17, pull:1.55 },
+  { g:2, ratio:2.62, from:0.13, to:0.31, pull:1.42 },
+  { g:3, ratio:1.90, from:0.26, to:0.47, pull:1.28 },
+  { g:4, ratio:1.44, from:0.41, to:0.65, pull:1.14 },
+  { g:5, ratio:1.16, from:0.58, to:0.82, pull:1.04 },
+  { g:6, ratio:1.00, from:0.75, to:1.00, pull:0.96 }
 ];
 const REDLINE = 12000;
 /* Engine speed, from road speed and whatever ratio is selected. In neutral it
@@ -1283,11 +1380,17 @@ function engineRpm(){
     return gearRpm(gear, spd);
   }
   if(gear < 1 || gear > GEARS.length){
-    idleRev += (((gas||nosOn) ? 5200 : IDLE) - idleRev) * 0.06;
+    /* NEUTRAL lets go of the tacho. It used to jump straight to idle, which
+       read as the engine being switched off mid-shift. Off the throttle the
+       revs FALL away under their own inertia; blip it and they rise. */
+    const want = (gas || nosOn) ? 6400 : IDLE;
+    idleRev += (want - idleRev) * (want > idleRev ? 0.10 : 0.035);
     return idleRev;
   }
-  idleRev = IDLE;
-  return gearRpm(gear, spd);
+  /* landing in a gear CATCHES the needle: whatever the engine was doing, the
+     road now decides, and the jump to the new band is the shift you feel */
+  idleRev = gearRpm(gear, spd);
+  return idleRev;
 }
 
 /* ---- the torque curve ----------------------------------------------------
@@ -1297,15 +1400,41 @@ function engineRpm(){
    the way up, and falls off a cliff at the limiter. Multiply that by the gear's
    own torque multiplication and you get a car that MUST be shifted.
    -------------------------------------------------------------------------- */
+/* ---- one drivetrain for everything on the road ---------------------------
+   Every car uses the same torque curve and the same notion of gears. A rival
+   pulling away from a standstill labours in first exactly as you do, and a
+   cruiser closing on you runs out of top end at the same place its own gearing
+   says it should. `AI_TOP` is 180 of the player's 200: they are quick, but the
+   car you are driving is the fastest thing out here.
+   -------------------------------------------------------------------------- */
+const AI_TOP = MAX_SPD * (180/200);
+/* the gear an AI would be in at this speed, as a fraction of ITS top */
+function aiGearFactor(v, top){
+  const r = clamp(v / top, 0, 1);
+  let G = GEARS[GEARS.length-1];
+  for(const g2 of GEARS) if(r <= g2.to){ G = g2; break; }
+  const rpm = IDLE + (r / Math.max(0.01, G.to)) * (REDLINE - IDLE);
+  return torqueAt(Math.min(REDLINE, rpm)) * (G.ratio / 2.0);
+}
+/* how hard any AI car accelerates toward a target speed */
+function aiAccel(v, want, top, dt){
+  if(want <= v) return Math.max(-5200*dt, want - v);
+  return Math.min(want - v, 2850 * aiGearFactor(v, top) * dt);
+}
+
 function torqueAt(rpm){
   const f = (rpm - IDLE) / (REDLINE - IDLE);       /* 0 at idle, 1 at redline */
   /* The bottom has to be BRUTAL or a tall gear still hauls you off the line.
      Below a quarter of the range the engine is lugging and gives you almost
      nothing — which is why fourth from a standstill should crawl. */
-  if(f < 0.06) return 0.02;
-  if(f < 0.26) return 0.02 + (f-0.06)/0.20 * 0.28; /* still labouring */
-  if(f < 0.48) return 0.30 + (f-0.26)/0.22 * 0.52; /* coming on cam */
-  if(f < 0.86) return 0.82 + (f-0.48)/0.38 * 0.18; /* the meat of it */
+  /* First gear off a standstill was painful: 2% of torque at idle meant the
+     car crept for a second before anything happened. A real engine already
+     makes useful torque just off idle — what it lacks is the ability to hold
+     it in a TALL gear, and the ratio table handles that on its own. */
+  if(f < 0.06) return 0.30;
+  if(f < 0.26) return 0.30 + (f-0.06)/0.20 * 0.34; /* coming alive */
+  if(f < 0.48) return 0.64 + (f-0.26)/0.22 * 0.20; /* coming on cam */
+  if(f < 0.86) return 0.84 + (f-0.48)/0.38 * 0.16; /* the meat of it */
   if(f < 1.00) return 1.00 - (f-0.86)/0.14 * 0.55; /* falling off */
   return 0.06;                                     /* on the limiter */
 }
@@ -1406,15 +1535,9 @@ function layRubber(x, z, heat, w){
     skids.push({ x: x + side, z, t: 1, heat });
   }
   if(skids.length > SKID_MAX) skids.splice(0, skids.length - SKID_MAX);
-  /* smoke only once it is really scrubbing */
-  if(heat > 0.45 && Math.random() < heat * 0.8){
-    tyreSmoke.push({
-      x: x + (Math.random()-0.5)*0.10, z,
-      t: 1, r: 0.10 + Math.random()*0.10,
-      drift: (Math.random()-0.5)*0.35
-    });
-    if(tyreSmoke.length > SMOKE_MAX) tyreSmoke.shift();
-  }
+  /* No tyre smoke. It fought with the damage smoke coming off the bonnet for
+     the same patch of screen and neither read clearly — the marks say what
+     the tyres are doing on their own. */
 }
 
 /* how hard a car is scrubbing: sideways rate against speed, plus braking */
@@ -1505,11 +1628,11 @@ function buildField(){
       /* You are the quickest thing out there, but only just — the fastest
          rival runs at 92% of your top speed and the slowest at 81%, so the
          race is won by traffic craft rather than by holding the throttle. */
-      base: (0.92 - rank*0.010 + rnd(-0.005,0.005)) * MAX_SPD,
+      base: (0.92 - rank*0.010 + rnd(-0.005,0.005)) * AI_TOP,
       /* They start AT racing pace. Starting them at half speed meant you blew
          past the whole field in the first ten seconds and then watched them
          all re-pass you, so placement swung 12 to 2 to 11 and meant nothing. */
-      spd: (0.92 - rank*0.010) * MAX_SPD,
+      spd: (0.92 - rank*0.010) * AI_TOP,
       num: rank + 1,
       /* the same sports car as yours, in whichever paints you did not take */
       paint: null,
@@ -1575,7 +1698,9 @@ function stepRacers(dt){
     const lead = (r.z - pos) / MILE;              /* miles ahead of you */
     const band = clamp(-lead * 0.11, -0.14, 0.14);
     want *= (1 + band);
-    r.spd += clamp(want - r.spd, -5200*dt, 5600*dt);
+    /* same drivetrain as yours, capped at 180 */
+    want = Math.min(want, AI_TOP);
+    r.spd += aiAccel(r.spd, want, AI_TOP, dt);
     r.z += r.spd*dt;
     /* rivals lay rubber on the same terms you do */
     const rdx = r.x - (r.lastX === undefined ? r.x : r.lastX);
@@ -1663,11 +1788,12 @@ const knobEl    = document.getElementById('knob');
 /* Two rails at x = 15 and 51, joined by a cross rail at y = 33. You cannot go
    straight from 1 to 3 — you come back through the centre and across, which is
    what makes it an H rather than four buttons. */
-const RAIL_X = [15, 51];
+const RAIL_X = [8, 31, 54];
 const TOP_Y = 4, MID_Y = 33, BOT_Y = 62;
 const SLOTS = [
   { g:1, rail:0, y:TOP_Y }, { g:2, rail:0, y:BOT_Y },
-  { g:3, rail:1, y:TOP_Y }, { g:4, rail:1, y:BOT_Y }
+  { g:3, rail:1, y:TOP_Y }, { g:4, rail:1, y:BOT_Y },
+  { g:5, rail:2, y:TOP_Y }, { g:6, rail:2, y:BOT_Y }
 ];
 /* where the knob physically sits — a position in the gate, not a gear */
 let knobRail = 0, knobY = TOP_Y;
@@ -1723,7 +1849,12 @@ knobEl.addEventListener('pointermove', e => {
     return;
   }
   if(knobY === MID_Y){
-    const wantRail = x > (RAIL_X[0]+RAIL_X[1])/2 ? 1 : 0;
+    /* nearest of the three rails, not a two-way split */
+    let wantRail = 0, bd = 1e9;
+    for(let i2=0;i2<RAIL_X.length;i2++){
+      const d2 = Math.abs(RAIL_X[i2] - x);
+      if(d2 < bd){ bd = d2; wantRail = i2; }
+    }
     if(wantRail !== knobRail){ knobRail = wantRail; placeKnob(); snd.shift(); engineBrake(); }
   }
 });
@@ -1874,7 +2005,10 @@ function step(dt){
                 pull — two penalties stacking. A sports car in a low gear snaps
                 to its limiter. The rate is now high and flat, and the gear cap
                 is what stops you rather than the engine going soft. */
-             : spd < top ? (nosOn ? 12200 : 10400) * gearFactor()
+             /* 0-200 in two and a half seconds was a rocket, not a car. About
+                a third of the rate puts it in the eight-to-ten second range,
+                which is quick for a road car and still an arcade cheat. */
+             : spd < top ? (nosOn ? 3500 : 2850) * gearFactor()
              : (offRoad ? 11000 : 2400);
   /* Approach the target without crossing it. It used to add or subtract a
      fixed step, so on the brakes the car overshot the floor and juddered
@@ -2079,14 +2213,15 @@ function step(dt){
        horizon and never came back. */
     let want = spd + clamp((wantDz - dz)*2.2, -2600, 3400);
     if(spd < MAX_SPD*0.10 && dz > 0) want = Math.min(want, spd + 400);
-    k.spd += clamp(want - k.spd, -9000*dt, 9000*dt);
+    want = Math.min(want, AI_TOP);
+    k.spd += aiAccel(k.spd, want, AI_TOP, dt);
     /* A cruiser will run you down at speed but it has no bottle. On the
        boost you genuinely pull away, which is what the boost is for. */
     /* The floor of 2000 meant a cruiser could never actually stop, so it
        could not surround a stationary car — it just circled past forever.
        When you are stopped, so are they. */
     const boxing = spd < MAX_SPD*0.10;
-    k.spd = clamp(k.spd, boxing ? -2600 : 2000, MAX_SPD * 1.05);
+    k.spd = clamp(k.spd, boxing ? -2600 : 2000, AI_TOP);
     k.z += k.spd*dt;
     const kdx = k.x - (k.lastX === undefined ? k.x : k.lastX);
     k.lastX = k.x;
@@ -2256,6 +2391,9 @@ function step(dt){
      obviously changes pitch. Feeding it rpm means every upshift drops the note
      and every downshift blips it, for free. */
   const revFrac = clamp((engineRpm() - IDLE) / (REDLINE - IDLE), 0, 1);
+  /* everything with an engine, nearest four get a voice */
+  snd.traffic(traffic.concat(cops.filter(function(k){ return k.wreck<=0; }))
+                     .concat(racers));
   snd.drive(revFrac * MAX_SPD, MAX_SPD, offRoad, nosOn, near,
             Math.max(decel, pScrub * 0.9));
 
@@ -3212,9 +3350,10 @@ function gearLabel(){
   if(!optManual) return (gear >= 1 && gear <= GEARS.length) ? 'D' + gear : 'D';
   return (gear >= 1 && gear <= GEARS.length) ? String(gear) : 'N';
 }
+function dialCurve(f){ return clamp(f, 0, 1.02); }
 function face(g, cx, cy, r, frac, big, label, redAt, tint, red, odo, gearTag){
   const A0 = Math.PI*0.75, A1 = Math.PI*2.25;      /* 7 o'clock to 5 o'clock */
-  frac = clamp(frac, 0, 1.02);
+  frac = dialCurve(frac);
   /* needed by the numerals AND the needle, and the needle is now drawn last,
      so it has to be computed up here rather than beside the pointer */
   const hot = frac >= redAt;
@@ -3224,11 +3363,11 @@ function face(g, cx, cy, r, frac, big, label, redAt, tint, red, odo, gearTag){
   g.strokeStyle='rgba(150,160,180,.30)'; g.lineWidth=1.2; g.stroke();
   /* the red zone, painted into the dial face */
   g.beginPath();
-  g.arc(cx,cy,r-4, A0+(A1-A0)*redAt, A1);
+  g.arc(cx,cy,r-4, A0+(A1-A0)*dialCurve(redAt), A1);
   g.strokeStyle='rgba(255,59,92,.30)'; g.lineWidth=3.4; g.stroke();
   /* ticks */
   for(let i=0;i<=10;i++){
-    const a = A0 + (A1-A0)*(i/10);
+    const a = A0 + (A1-A0)*dialCurve(i/10);
     const inr = (i%5===0) ? r-7 : r-4.5;
     g.beginPath();
     g.moveTo(cx+Math.cos(a)*inr, cy+Math.sin(a)*inr);
