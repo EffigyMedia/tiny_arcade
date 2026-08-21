@@ -300,8 +300,44 @@ function meta(name, fallback){
   return (el && el.getAttribute('content')) || fallback;
 }
 
+/* The glass belongs to the whole app, not to a game. It used to be built
+   inside boot() AFTER the "no #stage means we are on the launcher" bail, so
+   every cabinet had scanlines and the launcher had none. */
+function glass(){
+  if (document.querySelector('.ark-crt')) return;
+  /* The launcher has had its own #crt overlay since it was built — full-screen
+     scanlines with a hum animation. Adding a second one stacked two sets of
+     lines and doubled the darkening. If a page already brought glass, leave it
+     alone; the shell only supplies it where there is none. */
+  if (document.getElementById('crt')) return;
+  /* its own stylesheet: the game stylesheet is built after the launcher bail,
+     so rules living there gave the launcher a bare element and no scanlines */
+  var gs = document.createElement('style');
+  gs.textContent = [
+    '.ark-crt{position:fixed;inset:0;z-index:2147483000;pointer-events:none;',
+      'background:repeating-linear-gradient(to bottom,',
+        'rgba(0,0,0,.26) 0px, rgba(0,0,0,.26) 1px, rgba(255,255,255,.012) 1px,',
+        'rgba(255,255,255,.012) 3px)}',
+    '@media (min-resolution:2dppx){.ark-crt{background:repeating-linear-gradient(',
+      'to bottom, rgba(0,0,0,.22) 0px, rgba(0,0,0,.22) 1.5px,',
+      'rgba(255,255,255,.014) 1.5px, rgba(255,255,255,.014) 4px)}}',
+    '.ark-crt::after{content:"";position:absolute;inset:0;',
+      'background:radial-gradient(ellipse at 50% 50%,',
+        'rgba(0,0,0,0) 52%, rgba(0,0,0,.34) 100%)}'
+  ].join('');
+  document.head.appendChild(gs);
+  var crt = document.createElement('div');
+  crt.className = 'ark-crt';
+  document.body.appendChild(crt);
+  A.crt = {
+    on: function(v){ crt.style.display = v === false ? 'none' : ''; },
+    el: crt
+  };
+}
+
 function boot(){
-  /* no #stage means we are on the launcher: skip the shell, keep the rest */
+  glass();
+  /* no #stage means we are on the launcher: skip the SHELL, keep the rest */
   if (!document.getElementById('stage')) return;
 
   var title  = meta('arcade-title', document.title || 'Untitled');
@@ -387,7 +423,7 @@ function boot(){
     '.ark-cine-eyebrow{font-size:9px;letter-spacing:.24em;opacity:.6;text-align:center}',
     '.ark-act.tog.on b{color:var(--ark)}',
     '.ark-act.cursor{border-color:var(--ark);box-shadow:0 0 0 1px var(--ark) inset}',
-    '.ark-hint{margin-top:10px;font-size:9px;letter-spacing:.14em;color:#565a70}'
+    '.ark-hint{margin-top:10px;font-size:9px;letter-spacing:.14em;color:#565a70}',
   ].join('\n');
   document.head.appendChild(css);
 
@@ -398,6 +434,7 @@ function boot(){
                   '<button class="ark-btn" type="button" aria-label="Pause"><i></i></button>';
   bar.querySelector('.ark-name').textContent = title;
   document.body.appendChild(bar);
+
 
   var veil = document.createElement('div');
   veil.className = 'ark-veil';

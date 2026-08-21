@@ -131,6 +131,49 @@ see. Nothing in the launcher assumes how many machines there are.
 
 Keep `hook` to one short line: cards clamp it at four lines.
 
+## Scanlines
+
+**The launcher already had its own.** `#crt` — full-screen scanlines with a hum
+animation — since the launcher was built, plus a second set on each cabinet
+screen via `.screen::after`. It was the ONLY page with glass; the sixteen games
+had none, which is what the shell overlay was added for.
+
+`glass()` runs before boot()'s "no #stage" bail so it reaches every page, and it
+**defers to a page that already brought its own**: `if (document.getElementById('crt')) return;`.
+Without that check the launcher stacked two overlays and doubled the darkening.
+
+Verified: launcher draws from its own `#crt`, all sixteen cabinets from the
+shell's `.ark-crt`, nothing doubled, `pointer-events:none` throughout, and
+`elementFromPoint` at screen centre returns a real button rather than the glass.
+
+**A testing note.** The check that found "launcher missing scanlines" was looking
+for `.ark-crt` specifically — the class the shell adds — so it reported the one
+page that HAD scanlines as the one page without them. Test for the effect, not
+for your own implementation of it.
+
+`arcade.js` lays a fixed `.ark-crt` overlay over every page — launcher and every
+cabinet — so the arcade reads as one machine rather than sixteen web pages.
+`pointer-events:none`, above everything, with a `min-resolution` query so the
+lines stay crisp on a 3x phone instead of turning to grey mush, plus a corner
+vignette. `Arcade.crt.on(false)` hides it if a cabinet ever needs to.
+
+## Fonts
+
+**Every cabinet gets its own pairing**, subset and self-hosted by `fonts.py`.
+The first eleven Golden Era games all shipped with the same Chivo Mono + Syne
+because the file was copied forward each time; they now have twelve distinct
+faces between them. See `fonts/LICENSES.md`.
+
+**The variable-weight trap, again.** A `@font-face` with `font-weight:300 600`
+is silently refused if anything asks for 800 — no error, no 404, just the
+fallback. Three cabinets shipped that way. Worse, the DECLARED range must match
+the file: Fredoka is actually 300-700 and declaring 300-600 broke it. Check the
+real axes with `TTFont(f)['fvar'].axes` rather than guessing.
+
+**And do not measure text width to test this.** Comparing a rendered width
+against a forced fallback reported three working fonts as broken. `document.fonts`
+status, or a screenshot, is the ground truth.
+
 ## Every game needs — the minimum standard
 
 The contents vary with the game. This list does not. **`./pack.sh` enforces
@@ -179,6 +222,19 @@ this is not a document you have to remember.
     title screen -> (cinematic, if any) -> run
 
 ## Attract cards
+
+**They go stale.** A card is written when the game is built, then the game gets
+reskinned and the card does not — so the rack advertises art the cabinet no
+longer has. Ricochet showed flat bars months after it became beveled solids;
+Swarm showed origami after it became machined hulls; Burrow showed a white arrow
+after the player became a surveyor. **Reskin a game, update its card in the same
+commit.**
+
+**And never splice by searching for `var draw`.** Cutting from a function to
+"the next `var draw =`" matched the LAST one in the file and deleted eight
+attract functions at once. The dispatch map still referenced them, so every one
+of those cards would have rendered black. Recovered from the last packaged
+build. Splice on the function's own closing brace.
 
 A cabinet's `attract` field in `games.js` names a function in the `draw` map at
 the bottom of `index.html`. **If the name has no entry there the card renders

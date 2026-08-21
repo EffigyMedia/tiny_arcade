@@ -494,7 +494,7 @@ travelling a dark bundle, head bright, body a fading glow, food as junction node
 
 #### 10 · POPSHOT — *aim and match*
 *After **Puzzle Bobble** — Taito, 1994.*
-**Status:** ☐ **Size:** M **Accent:** `#ff9ecd`
+**Status:** ☑ BUILT **Size:** M **Accent:** `#ff9ecd`
 
 **The idea.** Match-three where the wall comes down to meet you and bank shots
 are the expert move.
@@ -2686,6 +2686,57 @@ ground instead of blue-black, a brass grid, a lamp vignette over the well, and
 blocks drawn as stamped metal — mitred bevels with a lit corner and a deep
 shadowed one, plus a hairline of wear. Title carries СОВЕТСКИЕ БЛОКИ; game over
 reads ИГРА ОКОНЧЕНА. Accent moved `#e8484f` → `#c8102e`.
+
+### Attract cards — second pass
+
+**Girder** was thin diagonal lines with a dot for a climber. Now: stone courses,
+the lancet window, uprights, five sloped decks with lit top edges, ladders with
+rungs between them, TWO pieces of masonry tumbling downhill in opposite
+directions on alternating slopes, the hi-vis climber running and jumping, and
+the gargoyle with ribbed wings, horns and its one lit eye, rearing as it winds
+up.
+
+**Phalanx** drew generic invader blobs. Now the three real body plans — medusa
+at the back, crab in the middle, louse at the front, each with the darker core
+that makes it an x-ray plate — plus shields eroding cell by cell above the
+ground line and the single shot in flight, which is the design.
+
+**Soviet Blocks** read olive rather than near-black. The gold grid at 5.5% packs
+into about eleven lines at 88px and washes the whole field. Halved to 2.8% and
+the vignette deepened; sampled pixel is now `rgb(39,32,14)`, which is the warm
+near-black the game uses.
+
+# 15. POPSHOT — built
+
+`games/golden/popshot.html`, accent `#ff9ecd`. Sixteenth cabinet.
+
+**Orphan detection is the game, and it is verified.** Rigged a board with an
+anchored raft plus a stalk of two holding an eight-bubble payload:
+
+    one shot completes the stalk
+    board 15 -> 4      three popped, EIGHT more fell
+
+Orphans pay **40 a bubble against 10 for a pop**, so cutting a support is worth
+four times shooting at the thing you want gone. That is the expert move and the
+scoring says so.
+
+Also built: hex-offset grid with snap-to-nearest, an aim line that previews the
+wall bounce and draws a ghost ring where the shot will land, the ceiling
+descending every few shots that fail to pop (with the count in the header), and
+**a colour set that shrinks to what is actually left on the board** so the
+endgame is solvable rather than a lottery.
+
+**Look: soap and light.** Thin-film spheres — colour from a radial sweep with a
+brighter rim than middle, an interference band swept diagonally across one side,
+a specular highlight. They burst into seven droplets that fly outward and
+shrink, rather than fading. The bed is major-key and light: the one cheerful
+machine on the floor.
+
+**A testing note worth keeping.** The first orphan test read board 15 -> 43,
+which looked like a catastrophic bug. It was the opposite: the cascade emptied
+the board completely, the level cleared, and a bigger one was built — so the
+count I measured was the NEXT level. Rigging an anchored raft that survives gave
+the real number.
 
 # 15. FEATHER — built
 

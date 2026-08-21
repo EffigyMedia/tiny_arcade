@@ -21,8 +21,8 @@
    points at a file that no longer exists — which is a site of 404s that looks
    like a broken deploy rather than a stale cache. Changing the names makes
    every client throw its cache away on the next visit. */
-const CORE    = 'tiny-arcade-core-v15';
-const RUNTIME = 'tiny-arcade-runtime-v15';
+const CORE    = 'tiny-arcade-core-v16';
+const RUNTIME = 'tiny-arcade-runtime-v16';
 const KEEP    = [CORE, RUNTIME];
 
 /* the least we need to open the arcade with no signal at all */

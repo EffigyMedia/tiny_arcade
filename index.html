@@ -1237,11 +1237,12 @@ function maze(g,s,t){
 /* ---- Soviet Blocks: pieces falling into a stack that clears ------------ */
 function blocks(g,s,t){
   g.fillStyle='#181510'; g.fillRect(0,0,s.w,s.h);
-  var cols=8, u=s.w/cols, rows=Math.floor(s.h/u);
-  g.strokeStyle='rgba(216,179,16,.06)'; g.lineWidth=1;
+  var cols=8, u=s.w/cols, rows=Math.ceil(s.h/u);
+  /* At 88px the grid packs to about 11 lines and a 5% gold wash reads as solid
+     olive — nothing like the near-black well in the game. Halved and cooled. */
+  g.strokeStyle='rgba(216,179,16,.028)'; g.lineWidth=1;
   for(var c=1;c<cols;c++){ g.beginPath(); g.moveTo(c*u,0); g.lineTo(c*u,s.h); g.stroke(); }
   for(var r=1;r<rows;r++){ g.beginPath(); g.moveTo(0,r*u); g.lineTo(s.w,r*u); g.stroke(); }
-
   var pal=['#c8102e','#3f6d8c','#c8871f','#d9b310','#5f8a5a','#8f4a52','#6f9ba3'];
   function cell(x,y,col){
     var b=Math.max(2,u*0.20);
@@ -1254,9 +1255,9 @@ function blocks(g,s,t){
     g.beginPath(); g.moveTo(x+u-1,y+1); g.lineTo(x+u-1,y+u-1); g.lineTo(x+1,y+u-1);
     g.lineTo(x+1+b,y+u-1-b); g.lineTo(x+u-1-b,y+u-1-b); g.lineTo(x+u-1-b,y+1+b);
     g.closePath(); g.fill();
+    g.fillStyle='rgba(255,255,255,.16)';
+    g.fillRect(x+1+b,y+1+b,u-2-b*2,Math.max(1,u*0.06));
   }
-
-  /* a settled stack whose height breathes, with one row flashing out */
   var cyc=(t*0.55)%6;
   for(var r2=0;r2<4;r2++){
     var y=s.h-(r2+1)*u;
@@ -1265,147 +1266,201 @@ function blocks(g,s,t){
       if(r2===0 && seed===3 && cyc>4) continue;
       if(seed>8) continue;
       var flash=(r2===0 && cyc>4.4 && cyc<4.9);
-      cell(c2*u, y, flash?'#fff6d0':pal[(c2+r2)%pal.length]);
+      cell(c2*u,y,flash?'#fff6d0':pal[(c2+r2)%pal.length]);
     }
   }
-  /* the falling piece: an S, tumbling down */
   var fall=((t*34)%(s.h+3*u))-2*u;
   var px=Math.floor(((Math.sin(t*0.4)*0.5+0.5)*(cols-3)))*u;
   var shape=[[0,1],[0,2],[1,0],[1,1]];
-  for(var i=0;i<shape.length;i++)
-    cell(px+shape[i][1]*u, fall+shape[i][0]*u, pal[0]);
-
+  for(var i2=0;i2<shape.length;i2++)
+    cell(px+shape[i2][1]*u, fall+shape[i2][0]*u, pal[0]);
+  /* the lamp vignette the game has */
   var vg=g.createRadialGradient(s.w/2,s.h*0.3,s.h*0.1,s.w/2,s.h*0.5,s.h*0.95);
   vg.addColorStop(0,'rgba(217,179,16,.05)'); vg.addColorStop(1,'rgba(0,0,0,.36)');
   g.fillStyle=vg; g.fillRect(0,0,s.w,s.h);
 }
 
-/* ---- Ricochet: the ball working a wall down --------------------------- */
 function scope(g,s,t){
   g.fillStyle='#0d1119'; g.fillRect(0,0,s.w,s.h);
   g.strokeStyle='rgba(255,255,255,.035)'; g.lineWidth=1;
   for(var x=0;x<s.w;x+=s.w/6){ g.beginPath(); g.moveTo(x,0); g.lineTo(x,s.h); g.stroke(); }
-
   var pal=['#e8484f','#e8963f','#e8d23f','#5ccf6a','#3fd6e0'];
   var cols=6, bw=s.w/cols, bh=s.h*0.055, top=s.h*0.10;
+  /* SOLID BEVELED bricks, matching the game since the reskin */
   for(var r=0;r<4;r++){
     for(var c=0;c<cols;c++){
-      /* bricks vanish in a sweep, then the wall comes back */
       var order=(r*cols+c*3)%24, phase=(t*3)%34;
       if(phase>order && phase<order+22) continue;
-      var bx=c*bw, by=top+r*bh, col=pal[r%pal.length];
-      var bev=Math.max(1.5,bh*0.22);
+      var bx=c*bw, by=top+r*bh, col=pal[r%pal.length], bev=Math.max(1.6,bh*0.22);
       g.fillStyle=col; g.fillRect(bx+1,by+1,bw-2,bh-2);
-      g.fillStyle='rgba(255,255,255,.26)'; g.fillRect(bx+1,by+1,bw-2,bev);
-      g.fillStyle='rgba(0,0,0,.34)'; g.fillRect(bx+1,by+bh-1-bev,bw-2,bev);
+      g.fillStyle='rgba(255,255,255,.26)';
+      g.fillRect(bx+1,by+1,bw-2,bev); g.fillRect(bx+1,by+1,bev*0.7,bh-2);
+      g.fillStyle='rgba(0,0,0,.34)';
+      g.fillRect(bx+1,by+bh-1-bev,bw-2,bev);
+      g.fillRect(bx+bw-1-bev*0.7,by+1,bev*0.7,bh-2);
     }
   }
-
-  /* the ball on a bouncing path, and the paddle tracking it */
-  var span=s.h*0.55, by2=top+4*bh+ (span - Math.abs(((t*70)%(span*2))-span));
+  var span=s.h*0.55, by2=top+4*bh+(span-Math.abs(((t*70)%(span*2))-span));
   var bx2=(s.w*0.5)+Math.sin(t*1.7)*(s.w*0.36);
-  var py=s.h-bh*1.2, pw=s.w*0.26;
+  var py=s.h-bh*1.2, pw=s.w*0.26, ph=bh*0.62;
   var px=Math.max(pw/2,Math.min(s.w-pw/2,bx2));
-  var steel=g.createLinearGradient(0,py,0,py+bh*0.55);
-  steel.addColorStop(0,'#f2f5fa'); steel.addColorStop(0.5,'#78829a'); steel.addColorStop(1,'#4a5265');
-  g.fillStyle=steel; g.fillRect(px-pw/2,py,pw,bh*0.55);
-  var cap=pw*0.22;
-  g.fillStyle='#00b8d4'; g.fillRect(px-pw/2,py,cap,bh*0.55); g.fillRect(px+pw/2-cap,py,cap,bh*0.55);
-
+  /* BRUSHED STEEL paddle with warm shoulder caps */
+  var steel=g.createLinearGradient(0,py,0,py+ph);
+  steel.addColorStop(0,'#f2f5fa'); steel.addColorStop(0.28,'#c3ccda');
+  steel.addColorStop(0.52,'#78829a'); steel.addColorStop(0.75,'#9aa5b8');
+  steel.addColorStop(1,'#4a5265');
+  g.fillStyle=steel; g.fillRect(px-pw/2,py,pw,ph);
+  var cap=Math.min(pw*0.22,15);
+  var cg=g.createLinearGradient(0,py,0,py+ph);
+  cg.addColorStop(0,'#7fe9ff'); cg.addColorStop(0.5,'#00b8d4'); cg.addColorStop(1,'#00627a');
+  g.fillStyle=cg; g.fillRect(px-pw/2,py,cap,ph); g.fillRect(px+pw/2-cap,py,cap,ph);
+  g.fillStyle='rgba(255,255,255,.55)'; g.fillRect(px-pw/2,py,pw,1.4);
+  /* SPHERICALLY SHADED ball */
   var rr=Math.max(3,s.w*0.020);
   var sg=g.createRadialGradient(bx2-rr*0.38,by2-rr*0.42,rr*0.1,bx2,by2,rr*1.12);
-  sg.addColorStop(0,'#fff'); sg.addColorStop(0.3,'#e4ecf7');
+  sg.addColorStop(0,'#fff'); sg.addColorStop(0.30,'#e4ecf7');
   sg.addColorStop(0.68,'#9aa8bd'); sg.addColorStop(1,'#3d465a');
   g.fillStyle=sg; g.beginPath(); g.arc(bx2,by2,rr,0,6.2832); g.fill();
+  g.fillStyle='rgba(255,255,255,.9)';
+  g.beginPath(); g.arc(bx2-rr*0.34,by2-rr*0.38,rr*0.24,0,6.2832); g.fill();
 }
 
 /* ---- Phalanx: the formation stepping down, thinning as it goes --------- */
 function ranks(g,s,t){
   g.fillStyle='#131615'; g.fillRect(0,0,s.w,s.h);
   var wash=g.createLinearGradient(0,0,0,s.h);
-  wash.addColorStop(0,'rgba(255,255,255,.05)');
-  wash.addColorStop(1,'rgba(0,0,0,.22)');
+  wash.addColorStop(0,'rgba(255,255,255,.045)');
+  wash.addColorStop(0.5,'rgba(255,255,255,.015)');
+  wash.addColorStop(1,'rgba(0,0,0,.20)');
   g.fillStyle=wash; g.fillRect(0,0,s.w,s.h);
 
-  var cols=6, rows=4, u=s.w/(cols+1.6), cyc=(t*0.42)%9;
-  /* the whole block slides, and drops a rank each time it turns */
-  var swing=Math.sin(t*0.8), ox=s.w*0.10+swing*s.w*0.10;
-  var oy=s.h*0.14 + Math.floor(cyc)*s.h*0.028;
+  /* the three body plans the game actually draws: medusa, crab, louse */
+  function creature(x,y,plan,wob,u){
+    g.save(); g.translate(x,y); g.scale(u/16,u/16);
+    g.fillStyle='#e8ede2';
+    if(plan==='medusa'){
+      g.beginPath(); g.ellipse(8,5,8,5.5,0,Math.PI,0); g.fill();
+      g.fillRect(0,5,16,2);
+      for(var i=0;i<4;i++) g.fillRect(2+i*4+(wob?1:-1),7,1.6,6+(i%2)*2);
+    } else if(plan==='crab'){
+      g.fillRect(3,2,10,8);
+      g.fillRect(1,4,2,4); g.fillRect(13,4,2,4);
+      g.fillRect(wob?0:2,10,3,3); g.fillRect(11+(wob?2:0),10,3,3);
+      g.fillRect(5,0,2,2); g.fillRect(9,0,2,2);
+    } else {
+      g.beginPath(); g.ellipse(8,6,7,5,0,0,6.2832); g.fill();
+      for(var k=0;k<3;k++){
+        g.fillRect(2+k*5,10,1.5,wob?4:3);
+        g.fillRect(2+k*5,1,1.5,wob?3:4);
+      }
+    }
+    /* the bone showing through, which is what makes it a plate */
+    g.fillStyle='rgba(20,24,20,.42)';
+    if(plan==='medusa') g.fillRect(6,1,4,3);
+    else if(plan==='crab') g.fillRect(6,4,4,4);
+    else g.fillRect(6,4,4,3);
+    g.restore();
+  }
+
+  var cols=6, rows=4, u=s.w/8.5;
+  var swing=Math.sin(t*0.85);
+  var cyc=(t*0.42)%9;
+  var ox=s.w*0.13+swing*s.w*0.075;
+  var oy=s.h*0.13+Math.floor(cyc)*s.h*0.022;
   var wob=Math.floor(t*2.2)%2;
-  g.fillStyle='#e8ede2';
   for(var r=0;r<rows;r++){
+    var plan = r===0?'medusa' : r<3?'crab' : 'louse';
     for(var c=0;c<cols;c++){
-      /* they thin from the middle out as the cycle runs */
       if(cyc>3 && ((r*cols+c*5)%13) < (cyc-3)*2.4) continue;
-      var x=ox+c*u, y=oy+r*u*0.78, w=u*0.55, h=u*0.42;
-      g.fillRect(x, y, w, h);
-      g.fillRect(x-w*0.16, y+h*0.25, w*0.16, h*0.5);
-      g.fillRect(x+w, y+h*0.25, w*0.16, h*0.5);
-      g.fillRect(x+(wob?0:w*0.15), y+h, w*0.2, h*0.35);
-      g.fillRect(x+w*0.65+(wob?w*0.15:0), y+h, w*0.2, h*0.35);
-      g.fillStyle='rgba(20,24,20,.45)';
-      g.fillRect(x+w*0.28, y+h*0.28, w*0.4, h*0.42);
-      g.fillStyle='#e8ede2';
+      creature(ox+c*u*1.15, oy+r*u*0.90, plan, wob, u);
     }
   }
-  /* the gun, tracking, and one shot in flight */
-  var gx=s.w*0.5+Math.sin(t*1.3)*s.w*0.28;
+  /* the ground line and the SHIELDS eroding above it */
+  var gl=s.h*0.90;
+  g.strokeStyle='rgba(195,255,74,.16)'; g.lineWidth=1;
+  g.beginPath(); g.moveTo(0,gl); g.lineTo(s.w,gl); g.stroke();
+  var cell=Math.max(2,s.w*0.017);
+  for(var b=0;b<3;b++){
+    var bx=s.w*(0.14+b*0.30);
+    for(var sr=0;sr<3;sr++)
+      for(var sc=0;sc<5;sc++){
+        if(sr>=2 && sc>0 && sc<4) continue;
+        /* they chip away as the cycle runs */
+        if(((b*7+sr*5+sc*3)%11) < cyc*0.9) continue;
+        g.fillStyle= sr===0 ? 'rgba(195,255,74,.72)' : 'rgba(195,255,74,.40)';
+        g.fillRect(bx+sc*cell, gl-s.h*0.055+sr*cell, cell-0.6, cell-0.6);
+      }
+  }
+  /* the gun, tracking, and ONE shot in flight — the whole design */
+  var gx=s.w*0.5+Math.sin(t*1.25)*s.w*0.30;
   g.fillStyle='#c3ff4a';
-  g.fillRect(gx-s.w*0.055, s.h-s.h*0.075, s.w*0.11, s.h*0.022);
-  g.fillRect(gx-s.w*0.014, s.h-s.h*0.095, s.w*0.028, s.h*0.022);
-  var sy=s.h-s.h*0.10-((t*150)%(s.h*0.62));
-  g.fillStyle='#eef2e8'; g.fillRect(gx-1, sy, 2, s.h*0.026);
-  g.strokeStyle='rgba(195,255,74,.20)'; g.lineWidth=1;
-  g.beginPath(); g.moveTo(0,s.h-s.h*0.045); g.lineTo(s.w,s.h-s.h*0.045); g.stroke();
+  g.fillRect(gx-s.w*0.045, gl-s.h*0.030, s.w*0.09, s.h*0.014);
+  g.fillRect(gx-s.w*0.011, gl-s.h*0.044, s.w*0.022, s.h*0.016);
+  g.fillStyle='rgba(255,255,255,.35)';
+  g.fillRect(gx-s.w*0.045, gl-s.h*0.030, s.w*0.09, s.h*0.004);
+  var sy=gl-s.h*0.05-((t*160)%(s.h*0.66));
+  g.fillStyle='#eef2e8'; g.fillRect(gx-1, sy, 2, s.h*0.022);
 }
 
 /* ---- Swarm: paper craft peeling out of formation ---------------------- */
 function fold(g,s,t){
-  g.fillStyle='#100d1a'; g.fillRect(0,0,s.w,s.h);
-  function craft(x,y,a,col,sc){
+  g.fillStyle='#0e0c16'; g.fillRect(0,0,s.w,s.h);
+  g.strokeStyle='rgba(176,108,255,.045)'; g.lineWidth=1;
+  for(var x=0;x<=s.w;x+=s.w/5){ g.beginPath(); g.moveTo(x,0); g.lineTo(x,s.h); g.stroke(); }
+  for(var y=0;y<=s.h;y+=s.h/7){ g.beginPath(); g.moveTo(0,y); g.lineTo(s.w,y); g.stroke(); }
+  var vg=g.createRadialGradient(s.w/2,s.h*0.35,s.h*0.12,s.w/2,s.h*0.5,s.h*0.95);
+  vg.addColorStop(0,'rgba(176,108,255,.05)'); vg.addColorStop(1,'rgba(0,0,0,.36)');
+  g.fillStyle=vg; g.fillRect(0,0,s.w,s.h);
+  function shade(hex,amt){ var n=parseInt(hex.slice(1),16);
+    var f=function(v){ return Math.max(0,Math.min(255,Math.round(amt<0?v*(1+amt):v+(255-v)*amt))); };
+    return 'rgb('+f((n>>16)&255)+','+f((n>>8)&255)+','+f(n&255)+')'; }
+  /* MACHINED HULLS, nose-up in local space, rotated PI so they face the player */
+  function hull(x,y,a,col,sc){
     g.save(); g.translate(x,y); g.rotate(a); g.scale(sc,sc);
-    g.fillStyle=col;
-    g.beginPath(); g.moveTo(0,-9); g.lineTo(-7,7); g.lineTo(0,4); g.closePath(); g.fill();
-    g.fillStyle='rgba(255,255,255,.28)';
-    g.beginPath(); g.moveTo(0,-9); g.lineTo(7,7); g.lineTo(0,4); g.closePath(); g.fill();
-    g.fillStyle='rgba(0,0,0,.22)';
-    g.beginPath(); g.moveTo(-2,-2); g.lineTo(-11,3); g.lineTo(-3,6); g.closePath(); g.fill();
-    g.beginPath(); g.moveTo(2,-2); g.lineTo(11,3); g.lineTo(3,6); g.closePath(); g.fill();
-    g.strokeStyle='rgba(10,8,18,.5)'; g.lineWidth=0.7;
-    g.beginPath(); g.moveTo(0,-9); g.lineTo(0,6); g.stroke();
+    var dark=shade(col,-0.50), mid=shade(col,-0.16), lite=shade(col,0.44);
+    g.fillStyle=dark;
+    g.beginPath(); g.moveTo(-11,5); g.lineTo(-2,-1); g.lineTo(-2,5); g.closePath(); g.fill();
+    g.beginPath(); g.moveTo(11,5); g.lineTo(2,-1); g.lineTo(2,5); g.closePath(); g.fill();
+    var bd=g.createLinearGradient(-5,0,5,0);
+    bd.addColorStop(0,dark); bd.addColorStop(0.44,col);
+    bd.addColorStop(0.58,lite); bd.addColorStop(1,mid);
+    g.fillStyle=bd;
+    g.beginPath(); g.moveTo(0,-10); g.lineTo(3.4,-2); g.lineTo(4.6,7);
+    g.lineTo(-4.6,7); g.lineTo(-3.4,-2); g.closePath(); g.fill();
+    g.fillStyle='rgba(255,255,255,.42)'; g.fillRect(-0.55,-8,1.1,9);
+    var dm=g.createRadialGradient(-1.1,-4.2,0.3,0,-3.2,3.9);
+    dm.addColorStop(0,'#fff'); dm.addColorStop(0.34,shade(col,0.6));
+    dm.addColorStop(0.75,shade(col,-0.22)); dm.addColorStop(1,shade(col,-0.55));
+    g.fillStyle=dm; g.beginPath(); g.ellipse(0,-3.2,2.5,3.2,0,0,6.2832); g.fill();
     g.restore();
   }
-  var sc=Math.max(0.5, s.w/150);
-  /* the ranks, breathing */
-  var cols=5, rows=3;
+  var sc=Math.max(0.55,s.w/150), cols=5, rows=3;
   for(var r=0;r<rows;r++)
     for(var c=0;c<cols;c++){
       var idx=r*cols+c;
-      /* two of them are away on a dive at any moment */
       if(((idx*7+Math.floor(t*0.7))%11)<2) continue;
-      var x=s.w*0.20+c*s.w*0.15+Math.sin(t*1.1+r*0.5)*s.w*0.02;
-      var y=s.h*0.16+r*s.h*0.10+Math.sin(t*0.7+c*0.4)*s.h*0.008;
-      craft(x,y,0, r===0?'#b06cff':r===1?'#ff7ac0':'#7ad4ff', sc);
+      hull(s.w*0.20+c*s.w*0.15+Math.sin(t*1.1+r*0.5)*s.w*0.02,
+           s.h*0.16+r*s.h*0.10+Math.sin(t*0.7+c*0.4)*s.h*0.008,
+           Math.PI, r===0?'#b06cff':r===1?'#ff7ac0':'#7ad4ff', sc);
     }
-  /* one diving on a curve */
+  /* one diving on a bezier, banked into its own path */
   var q=(t*0.42)%1, m=1-q;
   var p0={x:s.w*0.75,y:s.h*0.20}, p1={x:s.w*1.05,y:s.h*0.40},
       p2={x:s.w*0.15,y:s.h*0.62}, p3={x:s.w*0.45,y:s.h*1.05};
   var bx=m*m*m*p0.x+3*m*m*q*p1.x+3*m*q*q*p2.x+q*q*q*p3.x;
   var by=m*m*m*p0.y+3*m*m*q*p1.y+3*m*q*q*p2.y+q*q*q*p3.y;
-  var q2=Math.min(1,q+0.03);
-  var m2=1-q2;
+  var q2=Math.min(1,q+0.03), m2=1-q2;
   var nx=m2*m2*m2*p0.x+3*m2*m2*q2*p1.x+3*m2*q2*q2*p2.x+q2*q2*q2*p3.x;
   var ny=m2*m2*m2*p0.y+3*m2*m2*q2*p1.y+3*m2*q2*q2*p2.y+q2*q2*q2*p3.y;
-  craft(bx,by,Math.atan2(ny-by,nx-bx)+Math.PI/2,'#b06cff',sc*1.15);
-  /* your ship, and a shot */
+  hull(bx,by,Math.atan2(ny-by,nx-bx)+Math.PI/2,'#b06cff',sc*1.12);
+  /* your ship, nose UP */
   var gx=s.w*0.5+Math.sin(t*1.5)*s.w*0.22;
-  craft(gx, s.h*0.90, 0, '#c3ff4a', sc*1.05);
+  hull(gx,s.h*0.90,0,'#c3ff4a',sc*1.05);
   g.fillStyle='#f2eefb';
   g.fillRect(gx-1, s.h*0.86-((t*160)%(s.h*0.6)), 2, s.h*0.03);
 }
 
-/* ---- Ribbit: the wet road under sodium, something small crossing ------ */
+
 function drain(g,s,t){
   var U=s.h/14;
   g.fillStyle='#0a1418'; g.fillRect(0,0,s.w,s.h*0.5);
@@ -1448,66 +1503,139 @@ function drain(g,s,t){
   var cy=s.h*0.92-hopN*U*0.95;
   var bob=Math.abs(Math.sin(t*1.6*Math.PI))*4;
   var cx2=s.w*0.5;
-  g.fillStyle='#dfe6e2';
-  g.beginPath(); g.ellipse(cx2,cy-bob,U*0.30,U*0.24,0,0,6.2832); g.fill();
-  g.strokeStyle='#dfe6e2'; g.lineWidth=Math.max(1,U*0.09); g.lineCap='round';
-  g.beginPath(); g.moveTo(cx2-U*0.18,cy-bob+U*0.08); g.lineTo(cx2-U*0.36,cy-bob+U*0.26); g.stroke();
-  g.beginPath(); g.moveTo(cx2+U*0.18,cy-bob+U*0.08); g.lineTo(cx2+U*0.36,cy-bob+U*0.26); g.stroke();
-  g.fillStyle='#12181a';
-  g.beginPath(); g.arc(cx2-U*0.10,cy-bob-U*0.09,U*0.07,0,6.2832); g.fill();
-  g.beginPath(); g.arc(cx2+U*0.10,cy-bob-U*0.09,U*0.07,0,6.2832); g.fill();
+  /* the pale lime frog, gold eyes on TOP of the head */
+  var fy=cy-bob;
+  g.strokeStyle='#a3c94e'; g.lineWidth=Math.max(1,U*0.10); g.lineCap='round';
+  g.beginPath(); g.moveTo(cx2-U*0.16,fy+U*0.06); g.lineTo(cx2-U*0.34,fy+U*0.24); g.stroke();
+  g.beginPath(); g.moveTo(cx2+U*0.16,fy+U*0.06); g.lineTo(cx2+U*0.34,fy+U*0.24); g.stroke();
+  g.beginPath(); g.moveTo(cx2-U*0.15,fy-U*0.06); g.lineTo(cx2-U*0.30,fy-U*0.20); g.stroke();
+  g.beginPath(); g.moveTo(cx2+U*0.15,fy-U*0.06); g.lineTo(cx2+U*0.30,fy-U*0.20); g.stroke();
+  g.fillStyle='#c8e86a';
+  g.beginPath(); g.ellipse(cx2,fy,U*0.24,U*0.28,0,0,6.2832); g.fill();
+  g.fillStyle='rgba(112,150,54,.34)';
+  g.beginPath(); g.ellipse(cx2,fy+U*0.03,U*0.10,U*0.17,0,0,6.2832); g.fill();
+  for(var e2=-1;e2<=1;e2+=2){
+    g.fillStyle='#c8e86a';
+    g.beginPath(); g.arc(cx2+e2*U*0.12,fy-U*0.22,U*0.10,0,6.2832); g.fill();
+    g.fillStyle='#c8a02a';
+    g.beginPath(); g.arc(cx2+e2*U*0.12,fy-U*0.22,U*0.062,0,6.2832); g.fill();
+    g.fillStyle='#101511';
+    g.beginPath(); g.ellipse(cx2+e2*U*0.12,fy-U*0.22,U*0.024,U*0.048,0,0,6.2832); g.fill();
+  }
 }
 
-/* ---- Girder: scaffolding, and something rolling down it --------------- */
 function scaffold(g,s,t){
   g.fillStyle='#1a1712'; g.fillRect(0,0,s.w,s.h);
+  /* stone courses */
   g.fillStyle='#221d16';
-  for(var y=0;y<s.h;y+=s.h*0.055)
-    for(var x=((y/(s.h*0.055))%2)*s.w*0.12-s.w*0.12; x<s.w; x+=s.w*0.24)
-      g.fillRect(x+1,y+1,s.w*0.22,s.h*0.045);
-  /* the window */
-  var wx=s.w*0.5, wy=s.h*0.24;
-  g.fillStyle='rgba(150,190,210,.15)';
-  g.beginPath(); g.moveTo(wx-s.w*0.10,wy+s.h*0.20); g.lineTo(wx-s.w*0.10,wy-s.h*0.03);
-  g.quadraticCurveTo(wx,wy-s.h*0.12,wx+s.w*0.10,wy-s.h*0.03);
-  g.lineTo(wx+s.w*0.10,wy+s.h*0.20); g.closePath(); g.fill();
-  /* five sloped decks */
-  var decks=[[0.92,0.92],[0.78,0.74],[0.63,0.66],[0.48,0.45],[0.33,0.36],[0.20,0.19]];
-  for(var d=0;d<decks.length;d++){
-    var yl=s.h*decks[d][0], yr=s.h*decks[d][1];
-    g.beginPath(); g.moveTo(0,yl); g.lineTo(s.w,yr); g.lineTo(s.w,yr+s.h*0.022);
-    g.lineTo(0,yl+s.h*0.022); g.closePath();
-    g.fillStyle='#5a4830'; g.fill();
-    g.strokeStyle='rgba(255,225,180,.35)'; g.lineWidth=1;
-    g.beginPath(); g.moveTo(0,yl+1); g.lineTo(s.w,yr+1); g.stroke();
+  var ch=s.h*0.048;
+  for(var y=0;y<s.h;y+=ch)
+    for(var x=((y/ch)%2)*s.w*0.11-s.w*0.11; x<s.w; x+=s.w*0.22)
+      g.fillRect(x+1,y+1,s.w*0.20,ch-2);
+  /* the lancet window: the one cold thing in the frame */
+  var wx=s.w*0.52, wy=s.h*0.30;
+  g.fillStyle='#2b3a44';
+  g.beginPath(); g.moveTo(wx-s.w*0.11,wy+s.h*0.22); g.lineTo(wx-s.w*0.11,wy-s.h*0.04);
+  g.quadraticCurveTo(wx,wy-s.h*0.14,wx+s.w*0.11,wy-s.h*0.04);
+  g.lineTo(wx+s.w*0.11,wy+s.h*0.22); g.closePath(); g.fill();
+  g.fillStyle='rgba(150,190,210,.16)';
+  g.beginPath(); g.moveTo(wx-s.w*0.085,wy+s.h*0.20); g.lineTo(wx-s.w*0.085,wy-s.h*0.025);
+  g.quadraticCurveTo(wx,wy-s.h*0.115,wx+s.w*0.085,wy-s.h*0.025);
+  g.lineTo(wx+s.w*0.085,wy+s.h*0.20); g.closePath(); g.fill();
+  g.strokeStyle='rgba(20,18,14,.7)'; g.lineWidth=1.6;
+  g.beginPath(); g.moveTo(wx,wy-s.h*0.11); g.lineTo(wx,wy+s.h*0.21); g.stroke();
+  /* uprights */
+  g.fillStyle='#4a3d2c';
+  g.fillRect(s.w*0.04,s.h*0.16,s.w*0.022,s.h*0.84);
+  g.fillRect(s.w*0.94,s.h*0.16,s.w*0.022,s.h*0.84);
+  /* SLOPED decks, alternating, with a lit top edge */
+  var decks=[[0.94,0.94],[0.80,0.755],[0.655,0.685],[0.515,0.485],[0.375,0.405],[0.235,0.225]];
+  var dh=s.h*0.024;
+  function deckY(i,x){ var d=decks[i]; return s.h*(d[0]+(d[1]-d[0])*(x/s.w)); }
+  /* ladders behind */
+  var lads=[[0,0.30],[1,0.72],[2,0.22],[3,0.66],[4,0.40]];
+  for(var L=0;L<lads.length;L++){
+    var lx=s.w*lads[L][1], y0=deckY(lads[L][0],lx), y1=deckY(lads[L][0]+1,lx);
+    g.strokeStyle='#6b5636'; g.lineWidth=1.6;
+    g.beginPath(); g.moveTo(lx-s.w*0.018,y0); g.lineTo(lx-s.w*0.018,y1); g.stroke();
+    g.beginPath(); g.moveTo(lx+s.w*0.018,y0); g.lineTo(lx+s.w*0.018,y1); g.stroke();
+    g.strokeStyle='#8a7048'; g.lineWidth=1.2;
+    for(var ry=y1+6; ry<y0; ry+=8){
+      g.beginPath(); g.moveTo(lx-s.w*0.018,ry); g.lineTo(lx+s.w*0.018,ry); g.stroke();
+    }
   }
-  /* masonry rolling down, deck by deck */
-  var cyc=(t*0.5)%6, deck=Math.min(5,Math.floor(cyc));
-  var yl2=s.h*decks[5-deck][0], yr2=s.h*decks[5-deck][1];
-  var dir=(deck%2)?-1:1;
-  var px=dir>0 ? (cyc-deck)*s.w : s.w-(cyc-deck)*s.w;
-  var py=yl2+(yr2-yl2)*(px/s.w)-s.h*0.016;
-  g.save(); g.translate(px,py); g.rotate(t*3*dir);
-  g.fillStyle='#7d6f5c'; g.fillRect(-s.w*0.022,-s.w*0.022,s.w*0.044,s.w*0.044);
-  g.fillStyle='rgba(255,255,255,.22)'; g.fillRect(-s.w*0.022,-s.w*0.022,s.w*0.044,s.w*0.014);
-  g.restore();
-  /* the climber */
-  var fx=s.w*0.22+Math.sin(t*1.2)*s.w*0.10;
-  var fy=s.h*0.92+(s.h*0.92-s.h*0.92)-s.h*0.022;
-  g.fillStyle='#ff6b2c'; g.fillRect(fx-s.w*0.018,fy-s.h*0.030,s.w*0.036,s.h*0.024);
-  g.fillStyle='#d9b48a';
-  g.beginPath(); g.arc(fx,fy-s.h*0.038,s.w*0.014,0,6.2832); g.fill();
-  /* the gargoyle up top */
-  g.fillStyle='#5f5a52';
-  g.beginPath(); g.ellipse(s.w*0.20,s.h*0.16,s.w*0.055,s.h*0.026,0,0,6.2832); g.fill();
-  g.fillStyle='#4a453e';
-  g.beginPath(); g.moveTo(s.w*0.17,s.h*0.15); g.lineTo(s.w*0.11,s.h*0.11);
-  g.lineTo(s.w*0.13,s.h*0.17); g.closePath(); g.fill();
+  for(var d2=0;d2<decks.length;d2++){
+    var yl=s.h*decks[d2][0], yr=s.h*decks[d2][1];
+    g.beginPath(); g.moveTo(0,yl); g.lineTo(s.w,yr);
+    g.lineTo(s.w,yr+dh); g.lineTo(0,yl+dh); g.closePath();
+    g.fillStyle='#5a4830'; g.fill();
+    g.strokeStyle='rgba(30,24,16,.5)'; g.lineWidth=1;
+    for(var px=0;px<s.w;px+=s.w*0.09){
+      var py=yl+(yr-yl)*(px/s.w);
+      g.beginPath(); g.moveTo(px,py-1); g.lineTo(px,py+dh+1); g.stroke();
+    }
+    g.strokeStyle='rgba(255,225,180,.35)'; g.lineWidth=1.4;
+    g.beginPath(); g.moveTo(0,yl+1); g.lineTo(s.w,yr+1); g.stroke();
+    g.strokeStyle='rgba(0,0,0,.45)'; g.lineWidth=1.6;
+    g.beginPath(); g.moveTo(0,yl+dh); g.lineTo(s.w,yr+dh); g.stroke();
+  }
+  /* TWO pieces of masonry rolling DOWNHILL, tumbling */
+  for(var m=0;m<2;m++){
+    var cyc=((t*0.42+m*0.55)%5), deck=Math.min(4,Math.floor(cyc));
+    var di=5-deck;
+    var dir=(deck%2)?-1:1;
+    var f=cyc-deck;
+    var mx=dir>0 ? f*s.w : s.w-f*s.w;
+    var my=deckY(di,mx)-s.w*0.028;
+    g.save(); g.translate(mx,my); g.rotate(t*3.4*dir);
+    var ms=s.w*0.028;
+    g.fillStyle='#7d6f5c'; g.fillRect(-ms,-ms,ms*2,ms*2);
+    g.fillStyle='rgba(255,255,255,.22)'; g.fillRect(-ms,-ms,ms*2,ms*0.6);
+    g.fillStyle='rgba(0,0,0,.34)'; g.fillRect(-ms,ms*0.4,ms*2,ms*0.6);
+    g.strokeStyle='rgba(30,24,16,.45)'; g.lineWidth=1;
+    g.beginPath(); g.moveTo(-ms,0); g.lineTo(ms,0); g.stroke();
+    g.restore();
+  }
+  /* THE CLIMBER: hi-vis vest, running and jumping along the bottom deck */
+  var cx=s.w*0.18+((t*0.30)%1)*s.w*0.55;
+  var jump=Math.max(0,Math.sin(t*3.1))*s.h*0.045;
+  var cy=deckY(0,cx)-jump;
+  var fs=s.w*0.030;
+  g.fillStyle='#2e2a26';
+  g.fillRect(cx-fs*0.5,cy-fs*0.3,fs*0.4,fs*1.0);
+  g.fillRect(cx+fs*0.1,cy-fs*0.3,fs*0.4,fs*1.0);
   g.fillStyle='#ff6b2c';
-  g.beginPath(); g.arc(s.w*0.235,s.h*0.152,s.w*0.008,0,6.2832); g.fill();
+  g.fillRect(cx-fs*0.7,cy-fs*1.4,fs*1.4,fs*1.2);
+  g.fillStyle='rgba(255,255,255,.35)'; g.fillRect(cx-fs*0.7,cy-fs*1.4,fs*1.4,fs*0.25);
+  g.fillStyle='#d9b48a'; g.beginPath(); g.arc(cx,cy-fs*1.85,fs*0.5,0,6.2832); g.fill();
+  g.fillStyle='#e8e2d6'; g.beginPath(); g.arc(cx,cy-fs*2.0,fs*0.55,Math.PI,0); g.fill();
+  /* THE GARGOYLE up top: haunches, ribbed wings, horns, one lit eye */
+  var gx=s.w*0.20, gy=deckY(5,gx)-s.h*0.032;
+  var wind=(Math.sin(t*1.3)>0.75)?-0.25:0;
+  g.save(); g.translate(gx,gy); g.rotate(wind);
+  var gs=s.w*0.055/12;
+  g.scale(gs,gs);
+  g.fillStyle='#5f5a52';
+  g.beginPath(); g.ellipse(0,2,12,9,0,0,6.2832); g.fill();
+  g.fillStyle='#4a453e';
+  g.beginPath(); g.moveTo(-6,-2); g.lineTo(-18,-10); g.lineTo(-15,3); g.closePath(); g.fill();
+  g.beginPath(); g.moveTo(6,-2); g.lineTo(18,-10); g.lineTo(15,3); g.closePath(); g.fill();
+  g.strokeStyle='rgba(20,18,14,.5)'; g.lineWidth=1;
+  g.beginPath(); g.moveTo(-6,-2); g.lineTo(-15,-6); g.stroke();
+  g.beginPath(); g.moveTo(6,-2); g.lineTo(15,-6); g.stroke();
+  g.fillStyle='#6b665c';
+  g.beginPath(); g.ellipse(3,-9,7,5.5,0,0,6.2832); g.fill();
+  g.beginPath(); g.moveTo(9,-10); g.lineTo(15,-8); g.lineTo(9,-6); g.closePath(); g.fill();
+  g.fillStyle='#4a453e';
+  g.beginPath(); g.moveTo(-2,-13); g.lineTo(-4,-18); g.lineTo(0,-14); g.closePath(); g.fill();
+  g.beginPath(); g.moveTo(3,-14); g.lineTo(3,-19); g.lineTo(6,-14); g.closePath(); g.fill();
+  g.fillStyle='#ff6b2c';
+  g.beginPath(); g.arc(5,-10,1.6,0,6.2832); g.fill();
+  g.fillStyle='rgba(255,255,255,.14)';
+  g.beginPath(); g.ellipse(0,-3,11,4,0,0,6.2832); g.fill();
+  g.restore();
 }
 
-/* ---- Coil: a light pulse working its way round a dark bundle ---------- */
 function fibre(g,s,t){
   g.fillStyle='#070d10'; g.fillRect(0,0,s.w,s.h);
   var C=11, R=14, U=Math.min(s.w/C, s.h/R);
@@ -1555,7 +1683,6 @@ function fibre(g,s,t){
   g.globalAlpha=1;
 }
 
-/* ---- Aegis: a radar sweep, contacts falling, bursts opening ----------- */
 function radar(g,s,t){
   g.fillStyle='#070d0b'; g.fillRect(0,0,s.w,s.h);
   var ox=s.w/2, oy=s.h*0.90;
@@ -1610,7 +1737,6 @@ function radar(g,s,t){
   }
 }
 
-/* ---- Shards: ice tumbling, a dark wedge coasting through it ----------- */
 function ice(g,s,t){
   g.fillStyle='#070b18'; g.fillRect(0,0,s.w,s.h);
   for(var i=0;i<40;i++){
@@ -1674,7 +1800,6 @@ function ice(g,s,t){
   g.fillRect(sx2+Math.cos(ang2)*(14+bq*s.w*0.5)-1, sy2+Math.sin(ang2)*(14+bq*s.w*0.5)-1, 2.2, 2.2);
 }
 
-/* ---- Burrow: a cutaway with a tunnel opening through it --------------- */
 function strata(g,s,t){
   var C=10, R=13, U=Math.min(s.w/C, s.h/R);
   var ox=(s.w-C*U)/2, oy=0;
@@ -1708,12 +1833,22 @@ function strata(g,s,t){
   /* the drill at the head of it */
   var hp=cells[Math.max(0,Math.min(cut,cells.length-1))];
   var hx=ox+hp[0]*U+U/2, hy=oy+hp[1]*U+U/2;
-  g.save(); g.translate(hx,hy);
-  g.fillStyle='#e0a458';
-  g.beginPath(); g.moveTo(0,-U*0.42); g.lineTo(U*0.21,-U*0.09); g.lineTo(-U*0.21,-U*0.09);
+  /* the surveyor, matching the game: pack, jacket, hi-vis band, lance, hat */
+  var z=U/21;
+  g.save(); g.translate(hx,hy); g.scale(z,z);
+  g.fillStyle='#8a6a3f'; g.fillRect(-9,-4.5,5,9);
+  g.fillStyle='rgba(255,235,190,.40)'; g.fillRect(-9,-4.5,5,1.6);
+  g.fillStyle='#c9762f';
+  g.beginPath(); g.moveTo(-4,-5.4); g.lineTo(4,-4.6); g.lineTo(5,4.6); g.lineTo(-4,5.4);
   g.closePath(); g.fill();
-  g.fillStyle='#c98f3f'; g.fillRect(-U*0.19,-U*0.09,U*0.38,U*0.38);
-  g.fillStyle='rgba(255,255,255,.35)'; g.fillRect(-U*0.19,-U*0.09,U*0.38,U*0.08);
+  g.fillStyle='#ffd23c'; g.fillRect(-1.4,-5.0,2.2,10.2);
+  g.strokeStyle='#b8b2a6'; g.lineWidth=1.8;
+  g.beginPath(); g.moveTo(5,0); g.lineTo(10.5,0); g.stroke();
+  g.fillStyle='#d8d2c4';
+  g.beginPath(); g.moveTo(10.5,-1.8); g.lineTo(13.5,0); g.lineTo(10.5,1.8); g.closePath(); g.fill();
+  g.fillStyle='#e8c9a0'; g.beginPath(); g.arc(0,-0.6,3.1,0,6.2832); g.fill();
+  g.fillStyle='#f2e4cc'; g.beginPath(); g.arc(0,-1.6,3.4,Math.PI,0); g.fill();
+  g.fillStyle='#fff6d0'; g.beginPath(); g.arc(0,-2.6,1.1,0,6.2832); g.fill();
   g.restore();
   /* a grub further down the same gallery */
   var gx2=ox+6*U+U/2, gy2=oy+8*U+U/2;
@@ -1733,7 +1868,6 @@ function strata(g,s,t){
   g.fillRect(ox+5*U+2, oy+5*U+3, U-6, 2);
 }
 
-/* ---- Feather: an altimeter profile, a craft settling onto a pad -------- */
 function profile(g,s,t){
   g.fillStyle='#080c0f'; g.fillRect(0,0,s.w,s.h);
   g.strokeStyle='rgba(127,212,232,.06)'; g.lineWidth=1;
@@ -1793,7 +1927,66 @@ function profile(g,s,t){
   g.fillText((3.4-cyc*3).toFixed(1), s.w*0.34, s.h*0.16);
 }
 
-var draw = { dive:dive, grid:grid, road:road, maze:maze, blocks:blocks, scope:scope, ranks:ranks, fold:fold, drain:drain, scaffold:scaffold, fibre:fibre, radar:radar, ice:ice, strata:strata, profile:profile };
+function soap(g,s,t){
+  g.fillStyle='#0d0916'; g.fillRect(0,0,s.w,s.h);
+  var bg=g.createRadialGradient(s.w/2,s.h*0.1,6,s.w/2,s.h*0.1,s.h*0.9);
+  bg.addColorStop(0,'rgba(255,158,205,.07)'); bg.addColorStop(1,'rgba(255,158,205,0)');
+  g.fillStyle=bg; g.fillRect(0,0,s.w,s.h);
+  var TIN=[['#ff9ecd','#ffd9ec'],['#7ee8d0','#d4fff4'],['#9fb4ff','#dfe6ff'],
+           ['#ffd98a','#fff2cf'],['#c99cff','#eddcff']];
+  function bub(x,y,r,ti){
+    var T=TIN[ti%TIN.length];
+    var bd=g.createRadialGradient(x-r*0.34,y-r*0.38,r*0.05,x,y,r);
+    bd.addColorStop(0,'rgba(255,255,255,.85)');
+    bd.addColorStop(0.28,T[1]); bd.addColorStop(0.62,T[0]);
+    bd.addColorStop(0.88,T[0]); bd.addColorStop(1,'rgba(255,255,255,.55)');
+    g.fillStyle=bd; g.beginPath(); g.arc(x,y,r,0,6.2832); g.fill();
+    g.strokeStyle='rgba(255,255,255,.55)'; g.lineWidth=1;
+    g.beginPath(); g.arc(x,y,r-0.6,0,6.2832); g.stroke();
+    g.fillStyle='rgba(255,255,255,.9)';
+    g.beginPath(); g.ellipse(x-r*0.34,y-r*0.40,r*0.20,r*0.13,-0.6,0,6.2832); g.fill();
+  }
+  var C=7, R=s.w/(C*2+1), CW=R*2, RH=R*1.74;
+  var cyc=(t*0.35)%3;
+  for(var r=0;r<4;r++){
+    var wide=C-(r%2?1:0);
+    for(var c=0;c<wide;c++){
+      /* a cluster falls away in the last third of the cycle */
+      if(cyc>2 && r>=1 && c>=2 && c<=4) continue;
+      var inset=(r%2)?R:0;
+      bub(R+inset+c*CW, R+4+r*RH, R-1, (c+r*2)%5);
+    }
+  }
+  /* the shot, banking off the left wall into the gap */
+  var q=(cyc%1);
+  var px, py;
+  if(q<0.5){ px=s.w*0.5-(q/0.5)*(s.w*0.5-R); py=s.h*0.86-(q/0.5)*s.h*0.30; }
+  else { px=R+((q-0.5)/0.5)*(s.w*0.55); py=s.h*0.56-((q-0.5)/0.5)*s.h*0.30; }
+  /* the dotted aim line */
+  g.strokeStyle='rgba(255,255,255,.28)'; g.lineWidth=1.2; g.setLineDash([2,6]);
+  g.beginPath(); g.moveTo(s.w*0.5,s.h*0.86); g.lineTo(R,s.h*0.56);
+  g.lineTo(s.w*0.62,s.h*0.26); g.stroke(); g.setLineDash([]);
+  bub(px,py,R-1,3);
+  /* the shooter */
+  g.fillStyle='rgba(255,255,255,.10)'; g.fillRect(0,s.h*0.90,s.w,s.h*0.10);
+  bub(s.w*0.5, s.h*0.86, R-1, 0);
+  /* droplets from the pop */
+  if(cyc>2){
+    var a2=(cyc-2);
+    for(var d=0;d<7;d++){
+      var ang=d*0.897;
+      g.globalAlpha=Math.max(0,1-a2);
+      g.fillStyle='#ffd9ec';
+      g.beginPath();
+      g.arc(s.w*0.5+Math.cos(ang)*a2*R*3, s.h*0.30+Math.sin(ang)*a2*R*3,
+            Math.max(0.5,3*(1-a2)),0,6.2832);
+      g.fill();
+    }
+    g.globalAlpha=1;
+  }
+}
+
+var draw = { dive:dive, grid:grid, road:road, maze:maze, blocks:blocks, scope:scope, ranks:ranks, fold:fold, drain:drain, scaffold:scaffold, fibre:fibre, radar:radar, ice:ice, strata:strata, profile:profile, soap:soap };
 
 function paint(now){
   for(var i=0;i<screens.length;i++){

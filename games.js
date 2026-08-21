@@ -45,6 +45,16 @@ window.TINY_ARCADE = [
     attract:'fold'
   },
   {
+    file:  'games/golden/popshot.html',
+    id:    'popshot',
+    cat:   'golden',
+    name:  'Popshot',
+    accent:'#ff9ecd',
+    genre: 'PUZZLE \u00B7 AIM AND MATCH',
+    hook:  'Cut the support and the whole lot comes down. That is the shot.',
+    attract:'soap'
+  },
+  {
     file:  'games/golden/phalanx.html',
     id:    'phalanx',
     cat:   'golden',
