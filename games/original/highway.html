@@ -48,12 +48,13 @@ canvas{display:block;width:100%;height:100%;touch-action:none}
 #hud{position:absolute;inset:0;pointer-events:none;z-index:10;
   padding:calc(var(--safe-top, env(safe-area-inset-top,0px)) + 12px) 14px calc(env(safe-area-inset-bottom,0px) + 14px);
   display:flex;flex-direction:column;justify-content:space-between}
-.toprow{display:flex;justify-content:space-between;align-items:flex-start}
+.toprow{ padding-top:58px; /* clear of the rear-view mirror */ display:flex;justify-content:space-between;align-items:flex-start}
 .stat span{display:block;font-size:8.5px;font-weight:700;letter-spacing:.22em;color:var(--dim)}
 .stat b{font-family:var(--disp);font-weight:800;font-size:26px;line-height:1.05;
   font-variant-numeric:tabular-nums;letter-spacing:.01em}
 .stat i{font-style:normal;font-size:11px;font-weight:600;color:var(--dim);margin-left:2px}
 .stat.r{text-align:right}
+.stat.c{text-align:center;flex:0 0 auto}
 
 #pursuit{
   width:fit-content;margin:10px auto 0;font-size:9.5px;font-weight:700;letter-spacing:.28em;
@@ -352,6 +353,7 @@ h1 u{text-decoration:none;display:block;font-size:.34em;letter-spacing:.26em;col
     <div>
       <div class="toprow">
         <div class="stat"><span>DISTANCE</span><b id="dist">0.0<i>KM</i></b></div>
+        <div class="stat c" id="placeWrap" hidden><span>PLACE</span><b id="place">12/12</b></div>
         <div class="stat r"><span>SCORE</span><b id="score">0</b></div>
       </div>
       <div id="pursuit">PURSUIT</div>
@@ -939,6 +941,27 @@ function keepLaneOpen(dt, pz){
   }
 }
 
+/* Traffic overtaking from behind. Ahead-only spawning meant a slow or stopped
+   car sat on an empty road: everything in front pulled away and nothing ever
+   arrived. This drops a car back down the road doing a decent clip, so it
+   catches you and goes past — which is what makes stopping feel exposed. */
+function spawnBehind(){
+  const lane = rint(0, LANES-1);
+  const z = pos - rnd(2600, 4200);
+  if(!laneFree(z, lane, 2000)) return;
+  const roll = Math.random();
+  const t = roll<0.14 ? 'truck' : roll<0.44 ? 'coupe' : roll<0.72 ? 'sedan' : 'sedan2';
+  traffic.push({
+    z, lane, x: LANE_X[lane] + rnd(-0.03,0.03),
+    /* it must actually be quicker than you or it will never arrive */
+    spd: 0, cruise: Math.max(spd * 1.25, (t==='truck' ? 0.36 : 0.55) * MAX_SPD),
+    type: t,
+    w: t==='truck' ? 0.32 : t==='coupe' ? 0.26 : 0.275,
+    len: t==='truck' ? 520 : 380,
+    near:false, drift: rnd(-1,1)*0.0002, fromBehind:true
+  });
+}
+
 function spawnWave(z){
   const n = rint(1, Math.min(3, LANES-1));
   const order = [0,1,2,3].sort(()=>Math.random()-0.5).slice(0,n);
@@ -1026,6 +1049,10 @@ function flashWarn(t){
 function reset(){
   pos=0; playerX=0; camX=0; targetX=0; spd=IDLE_SPD;
   dmg=0; nos=40; nosOn=false; nosTime=0; bustT=0;
+  racers=[]; place=12; finished=false;
+  if(mode === 'race') buildField();
+  const pw = document.getElementById('placeWrap');
+  if(pw) pw.hidden = (mode !== 'race');
   dist=0; score=0; combo=0; comboTime=0; heat=1; heatT=0;
   /* dayClock deliberately NOT reset: the sky keeps its own time across runs */
   traffic=[]; cops=[]; blocks=[]; crates=[]; fx=[];
@@ -1078,7 +1105,11 @@ function px(clientX){ return (clientX - cv.getBoundingClientRect().left); }
 /* page-wide relative steering, so the wheel is wherever your thumb is */
 if (AR && AR.gesture) AR.gesture.onDrag(g => {
   if (state !== 'driving') return;  /* likewise: 'driving', not 'run' */
-  targetX = clamp(targetX + g.dx / (W*0.26), -1.18, 1.18);   /* less thumb travel per lane */
+  /* A stationary car cannot change lanes — steering only works because the
+     wheels are rolling. Authority fades in from a standstill up to about
+     12mph, so crawling gives you a little and stopped gives you none. */
+  const grip = clamp(spd / (MAX_SPD*0.07), 0, 1);
+  targetX = clamp(targetX + (g.dx * grip) / (W*0.26), -1.18, 1.18);
 });
 
 cv.addEventListener('contextmenu',e=>e.preventDefault());
@@ -1165,7 +1196,131 @@ function autoGear(){
   else if(gear > 1 && r < GEARS[gear-2].to - 0.11){ gear--; autoHold = 0.55; snd.shift(gear); }
 }
 
-let horning = false, hornCool = 0, bustT = 0;
+let horning = false, hornCool = 0, bustT = 0, behindT = 2;
+
+/* ---- race mode ----------------------------------------------------------
+   Twelve runners over twelve miles. You start LAST and you are slightly the
+   quickest thing out there, so the whole race is a long overtake — which is
+   the only structure that makes a fixed distance interesting.
+   -------------------------------------------------------------------------- */
+const RACE_MILES = 12;
+/* the odometer does dist += spd*dt/1000*0.00777, so one mile is 1/0.00000777
+   world units — derived rather than guessed, so the banner lands exactly where
+   the readout says twelve. */
+const MILE = 1 / 0.00000777;
+const FIELD = 11;                    /* eleven rivals plus you = twelve */
+let mode = 'endless';                /* or 'race' */
+let racers = [], place = 12, finished = false, finishZ = 0;
+
+function buildField(){
+  racers = [];
+  for(let i=0;i<FIELD;i++){
+    /* strung out ahead of you at the line, quickest at the front */
+    const rank = i;
+    racers.push({
+      z: pos + 700 + rank*520 + rnd(-120,120),
+      lane: rint(0, LANES-1),
+      x: 0,
+      /* each is a shade slower than you, and they differ from each other so
+         the field spreads rather than moving as a block */
+      /* You are the quickest thing out there, but only just — the fastest
+         rival runs at 92% of your top speed and the slowest at 81%, so the
+         race is won by traffic craft rather than by holding the throttle. */
+      base: (0.92 - rank*0.010 + rnd(-0.005,0.005)) * MAX_SPD,
+      /* They start AT racing pace. Starting them at half speed meant you blew
+         past the whole field in the first ten seconds and then watched them
+         all re-pass you, so placement swung 12 to 2 to 11 and meant nothing. */
+      spd: (0.92 - rank*0.010) * MAX_SPD,
+      num: rank + 1,
+      hue: (rank*47) % 360,
+      wreck: 0, ang: 0, dodgeT: 0, w: 0.265, len: 390
+    });
+  }
+  racers.forEach(r => r.x = LANE_X[r.lane]);
+  finishZ = pos + RACE_MILES * MILE;
+  place = 12; finished = false;
+}
+
+function stepRacers(dt){
+  const k = Math.min(2.4, dt*60);
+  for(const r of racers){
+    if(r.wreck > 0){
+      r.wreck -= dt; r.spd *= (1 - 1.6*dt); r.ang += dt*6; r.z += r.spd*dt;
+      continue;
+    }
+    /* --- look ahead and pick a line, same idea as the cruisers --- */
+    let want = r.base, dodge = 0;
+    const scan = (list, isCop) => {
+      for(const o of list){
+        if(o === r) continue;
+        if(isCop && o.wreck > 0) continue;
+        const gap = o.z - r.z;
+        if(gap < -120 || gap > 3600) continue;
+        if(Math.abs(o.x - r.x) > 0.30) continue;
+        /* something in the way: slow a little and lean off it */
+        want = Math.min(want, (o.spd || o.cruise || 0) * 0.98);
+        dodge += (r.x < o.x ? -1 : 1) * (1 - gap/3600);
+      }
+    };
+    scan(traffic, false);
+    scan(racers, false);
+    if(!optEasy) scan(cops, true);
+
+    /* roadblocks: aim for the gap rather than the barrier */
+    for(const b of blocks){
+      const gap = b.z - r.z;
+      if(gap < 0 || gap > 5200) continue;
+      dodge += (b.gapX - r.x) * 2.4 * (1 - gap/5200);
+      want = Math.min(want, MAX_SPD*0.82);
+    }
+
+    if(dodge !== 0){
+      r.dodgeT = 0.35;
+      r.x = clamp(r.x + clamp(dodge, -1, 1) * 1.5 * dt, -1.05, 1.05);
+    } else {
+      /* drift back toward a lane centre when nothing is pressing */
+      const home = LANE_X[r.lane];
+      r.x += (home - r.x) * Math.min(1, dt*1.4);
+      r.dodgeT = Math.max(0, r.dodgeT - dt);
+    }
+    r.ang = clamp((r.x - (r.px===undefined?r.x:r.px)) * 26, -0.3, 0.3);
+    r.px = r.x;
+
+    r.spd += clamp(want - r.spd, -5200*dt, 4200*dt);
+    r.z += r.spd*dt;
+
+    /* they can put a cruiser out, and be put out by one */
+    if(!optEasy){
+      for(const c of cops){
+        if(c.wreck > 0) continue;
+        if(Math.abs(c.z - r.z) < 260 && Math.abs(c.x - r.x) < 0.22){
+          if(Math.random() < 0.5){ c.wreck = 1.2; c.spd *= 0.5; snd.copDown(); }
+          else { r.wreck = 1.1; r.spd *= 0.6; }
+        }
+      }
+    }
+    /* and they crash into traffic if they misjudge it */
+    for(const c of traffic){
+      if(Math.abs(c.z - r.z) < 220 && Math.abs(c.x - r.x) < 0.20){
+        r.wreck = 1.0; r.spd *= 0.55;
+      }
+    }
+  }
+  racers = racers.filter(r => r.z > pos - 14000);
+
+  /* placement: how many are still ahead of you */
+  let ahead = 0;
+  for(const r of racers) if(r.z > pos) ahead++;
+  place = ahead + 1;
+
+  if(!finished && pos >= finishZ){
+    finished = true;
+    wreck(place === 1 ? 'WON' : 'FINISHED ' + place + ordinal(place));
+  }
+}
+function ordinal(n){
+  return n===1?'ST' : n===2?'ND' : n===3?'RD' : 'TH';
+}
 function setHorn(on){
   if(on === horning) return;
   horning = on;
@@ -1353,7 +1508,8 @@ function step(dt){
     if(AR.pad.down('left'))  kd = -1;
     if(AR.pad.down('right')) kd =  1;
   }
-  if(kd) targetX = clamp(targetX + kd*2.1*dt, -1.18, 1.18);
+  /* keyboard steering obeys the same rule: no roll, no steering */
+  if(kd) targetX = clamp(targetX + kd*2.1*dt*clamp(spd/(MAX_SPD*0.07),0,1), -1.18, 1.18);
 
   // right trigger / A holds the nitrous down
   if(AR && AR.pad && (AR.pad.down('rt') || AR.pad.down('a'))){
@@ -1393,7 +1549,14 @@ function step(dt){
   /* The floor was 1700 — about 22mph — so the car could never actually stop.
      It can now sit still, which is what a brake pedal is for. */
   if(hornCool > 0) hornCool -= dt;
+  /* the slower you are, the more often something comes up behind you */
+  behindT -= dt;
+  if(behindT <= 0){
+    behindT = 1.4 + Math.random()*2.2;
+    if(spd < MAX_SPD*0.75 && traffic.length < 22) spawnBehind();
+  }
   if(autoHold > 0) autoHold -= dt;
+  if(mode === 'race' && !finished) stepRacers(dt);
   if(!optManual) autoGear();
   /* a gear that cannot pull makes the engine labour, which you hear */
   bogT = (optManual && onGas && gearFactor() < 0.4) ? Math.min(1, bogT + dt*3)
@@ -2111,10 +2274,31 @@ function drawWorld(){
   for(const c of traffic) items.push({z:c.z, kind:'t', o:c});
   for(const k of cops)    items.push({z:k.z, kind:'k', o:k});
   for(const b of blocks)  items.push({z:b.z, kind:'b', o:b});
+  for(const r of racers)  items.push({z:r.z, kind:'g', o:r});
   for(const c of crates)  if(!c.got) items.push({z:c.z, kind:'r', o:c});
   items.sort((a,b)=>b.z-a.z);
   for(const it of items){
-    if(it.kind==='t'){
+    if(it.kind==='g'){
+      /* a rival: the coupe body tinted per car, with its number on the boot */
+      const r = it.o;
+      const box = drawSprite(SP.coupe, r.x, r.z, r.w, r.wreck>0?0.85:1);
+      if(box){
+        ctx.save();
+        ctx.globalCompositeOperation = 'overlay';
+        ctx.fillStyle = 'hsla(' + r.hue + ',85%,52%,.72)';
+        ctx.fillRect(box.x, box.y - box.h*0.72, box.w, box.h*0.62);
+        ctx.restore();
+        if(box.w > 26){
+          ctx.save();
+          ctx.textAlign = 'center';
+          ctx.font = '700 ' + Math.round(box.w*0.30) + 'px ' +
+                     getComputedStyle(document.body).getPropertyValue('--disp');
+          ctx.fillStyle = 'rgba(255,255,255,.92)';
+          ctx.fillText(r.num, box.x + box.w/2, box.y - box.h*0.26);
+          ctx.restore();
+        }
+      }
+    } else if(it.kind==='t'){
       drawSprite(SP[it.o.type], it.o.x, it.o.z, it.o.w);
     } else if(it.kind==='k'){
       const box = drawSprite(SP.cop, it.o.x, it.o.z, it.o.w, it.o.wreck>0?0.85:1);
@@ -2390,6 +2574,112 @@ function draw(){
 
 /* ---------- HUD ---------- */
 const $=id=>document.getElementById(id);
+/* ---- rear-view mirror ----------------------------------------------------
+   A strip across the top showing what is behind you: traffic closing, and any
+   cruiser on your tail. It is a schematic rather than a second render — a
+   proper reverse camera would cost a whole extra projection pass, and what you
+   actually need to know is "how close, which lane".
+   -------------------------------------------------------------------------- */
+/* the finish banner: a gantry across the road with chequered boards */
+function drawFinish(){
+  if(mode !== 'race') return;
+  const gap = finishZ - pos;
+  if(gap < -600 || gap > 16000) return;
+  const p1 = proj(0, finishZ);
+  if(!p1.ok) return;
+  const wRoad = p1.scale * ROAD * W;
+  const y = p1.y;
+  const h = Math.max(4, wRoad * 0.10);
+  const postW = Math.max(2, wRoad*0.022);
+  ctx.save();
+  /* uprights */
+  ctx.fillStyle = '#2b3038';
+  ctx.fillRect(p1.x - wRoad/2 - postW, y - h*2.6, postW, h*2.6);
+  ctx.fillRect(p1.x + wRoad/2,          y - h*2.6, postW, h*2.6);
+  /* the board */
+  const by = y - h*2.6, bh = h*1.15;
+  const cells = 16, cw = wRoad/cells;
+  for(let i=0;i<cells;i++){
+    for(let r2=0;r2<2;r2++){
+      ctx.fillStyle = ((i + r2) % 2) ? '#f2f4f8' : '#14171d';
+      ctx.fillRect(p1.x - wRoad/2 + i*cw, by + r2*bh/2, cw+0.5, bh/2);
+    }
+  }
+  ctx.fillStyle = 'rgba(0,0,0,.35)';
+  ctx.fillRect(p1.x - wRoad/2, by + bh - 2, wRoad, 2);
+  /* the line on the tarmac */
+  const cells2 = 20, cw2 = wRoad/cells2;
+  for(let i=0;i<cells2;i++){
+    ctx.fillStyle = (i % 2) ? '#f2f4f8' : '#14171d';
+    ctx.fillRect(p1.x - wRoad/2 + i*cw2, y, cw2+0.5, Math.max(1.5, h*0.30));
+  }
+  ctx.restore();
+}
+
+function drawMirror(){
+  const mw = Math.min(W*0.62, 250), mh = 44;
+  const mx = (W - mw)/2, my = 6;
+  ctx.save();
+  /* the housing */
+  ctx.fillStyle = '#0a0c11';
+  ctx.beginPath(); ctx.roundRect(mx-3, my-3, mw+6, mh+6, 7); ctx.fill();
+  ctx.strokeStyle = 'rgba(150,160,180,.35)'; ctx.lineWidth = 1.4;
+  ctx.stroke();
+  /* the glass, darker at the edges like a real convex mirror */
+  const gl = ctx.createLinearGradient(mx, my, mx, my+mh);
+  gl.addColorStop(0,'#141a24'); gl.addColorStop(0.5,'#0e131b'); gl.addColorStop(1,'#0a0e15');
+  ctx.fillStyle = gl;
+  ctx.beginPath(); ctx.roundRect(mx, my, mw, mh, 5); ctx.fill();
+  ctx.save();
+  ctx.beginPath(); ctx.roundRect(mx, my, mw, mh, 5); ctx.clip();
+
+  /* the road receding AWAY from you, so it narrows downward */
+  ctx.strokeStyle = 'rgba(150,170,200,.14)'; ctx.lineWidth = 1;
+  for(let i=0;i<=LANES;i++){
+    const f = i/LANES;
+    ctx.beginPath();
+    ctx.moveTo(mx + mw*(0.10 + f*0.80), my + mh);
+    ctx.lineTo(mx + mw*(0.36 + f*0.28), my + 4);
+    ctx.stroke();
+  }
+
+  /* anything behind the player, nearest drawn largest and lowest */
+  const back = [];
+  for(const c of traffic){ const d = pos - c.z; if(d > 0 && d < 5200) back.push({d, x:c.x, cop:false}); }
+  for(const k of cops){ if(k.wreck>0) continue; const d = pos - k.z; if(d > 0 && d < 5200) back.push({d, x:k.x, cop:true}); }
+  back.sort((a,b)=>b.d-a.d);
+  for(const o of back){
+    const f = 1 - o.d/5200;                     /* 1 = right behind you */
+    const sw = mw * (0.045 + f*0.075);
+    const sh = sw * 0.62;
+    const px = mx + mw*0.5 + (o.x/1.18) * mw * (0.16 + f*0.30);
+    const py = my + 6 + f*(mh - sh - 10);
+    if(o.cop){
+      ctx.fillStyle = 'rgba(210,220,235,.9)';
+      ctx.fillRect(px-sw/2, py, sw, sh);
+      /* the bar, alternating */
+      const on = Math.floor(sirenPhase*1.4) % 2;
+      ctx.fillStyle = on ? '#3b6bff' : '#ff2b4a';
+      ctx.fillRect(px-sw/2, py-2.5, sw, 2.5);
+    } else {
+      ctx.fillStyle = 'rgba(120,132,150,' + (0.35 + f*0.5) + ')';
+      ctx.fillRect(px-sw/2, py, sw, sh);
+      /* headlights, which is what you actually notice in a mirror */
+      ctx.fillStyle = 'rgba(255,246,214,' + (0.35 + f*0.6) + ')';
+      ctx.fillRect(px-sw/2+1, py+sh*0.28, sw*0.22, sh*0.26);
+      ctx.fillRect(px+sw/2-1-sw*0.22, py+sh*0.28, sw*0.22, sh*0.26);
+    }
+  }
+  ctx.restore();
+  /* a hint of curvature across the glass */
+  const sheen = ctx.createLinearGradient(mx, my, mx+mw*0.5, my+mh);
+  sheen.addColorStop(0,'rgba(255,255,255,.07)');
+  sheen.addColorStop(0.5,'rgba(255,255,255,0)');
+  ctx.fillStyle = sheen;
+  ctx.beginPath(); ctx.roundRect(mx, my, mw, mh, 5); ctx.fill();
+  ctx.restore();
+}
+
 function drawBust(){
   if(bustT <= 0) return;
   const q = Math.min(1, bustT/3);
@@ -2420,6 +2710,11 @@ function hud(){
   $('score').textContent = Math.round(score).toLocaleString();
   /* the bottle empties as you burn it */
   nitroBtn.style.setProperty('--nos', nos + '%');
+  if(mode === 'race'){
+    $('placeWrap').hidden = false;
+    $('place').textContent = place + '/12';
+    $('dist').innerHTML = dist.toFixed(1) + '<i>/' + RACE_MILES + ' MI</i>';
+  }
   if(optManual && tachoEl){
     const rpm = engineRpm();
     const frac = clamp(rpm / (REDLINE + 400), 0, 1);
@@ -2472,6 +2767,8 @@ function frameLoop(now){
      the wind streaks in drawPlayer instead, which cost nothing and cannot
      corrupt the frame. If a real smear is wanted it needs a second offscreen
      canvas, not a self-copy. */
+  drawFinish();
+  drawMirror();
   drawBust(); hud();
   requestAnimationFrame(frameLoop);
 }
@@ -2499,11 +2796,20 @@ function showTitle(){
     '<h1>Highway</h1>' +
     '<div class="tmenu">' +
       '<button class="go" data-act="play">PLAY</button>' +
+      '<button class="go ghost" data-act="mode">MODE \u00B7 <b>' +
+        (mode === 'race' ? 'RACE' : 'ENDLESS') + '</b></button>' +
+      /* Hot pursuit lives HERE, not in the pause menu — it changes what the
+         run is, so letting it be flipped mid-run would let a player switch the
+         cops off the moment one appeared. */
+      '<button class="go ghost" data-act="chase">HOT PURSUIT \u00B7 <b>' +
+        (optEasy ? 'OFF' : 'ON') + '</b></button>' +
       '<button class="go ghost" data-act="opts">OPTIONS</button>' +
       '<button class="go ghost" data-act="quit">QUIT</button>' +
     '</div>',
     {
       play: start,
+      mode: () => { mode = (mode === 'race' ? 'endless' : 'race'); showTitle(); },
+      chase: () => { optEasy = !optEasy; showTitle(); },
       opts: () => showOptions(),
       quit: () => { if(AR && AR.home) AR.home(); }
     });
@@ -2565,12 +2871,10 @@ reset();
 if (AR && AR.options) AR.options.define([
   { key:'side',  label:'CONTROLS', type:'cycle', of:['RIGHT','LEFT'],                    def:'RIGHT' },
   { key:'paint', label:'PAINT',    type:'cycle', of:Object.keys(PAINT),                  def:'WHITE' },
-  { key:'chase',  label:'HOT PURSUIT', type:'bool',                                      def:false },
   { key:'manual', label:'MANUAL BOX',  type:'bool',                                      def:false }
 ], function(key, val){
   if(key === 'side')  document.body.classList.toggle('pedals-left', val === 'LEFT');
   /* the toggle now names what it ADDS, so off is the quiet road */
-  if(key === 'chase') optEasy = !val;
   if(key === 'manual'){
     optManual = !!val;
     const sh = document.getElementById('shifter');
