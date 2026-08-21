@@ -273,7 +273,24 @@ body.no-touch #nitro{
 }
 
 body.no-touch #dials,
-body.no-touch.manual #dials{
+body.no-touch.manual /* ---- the wheel ----------------------------------------------------------
+   Bottom-left, opposite the pedals. It ROTATES with the car and it FOLLOWS the
+   thumb: press anywhere in its quadrant and the wheel re-centres under your
+   finger, so you never have to find it. Steering is by how far you drag from
+   where you first pressed, which means the grab point is wherever you happen
+   to land rather than a fixed hit target.
+   -------------------------------------------------------------------------- */
+#wheel{
+  position:absolute;z-index:12;
+  left:calc(env(safe-area-inset-left,0px) + 10px);
+  bottom:calc(env(safe-area-inset-bottom,0px) + 16px);
+  width:115px;height:115px;
+  touch-action:none;
+  transition:left .10s ease-out, bottom .10s ease-out;
+}
+body.no-touch #wheel{ display:none }
+
+#dials{
   bottom:calc(env(safe-area-inset-bottom,0px) + 16px);
 }
 
@@ -291,6 +308,23 @@ body.no-touch.manual #dials{
    manual box is on, then the dials. The dials used to sit at a fixed height and
    the shifter was drawn over them; each now takes its place in the stack and
    the dials drop back down when there is no shifter to clear. */
+/* ---- the wheel ----------------------------------------------------------
+   Bottom-left, opposite the pedals. It ROTATES with the car and it FOLLOWS the
+   thumb: press anywhere in its quadrant and the wheel re-centres under your
+   finger, so you never have to find it. Steering is by how far you drag from
+   where you first pressed, which means the grab point is wherever you happen
+   to land rather than a fixed hit target.
+   -------------------------------------------------------------------------- */
+#wheel{
+  position:absolute;z-index:12;
+  left:calc(env(safe-area-inset-left,0px) + 10px);
+  bottom:calc(env(safe-area-inset-bottom,0px) + 16px);
+  width:115px;height:115px;
+  touch-action:none;
+  transition:left .10s ease-out, bottom .10s ease-out;
+}
+body.no-touch #wheel{ display:none }
+
 #dials{
   position:absolute;z-index:13;pointer-events:none;
   transform-origin:100% 100%;
@@ -305,11 +339,49 @@ body.no-touch.manual #dials{
   width:115px;height:59px;
   transition:bottom .18s ease-out;
 }
-body.manual #dials{
+body.manual /* ---- the wheel ----------------------------------------------------------
+   Bottom-left, opposite the pedals. It ROTATES with the car and it FOLLOWS the
+   thumb: press anywhere in its quadrant and the wheel re-centres under your
+   finger, so you never have to find it. Steering is by how far you drag from
+   where you first pressed, which means the grab point is wherever you happen
+   to land rather than a fixed hit target.
+   -------------------------------------------------------------------------- */
+#wheel{
+  position:absolute;z-index:12;
+  left:calc(env(safe-area-inset-left,0px) + 10px);
+  bottom:calc(env(safe-area-inset-bottom,0px) + 16px);
+  width:115px;height:115px;
+  touch-action:none;
+  transition:left .10s ease-out, bottom .10s ease-out;
+}
+body.no-touch #wheel{ display:none }
+
+#dials{
   bottom:calc(env(safe-area-inset-bottom,0px) + 262px * var(--ark-ui,1));
 }
 #dials canvas{width:115px;height:59px;display:block}
+body.pedals-left /* ---- the wheel ----------------------------------------------------------
+   Bottom-left, opposite the pedals. It ROTATES with the car and it FOLLOWS the
+   thumb: press anywhere in its quadrant and the wheel re-centres under your
+   finger, so you never have to find it. Steering is by how far you drag from
+   where you first pressed, which means the grab point is wherever you happen
+   to land rather than a fixed hit target.
+   -------------------------------------------------------------------------- */
+#wheel{
+  position:absolute;z-index:12;
+  left:calc(env(safe-area-inset-left,0px) + 10px);
+  bottom:calc(env(safe-area-inset-bottom,0px) + 16px);
+  width:115px;height:115px;
+  touch-action:none;
+  transition:left .10s ease-out, bottom .10s ease-out;
+}
+body.no-touch #wheel{ display:none }
+
+/* This lost its `body.pedals-left` prefix in an earlier edit, so the LEFT-HANDED
+   rule applied to everyone and the dials sat on the left for every player. */
 body.pedals-left #dials{ right:auto; left:calc(env(safe-area-inset-left,0px) + 8px) }
+/* and the wheel swaps to the other corner with them */
+body.pedals-left #wheel{ left:auto; right:calc(env(safe-area-inset-right,0px) + 10px) }
 #tachoOLD{
   position:absolute;z-index:13;display:none;
   border-radius:5px;background:#0d0f13;border:1px solid #333941;
@@ -447,6 +519,7 @@ h1 u{text-decoration:none;display:block;font-size:.34em;letter-spacing:.26em;col
   </div>
 
   <div id="warn"></div>
+  <canvas id="wheel" width="230" height="230" aria-label="Steering"></canvas>
   <div id="pedals">
     <button id="nitro" disabled aria-label="Nitrous"><i></i><b>NOS</b></button>
     <button id="gas" aria-label="Accelerator"><i></i></button>
@@ -896,13 +969,24 @@ window.addEventListener('resize', resize);
 window.addEventListener('orientationchange', ()=>setTimeout(resize,150));
 
 /* ---------- projection ---------- */
+/* ---- where the road sits on the glass ------------------------------------
+   With touch controls the right-hand third of the screen is pedals, dials and
+   the bottle, so a centred road puts the car under the furniture. Shifting the
+   whole view LEFT centres it in the space actually left over. On desktop the
+   controls are gone, so it re-centres.
+   -------------------------------------------------------------------------- */
+let viewShift = 0;
+function updateViewShift(){
+  const noTouch = document.body.classList.contains('no-touch');
+  viewShift = noTouch ? 0 : -W * 0.085;
+}
 function proj(worldX, worldZ){
   const dz = worldZ - pos;
   const scale = CAM_D/dz;
   return {
     ok: dz > 30,
     scale,
-    x: W/2 + scale*(worldX - camX*ROAD)*W/2,
+    x: W/2 + viewShift + scale*(worldX - camX*ROAD)*W/2,
     y: horizon + scale*CAM_H*H/2,
     w: scale*ROAD*W/2
   };
@@ -1790,6 +1874,161 @@ function setGas(on){
    having to hit a target exactly.
    -------------------------------------------------------------------------- */
 const shifterEl = document.getElementById('shifter');
+/* ---- the steering wheel ------------------------------------------------- */
+const wheelCv = document.getElementById('wheel');
+const wheelCx = wheelCv ? wheelCv.getContext('2d') : null;
+let wheelGrab = null, wheelDpr = 0;
+
+function drawWheel(){
+  if(!wheelCx || document.body.classList.contains('no-touch')) return;
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  if(dpr !== wheelDpr){ wheelDpr = dpr; wheelCv.width = 115*dpr; wheelCv.height = 115*dpr; }
+  const g = wheelCx, R = 47, cx = 57.5, cy = 57.5;
+  g.setTransform(dpr,0,0,dpr,0,0);
+  g.clearRect(0,0,115,115);
+  g.save();
+  g.translate(cx, cy);
+  g.rotate(clamp(playerX/1.18, -1, 1) * 0.85);
+
+  const TH = 9.5;                       /* rim thickness */
+  /* ---- the rim ----------------------------------------------------------
+     A flat-bottomed sports wheel: circular through the top and sides, cut off
+     square along the bottom, with the corners squared off where the leather
+     grips are. Drawn as a stroked path rather than a circle so the flat is
+     real geometry rather than something painted over it.
+     -------------------------------------------------------------------------- */
+  const flatY = R*0.62;                 /* where the bottom is cut */
+  const aFlat = Math.asin(flatY/R);
+  function rimPath(){
+    /* In canvas, increasing angle goes DOWN the screen — so sweeping from
+       aFlat to PI-aFlat drew the BOTTOM semicircle, which is why the rim kept
+       coming out as a smile under the boss. The top runs from PI-aFlat round
+       through 3PI/2 to 2PI+aFlat. */
+    g.beginPath();
+    g.arc(0, 0, R, Math.PI - aFlat, Math.PI*2 + aFlat, false);
+    g.closePath();
+  }
+  /* The leather body. It was being over-stroked in near-black afterwards,
+     which erased it against a dark road — one stroke, light enough to read. */
+  g.save();
+  rimPath();
+  g.lineWidth = TH; g.lineJoin = 'round'; g.lineCap = 'round';
+  const leather = g.createLinearGradient(-R,-R,R,R);
+  leather.addColorStop(0,'#5c626c'); leather.addColorStop(0.42,'#33373d');
+  leather.addColorStop(0.62,'#42474f'); leather.addColorStop(1,'#23262b');
+  g.strokeStyle = leather; g.stroke();
+  /* a dark seam down the middle of the stock */
+  g.lineWidth = TH*0.20; g.strokeStyle = 'rgba(0,0,0,.45)';
+  rimPath(); g.stroke();
+  g.restore();
+  /* the weave, painted into the top third and the bottom bar */
+  g.save();
+  g.beginPath();
+  g.arc(0,0,R+TH/2, Math.PI*1.18, Math.PI*1.82, false);
+  g.arc(0,0,R-TH/2, Math.PI*1.82, Math.PI*1.18, true);
+  g.closePath();
+  g.clip();
+  g.fillStyle = '#26292f'; g.fillRect(-R-8,-R-8,(R+8)*2,(R+8)*2);
+  g.strokeStyle = 'rgba(170,180,196,.40)'; g.lineWidth = 0.7;
+  for(let k=-R*2;k<R*2;k+=3.2){
+    g.beginPath(); g.moveTo(k,-R-8); g.lineTo(k+R*2, R+8); g.stroke();
+  }
+  g.strokeStyle = 'rgba(90,96,106,.30)';
+  for(let k=-R*2;k<R*2;k+=3.2){
+    g.beginPath(); g.moveTo(k, R+8); g.lineTo(k+R*2, -R-8); g.stroke();
+  }
+  g.restore();
+  /* ---- the flat bottom --------------------------------------------------
+     Was a full-width slab: the weave filled a clip RECTANGLE rather than the
+     rim itself, so it ran out past the stock at both ends and read as a bar
+     bolted underneath. It is now a rounded bar the same thickness as the rim,
+     inset to meet the leather where the corners are, with the weave clipped to
+     that shape — so the flat is part of the wheel rather than sitting on it.
+     -------------------------------------------------------------------------- */
+  const barX = R*Math.cos(aFlat) - TH*0.16;
+  g.save();
+  g.beginPath();
+  g.roundRect(-barX, flatY - TH/2, barX*2, TH, TH/2);
+  g.clip();
+  g.fillStyle = '#26292f'; g.fillRect(-R-8, flatY-TH, R*2+16, TH*2);
+  g.strokeStyle = 'rgba(170,180,196,.34)'; g.lineWidth = 0.7;
+  for(let k=-barX*2;k<barX*2;k+=3.2){
+    g.beginPath(); g.moveTo(k, flatY-TH); g.lineTo(k+TH*2, flatY+TH); g.stroke();
+    g.beginPath(); g.moveTo(k, flatY+TH); g.lineTo(k+TH*2, flatY-TH); g.stroke();
+  }
+  /* the same lit top edge the rest of the stock has */
+  g.strokeStyle = 'rgba(255,255,255,.14)'; g.lineWidth = TH*0.26;
+  g.beginPath(); g.moveTo(-barX, flatY-TH*0.30); g.lineTo(barX, flatY-TH*0.30); g.stroke();
+  g.restore();
+
+  /* the twelve-o'clock stripe */
+  g.strokeStyle = '#e8ecf2'; g.lineWidth = 2.4;
+  g.beginPath(); g.moveTo(0, -R-TH/2+0.5); g.lineTo(0, -R+TH/2-0.5); g.stroke();
+
+  /* rim highlight and shadow, so it reads as round stock */
+  g.save();
+  rimPath(); g.lineWidth = TH*0.30;
+  g.strokeStyle = 'rgba(255,255,255,.13)';
+  g.setLineDash([]); g.stroke();
+  g.restore();
+
+  /* ---- the spokes -------------------------------------------------------
+     Two horizontal arms at nine and three with a silver bezel round the
+     switchgear, and a single bottom arm with a chrome insert. */
+  const armW = R*0.72, armH = 9.5, armY = 2;
+  for(const sx of [-1, 1]){
+    g.save();
+    g.translate(sx*(R*0.34), armY);
+    g.fillStyle = '#1d2025';
+    g.beginPath(); g.roundRect(-armW/2, -armH/2, armW, armH, 3); g.fill();
+    /* the silver surround */
+    g.strokeStyle = 'rgba(196,203,214,.85)'; g.lineWidth = 1.4;
+    g.beginPath(); g.roundRect(-armW/2+1.2, -armH/2+1.2, armW-2.4, armH-2.4, 2.4);
+    g.stroke();
+    /* two switch blocks */
+    g.fillStyle = '#0e1013';
+    g.fillRect(-armW/2+3.5, -armH/2+2.6, armW*0.30, armH-5.2);
+    g.fillRect( armW/2-3.5-armW*0.30, -armH/2+2.6, armW*0.30, armH-5.2);
+    g.restore();
+  }
+  /* the bottom arm */
+  g.fillStyle = '#1d2025';
+  g.beginPath(); g.roundRect(-6, 8, 12, flatY-4, 3); g.fill();
+  g.fillStyle = 'rgba(196,203,214,.9)';
+  g.beginPath(); g.roundRect(-4, 12, 8, flatY-9, 2); g.fill();
+  g.fillStyle = '#0e1013';
+  g.fillRect(-1.2, 14, 2.4, flatY-13);
+
+  /* ---- the boss ---------------------------------------------------------- */
+  const bR = 21;
+  const boss = g.createRadialGradient(-bR*0.3, -bR*0.35, 1, 0, 0, bR);
+  boss.addColorStop(0,'#3a3e45'); boss.addColorStop(0.55,'#1e2126'); boss.addColorStop(1,'#0d0f12');
+  g.fillStyle = boss;
+  g.beginPath(); g.arc(0,0,bR,0,6.2832); g.fill();
+  g.strokeStyle = 'rgba(255,255,255,.10)'; g.lineWidth = 1;
+  g.beginPath(); g.arc(0,0,bR-0.5,0,6.2832); g.stroke();
+
+  /* the badge: a chrome oval with a running horse, ours in silhouette */
+  g.save();
+  g.fillStyle = '#c9d0da';
+  g.beginPath(); g.ellipse(0,0,13,9.5,0,0,6.2832); g.fill();
+  g.fillStyle = '#14161a';
+  g.beginPath(); g.ellipse(0,0,11.4,8.1,0,0,6.2832); g.fill();
+  /* the horse, at a gallop, left-facing */
+  g.fillStyle = '#d8dee8';
+  g.beginPath();
+  g.moveTo(-8.4,-0.6); g.lineTo(-6.2,-2.2); g.lineTo(-3.0,-2.6);
+  g.lineTo(-0.4,-3.6); g.lineTo(2.6,-3.2); g.lineTo(5.0,-4.4);
+  g.lineTo(7.2,-2.0); g.lineTo(8.6,-3.2); g.lineTo(7.8,-0.4);
+  g.lineTo(5.4,1.0);  g.lineTo(6.4,3.4);  g.lineTo(3.8,2.0);
+  g.lineTo(1.2,3.6);  g.lineTo(-0.6,1.6); g.lineTo(-3.4,3.4);
+  g.lineTo(-2.4,1.0); g.lineTo(-5.6,2.2); g.lineTo(-4.4,-0.2);
+  g.closePath(); g.fill();
+  g.restore();
+
+  g.restore();
+}
+
 const dialCv = document.getElementById('gauges');
 const dialCx = dialCv ? dialCv.getContext('2d') : null;
 const knobEl    = document.getElementById('knob');
@@ -1899,6 +2138,50 @@ setInterval(() => {
   if(Math.abs(ry) > Math.abs(rx)) shiftStep(0, ry > 0 ? 1 : -1);
   else shiftStep(rx > 0 ? 1 : -1, 0);
 }, 60);
+
+/* ---- the wheel follows the thumb ----------------------------------------
+   Press anywhere in the left half below the horizon and the wheel MOVES to sit
+   under your finger, then steers by how far you drag from that point. You
+   never have to aim for it, and it is never where your thumb is not.
+   -------------------------------------------------------------------------- */
+if(wheelCv){
+  const placeWheel = (cx, cy) => {
+    wheelCv.style.left = Math.round(cx - 57.5) + 'px';
+    wheelCv.style.bottom = Math.round(window.innerHeight - cy - 57.5) + 'px';
+  };
+  const grabStart = (e) => {
+    if(document.body.classList.contains('no-touch')) return;
+    /* the wheel's half of the screen, clear of the pedals and the dials */
+    if(e.clientX > window.innerWidth * 0.52) return;
+    if(e.clientY < window.innerHeight * 0.42) return;
+    if(e.target.closest && e.target.closest('button')) return;
+    e.preventDefault();
+    wheelGrab = { id:e.pointerId, x:e.clientX, y:e.clientY };
+    wheelCv.style.transition = 'none';
+    placeWheel(e.clientX, e.clientY);
+  };
+  const grabMove = (e) => {
+    if(!wheelGrab || e.pointerId !== wheelGrab.id) return;
+    const dx = e.clientX - wheelGrab.x;
+    /* no roll, no steering — the same rule the rest of the car obeys */
+    const grip = clamp(spd / (MAX_SPD*0.07), 0, 1);
+    targetX = clamp(targetX + (dx * grip) / (W*0.26), -1.18, 1.18);
+    wheelGrab.x = e.clientX; wheelGrab.y = e.clientY;
+    placeWheel(e.clientX, e.clientY);
+  };
+  const grabEnd = (e) => {
+    if(!wheelGrab || e.pointerId !== wheelGrab.id) return;
+    wheelGrab = null;
+    /* let it drift back to its corner rather than snapping */
+    wheelCv.style.transition = 'left .28s ease-out, bottom .28s ease-out';
+    wheelCv.style.left = '';
+    wheelCv.style.bottom = '';
+  };
+  window.addEventListener('pointerdown', grabStart, { passive:false });
+  window.addEventListener('pointermove', grabMove);
+  window.addEventListener('pointerup', grabEnd);
+  window.addEventListener('pointercancel', grabEnd);
+}
 
 hornBtn.addEventListener('pointerdown', e=>{ e.preventDefault(); setHorn(true); });
 hornBtn.addEventListener('pointerup',     ()=>setHorn(false));
@@ -2039,6 +2322,7 @@ function step(dt){
   if(pScrub > 0.05) layRubber(playerX, pos + PLAYER_Z - 340, pScrub, 0.265);
   stepRubber(dt);
 
+  updateViewShift();
   if(hornCool > 0) hornCool -= dt;
   /* ---- traffic coming up behind ------------------------------------------
      Only once you have been slower than the flow for a while. A brief lift or
@@ -2792,11 +3076,17 @@ function drawLight(p, side, fade){
   ctx.fillRect(baseX - h*0.022, p.y - h, h*0.045, h);
   ctx.fillRect(baseX - side*h*0.16, p.y-h, h*0.17, h*0.035);
   const lx = baseX - side*h*0.20, ly = p.y - h;
-  const g = ctx.createRadialGradient(lx,ly,0,lx,ly,h*0.55);
-  g.addColorStop(0,'rgba(255,178,90,'+(0.52*fade+0.10)+')');
-  g.addColorStop(1,'rgba(255,150,60,0)');
-  ctx.fillStyle=g;
-  ctx.beginPath(); ctx.arc(lx,ly,h*0.55,0,6.2832); ctx.fill();
+  /* A SECOND lamp drawer I had missed: still sodium orange, and ungated by the
+     day cycle, so it burned through every afternoon. Whitish blue like the
+     other one, and dark when the lamps are off. */
+  const lit = lampsOn();
+  if(lit > 0.01){
+    const g = ctx.createRadialGradient(lx,ly,0,lx,ly,h*0.55);
+    g.addColorStop(0,'rgba(228,242,255,'+((0.46*fade+0.09)*lit)+')');
+    g.addColorStop(1,'rgba(150,192,255,0)');
+    ctx.fillStyle=g;
+    ctx.beginPath(); ctx.arc(lx,ly,h*0.55,0,6.2832); ctx.fill();
+  }
 }
 
 function drawSprite(img, worldX, worldZ, worldW, alpha){
@@ -3300,7 +3590,7 @@ function drawStartPrompt(){
 
 function drawMirror(){
   const mw = Math.min(W*0.62, 250), mh = 44;
-  const mx = (W - mw)/2, my = 6;
+  const mx = (W - mw)/2 + viewShift, my = 6;
   ctx.save();
   /* the housing */
   ctx.fillStyle = '#0a0c11';
@@ -3569,6 +3859,7 @@ function hud(){
     $('dist').innerHTML = Math.max(0, RACE_MILES - dist).toFixed(1) + '<i>MI</i>';
   }
   drawDials();
+  drawWheel();
 
   const active = cops.some(k=>k.wreck<=0);
   $('pursuit').className = active ? 'on' : '';
