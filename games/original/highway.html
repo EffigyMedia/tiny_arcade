@@ -812,20 +812,40 @@ let SP = {};
 
 /* Paint schemes for the coupe. Each is body, highlight and shadow, so the
    panel shading survives the colour change rather than going flat. */
+/* Twelve paints — one for every car on a race grid, and a real choice for the
+   player rather than six. Spread right round the wheel so no two rivals read as
+   the same car at distance. */
 const PAINT = {
   WHITE:  { body:'#dfe6ef', hi:'#ffffff', lo:'#8d9bb0' },
   RED:    { body:'#c8203a', hi:'#ff6472', lo:'#6d0f20' },
   BLACK:  { body:'#23262e', hi:'#4d5462', lo:'#0d0f14' },
   GOLD:   { body:'#d8a13c', hi:'#ffdf94', lo:'#7d5511' },
   CYAN:   { body:'#2fb8c8', hi:'#8ef0f8', lo:'#146370' },
-  VIOLET: { body:'#7d4bd8', hi:'#c6a2ff', lo:'#3d1f74' }
+  VIOLET: { body:'#7d4bd8', hi:'#c6a2ff', lo:'#3d1f74' },
+  ORANGE: { body:'#e2661d', hi:'#ffab6b', lo:'#7d3208' },
+  LIME:   { body:'#8ac926', hi:'#d3f57a', lo:'#456611' },
+  PINK:   { body:'#e8459b', hi:'#ff9ccd', lo:'#7d1a50' },
+  NAVY:   { body:'#2a4b9b', hi:'#7d9de8', lo:'#122455' },
+  TEAL:   { body:'#149b86', hi:'#6ce8d2', lo:'#0a4f45' },
+  SILVER: { body:'#9aa3ae', hi:'#e2e8f0', lo:'#4b535e' }
 };
-let optPaint = 'WHITE', optEasy = true;   /* no cops unless HOT PURSUIT is on */
+const PAINT_KEYS = Object.keys(PAINT);
+let optPaint = 'WHITE', optEasy = true, optMirror = 'FULL';   /* no cops unless HOT PURSUIT is on */
+const RIVAL_SP = {};
 function buildSprites(){
   SP.player = sprite(220,168, paintCar(Object.assign({
     cabin:true, spoiler:true, bodyTop:0.42, cabinTop:0.16,
     lamp:'#d61b3c', lamp2:'#ff7a86'
   }, PAINT[optPaint] || PAINT.WHITE)));
+  /* Every rival is the SAME sports car as yours, in a different paint. They
+     used to be a tinted saloon, which is why the grid never looked like a
+     field of equals. Built once per colour and cached. */
+  for(const k of PAINT_KEYS){
+    RIVAL_SP[k] = sprite(220,168, paintCar(Object.assign({
+      cabin:true, spoiler:true, bodyTop:0.42, cabinTop:0.16,
+      lamp:'#d61b3c', lamp2:'#ff7a86'
+    }, PAINT[k])));
+  }
   SP.sedan = sprite(200,164, paintCar({
     body:'#3c4a63', hi:'#5b6d8c', lo:'#212a3b', cabin:true, bodyTop:0.46, cabinTop:0.10
   }));
@@ -946,9 +966,16 @@ function keepLaneOpen(dt, pz){
    arrived. This drops a car back down the road doing a decent clip, so it
    catches you and goes past — which is what makes stopping feel exposed. */
 function spawnBehind(){
-  const lane = rint(0, LANES-1);
-  const z = pos - rnd(2600, 4200);
-  if(!laneFree(z, lane, 2000)) return;
+  /* It was giving up after ONE blocked lane, and at a standstill the lane
+     behind you is usually the one you are sitting in — so nothing ever
+     arrived, which is exactly the case this exists for. Try every lane. */
+  const order = [0,1,2,3].sort(()=>Math.random()-0.5);
+  let lane = -1, z = 0;
+  for(const L of order){
+    const zz = pos - rnd(2600, 4200);
+    if(laneFree(zz, L, 1500)){ lane = L; z = zz; break; }
+  }
+  if(lane < 0) return;
   const roll = Math.random();
   const t = roll<0.14 ? 'truck' : roll<0.44 ? 'coupe' : roll<0.72 ? 'sedan' : 'sedan2';
   traffic.push({
@@ -1140,11 +1167,16 @@ function setBrake(on){
    to second, then progressively smaller steps. `ratio` is the actual gearing —
    revs are road speed times ratio — and `pull` falls off with it, because
    torque at the wheel is what the ratio multiplies. */
+/* This is a performance car. The old pull values (1.00 / 0.72 / 0.52 / 0.38)
+   meant every upshift felt like the engine had been switched off — fourth
+   pulled at a third of first. A real sports car makes more POWER higher up
+   even though torque multiplication falls, so pull stays high across the box
+   and only softens at the very top. */
 const GEARS = [
-  { g:1, ratio:3.65, from:0,    to:0.26, pull:1.00 },
-  { g:2, ratio:2.16, from:0.20, to:0.46, pull:0.72 },
-  { g:3, ratio:1.44, from:0.38, to:0.70, pull:0.52 },
-  { g:4, ratio:1.00, from:0.60, to:1.40, pull:0.38 }
+  { g:1, ratio:3.65, from:0,    to:0.24, pull:1.30 },
+  { g:2, ratio:2.16, from:0.18, to:0.46, pull:1.18 },
+  { g:3, ratio:1.44, from:0.38, to:0.72, pull:1.02 },
+  { g:4, ratio:1.00, from:0.62, to:1.40, pull:0.86 }
 ];
 const REDLINE = 7200;
 /* Engine speed, from road speed and whatever ratio is selected. In neutral it
@@ -1178,8 +1210,10 @@ function gearFactor(){
   if(gear < 1 || gear > GEARS.length) return 0;
   const r = spd / MAX_SPD;
   const G = GEARS[gear-1];
-  if(r < G.from - 0.06) return 0.34;      /* lugging: it will not pull */
-  if(r > G.to)          return 0.12;      /* on the limiter: nothing left */
+  /* lugging and the limiter still hurt, but not catastrophically — being one
+     gear out should cost you a length, not the whole race */
+  if(r < G.from - 0.06) return 0.55;
+  if(r > G.to)          return 0.30;
   return G.pull;
 }
 /* the automatic box, when manual is off */
@@ -1191,12 +1225,14 @@ function autoGear(){
   const r = spd / MAX_SPD;
   if(gear < 1 || gear > GEARS.length) gear = 1;
   if(autoHold > 0) return;
+  /* Shift at the top of the band and drop the moment the next gear down would
+     pull harder — i.e. exactly what a driver doing it perfectly would do. */
   const G = GEARS[gear-1];
-  if(gear < GEARS.length && r > G.to - 0.03){ gear++; autoHold = 0.55; snd.shift(gear); }
-  else if(gear > 1 && r < GEARS[gear-2].to - 0.11){ gear--; autoHold = 0.55; snd.shift(gear); }
+  if(gear < GEARS.length && r > G.to - 0.015){ gear++; autoHold = 0.28; snd.shift(gear); }
+  else if(gear > 1 && r < GEARS[gear-2].from + 0.01){ gear--; autoHold = 0.28; snd.shift(gear); }
 }
 
-let horning = false, hornCool = 0, bustT = 0, behindT = 2;
+let horning = false, hornCool = 0, bustT = 0, behindT = 2, slowFor = 0;
 
 /* ---- race mode ----------------------------------------------------------
    Twelve runners over twelve miles. You start LAST and you are slightly the
@@ -1232,11 +1268,14 @@ function buildField(){
          all re-pass you, so placement swung 12 to 2 to 11 and meant nothing. */
       spd: (0.92 - rank*0.010) * MAX_SPD,
       num: rank + 1,
-      hue: (rank*47) % 360,
+      /* the same sports car as yours, in whichever paints you did not take */
+      paint: null,
       wreck: 0, ang: 0, dodgeT: 0, w: 0.265, len: 390
     });
   }
-  racers.forEach(r => r.x = LANE_X[r.lane]);
+  /* hand out every colour except the one the player is driving */
+  const pool = PAINT_KEYS.filter(k => k !== optPaint);
+  racers.forEach((r,i) => { r.x = LANE_X[r.lane]; r.paint = pool[i % pool.length]; });
   finishZ = pos + RACE_MILES * MILE;
   place = 12; finished = false;
 }
@@ -1286,7 +1325,14 @@ function stepRacers(dt){
     r.ang = clamp((r.x - (r.px===undefined?r.x:r.px)) * 26, -0.3, 0.3);
     r.px = r.x;
 
-    r.spd += clamp(want - r.spd, -5200*dt, 4200*dt);
+    /* RUBBER BAND. A race decided in the first mile is not a race. Anyone a
+       long way behind gets a tow; anyone a long way ahead gets a governor. The
+       band is gentle — up to 14% either way — so it closes the field without
+       ever making a rival feel like it is teleporting. */
+    const lead = (r.z - pos) / MILE;              /* miles ahead of you */
+    const band = clamp(-lead * 0.11, -0.14, 0.14);
+    want *= (1 + band);
+    r.spd += clamp(want - r.spd, -5200*dt, 5600*dt);
     r.z += r.spd*dt;
 
     /* they can put a cruiser out, and be put out by one */
@@ -1306,7 +1352,10 @@ function stepRacers(dt){
       }
     }
   }
-  racers = racers.filter(r => r.z > pos - 14000);
+  /* Do NOT cull. Racers that dropped behind were deleted at 14,000 back, so
+     once you got clear of the field it evaporated and could never catch up —
+     which read as the rivals de-spawning. They stay in the race for the whole
+     twelve miles; only the draw skips them when they are out of view. */
 
   /* placement: how many are still ahead of you */
   let ahead = 0;
@@ -1533,10 +1582,18 @@ function step(dt){
      Engine braking and rolling resistance bleed it off slowly — much gentler
      than the brake, so lifting is a real choice rather than a soft brake. */
   const onGas = gas || nosOn;
+  /* THE COAST EXPLOIT: boost to well past MAX_SPD, then lift, and the car
+     coasted down from 19,200 at the gentle neutral rate — so laying off the
+     throttle was FASTER than using it. Above the natural top speed the car
+     now sheds back to it quickly whatever the pedals are doing; only below
+     that does neutral coast gently. */
+  const overRun = spd > MAX_SPD && !nosOn;
   const top = braking ? BRAKE_SPD
+            : overRun ? MAX_SPD
             : !onGas  ? 0
             : (offRoad ? OFF_SPD : (nosOn ? NOS_SPD : MAX_SPD));
   const rate = braking ? 9000
+             : overRun ? 5200         /* aero drag above the limiter is brutal */
              : !onGas ? 420           /* neutral: it rolls, it does not stop */
              : spd < top ? (nosOn ? 6200 : (spd < MAX_SPD*0.5 ? 5200 : 3000)) * gearFactor()
              : (offRoad ? 11000 : 2400);
@@ -1549,12 +1606,24 @@ function step(dt){
   /* The floor was 1700 — about 22mph — so the car could never actually stop.
      It can now sit still, which is what a brake pedal is for. */
   if(hornCool > 0) hornCool -= dt;
-  /* the slower you are, the more often something comes up behind you */
-  behindT -= dt;
-  if(behindT <= 0){
-    behindT = 1.4 + Math.random()*2.2;
-    if(spd < MAX_SPD*0.75 && traffic.length < 22) spawnBehind();
-  }
+  /* ---- traffic coming up behind ------------------------------------------
+     Only once you have been slower than the flow for a while. A brief lift or
+     a corner should not conjure a car out of nothing; sitting below the
+     traffic's pace for two seconds should. `slowFor` accumulates while you are
+     under the slowest cruising speed out there and resets the moment you are
+     not, so it measures a genuine hold-up rather than an instant.
+     -------------------------------------------------------------------------- */
+  const FLOW = MAX_SPD * 0.42;          /* the slowest thing on the road */
+  if(spd < FLOW) slowFor += dt; else slowFor = 0;
+  if(slowFor > 2){
+    behindT -= dt;
+    if(behindT <= 0){
+      /* the further below the flow you are, the more of it arrives */
+      const deficit = clamp(1 - spd/FLOW, 0, 1);
+      behindT = 2.6 - deficit*1.7;
+      if(traffic.length < 26) spawnBehind();
+    }
+  } else behindT = 0.4;
   if(autoHold > 0) autoHold -= dt;
   if(mode === 'race' && !finished) stepRacers(dt);
   if(!optManual) autoGear();
@@ -1650,7 +1719,12 @@ function step(dt){
     c.z += c.spd*dt;
     c.x += c.drift*60*dt;
     if(Math.abs(c.x - LANE_X[c.lane]) > 0.06) c.drift *= -1;
-    if(c.z < pos - 1200){ traffic.splice(i,1); continue; }
+    /* Cars were culled at 1,200 behind — but spawnBehind drops them in at
+       2,600 to 4,200 back, so every single one was deleted on the very next
+       frame and nothing ever came past. Anything overtaking gets room to
+       actually make the pass before it is cleaned up. */
+    const cullAt = c.fromBehind ? 6000 : 1200;
+    if(c.z < pos - cullAt){ traffic.splice(i,1); continue; }
     const dz = c.z - pz, dx = Math.abs(c.x - playerX);
     const overlap = (c.w + 0.26)/2;
     if(iframe<=0 && Math.abs(dz) < (c.len+380)/2 && dx < overlap){
@@ -2279,15 +2353,11 @@ function drawWorld(){
   items.sort((a,b)=>b.z-a.z);
   for(const it of items){
     if(it.kind==='g'){
-      /* a rival: the coupe body tinted per car, with its number on the boot */
+      /* a rival: your car, in its own paint, with its number on the boot */
       const r = it.o;
-      const box = drawSprite(SP.coupe, r.x, r.z, r.w, r.wreck>0?0.85:1);
+      const box = drawSprite(RIVAL_SP[r.paint] || SP.player, r.x, r.z, r.w,
+                             r.wreck>0?0.85:1);
       if(box){
-        ctx.save();
-        ctx.globalCompositeOperation = 'overlay';
-        ctx.fillStyle = 'hsla(' + r.hue + ',85%,52%,.72)';
-        ctx.fillRect(box.x, box.y - box.h*0.72, box.w, box.h*0.62);
-        ctx.restore();
         if(box.w > 26){
           ctx.save();
           ctx.textAlign = 'center';
@@ -2616,6 +2686,75 @@ function drawFinish(){
   ctx.restore();
 }
 
+/* ---- full-render mirror -------------------------------------------------
+   A second projection pass looking backward: the road receding behind you,
+   with real perspective, and every sprite placed by the same maths as the
+   forward view. Costs a full extra pass — see MIRROR notes in DESIGN.md.
+   -------------------------------------------------------------------------- */
+function drawMirrorFull(mx, my, mw, mh){
+  ctx.save();
+  ctx.beginPath(); ctx.roundRect(mx, my, mw, mh, 5); ctx.clip();
+  /* sky and ground for the reverse view */
+  const sky = ctx.createLinearGradient(mx, my, mx, my+mh*0.42);
+  sky.addColorStop(0,'#101827'); sky.addColorStop(1,'#243247');
+  ctx.fillStyle = sky; ctx.fillRect(mx, my, mw, mh*0.42);
+  ctx.fillStyle = '#191d24'; ctx.fillRect(mx, my+mh*0.42, mw, mh*0.58);
+
+  /* the vanishing point is BEHIND you, so the road opens toward the bottom */
+  const vpx = mx + mw/2, vpy = my + mh*0.42;
+  const SEG = 260, N = 26;
+  let prev = null;
+  for(let i=N;i>=1;i--){
+    const d = i*SEG;
+    const sc = 1 / (1 + d/900);
+    const y = vpy + (mh - mh*0.42) * (1 - sc);
+    const halfW = (mw*0.62) * sc;
+    /* lateral offset: your own lane position shifts the road in the glass */
+    const cx = vpx - (playerX * 0.42) * halfW;
+    if(prev){
+      ctx.fillStyle = (Math.floor((pos - d)/SEG) % 2) ? '#20242c' : '#1b1f26';
+      ctx.beginPath();
+      ctx.moveTo(prev.cx - prev.hw, prev.y); ctx.lineTo(prev.cx + prev.hw, prev.y);
+      ctx.lineTo(cx + halfW, y); ctx.lineTo(cx - halfW, y);
+      ctx.closePath(); ctx.fill();
+      /* lane markings */
+      ctx.strokeStyle = 'rgba(220,210,170,.20)'; ctx.lineWidth = 1;
+      for(let L=1;L<LANES;L++){
+        const f = L/LANES - 0.5;
+        ctx.beginPath();
+        ctx.moveTo(prev.cx + f*prev.hw*2, prev.y);
+        ctx.lineTo(cx + f*halfW*2, y);
+        ctx.stroke();
+      }
+    }
+    prev = { cx, hw:halfW, y };
+  }
+
+  /* everything behind, by the same projection */
+  const back = [];
+  for(const c of traffic){ const d = pos - c.z; if(d>60 && d<N*SEG) back.push({d, x:c.x, kind:'t', o:c}); }
+  for(const k of cops){ if(k.wreck>0) continue; const d = pos - k.z; if(d>60 && d<N*SEG) back.push({d, x:k.x, kind:'k', o:k}); }
+  for(const r of racers){ const d = pos - r.z; if(d>60 && d<N*SEG) back.push({d, x:r.x, kind:'g', o:r}); }
+  back.sort((a,b)=>b.d-a.d);
+  for(const o of back){
+    const sc = 1 / (1 + o.d/900);
+    const y = vpy + (mh - mh*0.42) * (1 - sc);
+    const halfW = (mw*0.62) * sc;
+    const cx = vpx - (playerX*0.42)*halfW + (o.x/1.18)*halfW;
+    const sw = Math.max(2, halfW*0.34), sh = sw*0.66;
+    const img = o.kind==='k' ? SP.cop
+              : o.kind==='g' ? (RIVAL_SP[o.o.paint] || SP.player)
+              : SP[o.o.type];
+    if(img) ctx.drawImage(img, cx - sw/2, y - sh, sw, sh);
+    if(o.kind==='k'){
+      const on = Math.floor(sirenPhase*1.4) % 2;
+      ctx.fillStyle = on ? '#3b6bff' : '#ff2b4a';
+      ctx.fillRect(cx-sw/2, y-sh-2, sw, 2);
+    }
+  }
+  ctx.restore();
+}
+
 function drawMirror(){
   const mw = Math.min(W*0.62, 250), mh = 44;
   const mx = (W - mw)/2, my = 6;
@@ -2630,6 +2769,17 @@ function drawMirror(){
   gl.addColorStop(0,'#141a24'); gl.addColorStop(0.5,'#0e131b'); gl.addColorStop(1,'#0a0e15');
   ctx.fillStyle = gl;
   ctx.beginPath(); ctx.roundRect(mx, my, mw, mh, 5); ctx.fill();
+  if(optMirror === 'FULL'){
+    drawMirrorFull(mx, my, mw, mh);
+    /* the housing sheen still goes on top */
+    const sh2 = ctx.createLinearGradient(mx, my, mx+mw*0.5, my+mh);
+    sh2.addColorStop(0,'rgba(255,255,255,.07)');
+    sh2.addColorStop(0.5,'rgba(255,255,255,0)');
+    ctx.fillStyle = sh2;
+    ctx.beginPath(); ctx.roundRect(mx, my, mw, mh, 5); ctx.fill();
+    ctx.restore();
+    return;
+  }
   ctx.save();
   ctx.beginPath(); ctx.roundRect(mx, my, mw, mh, 5); ctx.clip();
 
@@ -2768,7 +2918,7 @@ function frameLoop(now){
      corrupt the frame. If a real smear is wanted it needs a second offscreen
      canvas, not a self-copy. */
   drawFinish();
-  drawMirror();
+  if(optMirror !== 'OFF') drawMirror();
   drawBust(); hud();
   requestAnimationFrame(frameLoop);
 }
@@ -2871,10 +3021,12 @@ reset();
 if (AR && AR.options) AR.options.define([
   { key:'side',  label:'CONTROLS', type:'cycle', of:['RIGHT','LEFT'],                    def:'RIGHT' },
   { key:'paint', label:'PAINT',    type:'cycle', of:Object.keys(PAINT),                  def:'WHITE' },
-  { key:'manual', label:'MANUAL BOX',  type:'bool',                                      def:false }
+  { key:'manual', label:'MANUAL BOX',  type:'bool',                                      def:false },
+  { key:'mirror', label:'MIRROR',      type:'cycle', of:['FULL','CHEAP','OFF'],           def:'FULL' }
 ], function(key, val){
   if(key === 'side')  document.body.classList.toggle('pedals-left', val === 'LEFT');
   /* the toggle now names what it ADDS, so off is the quiet road */
+  if(key === 'mirror') optMirror = val;
   if(key === 'manual'){
     optManual = !!val;
     const sh = document.getElementById('shifter');
