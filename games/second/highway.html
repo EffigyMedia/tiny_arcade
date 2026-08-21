@@ -4155,12 +4155,26 @@ function buildHillClip(){
 /* is a point at this z hidden behind a crest between here and there? */
 /* the screen y of the crest between here and worldZ, or null if clear */
 function crestY(worldZ){
-  if(!hillClip.length) return null;
-  const n = Math.floor((worldZ - pos)/SEG);
-  if(n < 2 || n >= hillClip.length) return null;
-  return hillClip[n];
+  /* ---- DISABLED, deliberately ------------------------------------------
+     This test was wrong in both directions at once. On a normal road y
+     DECREASES with distance, so `hillClip[n]` — the minimum before n — is
+     always larger than the sprite's own y, and everything far away was being
+     culled. Meanwhile things genuinely behind a crest were not, because the
+     running minimum had already passed them.
+
+     I patched the comparison three times without stepping back to ask whether
+     a single scalar per segment can express "is this hidden", and it cannot:
+     occlusion here needs sprites INTERLEAVED with the road slices, far to
+     near, so the road paints over what is behind it the same way it paints
+     over itself. That is a restructure of the draw loop, not a condition.
+
+     Until then: no clip. Distant things drawing over a hill is a smaller
+     wrong than cars vanishing as they come toward you.
+     -------------------------------------------------------------------- */
+  return null;
 }
 function overBrow(worldZ, screenY){
+  return false;   /* see crestY: the whole test was inverted */
   if(!hillClip.length) return false;
   const n = Math.floor((worldZ - pos)/SEG);
   if(n < 2 || n >= hillClip.length) return false;
@@ -4172,6 +4186,9 @@ function overBrow(worldZ, screenY){
 
 function drawRoad(){
   buildHillClip();
+  /* the LOWEST ground painted so far, walking far to near — it only advances
+     toward the camera, so a slice that has dipped behind a crest is skipped */
+  let groundMax = -1e9;
   const lamp = lampsOn();
   const base = Math.floor(pos/SEG);
   let maxy = H;
@@ -4206,7 +4223,21 @@ function drawRoad(){
     ctx.fillStyle = nAmt > 0.5 ? (dark ? '#12251a' : '#162d1f')
                   : gAmt > 0.25 ? (dark ? '#2f4a2c' : '#395638')
                   : (dark ? grassLo : grassHi);
-    ctx.fillRect(0, y2, W, H - y2);
+    /* ---- CULLED THE RIGHT WAY ROUND -----------------------------------
+       The road walks FAR to NEAR, so y grows as we come forward and each
+       nearer slice should paint over the last. My first cull tested
+       `y2 < groundMin`, which on that walk is true only for the FIRST slice
+       — every nearer one would have been skipped and the road would have
+       vanished behind the horizon fill.
+
+       What actually needs skipping is a slice hidden BEHIND a crest: one
+       whose y has gone back UP relative to the nearest ground painted. So
+       the test is `y2 > groundMax`, and groundMax only ever advances toward
+       the camera. */
+    if(y2 > groundMax){
+      ctx.fillRect(0, y2, W, H - y2);
+      groundMax = y2;
+    }
 
     /* every eighth segment carries a lamp, alternating sides, throwing an
        ellipse of sodium light across the near lanes */
@@ -5266,10 +5297,17 @@ function openVeil(html, go){
       showGarage();
     }));
   veilBody.querySelectorAll('[data-act]').forEach(b => {
+    /* SWATCHES ARE NOT ACTIONS. This hid the veil for EVERY [data-act] button
+       whether or not there was a handler for it — so tapping a colour, which
+       has no entry in `go`, tore the menu down and left the game rendering a
+       state it had never entered: a black screen with the HUD on top.
+       Only a button with a real action closes the menu now. */
+    if(b.dataset.act.indexOf('paint:') === 0) return;
     b.addEventListener('click', () => {
       const fn = go && go[b.dataset.act];
+      if(!fn) return;                 /* no action, no dismissal */
       veil.classList.add('hidden');
-      if(fn) fn();
+      fn();
     });
   });
 }
