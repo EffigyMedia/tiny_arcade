@@ -312,7 +312,18 @@ A.sfx = {
     f.frequency.value = o.cutoff || 900;
     f.Q.value = o.q === undefined ? 0.8 : o.q;
     var g = ctx.createGain(); g.gain.value = 0;
-    osc.connect(f); f.connect(g); g.connect(A.audio.bus(o.bus || 'sfx'));
+    /* Optional stereo placement. Anything that exists at a POSITION in the
+       world — another car passing, a siren going by — needs to move across
+       the ears, not just get louder. */
+    var pan = null;
+    if (o.pan !== undefined && ctx.createStereoPanner){
+      pan = ctx.createStereoPanner();
+      pan.pan.value = o.pan;
+      osc.connect(f); f.connect(g); g.connect(pan);
+      pan.connect(A.audio.bus(o.bus || 'sfx'));
+    } else {
+      osc.connect(f); f.connect(g); g.connect(A.audio.bus(o.bus || 'sfx'));
+    }
     if (o.verb){ var vs = ctx.createGain(); vs.gain.value = o.verb; g.connect(vs); vs.connect(verb); }
     osc.start();
     return {
@@ -323,6 +334,12 @@ A.sfx = {
         if (freq !== undefined)   osc.frequency.setTargetAtTime(Math.max(8, freq), n, k);
         if (level !== undefined)  g.gain.setTargetAtTime(level, n, k);
         if (cutoff !== undefined) f.frequency.setTargetAtTime(Math.max(40, cutoff), n, k);
+      },
+      /* -1 hard left, 0 centre, +1 hard right */
+      place: function(x, glide){
+        if (!ctx || !pan) return;
+        pan.pan.setTargetAtTime(Math.max(-1, Math.min(1, x)),
+                                ctx.currentTime, glide || 0.06);
       },
       stop: function(){ if (!ctx) return; try { g.gain.setTargetAtTime(0, ctx.currentTime, 0.05); osc.stop(ctx.currentTime + 0.4); } catch(e){} }
     };
