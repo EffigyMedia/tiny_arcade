@@ -1007,6 +1007,17 @@ function updateViewShift(){
    its lane position and gets the bend added in projection, so nothing needs to
    know the road is turning. It just is.
    -------------------------------------------------------------------------- */
+/* ---- the two cornering dials ---------------------------------------------
+   CORNER_G  how hard a bend throws you, everything else being equal. The only
+             arbitrary number in the model — raise it if corners feel like
+             scenery, lower it if they feel like ice.
+   CORNER_LAG how quickly the load builds and bleeds as you enter and leave a
+             bend. Higher is snappier, lower is more languid.
+   The force itself is curvature x speed^2, which is real: a corner taken flat
+   at 90 pulls a quarter of what it does at 180.
+   -------------------------------------------------------------------------- */
+const CORNER_G = 0.42, CORNER_LAG = 1.8;
+
 const BEND_STEP = 300;
 let bendCache = [], slopeCache = [], hillCache = [], gradCache = [];
 let bendZ0 = 0, curveSegs = [], hillSegs = [];
@@ -1201,13 +1212,18 @@ const BODY = {
               /* 200mph is the ceiling the whole game is scaled to, so the
                  fastest car sits AT it and the others come down from there —
                  anything above 1.0 was simply clamped and two cars tied. */
+              /* ---- every supercar must out-run a cruiser ------------------------
+                 AI_TOP is 180 and TYPE-L was 172, so a police car could simply
+                 drive away from the thing you had chosen to drive. The slowest
+                 of the three is 188 now: they still differ, but the floor is
+                 above anything else on the road. */
               pull:0.84, vmax:1.00, note:'SLOWER OFF THE LINE \u00B7 HIGHEST TOP END' },
   'TYPE-L': { bodyTop:0.52, cabinTop:0.24, cabW:0.44, cabOff:0.00, roofR:0.02,
               hip:0.105, wing:'high',  nose:0.16, spoiler:true, rear:'L', wide:0.045, arch:1.30,
-              pull:1.24, vmax:0.86, note:'FASTEST OFF THE LINE \u00B7 LOWEST TOP END' },
+              pull:1.24, vmax:0.94, note:'FASTEST OFF THE LINE \u00B7 LOWEST TOP END' },
   'TYPE-P': { bodyTop:0.40, cabinTop:0.10, cabW:0.48, cabOff:0, roofR:0.30,
               hip:0.085, wing:'ducktail', nose:0.24, spoiler:true, rear:'P', wide:0.010, arch:1.15, dome:true,
-              pull:1.02, vmax:0.93, note:'BALANCED' }
+              pull:1.02, vmax:0.97, note:'BALANCED' }
 };
 function bodyStat(k){ return (BODY[optBody] || BODY['TYPE-L'])[k]; }
 let optBody = 'TYPE-L';
@@ -2063,7 +2079,7 @@ function reset(){
   if(typeof knobRail !== 'undefined'){ knobRail=0; knobY=TOP_Y; }
   dmg=0; nos=40; nosOn=false; nosTime=0; bustT=0;
   racers=[]; place=12; finished=false; hasMoved=false;
-  curveSegs=[]; hillSegs=[]; signs=[]; bendZ0=0; bendCache=[]; bendT=0; skySmooth=0; rebuildBend();
+  curveSegs=[]; hillSegs=[]; signs=[]; bendZ0=0; bendCache=[]; bendT=0; skySmooth=0; pushK=0; rebuildBend();
   if(mode === 'race') buildField();
   const pw = document.getElementById('placeWrap');
   if(pw) pw.hidden = (mode !== 'race');
@@ -2348,7 +2364,7 @@ function autoGear(dt){
   } else autoDownT = 0;
 }
 
-let horning = false, hornCool = 0, bustT = 0, behindT = 2, slowFor = 0, audioTick = 0, bendT = 0, skySmooth = 0;
+let horning = false, hornCool = 0, bustT = 0, behindT = 2, slowFor = 0, audioTick = 0, bendT = 0, skySmooth = 0, pushK = 0;
 
 /* ---- rubber on the road --------------------------------------------------
    One system for every car out here. A mark is a short world-space segment at
@@ -3288,10 +3304,26 @@ function step(dt){
      so a hairpin at 200 has to be steered against or it puts you on the verge.
      That is the whole game on a curve.
      ------------------------------------------------------------------------ */
-  const kNow = curvatureAt(pos + PLAYER_Z);
-  if(kNow){
+  /* ---- the push, smoothed --------------------------------------------
+     `curvatureAt()` STEPS between segments, so the car was being shoved by a
+     value that jumped from 0 to 5 in one frame — which is exactly the "mind of
+     its own" feeling. The force is chased rather than read, so it builds as
+     you enter a bend and bleeds off as you leave it, and it is a good deal
+     gentler than the first guess.
+     -------------------------------------------------------------------- */
+  const kWant = curvatureAt(pos + PLAYER_Z);
+  pushK += (kWant - pushK) * Math.min(1, dt * CORNER_LAG);
+  if(Math.abs(pushK) > 0.02){
+    /* Cornering load is curvature times velocity SQUARED — double the speed
+       and a bend pulls four times as hard, which is why a corner you can take
+       flat at 90 will put you on the grass at 180. `CORNER_G` is the only
+       number here that is not physics: it is the feel dial. */
     const v = spd / MAX_SPD;
-    targetX = clamp(targetX + kNow * v * v * dt * 1.35, -1.30, 1.30);
+    /* MINUS. A positive curvature bends the road to the RIGHT, and inertia
+       carries you to the OUTSIDE of that — which is left. Adding it pushed the
+       car around the corner with the road, so a bend helped you instead of
+       costing you, and the car appeared to steer itself into the turn. */
+    targetX = clamp(targetX - pushK * v * v * dt * CORNER_G, -1.30, 1.30);
   }
   stepWheel(dt);
   /* ---- the bottle refills itself -----------------------------------------
@@ -3994,20 +4026,35 @@ let hillClip = [];
 function buildHillClip(){
   const base = Math.floor(pos/SEG);
   hillClip = new Array(DRAW+2);
+  /* THE MINIMUM MUST EXCLUDE THE SEGMENT ITSELF. It was written as the running
+     minimum INCLUDING n, so a sprite's own road height was always equal to the
+     value it was tested against and the test could essentially never fire —
+     which is why everything still drew through the terrain. `hillClip[n]` is
+     now the highest the road has reached BEFORE n, which is what a crest
+     between you and that point actually is. */
   let minY = H;
   for(let n=0; n<=DRAW+1; n++){
+    hillClip[n] = minY;                       /* record BEFORE folding n in */
     const pn = proj(0, (base+n)*SEG);
     if(pn.ok && pn.y < minY) minY = pn.y;
-    hillClip[n] = minY;
   }
 }
-/* is a point at this z visible, or hidden behind a crest? */
+/* is a point at this z hidden behind a crest between here and there? */
+/* the screen y of the crest between here and worldZ, or null if clear */
+function crestY(worldZ){
+  if(!hillClip.length) return null;
+  const n = Math.floor((worldZ - pos)/SEG);
+  if(n < 2 || n >= hillClip.length) return null;
+  return hillClip[n];
+}
 function overBrow(worldZ, screenY){
   if(!hillClip.length) return false;
   const n = Math.floor((worldZ - pos)/SEG);
-  if(n < 0 || n >= hillClip.length) return false;
-  /* a little tolerance so things do not pop at the exact crest line */
-  return screenY < hillClip[n] - 2;
+  if(n < 2 || n >= hillClip.length) return false;
+  /* A generous margin: a hair of tolerance made things flicker in and out as
+     the clip was rebuilt each frame. Half a segment of slack is invisible and
+     stable. */
+  return screenY < hillClip[n] - H*0.012;
 }
 
 function drawRoad(){
@@ -4169,8 +4216,21 @@ function drawSprite(img, worldX, worldZ, worldW, alpha){
   if(w < 1.2 || w > W*3.4) return null;
   const h = w * img.height/img.width;
   if(p.y - h > H || p.y < horizon - h) return null;
-  /* hidden behind a hill between here and there */
-  if(overBrow(worldZ, p.y)) return null;
+  /* CLIP rather than cull. Dropping a whole sprite the instant its base went
+     over a crest is what made cars blink in and out — a car cresting a rise
+     should emerge roof-first, not appear all at once. The visible part is
+     everything below the brow line. */
+  const brow = crestY(worldZ);
+  if(brow !== null && p.y < brow - H*0.012) return null;
+  if(brow !== null && p.y - h < brow){
+    ctx.save();
+    ctx.beginPath(); ctx.rect(0, brow, W, H - brow); ctx.clip();
+    if(alpha!==undefined){ ctx.globalAlpha=alpha; }
+    ctx.drawImage(img, p.x - w/2, p.y - h, w, h);
+    ctx.globalAlpha=1;
+    ctx.restore();
+    return {x:p.x, y:p.y, w, h};
+  }
   if(alpha!==undefined){ ctx.globalAlpha=alpha; }
   ctx.drawImage(img, p.x - w/2, p.y - h, w, h);
   ctx.globalAlpha=1;
