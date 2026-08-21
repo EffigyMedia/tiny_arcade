@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0a0710">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Popshot</title>
+<meta name="arcade-home" content="../../index.html#golden">
+<meta name="arcade-title" content="Popshot">
+<meta name="arcade-accent" content="#ff9ecd">
+<script src="../../audio.js"></script>
+<script src="../../arcade.js"></script>
+<style>
+@font-face{font-family:"Fredoka";font-style:normal;font-weight:300 700;font-display:swap;src:url("../../fonts/fredoka-var.woff2") format("woff2")}
+@font-face{font-family:"Space Mono";font-style:normal;font-weight:400;font-display:swap;src:url("../../fonts/spacemono-400.woff2") format("woff2")}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;overflow:hidden;background:#0a0710;
+  font-family:"Space Mono",ui-monospace,monospace;color:#f0e2f2;
+  user-select:none;-webkit-user-select:none}
+#stage{position:fixed;inset:0;display:flex;flex-direction:column;padding-top:var(--safe-top,0px)}
+#head{flex:none;display:flex;justify-content:space-between;align-items:baseline;
+  padding:9px 14px 5px;font-size:9px;letter-spacing:.20em;color:#8a6f90}
+#head b{font-size:17px;color:#ff9ecd;font-weight:700;font-variant-numeric:tabular-nums}
+#wrap{flex:1;position:relative;display:grid;place-items:center;min-height:0;
+  padding:0 6px calc(6px + var(--safe-bot,0px))}
+#board{display:block;touch-action:none;border-radius:2px;
+  box-shadow:0 0 0 1px #241830, 0 18px 50px -20px #000}
+#veil{position:fixed;inset:0;background:rgba(9,6,14,.95);display:grid;place-items:center;
+  padding:26px;text-align:center;z-index:40}
+#veil.hidden{display:none}
+#veilBody{max-width:330px;width:100%}
+.eyebrow{font-size:9px;letter-spacing:.26em;color:#ff9ecd;margin-bottom:9px}
+h1{font-family:"Fredoka",sans-serif;font-size:42px;font-weight:600;margin:0;
+  letter-spacing:-.02em;line-height:1;color:#fdeef7}
+h1 em{display:block;font-family:"Space Mono",monospace;font-size:9.5px;font-style:normal;
+  font-weight:400;letter-spacing:.24em;color:#8a6f90;margin-top:9px}
+.tmenu{display:flex;flex-direction:column;gap:8px;max-width:240px;margin:24px auto 0}
+.btn{padding:14px 0;width:100%;border:0;border-radius:3px;cursor:pointer;font:inherit;
+  font-size:11.5px;letter-spacing:.18em;background:#ff9ecd;color:#24081a}
+.btn.ghost{background:transparent;color:#ff9ecd;border:1px solid rgba(255,158,205,.34)}
+.btn:active{opacity:.85}
+.ctrls{margin:16px auto 0;max-width:290px}
+.crow{display:flex;justify-content:space-between;gap:12px;align-items:baseline;padding:7px 2px;
+  border-bottom:1px solid rgba(255,255,255,.07);font-size:12px;text-align:left}
+.crow b{font-weight:600;white-space:nowrap}
+.crow i{font-style:normal;color:#ab93b3;text-align:right}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:18px}
+.gc{border:1px solid #2c2038;border-radius:3px;padding:9px}
+.gc span{display:block;font-size:8px;letter-spacing:.18em;color:#8a6f90}
+.gc b{display:block;font-size:17px;margin-top:3px;font-variant-numeric:tabular-nums}
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="head">
+    <div>SCORE <b id="sc">0</b></div>
+    <div>LEVEL <b id="lvl">1</b></div>
+    <div>TO DROP <b id="dr">6</b></div>
+  </div>
+  <div id="wrap"><canvas id="board"></canvas></div>
+</div>
+<div id="veil"><div id="veilBody"></div></div>
+<script>
+(function(){
+"use strict";
+const AR = window.Arcade, $ = id => document.getElementById(id);
+const cv = $('board'), g = cv.getContext('2d');
+const veil = $('veil'), veilBody = $('veilBody');
+
+/* hex-offset grid: odd rows are inset by half a cell */
+const COLS = 9, ROWS = 14, R = 15;            /* R = bubble radius */
+const CW = R*2, RH = R*1.74;
+const W = COLS*CW + R, H = 460;
+const FLOOR = H - 46;
+let S = 1;
+
+let grid, shooter, flying, next, state, score, level, best;
+let shots, dropIn, ceiling, pops, drops, aim, runs = 0, shakeT = 0;
+
+/* Thin-film colours: these are interference tints, not fills — greens and
+   magentas of a soap bubble rather than primaries. */
+const TINTS = [
+  { a:'#ff9ecd', b:'#ffd9ec', n:'rose'   },
+  { a:'#7ee8d0', b:'#d4fff4', n:'mint'   },
+  { a:'#9fb4ff', b:'#dfe6ff', n:'iris'   },
+  { a:'#ffd98a', b:'#fff2cf', n:'amber'  },
+  { a:'#c99cff', b:'#eddcff', n:'violet' },
+  { a:'#8ae0ff', b:'#d6f4ff', n:'sky'    }
+];
+
+const key = (c,r) => r*COLS + c;
+const inset = r => (r % 2) ? R : 0;
+const cellX = (c,r) => R + inset(r) + c*CW;
+const cellY = r => R + 6 + r*RH + ceiling*RH;
+
+function paletteFor(){
+  /* the colour set shrinks to what is actually left, so the endgame is
+     solvable rather than a lottery */
+  const live = new Set();
+  for(const k in grid) if(grid[k]) live.add(grid[k].t);
+  const n = Math.min(TINTS.length, 3 + Math.floor(level/2));
+  const pool = live.size ? [...live] : [0,1,2];
+  return pool.length >= 2 ? pool : [0,1,2].slice(0, Math.max(2, n));
+}
+function pick(){ const p = paletteFor(); return p[(Math.random()*p.length)|0]; }
+
+function buildLevel(){
+  grid = {};
+  ceiling = 0;
+  const rows = 4 + Math.min(4, Math.floor(level/2));
+  const n = Math.min(TINTS.length, 3 + Math.floor(level/2));
+  for(let r=0;r<rows;r++){
+    const wide = COLS - (r%2 ? 1 : 0);
+    for(let c=0;c<wide;c++){
+      if(level > 2 && Math.random() < 0.12) continue;   /* gaps to bank into */
+      grid[key(c,r)] = { t: (Math.random()*n)|0, pop:0, x:0, y:0 };
+    }
+  }
+  shots = 0;
+  dropIn = Math.max(4, 8 - Math.floor(level/2));
+  shooter = { t: pick(), a: -Math.PI/2 };
+  next = pick();
+  flying = null; pops = []; drops = []; aim = null;
+  paintHud();
+}
+
+function reset(){ score=0; level=1; buildLevel(); }
+
+/* ---- firing ------------------------------------------------------------ */
+function fire(a){
+  if(flying || state!=='play') return;
+  const sp = 7.4;
+  flying = { x: W/2, y: FLOOR, vx: Math.cos(a)*sp, vy: Math.sin(a)*sp, t: shooter.t };
+  shooter.t = next; next = pick();
+  snd.shoot();
+}
+
+function settle(){
+  /* snap to the nearest empty cell that touches something */
+  let bc=-1, br=-1, bd=1e9;
+  for(let r=0;r<ROWS;r++){
+    const wide = COLS - (r%2 ? 1 : 0);
+    for(let c=0;c<wide;c++){
+      if(grid[key(c,r)]) continue;
+      const d = Math.hypot(cellX(c,r)-flying.x, cellY(r)-flying.y);
+      if(d < bd){ bd=d; bc=c; br=r; }
+    }
+  }
+  if(bc < 0){ flying=null; return; }
+  grid[key(bc,br)] = { t: flying.t, pop:0 };
+  const t = flying.t;
+  flying = null;
+  snd.stick();
+
+  const group = flood(bc, br, t);
+  if(group.length >= 3){
+    let i = 0;
+    for(const k of group){
+      const [c,r] = unkey(k);
+      pops.push({ x:cellX(c,r), y:cellY(r), t:1, tint:grid[k].t, d:i*0.035 });
+      delete grid[k];
+      i++;
+    }
+    score += group.length * 10 * level;
+    snd.pop(group.length);
+    /* THE ORPHANS: anything no longer hanging from the ceiling falls, and
+       that is where the real scores are — a bank shot that cuts a support
+       can bring down twenty. */
+    const orphans = findOrphans();
+    if(orphans.length){
+      let j = 0;
+      for(const k of orphans){
+        const [c,r] = unkey(k);
+        drops.push({ x:cellX(c,r), y:cellY(r), vy: 0.4 + j*0.02,
+                     vx:(Math.random()-0.5)*1.2, tint:grid[k].t, rot:0,
+                     spin:(Math.random()-0.5)*0.2 });
+        delete grid[k];
+        j++;
+      }
+      score += orphans.length * 40 * level;
+      snd.cascade(orphans.length);
+      shakeT = 0.35;
+    }
+  } else {
+    shots++;
+    if(shots >= dropIn){ shots = 0; descend(); }
+  }
+  paintHud();
+  if(!Object.keys(grid).length){ levelClear(); return; }
+  /* the wall reaching the shooter ends it */
+  for(const k in grid){
+    const [,r] = unkey(k);
+    if(cellY(r) > FLOOR - R*1.6){ gameOver(); return; }
+  }
+}
+
+const unkey = k => { const n=+k; return [n%COLS, (n/COLS)|0]; };
+
+function neighbours(c, r){
+  const odd = r % 2;
+  const out = [[c-1,r],[c+1,r],
+               [c-1+odd, r-1],[c+odd, r-1],
+               [c-1+odd, r+1],[c+odd, r+1]];
+  return out.filter(([cc,rr]) => cc>=0 && rr>=0 && rr<ROWS && cc < COLS-(rr%2?1:0));
+}
+function flood(c, r, t){
+  const seen = new Set(), out = [], stack = [[c,r]];
+  while(stack.length){
+    const [cc,rr] = stack.pop();
+    const k = key(cc,rr);
+    if(seen.has(k)) continue;
+    seen.add(k);
+    const cell = grid[k];
+    if(!cell || cell.t !== t) continue;
+    out.push(k);
+    for(const [nc,nr] of neighbours(cc,rr)) stack.push([nc,nr]);
+  }
+  return out;
+}
+function findOrphans(){
+  /* anything reachable from the top row is safe; everything else drops */
+  const safe = new Set(), stack = [];
+  for(let c=0;c<COLS;c++) if(grid[key(c,0)]) stack.push([c,0]);
+  while(stack.length){
+    const [c,r] = stack.pop();
+    const k = key(c,r);
+    if(safe.has(k) || !grid[k]) continue;
+    safe.add(k);
+    for(const [nc,nr] of neighbours(c,r)) if(grid[key(nc,nr)]) stack.push([nc,nr]);
+  }
+  return Object.keys(grid).filter(k => !safe.has(+k)).map(Number);
+}
+
+function descend(){
+  ceiling += 1;
+  snd.clunk();
+  shakeT = 0.3;
+}
+function levelClear(){
+  level++; score += 1000 * level;
+  snd.clear();
+  buildLevel();
+}
+
+/* ---- step -------------------------------------------------------------- */
+function step(dt){
+  if(state!=='play') return;
+  const k = Math.min(2.4, dt*60);
+  if(shakeT > 0) shakeT -= dt;
+
+  if(flying){
+    flying.x += flying.vx*k; flying.y += flying.vy*k;
+    /* the walls bounce — banking is the expert move */
+    if(flying.x < R){ flying.x = R; flying.vx = Math.abs(flying.vx); snd.wall(); }
+    if(flying.x > W-R){ flying.x = W-R; flying.vx = -Math.abs(flying.vx); snd.wall(); }
+    if(flying.y < cellY(0)-R*0.4){ settle(); }
+    else {
+      for(const kk in grid){
+        const [c,r] = unkey(kk);
+        if(Math.hypot(cellX(c,r)-flying.x, cellY(r)-flying.y) < R*1.72){ settle(); break; }
+      }
+    }
+  }
+
+  for(let i=pops.length-1;i>=0;i--){
+    const p = pops[i];
+    if(p.d > 0){ p.d -= dt; continue; }
+    p.t -= dt*2.4;
+    if(p.t<=0) pops.splice(i,1);
+  }
+  for(let i=drops.length-1;i>=0;i--){
+    const d = drops[i];
+    d.vy += 0.07*k; d.y += d.vy*k*2.2; d.x += d.vx*k; d.rot += d.spin*k;
+    if(d.y > H+30) drops.splice(i,1);
+  }
+}
+
+/* ---- audio ------------------------------------------------------------- */
+const MAJ = [0,4,7,12,7,4];
+const snd = {
+  tick(stp, t){
+    if(!AR || state !== 'play') return;
+    /* the one cheerful machine on the floor */
+    const base = 262;
+    if(stp % 2 === 0)
+      AR.sfx.tone({ t, freq: base * Math.pow(2, MAJ[(stp/2) % 6]/12) / 2,
+                    dur:0.10, type:'triangle', gain:0.038, attack:0.005,
+                    cutoff:2200, bus:'music' });
+    if(stp % 8 === 0)
+      AR.sfx.tone({ t, freq: base/4, dur:0.26, type:'sine', gain:0.055,
+                    attack:0.006, bus:'music' });
+    if(stp % 8 === 4)
+      AR.sfx.tone({ t, freq: base/4*1.5, dur:0.22, type:'sine', gain:0.040,
+                    attack:0.006, bus:'music' });
+  },
+  shoot(){ if(AR) AR.sfx.tone({ freq:520, to:900, dur:0.09, type:'sine', gain:0.05 }); },
+  wall(){ if(AR) AR.sfx.tone({ freq:700, dur:0.035, type:'sine', gain:0.035 }); },
+  stick(){ if(AR) AR.sfx.tone({ freq:400, to:520, dur:0.07, type:'sine', gain:0.045 }); },
+  pop(n){ if(!AR) return;
+    for(let i=0;i<Math.min(n,8);i++)
+      AR.sfx.tone({ t:AR.audio.now()+i*0.045, freq: 660*Math.pow(1.12,i),
+                    dur:0.13, type:'sine', gain:0.055, verb:0.3 }); },
+  cascade(n){ if(!AR) return;
+    for(let i=0;i<Math.min(n,12);i++)
+      AR.sfx.tone({ t:AR.audio.now()+i*0.055, freq: 880*Math.pow(0.94,i),
+                    dur:0.20, type:'sine', gain:0.05, verb:0.5 }); },
+  clunk(){ if(AR){ AR.sfx.noise({ freq:200, to:70, dur:0.24, gain:0.075, filter:'lowpass' });
+                   AR.sfx.tone({ freq:98, to:60, dur:0.26, type:'triangle', gain:0.05 }); } },
+  clear(){ if(!AR) return; [0,4,7,12,16,19].forEach((n,i) =>
+    AR.sfx.tone({ t:AR.audio.now()+i*0.08, freq:262*Math.pow(2,n/12), dur:0.36,
+                  type:'sine', gain:0.065, verb:0.5 })); },
+  over(){ if(AR) AR.sfx.tone({ freq:300, to:70, dur:0.9, type:'sine', gain:0.08, verb:0.4 }); }
+};
+
+/* ---- draw: soap and light ----------------------------------------------- */
+function fit(){
+  const wrap = $('wrap');
+  S = Math.min((wrap.clientWidth-4)/W, (wrap.clientHeight-4)/H);
+  const dpr = Math.min(2, window.devicePixelRatio||1);
+  cv.width=Math.round(W*S*dpr); cv.height=Math.round(H*S*dpr);
+  cv.style.width=(W*S)+'px'; cv.style.height=(H*S)+'px';
+  g.setTransform(dpr*S,0,0,dpr*S,0,0);
+  draw();
+}
+function fitTight(){
+  fit();
+  for(let i=0;i<6;i++){
+    const r = cv.getBoundingClientRect();
+    if(r.right <= window.innerWidth && r.bottom <= $('wrap').getBoundingClientRect().bottom+1) break;
+    S *= 0.97;
+    const dpr = Math.min(2, window.devicePixelRatio||1);
+    cv.width=Math.round(W*S*dpr); cv.height=Math.round(H*S*dpr);
+    cv.style.width=(W*S)+'px'; cv.style.height=(H*S)+'px';
+    g.setTransform(dpr*S,0,0,dpr*S,0,0);
+  }
+  draw();
+}
+
+/* a thin-film sphere: the colour comes from a sweep across the surface, not
+   from a flat fill, and the rim is brighter than the middle */
+function bubble(x, y, t, rad, alpha){
+  const tint = TINTS[t % TINTS.length];
+  g.save();
+  if(alpha !== undefined) g.globalAlpha = alpha;
+  const body = g.createRadialGradient(x - rad*0.34, y - rad*0.38, rad*0.05, x, y, rad);
+  body.addColorStop(0,    'rgba(255,255,255,.85)');
+  body.addColorStop(0.28, tint.b);
+  body.addColorStop(0.62, tint.a);
+  body.addColorStop(0.88, tint.a);
+  body.addColorStop(1,    'rgba(255,255,255,.55)');
+  g.fillStyle = body;
+  g.beginPath(); g.arc(x,y,rad,0,6.2832); g.fill();
+  /* the interference band: a second hue swept across one side */
+  const band = g.createLinearGradient(x-rad, y+rad*0.3, x+rad*0.6, y-rad*0.7);
+  band.addColorStop(0,   'rgba(255,255,255,0)');
+  band.addColorStop(0.5, 'rgba(255,255,255,.20)');
+  band.addColorStop(1,   'rgba(255,255,255,0)');
+  g.fillStyle = band;
+  g.beginPath(); g.arc(x,y,rad,0,6.2832); g.fill();
+  /* rim */
+  g.strokeStyle='rgba(255,255,255,.55)'; g.lineWidth=1;
+  g.beginPath(); g.arc(x,y,rad-0.6,0,6.2832); g.stroke();
+  /* the highlight */
+  g.fillStyle='rgba(255,255,255,.9)';
+  g.beginPath(); g.ellipse(x-rad*0.34, y-rad*0.40, rad*0.20, rad*0.13, -0.6, 0, 6.2832); g.fill();
+  g.restore();
+}
+
+function draw(){
+  g.save();
+  if(shakeT > 0) g.translate((Math.random()-0.5)*3, (Math.random()-0.5)*3);
+  g.fillStyle='#0d0916'; g.fillRect(-4,-4,W+8,H+8);
+  /* a wash of light behind the wall */
+  const bg = g.createRadialGradient(W/2, 40, 10, W/2, 40, H*0.9);
+  bg.addColorStop(0,'rgba(255,158,205,.06)'); bg.addColorStop(1,'rgba(255,158,205,0)');
+  g.fillStyle=bg; g.fillRect(0,0,W,H);
+
+  /* the ceiling it hangs from */
+  g.fillStyle='rgba(255,255,255,.10)';
+  g.fillRect(0, ceiling*RH, W, 4);
+
+  for(const k in grid){
+    const [c,r] = unkey(k);
+    bubble(cellX(c,r), cellY(r), grid[k].t, R-1);
+  }
+
+  for(const d of drops) bubble(d.x, d.y, d.tint, R-1, 0.85);
+
+  /* pops burst into droplets rather than fading */
+  for(const p of pops){
+    if(p.d > 0) continue;
+    const q = 1 - Math.max(0,p.t);
+    const tint = TINTS[p.tint % TINTS.length];
+    for(let i=0;i<7;i++){
+      const a = i*0.897;
+      const dd = q * R*1.7;
+      g.globalAlpha = Math.max(0, p.t);
+      g.fillStyle = tint.b;
+      g.beginPath();
+      g.arc(p.x+Math.cos(a)*dd, p.y+Math.sin(a)*dd, Math.max(0.5, 3*(1-q)), 0, 6.2832);
+      g.fill();
+    }
+    g.globalAlpha = 1;
+  }
+
+  if(flying) bubble(flying.x, flying.y, flying.t, R-1);
+
+  /* the aim line, with its bounce previewed */
+  if(aim && !flying){
+    const pts = trace(aim);
+    g.strokeStyle='rgba(255,255,255,.30)'; g.lineWidth=1.4;
+    g.setLineDash([2,7]);
+    g.beginPath(); g.moveTo(W/2, FLOOR);
+    for(const p of pts) g.lineTo(p.x, p.y);
+    g.stroke(); g.setLineDash([]);
+    const end = pts[pts.length-1];
+    if(end){
+      g.strokeStyle='rgba(255,255,255,.45)'; g.lineWidth=1;
+      g.beginPath(); g.arc(end.x, end.y, R-2, 0, 6.2832); g.stroke();
+    }
+  }
+
+  /* the shooter and what is loaded next */
+  g.fillStyle='rgba(255,255,255,.10)';
+  g.fillRect(0, FLOOR+R*0.8, W, H-FLOOR);
+  bubble(W/2, FLOOR, shooter.t, R-1);
+  g.globalAlpha = 0.55;
+  bubble(W/2 - R*2.6, FLOOR + 4, next, R*0.66);
+  g.globalAlpha = 1;
+  g.fillStyle='rgba(240,226,242,.45)';
+  g.font='7px "Space Mono", monospace'; g.textAlign='center';
+  g.fillText('NEXT', W/2 - R*2.6, FLOOR + R + 12);
+
+  g.restore();
+}
+
+/* where the shot will go, including one bounce off each wall */
+function trace(a){
+  let x = W/2, y = FLOOR, vx = Math.cos(a)*7.4, vy = Math.sin(a)*7.4;
+  const pts = [];
+  for(let i=0;i<260;i++){
+    x += vx; y += vy;
+    if(x < R){ x = R; vx = Math.abs(vx); pts.push({x,y}); }
+    if(x > W-R){ x = W-R; vx = -Math.abs(vx); pts.push({x,y}); }
+    if(y < cellY(0)-R*0.4){ pts.push({x,y}); break; }
+    let hit = false;
+    for(const kk in grid){
+      const [c,r] = unkey(kk);
+      if(Math.hypot(cellX(c,r)-x, cellY(r)-y) < R*1.72){ hit = true; break; }
+    }
+    if(hit){ pts.push({x,y}); break; }
+  }
+  if(!pts.length) pts.push({x,y});
+  return pts;
+}
+
+function paintHud(){
+  $('sc').textContent=score.toLocaleString();
+  $('lvl').textContent=level;
+  $('dr').textContent=Math.max(0, dropIn - shots);
+}
+
+let last=0;
+function frame(now){
+  requestAnimationFrame(frame);
+  const dt=Math.min(0.05,(now-last)/1000)||0; last=now;
+  step(dt); draw();
+}
+
+/* ---- state ------------------------------------------------------------- */
+function start(){
+  runs++; reset(); state='play'; veil.classList.add('hidden'); fitTight();
+  if(AR && AR.music){ AR.music.stop(); AR.music.start(126, 4, snd.tick); }
+}
+function gameOver(){
+  state='over';
+  if(AR && AR.music) AR.music.stop();
+  snd.over();
+  const sv = AR&&AR.save ? AR.save.get('popshot') : null;
+  best = Math.max((sv&&sv.best)||0, score);
+  if(AR && AR.save) AR.save.merge('popshot', { best, level, label:'BEST '+best.toLocaleString() });
+  showOver();
+}
+
+function openVeil(html, acts){
+  veilBody.innerHTML=html; veil.classList.remove('hidden');
+  veilBody.querySelectorAll('[data-act]').forEach(b =>
+    b.addEventListener('click', ()=>{ const fn=acts&&acts[b.dataset.act]; if(fn) fn(); }));
+}
+function showTitle(){
+  state='title';
+  openVeil('<h1>Popshot</h1>' +
+    '<div class="tmenu">' +
+      '<button class="btn" data-act="play">PLAY</button>' +
+      '<button class="btn ghost" data-act="opts">OPTIONS</button>' +
+      '<button class="btn ghost" data-act="quit">QUIT</button>' +
+    '</div>', { play:start, opts:showOptions, quit:()=>{ if(AR&&AR.home) AR.home(); } });
+}
+function showOptions(){
+  openVeil('<div class="eyebrow">POPSHOT</div><h1>Options</h1>' +
+    '<div class="tmenu">' +
+      '<button class="btn ghost" data-act="ctrl">CONTROLS</button>' +
+      '<button class="btn" data-act="back">BACK</button>' +
+    '</div>', { ctrl:showControls, back:showTitle });
+}
+function showControls(){
+  const touch=!!(AR&&AR.touch);
+  const rows=[
+    [touch?'Drag to aim':'Drag, or arrow keys','the dotted line shows the bounce'],
+    [touch?'Let go':'Release, or space','fire'],
+    ['Three of a colour','pops them'],
+    ['Anything left hanging on nothing','falls, and pays four times more'],
+    ['The wall comes down','every few shots that do not pop']
+  ];
+  openVeil('<div class="eyebrow">'+(touch?'TOUCH':'POINTER')+'</div><h1>Controls</h1>' +
+    '<div class="ctrls">'+rows.map(r=>'<div class="crow"><b>'+r[0]+'</b><i>'+r[1]+'</i></div>').join('')+'</div>' +
+    '<button class="btn" data-act="back" style="margin-top:16px">BACK</button>', { back:showOptions });
+}
+function showOver(){
+  openVeil('<div class="eyebrow">IT REACHED THE BOTTOM</div>' +
+    '<h1>'+score.toLocaleString()+'<em>FINAL SCORE</em></h1>' +
+    '<div class="grid2">' +
+      '<div class="gc"><span>LEVEL</span><b>'+level+'</b></div>' +
+      '<div class="gc"><span>BEST</span><b>'+best.toLocaleString()+'</b></div>' +
+    '</div>' +
+    '<div class="tmenu">' +
+      '<button class="btn" data-act="again">PLAY AGAIN</button>' +
+      '<button class="btn ghost" data-act="title">TITLE</button>' +
+    '</div>', { again:start, title:showTitle });
+}
+
+/* ---- input ------------------------------------------------------------- */
+const toLocal=(cx,cy)=>{ const r=cv.getBoundingClientRect(); return {x:(cx-r.left)/S,y:(cy-r.top)/S}; };
+function angleTo(p){
+  let a = Math.atan2(p.y - FLOOR, p.x - W/2);
+  /* never let it fire sideways or down */
+  const lim = 0.30;
+  if(a > -lim) a = -lim;
+  if(a < -Math.PI + lim) a = -Math.PI + lim;
+  return a;
+}
+cv.addEventListener('pointerdown', e => {
+  if(state!=='play') return;
+  cv.setPointerCapture(e.pointerId);
+  aim = angleTo(toLocal(e.clientX, e.clientY));
+});
+cv.addEventListener('pointermove', e => {
+  if(aim === null || aim === undefined || state!=='play') return;
+  aim = angleTo(toLocal(e.clientX, e.clientY));
+});
+function release(){ if(aim !== null && aim !== undefined && state==='play'){ fire(aim); } aim = null; }
+cv.addEventListener('pointerup', release);
+cv.addEventListener('pointercancel', ()=>{ aim=null; });
+
+let kAim = -Math.PI/2;
+window.addEventListener('keydown', e => {
+  if(state!=='play'){
+    if(e.key==='Enter'||e.key===' '){ const b=veilBody.querySelector('.btn'); if(b){ e.preventDefault(); b.click(); } }
+    return;
+  }
+  if(e.key==='ArrowLeft'){ e.preventDefault(); kAim=Math.max(-Math.PI+0.30, kAim-0.07); aim=kAim; }
+  else if(e.key==='ArrowRight'){ e.preventDefault(); kAim=Math.min(-0.30, kAim+0.07); aim=kAim; }
+  else if(e.key===' '){ e.preventDefault(); fire(kAim); aim=null; }
+});
+if(AR && AR.pad) AR.pad.onPress(name => {
+  if(AR.paused&&AR.paused()) return;
+  if(state!=='play'){ if(name==='a'||name==='start'){ const b=veilBody.querySelector('.btn'); if(b) b.click(); } return; }
+  if(name==='a') fire(kAim);
+});
+setInterval(() => {
+  if(!AR || !AR.pad || !AR.pad.connected || !AR.pad.connected()) return;
+  if(state!=='play') return;
+  if(AR.pad.down('left')){ kAim=Math.max(-Math.PI+0.30, kAim-0.05); aim=kAim; }
+  if(AR.pad.down('right')){ kAim=Math.min(-0.30, kAim+0.05); aim=kAim; }
+}, 16);
+
+if(AR && AR.onRestart) AR.onRestart(start);
+window.addEventListener('resize', fitTight);
+if(window.ResizeObserver) new ResizeObserver(fitTight).observe($('wrap'));
+
+const sv0 = AR&&AR.save ? AR.save.get('popshot') : null;
+best=(sv0&&sv0.best)||0;
+reset(); fit(); showTitle();
+requestAnimationFrame(()=>{ fitTight(); setTimeout(fitTight,200); });
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

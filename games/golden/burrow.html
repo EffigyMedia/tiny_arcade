@@ -12,11 +12,11 @@
 <script src="../../audio.js"></script>
 <script src="../../arcade.js"></script>
 <style>
-@font-face{font-family:"Chivo Mono";font-style:normal;font-weight:100 900;font-display:swap;src:url("../../fonts/chivomono-var.woff2") format("woff2")}
-@font-face{font-family:"Syne";font-style:normal;font-weight:400 800;font-display:swap;src:url("../../fonts/syne-var.woff2") format("woff2")}
+@font-face{font-family:"Anton";font-style:normal;font-weight:400;font-display:swap;src:url("../../fonts/anton-400.woff2") format("woff2")}
+@font-face{font-family:"Cutive Mono";font-style:normal;font-weight:400;font-display:swap;src:url("../../fonts/cutivemono-400.woff2") format("woff2")}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;height:100%;overflow:hidden;background:#140f0a;
-  font-family:"Chivo Mono",ui-monospace,monospace;color:#e8dcc8;
+  font-family:"Cutive Mono",ui-monospace,monospace;color:#e8dcc8;
   user-select:none;-webkit-user-select:none}
 #stage{position:fixed;inset:0;display:flex;flex-direction:column;padding-top:var(--safe-top,0px)}
 #head{flex:none;display:flex;justify-content:space-between;align-items:baseline;
@@ -31,9 +31,9 @@ html,body{margin:0;height:100%;overflow:hidden;background:#140f0a;
 #veil.hidden{display:none}
 #veilBody{max-width:330px;width:100%}
 .eyebrow{font-size:9px;letter-spacing:.26em;color:#e0a458;margin-bottom:9px}
-h1{font-family:"Syne",sans-serif;font-size:42px;font-weight:800;margin:0;
+h1{font-family:"Anton",sans-serif;font-size:42px;font-weight:800;margin:0;
   letter-spacing:-.02em;line-height:1;color:#f6ecd8}
-h1 em{display:block;font-family:"Chivo Mono",monospace;font-size:9.5px;font-style:normal;
+h1 em{display:block;font-family:"Cutive Mono",monospace;font-size:9.5px;font-style:normal;
   font-weight:400;letter-spacing:.24em;color:#8a7455;margin-top:9px}
 .tmenu{display:flex;flex-direction:column;gap:8px;max-width:240px;margin:24px auto 0}
 .btn{padding:14px 0;width:100%;border:0;border-radius:3px;cursor:pointer;font:inherit;
@@ -76,7 +76,7 @@ let S = 1;
 
 let soil, you, foes, rocks, pump, state;
 let score, lives, level, best, runs = 0, deadT = 0, clearT = 0;
-let dust, moving = 0;
+let dust, moving = 0, grace = 0;
 
 /* ---- the section --------------------------------------------------------
    Four strata. Colour and grain differ per band, so depth is legible at a
@@ -115,8 +115,20 @@ function buildLevel(){
   foes = [];
   const n = Math.min(7, 3 + level);
   for(let i=0;i<n;i++){
-    const r = SKY + 3 + ((i*4 + level*2) % (ROWS-SKY-4));
-    const c = 1 + ((i*6 + level*5) % (COLS-2));
+    /* Foes were placed as close as one cell from the start, so you died before
+       you had dug anything — two lives inside three seconds. Nothing spawns
+       within five cells of where you come in. */
+    let r, c, tries = 0;
+    do {
+      r = SKY + 3 + ((i*4 + level*2 + tries*3) % (ROWS-SKY-4));
+      c = 1 + ((i*6 + level*5 + tries*5) % (COLS-2));
+      tries++;
+      /* Straight-line distance from the entry cell was the wrong test: you
+         come in at the surface and dig DOWN, so a foe five rows below is
+         "far away" and still directly in your path. Keep the whole entry
+         column clear for the first several rows as well. */
+    } while(tries < 40 && (Math.hypot(c - you.c, r - you.r) < 5 ||
+                           (c === you.c && r < you.r + 8)));
     soil[idx(c,r)] = 0;
     foes.push({ c, r, x:c*U, y:r*U, kind: i%3===2 ? 'wisp' : 'grub',
                 mc:c, mr:r, t:0, ghost:0, frust:0, alive:true, breath:2.5+Math.random()*3, flame:0,
@@ -129,10 +141,16 @@ function buildLevel(){
     const c = 1 + ((i*5 + level*7) % (COLS-2));
     const r = SKY + 2 + ((i*3 + level) % (ROWS-SKY-6));
     if(!solid(c,r)) continue;
+    /* never directly above the column you come in on: you dig straight down
+       at the start, which undermines it and drops it on your own head */
+    if(c === 7 && r < SKY + 6) continue;
     rocks.push({ c, r, y:r*U, falling:false, vy:0, settled:true, shake:0 });
   }
 
   pump = null; dust = []; deadT = 0; clearT = 0;
+  /* and a moment of grace on arrival, so a wisp already mid-ghost cannot
+     walk into you before the first frame is drawn */
+  grace = 1.4;
 }
 
 function reset(){
@@ -203,6 +221,7 @@ function step(dt){
   }
 
   if(moving > 0) moving -= dt;
+  if(grace > 0) grace -= dt;
 
   /* pumping */
   if(pump){
@@ -248,6 +267,9 @@ function step(dt){
   /* foes */
   for(const f of foes){
     if(!f.alive || f.pumping) continue;
+    /* They were pathing toward you THROUGHOUT the grace period and arriving the
+       instant it expired, so the grace bought nothing. They hold while it runs. */
+    if(grace > 0){ f.x = f.c*U; f.y = f.r*U; continue; }
     f.t -= dt;
     if(f.t <= 0){
       f.t = f.ghost > 0 ? 0.34 : (0.30 - level*0.008);
@@ -278,7 +300,8 @@ function step(dt){
         }
       }
     }
-    if(f.dead <= 0 && Math.abs(f.x - you.x) < U*0.7 && Math.abs(f.y - you.y) < U*0.7) die();
+    if(grace <= 0 && f.dead <= 0 &&
+       Math.abs(f.x - you.x) < U*0.7 && Math.abs(f.y - you.y) < U*0.7) die();
   }
 
   /* rocks */
@@ -302,7 +325,7 @@ function step(dt){
         snd.crush();
       }
     }
-    if(deadT<=0 && you.c===rk.c && Math.abs(you.y - rk.y) < U*0.8) die();
+    if(deadT<=0 && grace<=0 && you.c===rk.c && Math.abs(you.y - rk.y) < U*0.8) die();
     if(solid(rk.c, landRow+1) || landRow+1 >= ROWS){
       rk.r = landRow; rk.y = landRow*U; rk.falling = false;
       soil[idx(rk.c, rk.r)] = 0;
@@ -451,7 +474,7 @@ function draw(){
 
   /* stratum labels down the left, as on a section drawing */
   g.save();
-  g.font='7px "Chivo Mono", monospace';
+  g.font='7px "Cutive Mono", monospace';
   for(const st of STRATA){
     const r = Math.min(ROWS-1, st.to) - 1;
     if(r < SKY) continue;

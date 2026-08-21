@@ -12,11 +12,11 @@
 <script src="../../audio.js"></script>
 <script src="../../arcade.js"></script>
 <style>
-@font-face{font-family:"Chivo Mono";font-style:normal;font-weight:100 900;font-display:swap;src:url("../../fonts/chivomono-var.woff2") format("woff2")}
-@font-face{font-family:"Syne";font-style:normal;font-weight:400 800;font-display:swap;src:url("../../fonts/syne-var.woff2") format("woff2")}
+@font-face{font-family:"Michroma";font-style:normal;font-weight:400;font-display:swap;src:url("../../fonts/michroma-400.woff2") format("woff2")}
+@font-face{font-family:"Space Mono";font-style:normal;font-weight:400;font-display:swap;src:url("../../fonts/spacemono-400.woff2") format("woff2")}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;height:100%;overflow:hidden;background:#0a0e14;
-  font-family:"Chivo Mono",ui-monospace,monospace;color:#e6e9ef;
+  font-family:"Space Mono",ui-monospace,monospace;color:#e6e9ef;
   user-select:none;-webkit-user-select:none}
 #stage{position:fixed;inset:0;display:flex;flex-direction:column;
   padding-top:var(--safe-top,0px)}
@@ -33,9 +33,9 @@ html,body{margin:0;height:100%;overflow:hidden;background:#0a0e14;
 #veil.hidden{display:none}
 #veilBody{max-width:330px;width:100%}
 .eyebrow{font-size:9px;letter-spacing:.26em;color:#00e5ff;margin-bottom:9px}
-h1{font-family:"Syne",sans-serif;font-size:40px;font-weight:800;margin:0;
+h1{font-family:"Michroma",sans-serif;font-size:40px;font-weight:800;margin:0;
   letter-spacing:-.02em;line-height:1;color:#e6e9ef}
-h1 em{display:block;font-family:"Chivo Mono",monospace;font-size:9.5px;font-style:normal;
+h1 em{display:block;font-family:"Space Mono",monospace;font-size:9.5px;font-style:normal;
   font-weight:400;letter-spacing:.24em;color:#6a7284;margin-top:9px}
 .tmenu{display:flex;flex-direction:column;gap:8px;max-width:240px;margin:24px auto 0}
 .btn{padding:14px 0;width:100%;border:0;border-radius:4px;cursor:pointer;font:inherit;
@@ -587,7 +587,7 @@ function draw(){
     g.fillStyle = 'rgba(0,0,0,.38)';
     g.fillRect(d.x-8, d.y+3, 16, 3);
     g.fillStyle = def.bad ? '#2a0508' : '#062a0c';
-    g.font = 'bold 8px "Chivo Mono", monospace';
+    g.font = 'bold 8px "Space Mono", monospace';
     g.textAlign = 'center'; g.textBaseline = 'middle';
     g.fillText(def.ch || '?', d.x, d.y);
     g.textBaseline = 'alphabetic';
@@ -639,7 +639,7 @@ function draw(){
   }
   if(paddle.invert > 0){
     g.fillStyle = 'rgba(232,72,79,.85)';
-    g.font = '8px "Chivo Mono", monospace'; g.textAlign = 'center';
+    g.font = '8px "Space Mono", monospace'; g.textAlign = 'center';
     g.fillText('STEERING REVERSED', W/2, H-52);
   }
 
@@ -672,13 +672,13 @@ function draw(){
   if(toastT > 0 && toastMsg){
     g.globalAlpha = Math.min(1, toastT);
     g.fillStyle = toastBad ? '#e8484f' : '#5ccf6a';
-    g.font = '9px "Chivo Mono", monospace'; g.textAlign = 'center';
+    g.font = '9px "Space Mono", monospace'; g.textAlign = 'center';
     g.fillText(toastMsg.toUpperCase(), W/2, 200);
     g.globalAlpha = 1;
   }
   if(balls.some(b => b.stuck)){
     g.fillStyle = 'rgba(200,212,230,.6)';
-    g.font = '9px "Chivo Mono", monospace';
+    g.font = '9px "Space Mono", monospace';
     g.textAlign = 'center';
     g.fillText('TAP TO LAUNCH', W/2, H-70);
   }

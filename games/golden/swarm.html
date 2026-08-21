@@ -12,11 +12,11 @@
 <script src="../../audio.js"></script>
 <script src="../../arcade.js"></script>
 <style>
-@font-face{font-family:"Chivo Mono";font-style:normal;font-weight:100 900;font-display:swap;src:url("../../fonts/chivomono-var.woff2") format("woff2")}
-@font-face{font-family:"Syne";font-style:normal;font-weight:400 800;font-display:swap;src:url("../../fonts/syne-var.woff2") format("woff2")}
+@font-face{font-family:"Rajdhani";font-style:normal;font-weight:400;font-display:swap;src:url("../../fonts/rajdhani-400.woff2") format("woff2")}
+@font-face{font-family:"Space Mono";font-style:normal;font-weight:400;font-display:swap;src:url("../../fonts/spacemono-400.woff2") format("woff2")}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;height:100%;overflow:hidden;background:#0c0a12;
-  font-family:"Chivo Mono",ui-monospace,monospace;color:#e7e2f0;
+  font-family:"Space Mono",ui-monospace,monospace;color:#e7e2f0;
   user-select:none;-webkit-user-select:none}
 #stage{position:fixed;inset:0;display:flex;flex-direction:column;padding-top:var(--safe-top,0px)}
 #head{flex:none;display:flex;justify-content:space-between;align-items:baseline;
@@ -31,9 +31,9 @@ html,body{margin:0;height:100%;overflow:hidden;background:#0c0a12;
 #veil.hidden{display:none}
 #veilBody{max-width:330px;width:100%}
 .eyebrow{font-size:9px;letter-spacing:.26em;color:#b06cff;margin-bottom:9px}
-h1{font-family:"Syne",sans-serif;font-size:42px;font-weight:800;margin:0;
+h1{font-family:"Rajdhani",sans-serif;font-size:42px;font-weight:800;margin:0;
   letter-spacing:-.02em;line-height:1;color:#f2eefb}
-h1 em{display:block;font-family:"Chivo Mono",monospace;font-size:9.5px;font-style:normal;
+h1 em{display:block;font-family:"Space Mono",monospace;font-size:9.5px;font-style:normal;
   font-weight:400;letter-spacing:.24em;color:#7a6f92;margin-top:9px}
 .tmenu{display:flex;flex-direction:column;gap:8px;max-width:240px;margin:24px auto 0}
 .btn{padding:14px 0;width:100%;border:0;border-radius:3px;cursor:pointer;font:inherit;
@@ -553,18 +553,18 @@ function draw(){
 
   if(bonusStage){
     g.fillStyle = 'rgba(195,255,74,.85)';
-    g.font = 'bold 11px "Chivo Mono", monospace'; g.textAlign='center';
+    g.font = 'bold 11px "Space Mono", monospace'; g.textAlign='center';
     g.fillText('BONUS \u00B7 THEY DO NOT SHOOT BACK', W/2, 34);
     g.fillStyle = 'rgba(231,226,240,.55)';
-    g.font = '9px "Chivo Mono", monospace';
+    g.font = '9px "Space Mono", monospace';
     g.fillText(bonusHits + ' OF ' + bonusTotal, W/2, 48);
   }
   if(bonusCard && bonusCard.t > 0){
     g.globalAlpha = Math.min(1, bonusCard.t);
     g.fillStyle = bonusCard.pct === 100 ? '#c3ff4a' : '#b06cff';
-    g.font = 'bold 20px "Chivo Mono", monospace'; g.textAlign='center';
+    g.font = 'bold 20px "Space Mono", monospace'; g.textAlign='center';
     g.fillText(bonusCard.pct + '%', W/2, H*0.42);
-    g.font = '10px "Chivo Mono", monospace';
+    g.font = '10px "Space Mono", monospace';
     g.fillStyle = 'rgba(231,226,240,.75)';
     g.fillText(bonusCard.pct === 100 ? 'PERFECT \u00B7 +5000'
                                      : bonusCard.hits + ' OF ' + bonusCard.total, W/2, H*0.42+18);

@@ -12,11 +12,11 @@
 <script src="../../audio.js"></script>
 <script src="../../arcade.js"></script>
 <style>
-@font-face{font-family:"Chivo Mono";font-style:normal;font-weight:100 900;font-display:swap;src:url("../../fonts/chivomono-var.woff2") format("woff2")}
-@font-face{font-family:"Syne";font-style:normal;font-weight:400 800;font-display:swap;src:url("../../fonts/syne-var.woff2") format("woff2")}
+@font-face{font-family:"Space Grotesk";font-style:normal;font-weight:300 700;font-display:swap;src:url("../../fonts/spacegrotesk-var.woff2") format("woff2")}
+@font-face{font-family:"Major Mono Display";font-style:normal;font-weight:400;font-display:swap;src:url("../../fonts/majormonodisplay-400.woff2") format("woff2")}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;height:100%;overflow:hidden;background:#070a0c;
-  font-family:"Chivo Mono",ui-monospace,monospace;color:#cfd8e3;
+  font-family:"Major Mono Display",ui-monospace,monospace;color:#cfd8e3;
   user-select:none;-webkit-user-select:none}
 #stage{position:fixed;inset:0;display:flex;flex-direction:column;padding-top:var(--safe-top,0px)}
 #head{flex:none;display:flex;justify-content:space-between;align-items:baseline;
@@ -31,9 +31,9 @@ html,body{margin:0;height:100%;overflow:hidden;background:#070a0c;
 #veil.hidden{display:none}
 #veilBody{max-width:330px;width:100%}
 .eyebrow{font-size:9px;letter-spacing:.26em;color:#7fd4e8;margin-bottom:9px}
-h1{font-family:"Syne",sans-serif;font-size:42px;font-weight:800;margin:0;
+h1{font-family:"Space Grotesk",sans-serif;font-size:42px;font-weight:700;margin:0;
   letter-spacing:-.02em;line-height:1;color:#eaf2f8}
-h1 em{display:block;font-family:"Chivo Mono",monospace;font-size:9.5px;font-style:normal;
+h1 em{display:block;font-family:"Major Mono Display",monospace;font-size:9.5px;font-style:normal;
   font-weight:400;letter-spacing:.24em;color:#5f6b78;margin-top:9px}
 .tmenu{display:flex;flex-direction:column;gap:8px;max-width:240px;margin:24px auto 0}
 .btn{padding:14px 0;width:100%;border:0;border-radius:3px;cursor:pointer;font:inherit;
@@ -317,7 +317,7 @@ function draw(){
     g.strokeStyle='#7fd4e8'; g.lineWidth=3;
     g.beginPath(); g.moveTo(a.x, a.y); g.lineTo(b.x, b.y); g.stroke();
     g.fillStyle='rgba(127,212,232,.85)';
-    g.font=(8*Math.min(1.6,cam.z))+'px "Chivo Mono", monospace';
+    g.font=(8*Math.min(1.6,cam.z))+'px "Major Mono Display", monospace';
     g.textAlign='center';
     g.fillText('x'+p.mult, (a.x+b.x)/2, a.y - 6*cam.z);
     /* the beacon on it */
@@ -341,7 +341,7 @@ function draw(){
   if(msgT > 0){
     g.globalAlpha = Math.min(1, msgT);
     g.fillStyle = msg.startsWith('DOWN') ? '#7fd4e8' : '#ff6b6b';
-    g.font='bold 12px "Chivo Mono", monospace'; g.textAlign='center';
+    g.font='bold 12px "Major Mono Display", monospace'; g.textAlign='center';
     g.fillText(msg, W/2, H*0.30);
     g.globalAlpha = 1;
   }
@@ -393,7 +393,7 @@ function hud(){
   const ok = (v) => v ? '#7fd4e8' : '#ff6b6b';
 
   g.textAlign='left';
-  g.font='9px "Chivo Mono", monospace';
+  g.font='9px "Major Mono Display", monospace';
   const rows = [
     ['ALT',  alt.toFixed(0).padStart(4), '#cfd8e3'],
     ['V.SPD', (vy*10).toFixed(1).padStart(5), ok(vy < 0.55)],
@@ -428,7 +428,7 @@ function hud(){
       g.moveTo(side + (sp.x<10?-6:6), H*0.5);
       g.lineTo(side, H*0.5-5); g.lineTo(side, H*0.5+5);
       g.closePath(); g.fill();
-      g.font='8px "Chivo Mono", monospace'; g.textAlign='center';
+      g.font='8px "Major Mono Display", monospace'; g.textAlign='center';
       g.fillText(Math.round(nd)+'', side + (sp.x<10?14:-14), H*0.5+3);
     }
   }
