@@ -4745,10 +4745,17 @@ function openVeil(html, go){
       showGarage();
     }));
   veilBody.querySelectorAll('[data-act]').forEach(b => {
+    /* SWATCHES ARE NOT ACTIONS. This hid the veil for EVERY [data-act] button
+       whether or not there was a handler for it — so tapping a colour, which
+       has no entry in `go`, tore the menu down and left the game rendering a
+       state it had never entered: a black screen with the HUD on top.
+       Only a button with a real action closes the menu now. */
+    if(b.dataset.act.indexOf('paint:') === 0) return;
     b.addEventListener('click', () => {
       const fn = go && go[b.dataset.act];
+      if(!fn) return;                 /* no action, no dismissal */
       veil.classList.add('hidden');
-      if(fn) fn();
+      fn();
     });
   });
 }
