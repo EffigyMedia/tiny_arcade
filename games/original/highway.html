@@ -256,17 +256,22 @@ body.pedals-left #nitro{ right:auto; left:0 }
    broken. The GAUGES stay — they are instruments, not controls — and the
    dials drop to the bottom of the cluster since there is nothing beneath
    them any more. */
-body.no-touch #pedals,
+/* Hide the CONTROLS, not the container. `#pedals` is the bottle's parent, so
+   hiding the box took the gauge with it and it measured zero on desktop. */
+body.no-touch #gas,
+body.no-touch #brake,
+body.no-touch #horn,
 body.no-touch #shifter{ display:none }
+body.no-touch #pedals{ pointer-events:none }
 /* The bottle is a GAUGE as much as a button — it is the nitrous level — so it
    stays on desktop, just not as something you press. */
 body.no-touch #nitro{
   display:block;pointer-events:none;
   right:calc(env(safe-area-inset-right,0px) + 8px);
-  bottom:calc(env(safe-area-inset-bottom,0px) + 86px);
+  bottom:calc(env(safe-area-inset-bottom,0px) + 86px * var(--ark-ui,1));
   left:auto;
 }
-body.no-touch #horn{ display:none }
+
 body.no-touch #dials,
 body.no-touch.manual #dials{
   bottom:calc(env(safe-area-inset-bottom,0px) + 16px);
@@ -291,12 +296,17 @@ body.no-touch.manual #dials{
   transform-origin:100% 100%;
   transform:scale(var(--ark-ui,1));
   right:calc(env(safe-area-inset-right,0px) + 8px);
-  bottom:calc(env(safe-area-inset-bottom,0px) + 152px);
+  /* THE OFFSETS HAVE TO LIVE IN THE SAME SCALED SPACE. The bottle sits inside
+     #pedals and is scaled by --ark-ui, so ITS distance off the bottom grows
+     with the scale — while these were fixed pixels. At any scale above 1 the
+     bottle rose into the dials and they covered a third of it. Multiplying the
+     offsets by the same variable keeps the stack together at every size. */
+  bottom:calc(env(safe-area-inset-bottom,0px) + 152px * var(--ark-ui,1));
   width:115px;height:59px;
   transition:bottom .18s ease-out;
 }
 body.manual #dials{
-  bottom:calc(env(safe-area-inset-bottom,0px) + 252px);
+  bottom:calc(env(safe-area-inset-bottom,0px) + 262px * var(--ark-ui,1));
 }
 #dials canvas{width:115px;height:59px;display:block}
 body.pedals-left #dials{ right:auto; left:calc(env(safe-area-inset-left,0px) + 8px) }
@@ -333,7 +343,7 @@ body.pedals-left #dials{ right:auto; left:calc(env(safe-area-inset-left,0px) + 8
   transform-origin:100% 100%;
   transform:scale(var(--ark-ui,1));
   right:calc(env(safe-area-inset-right,0px) + 10px);
-  bottom:calc(env(safe-area-inset-bottom,0px) + 150px);
+  bottom:calc(env(safe-area-inset-bottom,0px) + 152px * var(--ark-ui,1));
   width:86px;height:94px;touch-action:none;
 }
 #shifter[hidden]{ display:none }
@@ -2088,17 +2098,27 @@ function step(dt){
   }
   if(!optEasy && nextCopT<=0 && cops.length < Math.min(3, 1+Math.floor(heat/2))){
     spawnCop();
-    nextCopT = rnd(7,13) - heat*0.7;
+    nextCopT = Math.max(2.5, rnd(7,13) - heat*0.7);
   }
   if(!optEasy && nextBlockT<=0 && heat>=2){
     spawnRoadblock();
-    nextBlockT = rnd(30,44) - heat*2;
+    nextBlockT = Math.max(8, rnd(30,44) - heat*2);
   }
 
   // --- traffic ---
-  while(nextWaveZ < pos + 62000){
+  /* GUARDED. This is the only unbounded loop in the frame, and its step is
+     `rnd(3400,6600) - heat*180` — at heat 19 that reaches zero and at heat 37
+     it goes NEGATIVE, so nextWaveZ walks backwards and the condition can never
+     be satisfied. The main thread then spins forever: every car stops, no
+     input is read, and the tab is dead with no error logged anywhere. Heat
+     climbs with pursuit, which is why it only ever bit with cops switched on.
+
+     Two belts: the step can never be smaller than 900, and the loop cannot run
+     more than 40 times in a frame whatever happens. */
+  let waveGuard = 0;
+  while(nextWaveZ < pos + 62000 && waveGuard++ < 40){
     spawnWave(nextWaveZ);
-    nextWaveZ += rnd(3400,6600) - heat*180;
+    nextWaveZ += Math.max(900, rnd(3400,6600) - heat*180);
   }
   const pz = pos + PLAYER_Z;
 
