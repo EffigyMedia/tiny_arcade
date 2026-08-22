@@ -186,6 +186,16 @@
 @media (orientation:landscape) and (pointer:coarse){
   body.lock-portrait #rotate{display:grid}
 }
+
+#titleArt{position:absolute;inset:0;z-index:29;display:none;width:100%;height:100%}
+body.titling #titleArt{display:block}
+body.titling #veil{
+  background:linear-gradient(180deg, rgba(1,5,10,0) 0%, rgba(1,5,10,0) 44%,
+    rgba(1,5,10,.60) 62%, rgba(1,5,10,.94) 82%, rgba(1,5,10,.98) 100%);
+  align-items:end;padding-bottom:34px}
+body.titling #veil h1{display:none}
+.legal{margin-top:14px;font-size:8px;letter-spacing:.14em;
+  color:rgba(255,255,255,.24);text-align:center}
 </style>
 </head>
 <body>
@@ -204,7 +214,8 @@
       </div>
     </div>
 
-    <div id="veil">
+    <canvas id="titleArt"></canvas>
+<div id="veil">
       <div id="veilBody">
         <div class="eyebrow" id="eyebrow">Descent log — 001</div>
         <div id="panel"><h1>Deep</h1></div>
@@ -590,7 +601,312 @@ function paintMenu(html, acts){
   });
 }
 
+
+/* ---- TITLE: black water ---------------------------------------------------
+   No horizon, no sun, no grid. The whole picture is the one thing the game is
+   about: pressure and dark. Light from ABOVE only, falling off fast; the sub
+   hanging in it; and everything below the beam is nothing at all.
+
+   The letters are ETCHED rather than lit — a hard highlight on the top edge, a
+   dark bevel under it, like something stamped into a steel plate. Tall and
+   narrow, because the game is a descent.
+   -------------------------------------------------------------------------- */
+let titleCv = null, titleT = 0, refCv = null;
+function drawTitleArt(){
+  if(!titleCv) titleCv = document.getElementById('titleArt');
+  if(!titleCv) return;
+  if(!titleT) titleT = performance.now();
+  const T = (performance.now() - titleT) / 1000;
+  const g = titleCv.getContext('2d');
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  const w = titleCv.clientWidth, h = titleCv.clientHeight;
+  if(titleCv.width !== w*dpr){ titleCv.width = w*dpr; titleCv.height = h*dpr; }
+  g.setTransform(dpr,0,0,dpr,0,0);
+
+  /* ---- the water column --------------------------------------------------
+     Six stops, weighted to the top: all of the light lives in the first
+     quarter and everything below it is a long slow march into nothing. */
+  const wg = g.createLinearGradient(0,0,0,h);
+  wg.addColorStop(0,   '#1a4a63');
+  wg.addColorStop(0.10,'#10344a');
+  wg.addColorStop(0.24,'#08202f');
+  wg.addColorStop(0.46,'#03101c');
+  wg.addColorStop(0.72,'#01070f');
+  wg.addColorStop(1,   '#000308');
+  g.fillStyle = wg; g.fillRect(0,0,w,h);
+
+  /* ---- the surface, seen from beneath -------------------------------------
+     Caustics: overlapping sine bands that slide across each other, brightest
+     right at the top and gone within a fifth of the screen. */
+  g.save();
+  g.globalCompositeOperation = 'lighter';
+  for(let i=0;i<26;i++){
+    const y  = (i/26) * h*0.20;
+    const a  = 0.10 * (1 - i/26);
+    const ph = Math.sin(T*0.9 + i*0.7) * w*0.18;
+    const cg = g.createLinearGradient(0,y,w,y);
+    cg.addColorStop(0,'rgba(150,220,245,0)');
+    cg.addColorStop(0.5,'rgba(150,220,245,'+a+')');
+    cg.addColorStop(1,'rgba(150,220,245,0)');
+    g.fillStyle = cg;
+    g.fillRect(ph - w*0.3, y, w*1.6, h*0.20/26 + 1);
+  }
+  g.restore();
+
+  /* ---- the shaft of surface light, swaying -------------------------------- */
+  const sway = Math.sin(T*0.45)*w*0.05;
+  g.save();
+  g.globalCompositeOperation = 'lighter';
+  /* the surface light dims and shortens in a slow cycle, as though the sub is
+     dropping away from it and catching it again */
+  const dive = 0.80 + 0.20*Math.sin(T*0.30);
+  const beam = g.createLinearGradient(0,0,0,h*0.62*dive);
+  beam.addColorStop(0,'rgba(130,205,240,.22)');
+  beam.addColorStop(0.5,'rgba(110,185,225,.07)');
+  beam.addColorStop(1,'rgba(100,170,210,0)');
+  g.fillStyle = beam;
+  g.beginPath();
+  g.moveTo(w*0.18 + sway*0.3, 0); g.lineTo(w*0.82 + sway*0.3, 0);
+  g.lineTo(w*0.60 + sway, h*0.62*dive); g.lineTo(w*0.40 + sway, h*0.62*dive);
+  g.closePath(); g.fill();
+  g.restore();
+
+  /* ---- MARINE SNOW, RISING ------------------------------------------------
+     This drifted DOWN, which is what snow does when the camera is still. If
+     the sub is falling then everything in the water RISES past it, and the
+     nearer it is the faster it goes — parallax is the whole illusion.
+
+     Three layers: far specks barely moving, mid, and near streaks that are
+     drawn as short vertical LINES because at that speed a particle is a
+     streak, not a dot.
+     ------------------------------------------------------------------------ */
+  const FALL = 210;                       /* how fast the sub is going down */
+  for(const layer of [
+    { n: 46, k: 0.22, a: 0.16, len: 0,   sz: 1.0 },
+    { n: 34, k: 0.55, a: 0.26, len: 4,   sz: 1.4 },
+    { n: 20, k: 1.00, a: 0.34, len: 13,  sz: 1.9 }
+  ]){
+    for(let i=0;i<layer.n;i++){
+      const seed = i*i*29 + layer.n*7;
+      const span = h + 60;
+      /* +T so it travels UPWARD past us */
+      const y = span - (((seed + T*FALL*layer.k) % span));
+      const x = ((seed*37) % w);
+      const fade = Math.min(1, (h - y)/(h*0.25)) * Math.min(1, y/(h*0.06));
+      g.strokeStyle = 'rgba(206,238,255,' + (layer.a * fade) + ')';
+      g.lineWidth = layer.sz;
+      if(layer.len){
+        g.beginPath(); g.moveTo(x, y); g.lineTo(x, y + layer.len); g.stroke();
+      } else {
+        g.fillStyle = 'rgba(206,238,255,' + (layer.a * fade) + ')';
+        g.fillRect(x, y, layer.sz, layer.sz);
+      }
+    }
+  }
+
+  /* The angler is gone. It swam ACROSS, which implies a camera holding still
+     and watching it — and this card is supposed to be a descent. Anything that
+     moves sideways here argues against the one thing the picture is for. The
+     effort went into the fall instead.
+     ------------------------------------------------------------------------ */
+
+  /* ---- the submersible ---------------------------------------------------
+     Built from the reference: a vertical hull, nose DOWN, because that is how
+     one of these descends. A domed bow, a ribbed instrument bay behind it, a
+     lamp cluster throwing forward, thruster pods on outriggers, and a plume of
+     bubbles leaving the top. The old shape was a dome over a cone of light,
+     which is the silhouette of a flying saucer.
+     ------------------------------------------------------------------------ */
+  /* a fast, small tremble rather than a slow bob — a vehicle under way, not
+     one hanging still */
+  const bob = Math.sin(T*0.7)*3 + Math.sin(T*7.3)*0.8;
+  const cy  = h*0.52 + bob, cx = w*0.5 + sway*0.40 + Math.sin(T*5.1)*0.6;
+  const L   = Math.min(h*0.30, 210);            /* nose to tail */
+  const R   = L*0.17;                           /* hull radius */
+
+  /* the lamps first, so the hull sits over them */
+  g.save();
+  g.globalCompositeOperation = 'lighter';
+  const lampY = cy - L*0.06;
+  const lamp = g.createLinearGradient(0, lampY, 0, h);
+  lamp.addColorStop(0,'rgba(210,246,255,.46)');
+  lamp.addColorStop(0.35,'rgba(150,215,248,.14)');
+  lamp.addColorStop(1,'rgba(120,190,230,0)');
+  g.fillStyle = lamp;
+  g.beginPath();
+  g.moveTo(cx - R*0.75, lampY); g.lineTo(cx + R*0.75, lampY);
+  g.lineTo(cx + R*5.2, h);      g.lineTo(cx - R*5.2, h);
+  g.closePath(); g.fill();
+  g.restore();
+
+  /* the hull: a capsule standing on end, domed at the bottom */
+  const hullTop = cy - L*0.52, hullBot = cy + L*0.48;
+  /* METALLIC WHITE, not green. The sub you actually drive is pale steel, and
+     a title card that shows you a different vehicle is lying about the game.
+     Five stops across the barrel: shadowed at both edges, a hot specular line
+     just off centre where the surface light lands. */
+  const hull = g.createLinearGradient(cx-R, 0, cx+R, 0);
+  hull.addColorStop(0,   '#2c3d47');
+  hull.addColorStop(0.22,'#7d949f');
+  hull.addColorStop(0.44,'#e8f2f6');
+  hull.addColorStop(0.62,'#aab9c2');
+  hull.addColorStop(0.84,'#4d6069');
+  hull.addColorStop(1,   '#22303a');
+  g.fillStyle = hull;
+  g.beginPath();
+  g.moveTo(cx - R, hullTop + R*0.9);
+  g.quadraticCurveTo(cx - R, hullTop, cx, hullTop);
+  g.quadraticCurveTo(cx + R, hullTop, cx + R, hullTop + R*0.9);
+  g.lineTo(cx + R, hullBot - R*1.1);
+  g.quadraticCurveTo(cx + R, hullBot, cx, hullBot);
+  g.quadraticCurveTo(cx - R, hullBot, cx - R, hullBot - R*1.1);
+  g.closePath(); g.fill();
+
+  /* the ribbed instrument bay, a band around the middle */
+  g.fillStyle = 'rgba(18,28,34,.62)';
+  g.fillRect(cx - R*0.92, cy - L*0.18, R*1.84, L*0.24);
+  g.strokeStyle = 'rgba(205,225,235,.22)'; g.lineWidth = 1;
+  for(let k=0;k<7;k++){
+    const ry = cy - L*0.17 + k*(L*0.22/7);
+    g.beginPath(); g.moveTo(cx - R*0.88, ry); g.lineTo(cx + R*0.88, ry); g.stroke();
+  }
+
+  /* the lamp cluster on the bay, throwing down-forward */
+  for(const lx2 of [-0.34, 0.34]){
+    g.fillStyle = '#eafcff';
+    g.beginPath(); g.arc(cx + R*lx2, cy - L*0.02, R*0.13, 0, 6.2832); g.fill();
+    g.save();
+    g.globalCompositeOperation = 'lighter';
+    /* Two haloes: a tight hot core and a wide soft one. The wide pass is what
+       eats the hull around the lamps, which is the point — a working light at
+       depth burns out whatever it is bolted to, and leaving the middle of the
+       sub to the imagination is better than drawing every panel on it. */
+    const core = g.createRadialGradient(cx+R*lx2, cy-L*0.02, 0, cx+R*lx2, cy-L*0.02, R*0.85);
+    core.addColorStop(0,'rgba(255,255,255,.90)');
+    core.addColorStop(1,'rgba(200,240,255,0)');
+    g.fillStyle = core;
+    g.beginPath(); g.arc(cx+R*lx2, cy-L*0.02, R*0.85, 0, 6.2832); g.fill();
+    const wide = g.createRadialGradient(cx+R*lx2, cy-L*0.02, 0, cx+R*lx2, cy-L*0.02, R*2.6);
+    wide.addColorStop(0,'rgba(190,235,255,.34)');
+    wide.addColorStop(0.45,'rgba(160,215,250,.12)');
+    wide.addColorStop(1,'rgba(150,205,245,0)');
+    g.fillStyle = wide;
+    g.beginPath(); g.arc(cx+R*lx2, cy-L*0.02, R*2.6, 0, 6.2832); g.fill();
+    g.restore();
+  }
+
+  /* the sail on top, and the hatch ring */
+  g.fillStyle = '#5a6c76';
+  g.fillRect(cx - R*0.22, hullTop - L*0.10, R*0.44, L*0.11);
+  g.fillStyle = 'rgba(235,246,252,.32)';
+  g.fillRect(cx - R*0.22, hullTop - L*0.10, R*0.14, L*0.11);
+
+  /* thruster pods on outriggers, low and wide */
+  for(const sx2 of [-1, 1]){
+    g.strokeStyle = '#3c4c56'; g.lineWidth = Math.max(1.4, R*0.13);
+    g.beginPath();
+    g.moveTo(cx + sx2*R*0.8, cy + L*0.24);
+    g.lineTo(cx + sx2*R*1.9, cy + L*0.34);
+    g.stroke();
+    g.fillStyle = '#8fa2ad';
+    g.beginPath();
+    g.ellipse(cx + sx2*R*2.0, cy + L*0.35, R*0.30, R*0.22, 0, 0, 6.2832);
+    g.fill();
+    g.fillStyle = 'rgba(10,18,14,.7)';
+    g.beginPath();
+    g.ellipse(cx + sx2*R*2.0, cy + L*0.35, R*0.13, R*0.13, 0, 0, 6.2832);
+    g.fill();
+  }
+
+  /* a lit edge down the side facing the surface */
+  g.strokeStyle = 'rgba(226,242,252,.38)'; g.lineWidth = 1.4;
+  g.beginPath();
+  g.moveTo(cx - R*0.82, hullTop + R*0.8);
+  g.lineTo(cx - R*0.82, hullBot - R*1.0);
+  g.stroke();
+
+  /* the bubble plume, leaving the sail and swelling as it rises */
+  for(let i2=0;i2<16;i2++){
+    const bt = ((T*0.95 + i2*0.062) % 1);
+    const by = (hullTop - L*0.12) - bt*h*0.80;
+    const bx2 = cx + Math.sin(bt*9 + i2)*R*0.9*bt;
+    g.fillStyle = 'rgba(200,240,255,' + (0.40*(1-bt)) + ')';
+    g.beginPath(); g.arc(bx2, by, 1.2 + bt*3.4, 0, 6.2832); g.fill();
+    g.strokeStyle = 'rgba(230,250,255,' + (0.24*(1-bt)) + ')';
+    g.lineWidth = 0.8;
+    g.beginPath(); g.arc(bx2, by, 1.2 + bt*3.4, 0, 6.2832); g.stroke();
+  }
+
+  /* ---- pressure: the dark closing in at the edges ------------------------- */
+  const vg = g.createRadialGradient(w*0.5, h*0.34, h*0.14, w*0.5, h*0.5, h*0.86);
+  vg.addColorStop(0,'rgba(0,0,0,0)'); vg.addColorStop(1,'rgba(0,0,0,.72)');
+  g.fillStyle = vg; g.fillRect(0,0,w,h);
+
+  /* ---- the name ----------------------------------------------------------- */
+  const DG = {
+    D:[[[0,0],[0,14]],[[0,0],[6,0],[9,3],[9,11],[6,14],[0,14]]],
+    E:[[[9,0],[0,0],[0,14],[9,14]],[[0,7],[6,7]]],
+    P:[[[0,14],[0,0],[6,0],[9,3],[9,6],[6,9],[0,9]]]
+  };
+  AR.wordmark(g, 'DEEP', w*0.5, h*0.20, Math.min(w*0.19, 84), {
+    glyphs: DG, box: 8, gap: 0.30, maxW: w*0.68, rake: 0,
+    passes: ['cut','plate','lip'],
+    paint: (gg, pass) => {
+      gg.lineCap = 'butt'; gg.lineJoin = 'miter'; gg.miterLimit = 2;
+      if(pass === 'cut'){
+        gg.strokeStyle = 'rgba(1,6,12,.95)'; gg.lineWidth = 6.4;
+        gg.translate(0, 1.0);
+      } else if(pass === 'plate'){
+        gg.strokeStyle = '#5d7f92'; gg.lineWidth = 5.0;
+      } else {
+        /* the highlight BREATHES with the caustics overhead */
+        const k = 0.6 + 0.4*Math.sin(T*0.9);
+        gg.strokeStyle = 'rgba(198,236,255,' + (0.55 + 0.35*k) + ')';
+        gg.lineWidth = 1.5;
+        gg.translate(0, -1.4);
+      }
+    }
+  });
+
+  /* ---- REFRACTION --------------------------------------------------------
+     Everything above is painted flat, then the whole картина is taken apart
+     into horizontal bands and put back with each band shifted sideways by a
+     travelling sine. That is what looking through moving water does, and it
+     costs one drawImage per band rather than any per-pixel work.
+
+     The amplitude falls off with depth, because the surface is what is
+     disturbing the light and there is less of it further down.
+     ------------------------------------------------------------------------ */
+  if(!refCv){ refCv = document.createElement('canvas'); }
+  if(refCv.width !== titleCv.width){ refCv.width = titleCv.width; refCv.height = titleCv.height; }
+  const rg = refCv.getContext('2d');
+  rg.setTransform(1,0,0,1,0,0);
+  rg.clearRect(0,0,refCv.width,refCv.height);
+  rg.drawImage(titleCv, 0, 0);
+
+  g.setTransform(dpr,0,0,dpr,0,0);
+  g.clearRect(0,0,w,h);
+  const BAND = 4;
+  for(let y=0; y<h; y+=BAND){
+    const depth = 1 - y/h;
+    /* 6.4px of swing at the top was smearing detail rather than shimmering
+       it — the sub lost its ribs and outriggers. Half that reads as water. */
+    const amp = (0.9 + 2.2*depth*depth);
+    const dx = Math.sin(T*1.15 + y*0.045) * amp
+             + Math.sin(T*0.61 + y*0.017) * amp*0.55;
+    g.drawImage(refCv,
+      0, y*dpr, refCv.width, BAND*dpr,
+      dx, y,    w,           BAND);
+  }
+
+  if(document.body.classList.contains('titling'))
+    requestAnimationFrame(drawTitleArt);
+}
+
 function showTitle(){
+  document.body.classList.add('titling');
+  titleT = 0;
+  requestAnimationFrame(drawTitleArt);
   paintMenu(
     '<div class="eyebrow">DESCENT LOG \u00B7 ' + String(dives+1).padStart(3,'0') + '</div>' +
     '<div id="panel"><h1>Deep</h1></div>' +
@@ -598,7 +914,8 @@ function showTitle(){
       '<button class="mbtn" data-act="play">PLAY</button>' +
       '<button class="mbtn ghost" data-act="opts">OPTIONS</button>' +
       '<button class="mbtn ghost" data-act="quit">QUIT</button>' +
-    '</div>',
+    '</div>' +
+    '<div class="legal">\u00A9 2026 EFFIGY MEDIA</div>',
     {
       play: () => { menuOpen = false; start(); },
       opts: () => showOptions(),
@@ -648,6 +965,7 @@ function start(){
   menuOpen = false;
   state = 'launch';
   launchT = 0; launched = false; splashT = 0; swing = 0;
+  document.body.classList.remove('titling');
   veil.classList.add('hidden');
   snd.surface();          /* wash and gulls; the deep comes later */
   snd.creak();

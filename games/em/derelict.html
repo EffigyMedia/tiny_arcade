@@ -341,6 +341,35 @@ button:focus-visible{outline:2px solid var(--ice);outline-offset:1px}
 @media (orientation:landscape) and (pointer:coarse){
   body.lock-portrait #rotate{display:grid}
 }
+
+#titleArt{position:absolute;inset:0;z-index:29;display:none;width:100%;height:100%}
+body.titling #titleArt{display:block}
+/* ---- the menu lives ON THE WALL ----------------------------------------
+   Left column, so the doorway on the right is never covered. The scrim is a
+   horizontal gradient rather than a vertical one: it darkens the wall behind
+   the buttons and fades out before it reaches the opening. */
+/* A CORNER scrim, not a column. The full-height version swallowed the left
+   half of the word — DERE vanished and only LICT was left. This darkens the
+   bottom-left where the buttons actually are and is gone by the time it
+   reaches the writing. */
+body.titling #veil{
+  background:
+    linear-gradient(180deg, rgba(10,12,11,0) 0%, rgba(10,12,11,0) 38%,
+      rgba(10,12,11,.50) 50%, rgba(10,12,11,.80) 62%, rgba(10,12,11,.55) 88%,
+      rgba(10,12,11,.30) 100%),
+    linear-gradient(90deg, rgba(10,12,11,.55) 0%, rgba(10,12,11,.30) 40%,
+      rgba(10,12,11,0) 60%);
+  /* Almost halfway up the wall rather than sitting on the deck — a panel
+     pinned to the bottom edge reads as UI, one placed in the frame reads as
+     part of the picture. */
+  align-items:center;justify-items:start;
+  padding:0 0 0 16px}
+body.titling #veil .vwrap{transform:translateY(6%)}
+body.titling #veil .vwrap{width:50vw;max-width:230px;margin:0}
+body.titling #veil .tmenu{width:100%}
+body.titling #veil h1{display:none}
+.legal{margin-top:14px;font-size:8px;letter-spacing:.14em;
+  color:rgba(255,255,255,.24);text-align:center}
 </style>
 </head>
 <body>
@@ -389,7 +418,8 @@ button:focus-visible{outline:2px solid var(--ice);outline-offset:1px}
     <button id="bGear">GEAR<span class="cost">KIT</span></button>
   </div>
 
-  <div id="veil"><div class="vwrap" id="veilBody"></div></div>
+  <canvas id="titleArt"></canvas>
+<div id="veil"><div class="vwrap" id="veilBody"></div></div>
 
 </div></div>
 
@@ -3846,7 +3876,8 @@ function buildPad(tile){
   };
   draw();
   veilBody.querySelectorAll('[data-lock="no"]').forEach(b =>
-    b.addEventListener('click', () => { veil.classList.add('hidden'); render(); }));
+    b.addEventListener('click', () => { document.body.classList.remove('titling');
+  veil.classList.add('hidden'); render(); }));
 }
 
 function attemptLock(tile, guess){
@@ -5889,13 +5920,380 @@ function showKit(){
   });
 }
 
+
+/* ---- TITLE: a dead ship's hull -------------------------------------------
+   Stencilled markings on painted steel, lit by one failing emergency lamp.
+   The letters are a STENCIL: bridged strokes with gaps cut through them, worn
+   at the edges, sprayed on rather than drawn. Nothing here glows except the
+   lamp, and it is not doing well.
+   -------------------------------------------------------------------------- */
+let titleCv = null, titleT = 0;
+function drawTitleArt(){
+  if(!titleCv) titleCv = document.getElementById('titleArt');
+  if(!titleCv) return;
+  if(!titleT) titleT = performance.now();
+  const T = (performance.now() - titleT) / 1000;
+  const g = titleCv.getContext('2d');
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  const w = titleCv.clientWidth, h = titleCv.clientHeight;
+  if(titleCv.width !== w*dpr){ titleCv.width = w*dpr; titleCv.height = h*dpr; }
+  g.setTransform(dpr,0,0,dpr,0,0);
+
+  /* ===========================================================================
+     A BULKHEAD, A MESSAGE, AND SOMETHING WATCHING
+
+     Not a wide shot of a ship \u2014 that was scale without threat. This is close:
+     you are standing in front of a wall someone wrote on before they died, and
+     behind you, in the part of the room the light does not reach, there are
+     eyes.
+     ======================================================================== */
+
+  /* ---- FRAMING -----------------------------------------------------------
+     The eyes were floating on the bulkhead, which made them a decal rather
+     than a creature. They need somewhere to BE. So the wall only takes the
+     left of the frame; on the right a doorway stands open onto a corridor that
+     runs away into black, and that is where they are.
+     ------------------------------------------------------------------------ */
+  /* ---- THE WALL IS FULL WIDTH -------------------------------------------
+     The doorway is a HOLE punched in it, not the end of it — so plating runs
+     right across the top above the lintel and the word gets the whole span.
+     The dark and the eyes live in the hole.
+     ------------------------------------------------------------------------ */
+  const DOOR_L = w*0.52, DOOR_R = w*1.02;
+  /* The buttons moved to the LEFT, onto the wall, so the doorway keeps its
+     full height instead of being squeezed into a band above them. Better than
+     shrinking the opening: a tall doorway is what makes the dark feel deep. */
+  const DOOR_T = h*0.285, DOOR_B = h*0.95;
+  const WALL_R = w;
+
+  /* ---- the wall ---------------------------------------------------------- */
+  const wall = g.createLinearGradient(0, 0, 0, h);
+  /* The wall was so dark the plating, the rivets and the grime all vanished —
+     the picture had detail nobody could see. Lifted about two stops, so the
+     red light has something to fall ON. */
+  wall.addColorStop(0,   '#22282b');
+  wall.addColorStop(0.30,'#333c40');
+  wall.addColorStop(0.52,'#252c30');
+  wall.addColorStop(1,   '#0c0f11');
+  g.fillStyle = wall; g.fillRect(0,0,w,h);
+
+  /* plating: big panels, seams, and rivets down every joint */
+  const PH = h*0.19;
+  g.save();
+  g.beginPath(); g.rect(0,0,w,h); g.clip();
+  g.strokeStyle = 'rgba(0,0,0,.55)'; g.lineWidth = 2;
+  for(let y=PH*0.4; y<h; y+=PH){
+    g.beginPath(); g.moveTo(0,y); g.lineTo(w,y); g.stroke();
+    g.fillStyle = 'rgba(196,206,206,.14)';
+    for(let x=8;x<w;x+=22) g.fillRect(x, y-5, 3, 3);
+    g.fillStyle = 'rgba(255,255,255,.03)';
+    g.fillRect(0, y+1, w, 1);
+  }
+  for(let x=w*0.20; x<w; x+=w*0.26){
+    g.strokeStyle = 'rgba(0,0,0,.45)'; g.lineWidth = 2;
+    g.beginPath(); g.moveTo(x,0); g.lineTo(x,h); g.stroke();
+    g.fillStyle = 'rgba(196,206,206,.11)';
+    for(let y=10;y<h;y+=22) g.fillRect(x-4, y, 3, 3);
+  }
+
+  g.restore();
+
+  /* ---- THE OPEN DOOR AND THE CORRIDOR BEYOND -----------------------------
+     A hatch frame standing proud of the wall, and past it a passage of three
+     receding ribs going into nothing. The eyes sit INSIDE it, at depth.
+     ------------------------------------------------------------------------ */
+  /* the doorway starts where the wall stops, and the space above and below it
+     is more wall rather than nothing */
+  const dL = DOOR_L, dR = DOOR_R, dT = DOOR_T, dB = DOOR_B;
+  /* the black of it */
+  g.fillStyle = '#05070a';
+  g.fillRect(dL, dT, dR-dL, dB-dT);
+  /* ribs receding into the dark, each one dimmer */
+  for(let k=0;k<4;k++){
+    const t = 1 - k*0.24;
+    const cxr = dL + (dR-dL)*0.42, cyr = (dT+dB)/2;
+    const rw = (dR-dL)*0.50*t, rh = (dB-dT)*0.46*t;
+    g.strokeStyle = 'rgba(120,136,140,' + (0.16*t*t) + ')';
+    g.lineWidth = Math.max(1, 3*t);
+    g.strokeRect(cxr-rw, cyr-rh, rw*2, rh*2);
+  }
+  /* the door frame itself, catching the red light */
+  g.strokeStyle = 'rgba(150,164,166,.30)'; g.lineWidth = 4;
+  g.strokeRect(dL, dT, dR-dL, dB-dT);
+  g.fillStyle = 'rgba(200,214,216,.10)';
+  g.fillRect(dL-5, dT, 6, dB-dT);
+  /* the doorway's own faint spill onto the deck */
+  g.save();
+  g.globalCompositeOperation = 'lighter';
+  const spill = g.createLinearGradient(dL, 0, dL - w*0.16, 0);
+  spill.addColorStop(0,'rgba(90,120,130,.07)'); spill.addColorStop(1,'rgba(80,110,120,0)');
+  g.fillStyle = spill; g.fillRect(dL-w*0.16, dT, w*0.16, dB-dT);
+  g.restore();
+
+  /* grime and old rust, heavier low down */
+  for(let i=0;i<70;i++){
+    const x = (i*137) % Math.round(WALL_R), y = ((i*i*29) % h);
+    const low = y/h;
+    g.fillStyle = 'rgba(74,44,26,' + (0.03 + low*0.06) + ')';
+    g.fillRect(x, y, 3 + (i%5), 30 + (i%7)*30);
+  }
+
+  /* ---- the emergency light: red, low, and swinging ------------------------ */
+  const swing = Math.sin(T*0.55);
+  const lx = w*0.5 + swing*w*0.16, ly = h*0.075;
+  const flick = (Math.sin(T*17.3) > 0.86) ? 0.35 : 1;
+  g.save();
+  g.globalCompositeOperation = 'lighter';
+  const wash = g.createRadialGradient(lx, ly, 0, lx, ly, h*0.95);
+  wash.addColorStop(0,   'rgba(255,74,58,' + (0.46*flick) + ')');
+  wash.addColorStop(0.32,'rgba(200,38,42,' + (0.20*flick) + ')');
+  wash.addColorStop(1,   'rgba(120,20,30,0)');
+  /* The wash was painting the whole frame, so past the bulkhead it lit up bare
+     canvas — a blazing white slab beside the wall. It only falls on the WALL,
+     which is the only thing there is for it to fall on. */
+  g.fillStyle = wash; g.fillRect(0, 0, w, h);
+  g.restore();
+  /* the fitting itself */
+  g.fillStyle = 'rgba(20,22,22,.95)';
+  g.fillRect(lx-16, ly-6, 32, 12);
+  g.fillStyle = 'rgba(255,90,70,' + (0.9*flick) + ')';
+  g.fillRect(lx-12, ly-3, 24, 6);
+
+  /* ---- THE MESSAGE, in blood ---------------------------------------------
+     Three passes and the order matters: the RUNS first so they sit under the
+     letters, then the dark body of the paint, then a wet highlight where it
+     has not dried. The stroke is deliberately over-wide and the joins are
+     round, because a finger does not draw a clean corner.
+     ------------------------------------------------------------------------ */
+  /* ---- KERNING ------------------------------------------------------------
+     Every letter was given the same 9-wide slot, so I sat in a huge gap on both
+     sides while D and C nearly touched their neighbours. Hand-written letters
+     do not sit on a grid.
+
+     Each glyph now declares its OWN width, and the layout advances by that
+     width rather than by a constant. I is 3 wide, T and L are narrow because
+     their mass is on one side, and the round letters get a fraction more room
+     than the flat ones because a curve needs air to read.
+     ------------------------------------------------------------------------ */
+  const BG = {
+    D:[[[0,0],[0,14]],[[0,0],[6,0],[9,4],[9,10],[6,14],[0,14]]],
+    E:[[[8,0],[0,0],[0,14],[8,14]],[[0,7],[5.5,7]]],
+    R:[[[0,14],[0,0],[6,0],[9,3],[9,6],[6,9],[0,9]],[[4,9],[9,14]]],
+    I:[[[1.5,0],[1.5,14]]],
+    L:[[[0,0],[0,14],[7.5,14]]],
+    C:[[[8.5,2],[5.5,0],[3,0],[0,3],[0,11],[3,14],[5.5,14],[8.5,12]]],
+    T:[[[0,0],[8,0]],[[4,0],[4,14]]]
+  };
+  /* advance widths, in the same units as the glyphs */
+  const BGW = { D:9.4, E:8.4, R:9.4, I:3.4, L:7.9, C:8.9, T:8.4 };
+  /* the writing sits in the upper third, clear of the panel; the eyes go in
+     the band between it and the buttons, which is the only dark left */
+  /* ---- IT HAS TO FIT ON THE WALL -----------------------------------------
+     The word was centred on the SCREEN at 90% of the screen width, so ICT hung
+     out over the open doorway — blood written on nothing. It is centred on the
+     bulkhead now and fitted to the bulkhead's width, with a margin either side
+     so it sits ON the plating rather than running off it.
+     ------------------------------------------------------------------------ */
+  /* the word runs across the FULL wall, above the lintel */
+  /* a cheap deterministic scatter, shared by the drips, the smear passes and
+     the drags — declared here because the drips run before the wordmark */
+  const jit = (n) => (Math.sin(n*12.9898)*43758.5453 % 1);
+  const wallMid = w * 0.50;
+  const wallW   = w * 0.90;
+  const wy = h*0.165, wsz = Math.min(w*0.128, 58);
+
+  /* the runs: drips falling from the bottom of the letters */
+  /* the drips are drawn AFTER the letters now, from their own bottom edges */
+
+
+
+  /* ---- ONE SMEARED PASS PER STROKE ---------------------------------------
+     Redrawing the whole word fourteen times gave even, ghosted outlines \u2014 a
+     clean letter with a soft edge, not a smear. A real smear varies ALONG its
+     length: it starts thick where the finger pressed, thins as the blood runs
+     out, and skips where the wall was dry.
+
+     So each stroke is walked as a polyline and laid down as many short
+     overlapping segments, each with its own width and alpha. `Arcade.wordmark`
+     hands the points to us and we draw them ourselves.
+
+     Every segment also records where its BOTTOM edge is, and the drips are run
+     from those points afterwards \u2014 so the blood falls off the letters rather
+     than from an invented line.
+     ------------------------------------------------------------------------ */
+  const jit2 = (n) => Math.abs(Math.sin(n*12.9898)*43758.5453 % 1);
+  const dripFrom = [];
+
+  function smearStroke(gg, pts, seed){
+    /* resample the polyline into short segments */
+    const SEG = 0.55;                       /* glyph units per segment */
+    let carry = 0, n = 0;
+    for(let k=0;k<pts.length-1;k++){
+      const [ax,ay] = pts[k], [bx,by] = pts[k+1];
+      const dist = Math.hypot(bx-ax, by-ay);
+      const steps = Math.max(1, Math.round(dist/SEG));
+      for(let t=0;t<steps;t++){
+        const u0 = t/steps, u1 = (t+1)/steps;
+        const x0 = ax + (bx-ax)*u0, y0 = ay + (by-ay)*u0;
+        const x1 = ax + (bx-ax)*u1, y1 = ay + (by-ay)*u1;
+        const f = jit2(seed*13 + n*2.7);
+        const g2 = jit2(seed*7 + n*5.1);
+        n++;
+        /* the finger runs out of blood: thinner further along the stroke */
+        const along = 1 - (n*SEG) / (dist*steps*0.5 + 14);
+        const wdt = (0.9 + f*2.6) * (0.55 + Math.max(0, along)*0.85);
+        /* skips: where the wall was dry, nothing lands at all */
+        if(g2 < 0.13) continue;
+        gg.lineWidth = wdt;
+        gg.lineCap = (f > 0.6) ? 'round' : 'butt';
+        gg.strokeStyle = 'rgba(' + Math.round(52 + f*58) + ','
+                       + Math.round(4 + f*9) + ',' + Math.round(6 + f*10) + ','
+                       + (0.30 + g2*0.55) + ')';
+        gg.beginPath();
+        gg.moveTo(x0 + (f-0.5)*1.1, y0 + (g2-0.5)*1.1);
+        gg.lineTo(x1 + (g2-0.5)*1.1, y1 + (f-0.5)*1.1);
+        gg.stroke();
+        /* remember the bottom edge for the drips */
+        /* Only from the BOTTOM of a letter. Recording every segment meant
+           drips starting halfway up a stroke and reading as detached marks
+           floating below the word. y1 > 9 of 14 is the lower third. */
+        if(g2 > 0.72 && y1 > 9){
+          const m = gg.getTransform();
+          dripFrom.push({
+            x: m.a*x1 + m.c*y1 + m.e,
+            y: m.b*x1 + m.d*y1 + m.f,
+            /* the glyph transform includes the size scale, so `wdt * m.a` is
+               already in device pixels — multiplying again made beads the size
+               of the letters. Clamped to something a drip can actually be. */
+            w: Math.min(4.5, Math.max(1.0, wdt * Math.abs(m.a) * 0.5))
+          });
+        }
+      }
+    }
+  }
+
+  /* three passes: the finger went over it more than once */
+  for(let pass2=0; pass2<3; pass2++){
+    AR.wordmark(g, 'DERELICT',
+      wallMid + (jit(pass2)*2.2 - 1.1), wy + (jit(pass2+40)*2.0 - 1.0), wsz, {
+      glyphs: BG, widths: BGW, gap: 0.30, maxW: wallW, rake: -0.04,
+      passes: ['s'],
+      paint: (gg, pp, li, nn, pts) => { smearStroke(gg, pts, pass2*31 + li); return true; }
+    });
+  }
+
+  /* ---- the blood runs off the letters themselves ------------------------- */
+  g.save();
+  dripFrom.sort((a,b) => a.x - b.x);
+  for(let i=0;i<dripFrom.length;i+=4){
+    const d = dripFrom[i];
+    const full  = 5 + jit2(i*3.7)*40;
+    const delay = jit2(i*5.3)*8;
+    const speed = 4 + jit2(i*11.1)*14;
+    const len = Math.max(0, Math.min(full, (T - delay) * speed));
+    if(len <= 0.5) continue;
+    const wdt = Math.max(0.9, Math.min(3.2, d.w*0.62));
+    const gg2 = g.createLinearGradient(0, d.y, 0, d.y + len);
+    gg2.addColorStop(0,'rgba(88,8,10,.80)');
+    gg2.addColorStop(0.7,'rgba(74,7,10,.50)');
+    gg2.addColorStop(1,'rgba(62,5,9,0)');
+    g.fillStyle = gg2;
+    g.fillRect(d.x - wdt/2, d.y, wdt, len);
+    if(len < full){
+      g.fillStyle = 'rgba(118,13,13,.85)';
+      g.beginPath();
+      g.ellipse(d.x, d.y + len, wdt*0.75, wdt*1.05, 0, 0, 6.2832);
+      g.fill();
+    }
+  }
+  g.restore();
+
+  /* a smeared handprint dragged down beside it */
+  g.save();
+  g.globalAlpha = 0.5;
+  g.fillStyle = 'rgba(96,10,12,.8)';
+  for(let f=0;f<4;f++){
+    const fx = w*0.14 + f*7;
+    g.fillRect(fx, wy + wsz*0.55, 4.5, 26 + f*9);
+  }
+  g.fillRect(w*0.14, wy + wsz*0.45, 32, 12);
+  g.restore();
+
+  /* ---- THE EYES ----------------------------------------------------------
+     In the dark below, where the light does not reach. Three pairs, at
+     different depths, blinking on their own clocks. They do not move, they do
+     not glow brightly, and that is the point \u2014 they are simply THERE, and
+     they are looking at you.
+     ------------------------------------------------------------------------ */
+  /* all four INSIDE the doorway, at different depths in the corridor */
+  /* seven pairs, all inside the doorway, at scattered depths. Each blinks on
+     its own period AND its own phase, so no two ever agree — and a couple are
+     slow enough that you will look away before they close. */
+  /* spread down the full depth of the opening */
+  const EYES = [
+    { x:0.605, y:0.395, s:1.15, t:0.0,  p:5.1 },
+    { x:0.760, y:0.475, s:0.82, t:2.3,  p:6.8 },
+    { x:0.660, y:0.590, s:0.58, t:4.1,  p:4.4 },
+    { x:0.880, y:0.360, s:0.68, t:6.4,  p:7.9 },
+    { x:0.945, y:0.530, s:0.44, t:1.2,  p:5.6 },
+    { x:0.800, y:0.700, s:0.37, t:8.7,  p:9.2 },
+    { x:0.620, y:0.800, s:0.50, t:3.4,  p:6.1 }
+  ];
+  for(const E of EYES){
+    /* a blink: mostly open, shut briefly, on its own cycle */
+    const cyc = ((T + E.t) % E.p);
+    const open = (cyc < 0.14) ? 0.05 : 1;
+    if(open < 0.2) continue;
+    const ex = w*E.x, ey = h*E.y, r = 2.2*E.s + 0.6;
+    const gap = 9*E.s;
+    for(const side of [-1, 1]){
+      const px = ex + side*gap;
+      g.save();
+      g.globalCompositeOperation = 'lighter';
+      const eg = g.createRadialGradient(px, ey, 0, px, ey, r*7);
+      eg.addColorStop(0,   'rgba(255,60,50,.85)');
+      eg.addColorStop(0.22,'rgba(200,20,24,.32)');
+      eg.addColorStop(1,   'rgba(140,10,20,0)');
+      g.fillStyle = eg;
+      g.beginPath(); g.arc(px, ey, r*7, 0, 6.2832); g.fill();
+      g.restore();
+      g.fillStyle = 'rgba(255,120,90,.95)';
+      g.beginPath(); g.ellipse(px, ey, r, r*0.72, 0, 0, 6.2832); g.fill();
+      /* the slit */
+      g.fillStyle = 'rgba(40,0,4,.9)';
+      g.fillRect(px - r*0.16, ey - r*0.7, r*0.32, r*1.4);
+    }
+  }
+
+  /* ---- the dark closing in ------------------------------------------------ */
+  const vg = g.createRadialGradient(w*0.5, h*0.36, h*0.10, w*0.5, h*0.52, h*0.95);
+  vg.addColorStop(0,'rgba(0,0,0,0)');
+  vg.addColorStop(0.55,'rgba(0,0,0,.30)');
+  vg.addColorStop(1,'rgba(0,0,0,.86)');
+  g.fillStyle = vg; g.fillRect(0,0,w,h);
+
+  /* dust in the red light */
+  for(let i=0;i<34;i++){
+    const dy = ((i*i*19 + T*7) % h);
+    const dx = ((i*89) % w) + Math.sin(T*0.3 + i)*5;
+    g.fillStyle = 'rgba(255,180,160,' + (0.10*flick) + ')';
+    g.fillRect(dx, dy, 1.3, 1.3);
+  }
+
+  if(document.body.classList.contains('titling'))
+    requestAnimationFrame(drawTitleArt);
+}
+
 function showTitle(){
+  document.body.classList.add('titling');
+  titleT = 0;
+  requestAnimationFrame(drawTitleArt);
   /* Name and four buttons. Nothing else — no flavour paragraph, no legend, no
      recap of the controls. The game teaches itself; the front door only has to
      open. */
   const saved = savedRun();
   openVeil(
-    '<div class="vtitle">Derelict</div>' +
+    /* the drawn stencil IS the title — the set heading would be a second one */
     '<div class="tmenu">' +
       '<button class="vbtn" data-act="play" style="margin-top:26px">PLAY</button>' +
       (saved
@@ -5904,7 +6302,8 @@ function showTitle(){
         : '') +
       '<button class="vbtn ghost" data-act="opts">OPTIONS</button>' +
       '<button class="vbtn ghost" data-act="quit">QUIT</button>' +
-    '</div>',
+    '</div>' +
+    '<div class="legal">\u00A9 2026 EFFIGY MEDIA</div>',
     {
       play:   ()=>{
         dropSave(); newRun(); live = true; fit();
