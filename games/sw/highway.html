@@ -3566,7 +3566,23 @@ function step(dt){
      never stopped. */
   spd += clamp(top - spd, -rate*dt, rate*dt);
   /* coming to rest with the clock out is the end of the run */
-  if(clock <= 0 && spd < MAX_SPD*0.004 && state === 'driving') gameOver();
+  /* ---- OUT OF TIME ---------------------------------------------------
+     This called `gameOver()`, which does not exist — the end-of-run screen
+     is `showEnd(reason)`, reached through `wreck()`. So the clock ran out,
+     the car coasted to a stop, and then nothing happened at all. The run
+     simply sat there. */
+  if(clock <= 0 && spd < MAX_SPD*0.004 && state === 'driving'){
+    state = 'wrecked';
+    bestScore = Math.max(bestScore, Math.round(dist*10)/10);
+    bestDist  = Math.max(bestDist, dist);
+    if(AR && AR.save) AR.save.merge('highway', {
+      best: bestScore, bestMi: +bestDist.toFixed(1), runs: runs,
+      label: 'BEST ' + bestDist.toFixed(1) + ' MI'
+    });
+    snd.dead();
+    setTimeout(() => showEnd('OUT OF TIME'), 500);
+    return;
+  }
   /* The floor was 1700 — about 22mph — so the car could never actually stop.
      It can now sit still, which is what a brake pedal is for. */
   /* the player's own rubber: hard steering at speed, or hard on the brakes */
@@ -4422,10 +4438,10 @@ function overBrow(worldZ, screenY){
    A single running minimum could never express this — it has no memory of
    which slices were actually painted. This does.
    -------------------------------------------------------------------------- */
-let roadY = [], spriteBuckets = {};
+let roadY = [], spriteBuckets = {}, emitted = {};
 function drawRoad(){
   buildHillClip();
-  roadY = [];
+  roadY = []; emitted = {};
   let groundMax = -1e9;
   const lamp = lampsOn();
   const base = Math.floor(pos/SEG);
@@ -4483,7 +4499,16 @@ function drawRoad(){
       ctx.fillRect(0, y2, W, H - y2);
       groundMax = y2;
       roadY[n] = y1;
-      emitBucket(n);                 /* everything standing on this slice */
+      emitBucket(n);
+      /* ---- AND THE ONE BEHIND IT --------------------------------------
+         A car sits at a z that rounds to one segment, but which segment
+         "covers" it shifts by one as `pos` advances — so a car near a
+         boundary was landing alternately on a painted slice and a culled
+         one, twice a second. Emitting the bucket one further out along with
+         this slice removes the oscillation: if THIS slice is visible, the
+         one immediately behind it is too, because nothing can hide between
+         two adjacent slices. */
+      if(!emitted[n+1]) emitBucket(n+1);
     }
     /* if the slice WAS behind a crest, its bucket stays unemitted — that is
        the occlusion, and the only case where a sprite is legitimately lost */
@@ -4708,7 +4733,8 @@ function drawWorld(){
 /* draw everything standing on one segment */
 function emitBucket(n){
   const list = spriteBuckets[n];
-  if(!list) return;
+  if(!list || emitted[n]) return;
+  emitted[n] = 1;
   for(const it of list){
     if(it.kind==='c'){
       drawGantry(it.o);
@@ -5781,17 +5807,24 @@ function showEnd(reason){
   openVeil(
     '<div class="eyebrow">'+reason+'</div>'+
     '<h1>'+dist.toFixed(1)+'<u>MILES DRIVEN</u></h1>'+
+    /* TOP SPEED appeared twice — once as the no-cops substitute for HEAT and
+       again in its own cell. Checkpoints reached is the number this game is
+       actually about, so it takes the free slot. */
     '<div class="grid2">'+
       '<div class="gc"><span>DISTANCE</span><b>'+dist.toFixed(1)+' MI</b></div>'+
-      /* heat is a pursuit statistic — meaningless with the cops switched off */
-      (optEasy ? '<div class="gc"><span>TOP SPEED</span><b>'+Math.round(runTopMph)+' MPH</b></div>'
-               : '<div class="gc"><span>HEAT</span><b>LV '+heat+'</b></div>')+
-      '<div class="gc"><span>BEST RUN</span><b>'+bestDist.toFixed(1)+' MI</b></div>'+
       '<div class="gc"><span>TOP SPEED</span><b>'+Math.round(runTopMph)+' MPH</b></div>'+
+      '<div class="gc"><span>CHECKPOINTS</span><b>'+Math.max(0, nextCP-2)+'</b></div>'+
+      (optEasy ? '<div class="gc"><span>BEST RUN</span><b>'+bestDist.toFixed(1)+' MI</b></div>'
+               : '<div class="gc"><span>HEAT</span><b>LV '+heat+'</b></div>')+
     '</div>'+
-    '<button class="go">RUN IT AGAIN</button>'+
+    /* a way OUT, not just a way round again */
+    '<div class="gstack">'+
+      '<button class="go" data-act="again">RUN IT AGAIN</button>'+
+      '<button class="go ghost" data-act="garage">CHANGE CAR</button>'+
+      '<button class="go ghost" data-act="menu">MAIN MENU</button>'+
+    '</div>'+
     '<div class="tip">ATTEMPT '+(runs+1)+'</div>',
-    start);
+    { again: start, garage: showGarage, menu: showTitle });
 }
 
 /* ---------- boot ---------- */
