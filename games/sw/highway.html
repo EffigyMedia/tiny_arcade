@@ -517,14 +517,23 @@ body.pedals-left #tacho{ right:auto; left:calc(env(safe-area-inset-left,0px) + 1
 
 #veil *{max-width:100%;overflow-wrap:anywhere}
 #veil h1{overflow-wrap:break-word;hyphens:auto}
-#veil{position:absolute;inset:0;z-index:30;display:grid;place-items:center;padding:30px 24px;
+/* ---- A LONG PANEL SCROLLS -----------------------------------------------
+   `place-items:center` centres a panel taller than the viewport, which pushes
+   BOTH ends off screen — so the last buttons in the garage were unreachable on
+   a short phone. It centres while it fits and scrolls when it does not, and the
+   bottom padding clears the home indicator.
+   ------------------------------------------------------------------------- */
+#veil{position:absolute;inset:0;z-index:30;display:grid;place-items:center;
+  justify-items:center;align-content:safe center;
+  overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;
+  padding:24px 24px calc(env(safe-area-inset-bottom,0px) + 28px);
   /* OPAQUE. A road running behind the menu is motion nobody asked for while
      they are reading stats, and it kept the whole simulation warm for no
      reason. Solid, with a soft vignette so it is not a flat slab. */
   background:radial-gradient(120% 80% at 50% 40%,#1b1424 0%,#0d0912 62%,#07050b 100%);
   text-align:center}
 #veil.hidden{display:none}
-.vw{width:100%;max-width:330px}
+.vw{width:100%;max-width:330px;margin:auto 0}
 .eyebrow{font-size:9px;font-weight:700;letter-spacing:.32em;color:var(--sodium);margin-bottom:12px}
 h1{font-family:var(--disp);font-weight:800;font-size:clamp(30px,10.5vw,56px);line-height:.82;
   letter-spacing:-.01em;margin-bottom:14px}
@@ -1008,17 +1017,63 @@ var snd = {
      ---------------------------------------------------------------------- */
   menuBed: function(step, t){
     if(!AR) return;
-    const S = [0, 3, 7, 10, 12, 10, 7, 3];
-    const root = 55;
-    if(step % 2 === 0)
-      AR.sfx.tone({ t, freq: root, dur: 0.9, type:'triangle', gain: 0.045,
-                    attack: 0.05, cutoff: 300, bus:'music' });
-    AR.sfx.tone({ t, freq: root * Math.pow(2, S[step % 8]/12) * 4,
-                  dur: 0.55, type:'sine', gain: 0.030, attack: 0.03,
-                  cutoff: 1600, verb: 0.5, bus:'music' });
-    if(step % 8 === 4)
-      AR.sfx.noise({ t, freq: 2400, dur: 0.12, gain: 0.014,
-                     filter:'highpass', bus:'music' });
+    /* ---- A MENU BED, NOT A FRUIT MACHINE ---------------------------------
+       The old one fired an arpeggio note on EVERY step at 96BPM \u2014 eight
+       evenly-spaced pings a bar, forever. That is the sound of a slot machine
+       paying out, and it is exactly what makes it unbearable after twenty
+       seconds.
+
+       What a title bed actually needs: something long underneath, something
+       sparse on top, and enough space between events that the ear stops
+       tracking them. So:
+
+         - a PAD that changes chord every four bars and is otherwise still
+         - a bass note on the ONE, not on every other step
+         - a melody note only four times in thirty-two, at unpredictable
+           spots, an octave apart so it reads as a phrase rather than a scale
+         - no percussion at all
+
+       Thirty-two steps at 72BPM is about eleven seconds a cycle, and the
+       chord progression takes four cycles to come round \u2014 long enough that it
+       does not announce itself.
+       -------------------------------------------------------------------- */
+    const S = step % 32;
+    const bar = Math.floor(step / 8) % 4;
+
+    /* i \u2013 VI \u2013 III \u2013 VII in A minor: nothing resolves, which is what keeps a
+       menu from feeling like it is waiting for you */
+    const ROOT = [55.00, 43.65, 41.20, 49.00][bar];      /* A, F, E, G */
+    const CHORD = [
+      [0, 7, 15, 19],      /* minor, open */
+      [0, 7, 16, 23],      /* major, with the seventh */
+      [0, 7, 15, 22],
+      [0, 7, 16, 19]
+    ][bar];
+
+    /* the pad: struck once a bar, long, soft, and left to ring */
+    if(S % 8 === 0){
+      CHORD.forEach((n, k) => {
+        AR.sfx.tone({ t: t + k*0.04, freq: ROOT * Math.pow(2, n/12),
+                      dur: 4.2, type:'triangle',
+                      gain: 0.020 - k*0.003, attack: 0.9,
+                      cutoff: 900 + k*260, verb: 0.75, bus:'music' });
+      });
+      /* and the bass, on the one only */
+      AR.sfx.tone({ t, freq: ROOT/2, dur: 2.6, type:'sine',
+                    gain: 0.042, attack: 0.25, cutoff: 220, bus:'music' });
+    }
+
+    /* the melody: four notes in thirty-two, off the beat */
+    const HITS = { 6: 19, 11: 22, 20: 15, 27: 24 };
+    if(HITS[S] !== undefined){
+      const f = ROOT * Math.pow(2, HITS[S]/12) * 2;
+      AR.sfx.tone({ t, freq: f, dur: 1.6, type:'sine', gain: 0.026,
+                    attack: 0.10, cutoff: 2200, verb: 0.80, bus:'music' });
+      /* an octave under it, quieter \u2014 gives the note a body without a second
+         voice competing */
+      AR.sfx.tone({ t: t + 0.02, freq: f/2, dur: 1.4, type:'triangle',
+                    gain: 0.014, attack: 0.12, cutoff: 1100, verb: 0.6, bus:'music' });
+    }
   },
 
   /* a bright two-note rise — unmistakable over the engine */
@@ -3314,7 +3369,11 @@ function spawnBehind(){
   traffic.push({
     z, lane, x: LANE_X[lane] + rnd(-0.03,0.03),
     /* it must actually be quicker than you or it will never arrive */
-    spd: 0, cruise: Math.max(spd * 1.25, (t==='truck' ? 0.36 : 0.55) * MAX_SPD),
+    /* a car coming up BEHIND has to be quicker than you or it never arrives,
+       but 1.25x your speed at 190 is 237mph. Capped to something a road car
+       could actually do. */
+    spd: 0, cruise: Math.min(0.46 * MAX_SPD,
+                             Math.max(spd * 1.12, (t==='truck' ? 0.24 : 0.34) * MAX_SPD)),
     type: t,
     w: t==='truck' ? 0.32 : t==='van' ? 0.30 : t==='pickup' ? 0.29
      : (t==='coupe'||t==='tuner') ? 0.26 : t==='muscle' ? 0.285 : 0.275,
@@ -3360,10 +3419,29 @@ function spawnWave(z){
             : roll<0.59 ? 'tuner'  : roll<0.67 ? 'muscle'
             : roll<0.73 ? 'taxi'
             : roll<0.86 ? 'sedan'  : 'sedan2';
+    const rogue = (t === 'tuner' || t === 'muscle') && Math.random() < 0.20;
     traffic.push({
       z: z + rnd(-600,600), lane,
       x: LANE_X[lane] + rnd(-0.03,0.03),
-      spd: 0, cruise: (t==='truck' ? rnd(0.30,0.38) : rnd(0.42,0.60)) * MAX_SPD,
+      /* ---- TRAFFIC IS TRAFFIC, NOT A FIELD -----------------------------
+         0.42-0.60 of MAX_SPD is 84-120mph. That was survivable when the
+         player did 0-60 in a second; after the acceleration retune it means
+         EVERY car on the road overtakes you, and a striped muscle car going
+         past at 94 looks exactly like a rival. Motorway speeds instead:
+         52-84mph for cars, 44-56 for lorries. */
+      /* ---- ROGUES ----------------------------------------------------
+         One in five tuners or muscle cars is not commuting. They cruise at
+         100-124mph, well over the rest of the traffic, so every so often one
+         comes through the pack and goes past you — which is what you thought
+         you were seeing before, and it is better as a deliberate thing than
+         as a symptom.
+
+         They are still TRAFFIC: no points, no placings, they queue at
+         roadblocks and they get out of the way of a siren like anyone else.
+         The only difference is the number. */
+      spd: 0, cruise: rogue ? rnd(0.50, 0.62) * MAX_SPD
+                            : (t==='truck' ? rnd(0.22,0.28) : rnd(0.26,0.42)) * MAX_SPD,
+      rogue: rogue,
       type: t,
       w: t==='truck' ? 0.32 : t==='van' ? 0.30 : t==='pickup' ? 0.29
        : (t==='coupe'||t==='tuner') ? 0.26 : t==='muscle' ? 0.285 : 0.275,
@@ -3443,6 +3521,9 @@ function reset(){
   dmg=0; nos=40; nosOn=false; nosTime=0; bustT=0;
   racers=[]; place=12; finished=false; hasMoved=false;
   curveSegs=[]; hillSegs=[]; signs=[]; bendZ0=0; bendCache=[]; bendT=0; skySmooth=0; pushK=0; rebuildBend();
+  /* and the field itself: `buildField` only ever ADDS, so a race left eleven
+     cars on the road that TEST DRIVE then inherited */
+  racers = [];
   if(mode === 'race') buildField();
   const pw = document.getElementById('placeWrap');
   if(pw) pw.hidden = (mode !== 'race');
@@ -3512,7 +3593,7 @@ function wreck(reason){
       r:rnd(2,7), c: Math.random()<0.5 ? '#ff8a3d' : '#ffe0a0'});
   }
   /* a game over belongs to the menu, so the menu's music takes over */
-  if(AR && AR.music){ AR.music.stop(); AR.music.start(96, 8, snd.menuBed); }
+  if(AR && AR.music){ AR.music.stop(); AR.music.start(72, 32, snd.menuBed); }
   setTimeout(()=>showEnd(reason), 700);
 }
 
@@ -4294,7 +4375,7 @@ function stepRacers(dt){
       best: bestScore, bestMi: +bestDist.toFixed(1), runs: runs,
       label: 'BEST ' + bestDist.toFixed(1) + ' MI'
     });
-    if(AR && AR.music){ AR.music.stop(); AR.music.start(96, 8, snd.menuBed); }
+    if(AR && AR.music){ AR.music.stop(); AR.music.start(72, 32, snd.menuBed); }
     snd.checkpoint();
     if(tourOn){
       tourScore(place);
@@ -5185,7 +5266,7 @@ function step(dt){
       label: 'BEST ' + bestDist.toFixed(1) + ' MI'
     });
     snd.dead();
-    if(AR && AR.music){ AR.music.stop(); AR.music.start(96, 8, snd.menuBed); }
+    if(AR && AR.music){ AR.music.stop(); AR.music.start(72, 32, snd.menuBed); }
     setTimeout(() => showEnd('OUT OF TIME'), 500);
     return;
   }
@@ -5404,6 +5485,10 @@ function step(dt){
   }
   const pz = pos + PLAYER_Z;
 
+  /* a rogue does not sit behind you at your speed — it is going somewhere */
+  for(const c of traffic)
+    if(c.rogue && c.cruiseFloor === undefined) c.cruiseFloor = c.cruise;
+
   // --- traffic follows the car in front and queues at roadblocks ---
   keepLaneOpen(dt, pz);
   traffic.sort((a,b) => a.z - b.z);
@@ -5520,7 +5605,40 @@ function step(dt){
     }
     if(k.grace>0) k.grace -= dt;
     if(k.cool>0)  k.cool  -= dt;
-    const dz = k.z - pz;
+
+    /* ---- THE LAW IS NOT ONLY AFTER YOU ---------------------------------
+       A cruiser chased `pz` and nothing else, so a rogue tuner could sit at
+       122mph three lanes over and be ignored. Now it picks the nearest
+       SPEEDER — you, a rival on the grid, or a rogue in the traffic — and runs
+       that one down.
+
+       You are still the default and still weighted toward: a cop already on
+       you does not abandon the chase because a rogue went past. But if one is
+       genuinely nearer and genuinely quick, it goes.
+
+       It also means a pursuit you started can be taken off you by somebody
+       else's driving, which is the best thing about it.
+       ------------------------------------------------------------------ */
+    if(k.retarget === undefined) k.retarget = 0;
+    k.retarget -= dt;
+    if(k.retarget <= 0){
+      k.retarget = 1.4;
+      let bestZ = pz, bestX = playerX, bestD = Math.abs(k.z - pz) * 0.55;
+      const look = (z, x, sp) => {
+        /* a target with a bad number in it poisons `k.x` and every gradient
+           drawn from it — one NaN in a chase turns the whole frame black */
+        if(!isFinite(z) || !isFinite(x) || !isFinite(sp)) return;
+        if(sp < MAX_SPD * 0.44) return;      /* not speeding, not interesting */
+        const d = Math.abs(k.z - z);
+        if(d < bestD && d < 9000){ bestD = d; bestZ = z; bestX = x; }
+      };
+      for(const r of racers) look(r.z, r.x, r.spd);
+      for(const c of traffic) if(c.rogue) look(c.z, c.x, c.spd);
+      k.tz = bestZ; k.tx = bestX;
+      k.onPlayer = (bestZ === pz);
+    }
+    const tz = (k.tz === undefined) ? pz : k.tz;
+    const dz = k.z - tz;
     // run it down, hold station beside you, lunge, then peel off and reset
     const aggro = k.cool <= 0;
     const wantDz = aggro ? 120 : 900;
@@ -5544,6 +5662,10 @@ function step(dt){
     const boxing = spd < MAX_SPD*0.10;
     k.spd = clamp(k.spd, boxing ? -2600 : 2000, AI_TOP);
     k.z += k.spd*dt;
+    /* and it steers at whatever it is chasing, not always at you */
+    if(k.tx !== undefined && !k.onPlayer && isFinite(k.tx))
+      k.x += clamp(k.tx - k.x, -1.6*dt, 1.6*dt);
+    if(!isFinite(k.x)) k.x = playerX;
     const kdx = k.x - (k.lastX === undefined ? k.x : k.lastX);
     k.lastX = k.x;
     const ks = scrubOf(k, kdx, dt, k.spd, false);
@@ -7321,18 +7443,27 @@ function hud(){
   }
   /* the bottle empties as you burn it */
   nitroBtn.style.setProperty('--nos', nos + '%');
-  if(mode === 'race'){
-    $('placeWrap').hidden = false;
+  /* ---- THESE ARE RACE PANELS -------------------------------------------
+     They were shown in a race and never HIDDEN again, so a race followed by a
+     TEST DRIVE still read "3.4 MI TO GO" and "P7/12". A panel that appears
+     conditionally has to disappear on the same condition.
+
+     The distance also has to come from the round you are actually in — a
+     tournament leg is 10, 12, 16 or 24 miles, not always RACE_MILES. */
+  const racing = (mode === 'race');
+  $('placeWrap').hidden = !racing;
+  $('distWrap').hidden  = !racing;
+  if(racing){
     $('place').textContent = place + '/12';
-    $('distWrap').hidden = false;
-    $('dist').innerHTML = Math.max(0, RACE_MILES - dist).toFixed(1) + '<i>MI</i>';
+    const legMi = tourOn ? TOUR_MILES[tourRound] : RACE_MILES;
+    $('dist').innerHTML = Math.max(0, legMi - dist).toFixed(1) + '<i>MI</i>';
   }
   drawDials();
   drawWheel();
 
-  const active = cops.some(k=>k.wreck<=0);
+  const active = cops.some(k=>k.wreck<=0 && k.onPlayer !== false);
   $('pursuit').className = active ? 'on' : '';
-  $('pursuit').textContent = 'PURSUIT \u00D7'+cops.filter(k=>k.wreck<=0).length+'  \u00B7  HEAT '+heat +
+  $('pursuit').textContent = 'PURSUIT \u00D7'+cops.filter(k=>k.wreck<=0 && k.onPlayer !== false).length+'  \u00B7  HEAT '+heat +
     (combo>1 ? '  \u00B7  \u00D7'+combo : '');
   nitroBtn.disabled = nos<=8;
   brakeBtn.disabled = state!=='driving';
@@ -7435,7 +7566,8 @@ function garageCard(){
     '<div class="gnote">' + B.note + '</div>' +
     '<div class="gstat"><span>TOP SPEED</span><b>' + top + ' MPH</b></div>' +
     '<div class="gstat"><span>0\u201360 MPH</span><b>' + zeroSixty(optBody).toFixed(1) + 's</b></div>' +
-    '<div class="gstat"><span>TOP END</span>' + bars(B.vmax, 0.93, 1.04) + '</div>' +
+    /* TOP END was `vmax` drawn as bars, and TOP SPEED is `vmax` written as a
+       number — the same fact twice. Gone. */
   '</div>';
 }
 /* ---- WHAT COLOURS THIS CAR COMES IN --------------------------------------
@@ -7471,7 +7603,7 @@ function showGarage(){
   /* the garage is reachable from the end card, so it has to tear down too —
      but it keeps the menu music rather than restarting it */
   if(state !== 'garage'){ endRun(); state = 'garage';
-    if(AR && AR.music) AR.music.start(96, 8, snd.menuBed); }
+    if(AR && AR.music) AR.music.start(72, 32, snd.menuBed); }
   state = 'garage';
   openVeil(
     '<div class="eyebrow">CHOOSE YOUR CAR</div>' +
@@ -7779,7 +7911,7 @@ function showTitle(){
   document.body.classList.add('titling');
   titleT = 0;
   requestAnimationFrame(drawTitleArt);
-  if(AR && AR.music) AR.music.start(96, 8, snd.menuBed);
+  if(AR && AR.music) AR.music.start(72, 32, snd.menuBed);
   openVeil(
     '<h1>Highway</h1>' +
     '<div class="tmenu">' +
