@@ -449,7 +449,7 @@ body.pedals-left #wheel{ left:auto; right:calc(env(safe-area-inset-right,0px) + 
   transform:scale(var(--ark-ui,1));
   right:calc(env(safe-area-inset-right,0px) + 10px);
   bottom:calc(env(safe-area-inset-bottom,0px) + 132px * var(--ark-ui,1));
-  width:150px;height:64px;touch-action:none;
+  width:132px;height:64px;touch-action:none;
   display:flex;align-items:stretch;gap:6px;
 }
 #paddles[hidden]{ display:none }
@@ -462,12 +462,7 @@ body.hardware #paddles{ display:none }
   -webkit-tap-highlight-color:transparent;touch-action:none;
 }
 #paddles button:active{ background:rgba(255,179,71,.35);color:#1a1208 }
-#padGear{
-  flex:0 0 48px;display:grid;place-items:center;
-  border:1px solid rgba(255,255,255,.16);border-radius:6px;
-  background:rgba(12,10,16,.85);
-}
-#padGear b{ font:700 26px/1 var(--disp);color:#fff3e2 }
+/* the readout is gone; the two paddles share the width between them */
 #gate{
   position:absolute;inset:0;border-radius:9px;
   background:linear-gradient(to bottom,#1a1d22,#0d0f13);
@@ -695,9 +690,10 @@ body.titling #veil h1{display:none}
     <div id="knob" data-gear="1"><b>1</b></div>
   </div>
   <!-- a formula car does not have a gate: two paddles and a number -->
+  <!-- no gear number between them: the tacho already shows the gear, and a
+       formula wheel has paddles, not a readout -->
   <div id="paddles" hidden>
     <button id="padDown" type="button">−</button>
-    <div id="padGear"><b>1</b></div>
     <button id="padUp" type="button">+</button>
   </div>
   <canvas id="titleArt"></canvas>
@@ -1079,58 +1075,66 @@ var snd = {
      ---------------------------------------------------------------------- */
   menuBed: function(step, t){
     if (!AR) return;
-    /* ---- BUILT ON THE SAME MACHINERY AS THE RACE BED ---------------------
-       My last two attempts hand-rolled oscillators and noise and produced
-       something thin and, apparently, silent \u2014 `snd.bed` uses `AR.sfx.drum`,
-       which is the shell's own kit, and I was not using it at all.
+    /* ---- AN ACTUAL TUNE ---------------------------------------------------
+       The last one was a groove with two stray notes on it and no melody \u2014 a
+       backing track waiting for something that never arrived. This has a
+       MELODY: sixteen bars of it, phrased, that rises through the progression
+       and answers itself.
 
-       Same kit, same 16-step bar, same gallop. What differs is the MOOD: the
-       race bed is E-minor at 152 with a driving palm-mute; this is the same
-       engine at 128, in A, with the riff on the offbeat and the chords held
-       instead of chugged. Recognisably the same game, obviously not the same
-       track.
+       A minor, 128BPM, i \u2013 VI \u2013 III \u2013 VII, which is the four chords every
+       driving game has used since 1986 because they go somewhere and come
+       back. The tune sits on top in a square lead, one note per eighth, with
+       rests where a singer would breathe.
        -------------------------------------------------------------------- */
-    var s = step % 16, bar = Math.floor(step/16) % 4;
+    var s = step % 16, bar = Math.floor(step/16) % 8;
 
-    /* A \u2013 A \u2013 F \u2013 G: it turns around rather than resolving, so it loops */
-    var ROOTS = [55.00, 55.00, 43.65, 49.00];
+    var ROOTS = [55.00, 43.65, 32.70, 49.00,   /* Am  F   C   G  */
+                 55.00, 43.65, 32.70, 49.00];
     var root  = ROOTS[bar];
 
-    /* kick on the ones and the and-of-three \u2014 a groove, not a gallop */
+    /* ---- the melody: -1 is a rest, numbers are semitones off A ---------- */
+    var LINE = [
+      [ 12, -1, 15, -1, 19, -1, 15, -1, 12, -1, -1, -1, 10, -1, 12, -1 ],
+      [  8, -1, 12, -1, 17, -1, 12, -1,  8, -1, -1, -1,  5, -1,  8, -1 ],
+      [  7, -1, 12, -1, 16, -1, 19, -1, 16, -1, 12, -1,  7, -1, -1, -1 ],
+      [ 14, -1, 12, -1, 10, -1, 12, -1, 14, -1, 17, -1, 19, -1, 21, -1 ],
+      [ 24, -1, 19, -1, 15, -1, 19, -1, 24, -1, -1, -1, 22, -1, 19, -1 ],
+      [ 20, -1, 17, -1, 12, -1, 17, -1, 20, -1, -1, -1, 17, -1, 12, -1 ],
+      [ 19, -1, 16, -1, 12, -1, 16, -1, 19, -1, 24, -1, 19, -1, 16, -1 ],
+      [ 14, -1, 17, -1, 19, -1, 17, -1, 14, -1, 12, -1, 10, -1, -1, -1 ]
+    ][bar];
+    var n = LINE[s];
+    if (n >= 0){
+      var f = 55.00 * Math.pow(2, n/12) * 2;
+      AR.sfx.tone({ t:t, freq:f, dur:0.26, type:'square', gain:0.090,
+                    bus:'music', cutoff:2800, q:2, verb:0.30 });
+      /* an octave under it at a third the level gives the lead a body */
+      AR.sfx.tone({ t:t, freq:f/2, dur:0.24, type:'square', gain:0.030,
+                    bus:'music', cutoff:1500, q:2 });
+    }
+
+    /* ---- the kit: a straight backbeat, out of the way of the tune ------- */
     if (s === 0 || s === 6 || s === 8 || s === 14)
-      AR.sfx.drum('kick', t, s === 0 ? 0.80 : 0.58);
+      AR.sfx.drum('kick', t, s === 0 ? 0.78 : 0.54);
+    if (s === 4 || s === 12) AR.sfx.drum('snare', t, 0.50);
+    if (s % 2 === 0) AR.sfx.drum('hat', t, s % 4 ? 0.14 : 0.22);
+    if (bar % 4 === 3 && s === 14) AR.sfx.drum('open', t, 0.26);
 
-    /* backbeat */
-    if (s === 4 || s === 12) AR.sfx.drum('snare', t, 0.52);
+    /* ---- bass: root on the beat, fifth on the and-of-two --------------- */
+    if (s === 0 || s === 8)
+      AR.sfx.tone({ t:t, freq:root*0.5, dur:0.44, type:'square',
+                    gain:0.150, bus:'music', cutoff:250, q:3 });
+    if (s === 6 || s === 14)
+      AR.sfx.tone({ t:t, freq:root*0.5*Math.pow(2,7/12), dur:0.20,
+                    type:'square', gain:0.100, bus:'music', cutoff:300, q:3 });
 
-    /* eighth hats, offbeats lighter, one open at the turn */
-    if (s % 2 === 0) AR.sfx.drum('hat', t, s % 4 ? 0.16 : 0.26);
-    if (bar === 3 && s === 14) AR.sfx.drum('open', t, 0.28);
-
-    /* the bass: on the beat, long, with a fifth under the last bar */
-    if (s % 4 === 0){
-      AR.sfx.tone({ t:t, freq:root*0.5, dur:0.42, type:'square',
-                    gain:0.150, bus:'music', cutoff:240, q:3 });
-      AR.sfx.tone({ t:t, freq:root, dur:0.34, type:'square',
-                    gain:0.110, bus:'music', cutoff:420, q:5 });
-    }
-
-    /* chords HELD across the bar rather than chugged \u2014 this is the difference
-       you hear between the menu and the race */
+    /* ---- chords, held, under everything -------------------------------- */
     if (s === 0){
-      [0, 7, 12].forEach(function(n, k){
-        AR.sfx.tone({ t:t + k*0.012, freq: root * Math.pow(2, n/12) * 2,
-                      dur:1.6, type:'sawtooth', gain:0.055 - k*0.010,
-                      bus:'music', cutoff:900 + k*300, attack:0.05, verb:0.35 });
+      [0, 7, 12].forEach(function(iv, k){
+        AR.sfx.tone({ t:t + k*0.010, freq: root * Math.pow(2, iv/12),
+                      dur:1.75, type:'sawtooth', gain:0.042 - k*0.008,
+                      bus:'music', cutoff:820 + k*260, attack:0.06, verb:0.35 });
       });
-    }
-
-    /* a lead line on the offbeat, two notes a bar */
-    var LEAD = { 3: 12, 7: 15, 10: 19, 13: 14 };
-    if (LEAD[s] !== undefined){
-      AR.sfx.tone({ t:t, freq: root * Math.pow(2, LEAD[s]/12) * 2,
-                    dur:0.22, type:'square', gain:0.070,
-                    bus:'music', cutoff:2600, q:2, verb:0.30 });
     }
   },
 
@@ -3449,11 +3453,32 @@ function buildSprites(){
      own sprite size; everything else is a supercar and uses paintCar */
   const pt = PAINT[optPaint] || PAINT.WHITE;
   if(shape.rig){
-    const rz = shape.rig === 'muscle' ? [210,158] : [206,150];
+    /* ---- EVERY SHAPE HAS ITS OWN BOX ------------------------------------
+       This read `muscle ? [210,158] : [206,150]`, so a VAN, a PICKUP and a
+       LORRY were all drawn into a coupe's sprite — the lorry squashed to two
+       thirds of its height, which is why it came out a different size from the
+       one on the road. The traffic tables have always had these numbers; the
+       player build was the only place that did not use them.
+       ------------------------------------------------------------------- */
+    const rz = shape.rig === 'muscle' ? [210,158]
+             : shape.rig === 'cop'    ? [200,164]
+             : shape.rig === 'van'    ? [200,196]
+             : shape.rig === 'pickup' ? [206,176]
+             : shape.rig === 'truck'  ? [230,250]
+             : shape.rig === 'sedan' || shape.rig === 'taxi' ? [200,164]
+             : [206,150];
+    /* ---- THE COLOUR IS THE CAB'S, NOT THE TRAILER'S ---------------------
+       A lorry's trailer is the plain beige panel it always is. Painting the
+       player's lorry in the chosen colour painted the BOX, which is the one
+       part of it that never changes. The cab takes the colour instead. */
+    const rigPaint = (shape.rig === 'truck')
+      ? Object.assign({}, pt, { body:'#8a8477', hi:'#a8a293', lo:'#4e4a41',
+                                cab: { body:pt.body, hi:pt.hi, lo:pt.lo } })
+      : pt;
     SP.player = sprite(rz[0], rz[1],
       paintRig(shape.rig, Object.assign({ lamp:'#d61b3c', lamp2:'#ff7a86',
                                           player:true,
-                                          stripes:optStripes && stripesAllowed() }, pt)));
+                                          stripes:optStripes && stripesAllowed() }, rigPaint)));
   } else {
     SP.player = sprite(220,168, paintCar(Object.assign({
       cabin:true, spoiler:true, shape, bodyKey:optBody,
@@ -7767,13 +7792,7 @@ function hud(){
 
   /* the score slot now carries the one number that matters */
   $('score').textContent = dist.toFixed(1) + ' MI';
-  const pg2 = document.getElementById('padGear');
-  if(pg2 && !document.getElementById('paddles').hidden)
-    /* `inNeutral` is a local inside step(); the HUD cannot see it, and reading
-       it here threw every frame and killed the whole update — which is why the
-       paddles did nothing. Derived from the same expression instead. */
-    pg2.firstElementChild.textContent =
-      (optManual && (gear < 1 || gear > gearTable().length)) ? 'N' : gear;
+
   const cw = $('clockWrap');
   if(cw){
     const on = clockRuns();
@@ -7861,8 +7880,13 @@ function openVeil(html, go){
   veilBody.querySelectorAll('[data-act^="paint:"]').forEach(b =>
     b.addEventListener('click', () => {
       optPaint = b.dataset.act.slice(6);
+      /* only an UNRESTRICTED car's choice becomes the remembered one — picking
+         black for the cruiser must not turn every other car black */
+      if(paintChoices().length === PAINT_KEYS.length){
+        freePaint = optPaint;
+        if(AR && AR.save) AR.save.merge('highway-opts', { paint:optPaint });
+      }
       buildSprites();
-      if(AR && AR.save) AR.save.merge('highway-opts', { paint:optPaint });
       showGarage();
     }));
   veilBody.querySelectorAll('[data-act]').forEach(b => {
@@ -7918,7 +7942,22 @@ function garageCard(){
    telling. Everything else takes the full dozen.
    ------------------------------------------------------------------------- */
 function paintChoices(){
-  return optBody === 'CRUISER' ? ['WHITE','BLACK'] : PAINT_KEYS;
+  if(optBody === 'CRUISER') return ['WHITE','BLACK'];
+  if(optBody === 'CAB')     return ['GOLD'];        /* a cab is yellow */
+  return PAINT_KEYS;
+}
+
+/* ---- A RESTRICTED CAR MUST NOT EAT YOUR COLOUR --------------------------
+   Selecting the cruiser forced `optPaint` to WHITE, and that is the SAME
+   variable every other car reads — so picking it once repainted the whole
+   garage. The colour you chose for ordinary cars is remembered separately and
+   put back the moment you leave a restricted one.
+   ------------------------------------------------------------------------ */
+let freePaint = 'WHITE';
+function syncPaintForBody(){
+  const allowed = paintChoices();
+  if(allowed.length === PAINT_KEYS.length) optPaint = freePaint;
+  else if(allowed.indexOf(optPaint) < 0)   optPaint = allowed[0];
 }
 function paintSwatches(){
   return '<div class="swatches">' + paintChoices().map(k =>
@@ -8033,8 +8072,8 @@ function cycleBody(d){
   const ks = Object.keys(BODY).filter(openBy);
   const i = (ks.indexOf(optBody) + d + ks.length) % ks.length;
   optBody = ks[i];
-  /* a car with a restricted palette cannot keep a colour it does not offer */
-  if(paintChoices().indexOf(optPaint) < 0) optPaint = paintChoices()[0];
+  syncPaintForBody();
+  syncPaintForBody();
   buildSprites();
   syncBoxClass();
   if(AR && AR.save) AR.save.merge('highway-opts', { body:optBody });
@@ -8263,8 +8302,31 @@ function drawTitleArt(){
     requestAnimationFrame(drawTitleArt);
 }
 
+/* ---- THE FIRST TAP HAS TO START IT ---------------------------------------
+   A browser will not create an audio context without a gesture, so on a cold
+   load the title is silent until you touch something. If that touch is PLAY
+   you are in the garage before the bed ever plays, and the title appears to
+   have no music at all.
+
+   This arms a one-shot listener: the first pointer or key event anywhere
+   starts the menu bed, provided we are still on a menu. It costs nothing and
+   it removes the only case where the title is genuinely silent.
+   -------------------------------------------------------------------------- */
+let audioArmed = false;
+function armMenuAudio(){
+  if(audioArmed) return;
+  audioArmed = true;
+  const go = () => {
+    if(state !== 'title') return;
+    if(AR && AR.music) AR.music.start(128, 16, snd.menuBed);
+  };
+  addEventListener('pointerdown', go, { once:true });
+  addEventListener('keydown',     go, { once:true });
+}
+
 function showTitle(){
   endRun();
+  armMenuAudio();
   document.body.classList.add('titling');
   titleT = 0;
   requestAnimationFrame(drawTitleArt);
@@ -8656,7 +8718,7 @@ if (AR && AR.options) AR.options.define([
   const g0 = AR && AR.save ? AR.save.get('highway-opts') : null;
   if(g0){
     if(g0.body && BODY[g0.body]) optBody = g0.body;
-    if(g0.paint && PAINT[g0.paint]) optPaint = g0.paint;
+    if(g0.paint && PAINT[g0.paint]){ optPaint = g0.paint; freePaint = g0.paint; }
     if(typeof g0.manual === 'boolean') optManual = g0.manual;
     if(typeof g0.timed === 'boolean') timedRun = g0.timed;
     if(typeof g0.stripes === 'boolean') optStripes = g0.stripes;
