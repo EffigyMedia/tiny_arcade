@@ -124,7 +124,22 @@ A.audio = {
       if (ctx.state !== 'running' && gestured) ctx.resume().then(flush, function(){});
       return true;
     }
-    if (!gestured) return false;          // wait for a gesture; music will be queued
+    /* ---- TRY ANYWAY -------------------------------------------------------
+       This returned early without a gesture, so on a fresh page load the
+       context was never even ATTEMPTED — and a game opened from the launcher is
+       always a fresh page load, because the launcher navigates rather than
+       swapping views. Music could not start until you touched something, and
+       if that touch was PLAY you never heard the title at all.
+
+       There is no way to force audio without permission, but there IS a case
+       the old code threw away: a browser that has already granted autoplay for
+       this origin — desktop, an installed PWA, or one with enough media
+       engagement — will happily build a RUNNING context on load.
+
+       So: build it optimistically. If it comes up running, the music starts by
+       itself. If it comes up suspended, nothing is lost — `gestured` still
+       gates the resume and the first tap flushes the queue exactly as before.
+       ---------------------------------------------------------------------- */
     var C = window.AudioContext || window.webkitAudioContext;
     if (!C) return false;
     try { ctx = new C(); } catch(e){ return false; }
@@ -147,8 +162,10 @@ A.audio = {
     applyGains(0);
     ctx.onstatechange = flush;
     unlockTap();
-    if (ctx.state !== 'running') ctx.resume().then(flush, function(){});
-    else flush();
+    /* a context that comes up running on its own means autoplay was allowed:
+       treat that as the gesture, so queued music flushes immediately */
+    if (ctx.state === 'running'){ gestured = true; flush(); }
+    else ctx.resume().then(function(){ gestured = true; flush(); }, function(){});
     startWatchdog();
     return true;
   },
@@ -504,6 +521,19 @@ function wake(){
   if (pending && M.on && !M.timer && ctx.state === 'running') runMusic(pending);
   startWatchdog();
 }
+/* ---- TRY ONCE ON LOAD, BEFORE ANY GESTURE --------------------------------
+   Nothing called `init()` until the first tap, so on a fresh page load the
+   engine did not exist and the music had nowhere to go. A game opened from the
+   launcher is ALWAYS a fresh page load, because the launcher navigates rather
+   than swapping views — which is why games started silent.
+
+   Attempting it costs one suspended context if permission is refused, and
+   wins outright wherever autoplay is already allowed for the origin: desktop,
+   an installed PWA, or a site the browser has enough engagement with. The
+   gesture path below is untouched and still catches every other case.
+   -------------------------------------------------------------------------- */
+try { A.audio.init(); } catch(e){}
+
 /* capture phase: a game's own pointerdown handler on its canvas would
    otherwise run first and find the engine still asleep */
 document.addEventListener('pointerdown', wake, { capture:true, passive:true });
