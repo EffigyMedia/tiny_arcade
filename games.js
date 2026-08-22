@@ -190,8 +190,12 @@ window.TINY_ARCADE = [
     cat:   'sw',
     name:  'Highway',
     accent:'#ff8a3d',
-    genre: 'DRIVING \u00B7 ENDLESS \u00B7 RACE',
-    hook:  'The road bends now. Sixteen bodies of traffic and nowhere to hide.',
+    /* The genre line says what KIND of game this is — three words, the way
+       every other card reads, not a list of menu items. The hook had been
+       describing a build that no longer exists: it claimed sixteen bodies of
+       traffic when there were never more than seven. */
+    genre: 'DRIVING \u00B7 RACE \u00B7 ENDLESS',
+    hook:  'Four races, a clock that only checkpoints reset, and the law behind you.',
     attract:'road'
   }
 ];

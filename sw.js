@@ -21,8 +21,17 @@
    points at a file that no longer exists — which is a site of 404s that looks
    like a broken deploy rather than a stale cache. Changing the names makes
    every client throw its cache away on the next visit. */
-const CORE    = 'tiny-arcade-core-v19';
-const RUNTIME = 'tiny-arcade-runtime-v19';
+/* v20: v19 shipped with an EMPTY asset list. Any device that installed it is
+   holding a worker that caches no cabinets, and it will keep serving that
+   worker until the name changes. */
+const CORE    = 'tiny-arcade-core-v20';
+/* ---- ONE VERSION, NOT TWO ----------------------------------------------
+   CORE went to v20 and RUNTIME stayed at v19, so a device kept a runtime cache
+   from the broken build alongside a fresh core. They are bumped together from
+   here: two names, one version number, so a stale half can never survive an
+   update.
+   ---------------------------------------------------------------------- */
+const RUNTIME = 'tiny-arcade-runtime-v20';
 const KEEP    = [CORE, RUNTIME];
 
 /* The shell. Enough to open the arcade with no signal at all. */

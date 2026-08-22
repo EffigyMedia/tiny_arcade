@@ -197,8 +197,42 @@ if ('serviceWorker' in navigator && location.protocol.slice(0,4) === 'http'){
     var root = './';
     if (m && m.content) root = m.content.replace(/index\.html(#.*)?$/, '');
     if (!root) root = './';
-    navigator.serviceWorker.register(root + 'sw.js').then(null, function(err){
+    /* ---- IT HAS TO UPDATE ITSELF ---------------------------------------
+       The worker called skipWaiting and claim, so a NEW worker took over the
+       page — but the page it took over was already rendered from the OLD
+       files. Nothing reloaded, so you kept looking at the previous build until
+       you refreshed by hand. Nobody should have to know that.
+
+       Three parts:
+         - check for a new worker on every load, and again every ten minutes
+           for a session left open
+         - when one installs and something is already controlling the page,
+           that is an UPDATE rather than a first install
+         - reload once when it takes control. `reloading` guards the loop:
+           without it `controllerchange` fires again after the reload and the
+           page refreshes forever.
+       ------------------------------------------------------------------- */
+    navigator.serviceWorker.register(root + 'sw.js').then(function(reg){
+      if (!reg) return;
+      reg.update();
+      setInterval(function(){ reg.update(); }, 10 * 60 * 1000);
+      reg.addEventListener('updatefound', function(){
+        var w = reg.installing;
+        if (!w) return;
+        w.addEventListener('statechange', function(){
+          if (w.state === 'installed' && navigator.serviceWorker.controller)
+            w.postMessage('skipWaiting');
+        });
+      });
+    }, function(err){
       if (window.console && console.warn) console.warn('arcade: offline cache unavailable', err);
+    });
+
+    var reloading = false;
+    navigator.serviceWorker.addEventListener('controllerchange', function(){
+      if (reloading) return;
+      reloading = true;
+      window.location.reload();
     });
   });
 }
