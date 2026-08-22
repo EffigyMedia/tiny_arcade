@@ -2133,11 +2133,28 @@ function spawnBehind(){
   });
 }
 
+/* ---- THERE IS ALWAYS A WAY THROUGH --------------------------------------
+   Each wave left one lane free, but a DIFFERENT one each time — and at 900
+   units apart the free lanes never lined up, so the road became a solid wall
+   with a gap that moved sideways faster than any car could. On a clock that
+   is not difficulty, it is a dead end.
+
+   `openLane` persists for a run of waves and then drifts by ONE lane, so there
+   is a continuous thread through the traffic that a driver can actually
+   follow, and changing lanes is a choice rather than a scramble.
+   -------------------------------------------------------------------------- */
+let openLane = 1, openFor = 0;
 function spawnWave(z){
-  const n = rint(1, Math.min(3, LANES-1));
-  const order = [0,1,2,3].sort(()=>Math.random()-0.5).slice(0,n);
+  if(--openFor <= 0){
+    openLane = clamp(openLane + (Math.random() < 0.5 ? -1 : 1), 0, LANES-1);
+    openFor = rint(3, 6);
+  }
+  /* at most half the remaining lanes, so it never closes up */
+  const n = rint(1, Math.max(1, Math.floor((LANES-1)/2) + 1));
+  const order = [0,1,2,3].filter(L => L !== openLane)
+                         .sort(()=>Math.random()-0.5).slice(0,n);
   for(const lane of order){
-    if(!laneFree(z, lane, 2200)) continue;
+    if(!laneFree(z, lane, 3400)) continue;
     // keep a roadblock's opening clear so it is always threadable
     let inGap = false;
     for(const b of blocks)
@@ -2240,7 +2257,7 @@ function reset(){
   traffic=[]; cops=[]; blocks=[]; crates=[]; fx=[];
   shake=0; hitFlash=0; sirenPhase=0; lastKmh=0; iframe=0;
   acc=0;
-  for(let z=6000; z<52000; z+=rnd(4200,7000)) spawnWave(z);
+  for(let z=9000; z<52000; z+=rnd(5200,8600)) spawnWave(z);
   nextWaveZ = 52000;
   nextCopT = 9; nextBlockT = 30; nextCrateT = 16;
 }
@@ -3802,7 +3819,9 @@ function step(dt){
   let waveGuard = 0;
   while(nextWaveZ < pos + 62000 && waveGuard++ < 40){
     spawnWave(nextWaveZ);
-    nextWaveZ += Math.max(900, rnd(3400,6600) - heat*180);
+    /* 900 was less than three car lengths. Even at full heat the road has to
+       stay driveable — the floor is 3200, about eight lengths. */
+    nextWaveZ += Math.max(3200, rnd(4600,8200) - heat*140);
   }
   const pz = pos + PLAYER_Z;
 
