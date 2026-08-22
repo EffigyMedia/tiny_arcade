@@ -6184,9 +6184,16 @@ function drawTitleArt(){
 
   /* ---- the blood runs off the letters themselves ------------------------- */
   g.save();
-  dripFrom.sort((a,b) => a.x - b.x);
-  for(let i=0;i<dripFrom.length;i+=4){
-    const d = dripFrom[i];
+  /* ---- ONLY FROM THE LETTERS ---------------------------------------------
+     Every recorded point was being used, including ones that had landed well
+     outside the writing, so drips appeared scattered across the corridor with
+     nothing above them. Anything not inside the word's own box is dropped. */
+  const wL = wallMid - wallW*0.5, wR = wallMid + wallW*0.5;
+  const wT = wy - wsz*0.9, wB = wy + wsz*0.9;
+  const src = dripFrom.filter(d => d.x > wL && d.x < wR && d.y > wT && d.y < wB);
+  src.sort((a,b) => a.x - b.x);
+  for(let i=0;i<src.length;i+=4){
+    const d = src[i];
     const full  = 5 + jit2(i*3.7)*40;
     const delay = jit2(i*5.3)*8;
     const speed = 4 + jit2(i*11.1)*14;
@@ -6284,6 +6291,9 @@ function drawTitleArt(){
     requestAnimationFrame(drawTitleArt);
 }
 
+/* one place that takes the title card down, so no exit can forget */
+function endTitle(){ document.body.classList.remove('titling'); }
+
 function showTitle(){
   document.body.classList.add('titling');
   titleT = 0;
@@ -6306,11 +6316,20 @@ function showTitle(){
     '<div class="legal">\u00A9 2026 EFFIGY MEDIA</div>',
     {
       play:   ()=>{
+        /* ---- THE TITLE ART HAS TO COME DOWN --------------------------------
+           `body.titling` was only cleared in one branch, and Derelict's PLAY
+           does not go through it — so the title canvas stayed on top of the
+           game at z-index 29 and the run was unreachable. Clearing it here,
+           where the title is definitively being left. */
+        endTitle();
         dropSave(); newRun(); live = true; fit();
-        const begin = ()=>{ fit(); showDeckCard(); };
-        if(introSeen()) begin(); else playIntro(0, begin);
+        /* every new run opens with the approach. It is the cold open, not an
+           extra, so it is not optional and not in the options menu. */
+        playIntro(0, ()=>{ fit(); showDeckCard(); });
       },
-      resume: ()=>{ if(!loadRun()){ dropSave(); newRun(); live = true; } fit(); showDeckCard(); },
+      resume: ()=>{ endTitle();
+                    if(!loadRun()){ dropSave(); newRun(); live = true; }
+                    fit(); showDeckCard(); },
       opts:   ()=>{ showOptions(); },
       quit:   ()=>{ if(AR && AR.home) AR.home(); }
     });
@@ -6323,12 +6342,12 @@ function showOptions(){
     '<div class="vtitle ice">Options</div>' +
     '<div class="tmenu">' +
       '<button class="vbtn ghost" data-act="ctrl" style="margin-top:22px">CONTROLS</button>' +
-      (introSeen() ? '<button class="vbtn ghost" data-act="replay">THE APPROACH</button>' : '') +
+
       '<button class="vbtn" data-act="back">BACK</button>' +
     '</div>',
     {
       ctrl:   ()=>{ showControls(); },
-      replay: ()=>{ playIntro(0, showTitle); },
+
       back:   ()=>{ showTitle(); }
     });
 }
