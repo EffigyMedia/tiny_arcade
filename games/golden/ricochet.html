@@ -51,6 +51,33 @@ h1 em{display:block;font-family:"Space Mono",monospace;font-size:9.5px;font-styl
 .gc{border:1px solid #1f2634;border-radius:4px;padding:9px}
 .gc span{display:block;font-size:8px;letter-spacing:.18em;color:#6a7284}
 .gc b{display:block;font-size:17px;margin-top:3px;color:#e6e9ef;font-variant-numeric:tabular-nums}
+/* ---------------------------------------------------------------------------
+   PORTRAIT ON A PHONE, WIDE ON A DESKTOP
+
+   The manifest pins the INSTALLED app to portrait, but a browser tab cannot be
+   forced — `screen.orientation.lock()` only works from fullscreen and throws
+   everywhere else. So: on a touch device held sideways, a panel asks for it
+   back. On a desktop there is no such thing as the wrong orientation, and a
+   wide window is exactly what we want, so the panel never appears there.
+
+   The test is POINTER TYPE, not width. A landscape phone and a small laptop
+   window are the same number of pixels and want opposite things.
+   --------------------------------------------------------------------------- */
+#rotate{
+  position:fixed;inset:0;z-index:9000;display:none;
+  place-items:center;text-align:center;padding:28px;
+  background:#07050b;color:#e8e2f4;
+  font-family:var(--px,ui-monospace,monospace);
+}
+#rotate b{display:block;font-size:12px;letter-spacing:.22em;color:var(--gold,#e8b23a);margin-bottom:14px}
+#rotate span{display:block;font-size:10px;letter-spacing:.14em;color:#8a8296;line-height:2}
+#rotate i{display:block;width:52px;height:82px;margin:0 auto 22px;
+  border:2px solid rgba(232,178,58,.65);border-radius:8px;
+  transform:rotate(90deg);animation:rot 2.4s ease-in-out infinite}
+@keyframes rot{0%,40%{transform:rotate(90deg)}60%,100%{transform:rotate(0deg)}}
+@media (orientation:landscape) and (pointer:coarse){
+  body.lock-portrait #rotate{display:grid}
+}
 </style>
 </head>
 <body>
@@ -833,6 +860,18 @@ fit();
 showTitle();
 requestAnimationFrame(()=>{ fitTight(); setTimeout(fitTight, 200); });
 requestAnimationFrame(frame);
+})();
+</script>
+<div id="rotate"><div><i></i><b>TURN YOUR PHONE</b>
+<span>TINY ARCADE IS PLAYED UPRIGHT</span></div></div>
+<script>
+/* only a device with a coarse pointer gets the portrait lock — a desktop
+   window is free to be any shape, and wide is the better shape there */
+(function(){
+  if(matchMedia('(pointer:coarse)').matches) document.body.classList.add('lock-portrait');
+  /* an installed app can genuinely lock; a tab cannot, and throwing is fine */
+  try{ if(screen.orientation && screen.orientation.lock)
+        screen.orientation.lock('portrait').catch(function(){}); }catch(e){}
 })();
 </script>
 </body>
