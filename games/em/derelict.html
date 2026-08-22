@@ -4112,18 +4112,35 @@ function walk(path){
   busy = true;
   scanTally = { tiles:0, hp:0 };
   let i = 0;
+  /* ---- `busy` MUST ALWAYS BE RELEASED ---------------------------------
+     Every exit from this loop clears `busy`, but a THROW inside it clears
+     nothing: the setTimeout chain stops, `busy` stays true forever, and from
+     then on the game ignores every tap — it looks like a hang, and after a
+     quit-and-return nothing can be targeted because the flag is still set.
+
+     One bad pickup could therefore brick the run. The body is wrapped so that
+     whatever happens, the flag comes back and the error is visible instead of
+     silent.
+     ------------------------------------------------------------------- */
   const tick = () => {
-    if(dead || i >= path.length){ busy = false; reportScan(); render(); return; }
-    const c = path[i++];
-    snd.step();
-    if(stepInto(ix(c), iy(c))){ busy = false; scanTally = null; return; }
-    if(stopWalk){ stopWalk = false; busy = false; reportScan(); render(); return; }
-    endTurn(null);
-    if(dead){ busy = false; return; }
-    const threat = mobs.some(m => m.alive && adjacent(m) && at(m.x,m.y).seen);
-    render();
-    if(threat && i < path.length){ busy=false; reportScan(); say('Contact. Holding position.'); render(); return; }
-    setTimeout(tick, 70);
+    try {
+      if(dead || i >= path.length){ busy = false; reportScan(); render(); return; }
+      const c = path[i++];
+      snd.step();
+      if(stepInto(ix(c), iy(c))){ busy = false; scanTally = null; return; }
+      if(stopWalk){ stopWalk = false; busy = false; reportScan(); render(); return; }
+      endTurn(null);
+      if(dead){ busy = false; return; }
+      const threat = mobs.some(m => m.alive && adjacent(m) && at(m.x,m.y).seen);
+      render();
+      if(threat && i < path.length){ busy=false; reportScan(); say('Contact. Holding position.'); render(); return; }
+      setTimeout(tick, 70);
+    } catch(err){
+      busy = false; scanTally = null;
+      if(window.console && console.error) console.error('derelict: walk aborted', err);
+      say('\u2014 something jammed. You stop where you are.');
+      try { render(); } catch(e2){}
+    }
   };
   tick();
 }
