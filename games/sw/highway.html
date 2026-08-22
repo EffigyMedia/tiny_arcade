@@ -1067,66 +1067,59 @@ var snd = {
      slower, wider and in no hurry — a car park at night rather than a road.
      ---------------------------------------------------------------------- */
   menuBed: function(step, t){
-    if(!AR) return;
-    /* ---- DRUM AND BASS, NOT A FUNERAL ------------------------------------
-       The last bed was a pad, a bass note on the one and four melody notes in
-       thirty-two \u2014 sparse, unresolved, and ominous. That is a horror menu, not
-       a driving game. This is the opposite: a break that never stops.
+    if (!AR) return;
+    /* ---- BUILT ON THE SAME MACHINERY AS THE RACE BED ---------------------
+       My last two attempts hand-rolled oscillators and noise and produced
+       something thin and, apparently, silent \u2014 `snd.bed` uses `AR.sfx.drum`,
+       which is the shell's own kit, and I was not using it at all.
 
-       Sixteen steps at 174BPM is two bars of proper D&B. The whole thing is
-       rhythm:
-
-         - a KICK on 1 and on the 11th sixteenth \u2014 the offbeat one is what
-           makes it a break rather than four-on-the-floor
-         - a SNARE on 5 and 13, hard on the backbeat
-         - hats on every odd step, with the offbeats quieter, so it drives
-         - a REESE bass: two detuned saws a beat apart, held long and low
-         - a stab every other bar, high and short, for a hook
-
-       At 174 a step is 86ms, so this is dense on purpose. A menu you are
-       hearing for thirty seconds should have somewhere to go.
+       Same kit, same 16-step bar, same gallop. What differs is the MOOD: the
+       race bed is E-minor at 152 with a driving palm-mute; this is the same
+       engine at 128, in A, with the riff on the offbeat and the chords held
+       instead of chugged. Recognisably the same game, obviously not the same
+       track.
        -------------------------------------------------------------------- */
-    const S = step % 16;
-    const bar = Math.floor(step / 16) % 4;
+    var s = step % 16, bar = Math.floor(step/16) % 4;
 
-    /* ---- the break ---------------------------------------------------- */
-    if(S === 0 || S === 10){
-      /* kick: a short pitch drop is what gives it a body rather than a click */
-      AR.sfx.tone({ t, freq: 128, to: 44, dur: 0.16, type:'sine',
-                    gain: 0.115, attack: 0.002, cutoff: 320, bus:'music' });
-    }
-    if(S === 4 || S === 12){
-      /* snare: noise with a tuned crack under it */
-      AR.sfx.noise({ t, freq: 1900, to: 900, dur: 0.13, gain: 0.070,
-                     filter:'bandpass', bus:'music' });
-      AR.sfx.tone({ t, freq: 210, to: 150, dur: 0.06, type:'triangle',
-                    gain: 0.030, attack: 0.001, cutoff: 2200, bus:'music' });
-    }
-    if(S % 2 === 1){
-      const off = (S % 4 === 3);
-      AR.sfx.noise({ t, freq: 9200, dur: 0.028,
-                     gain: off ? 0.016 : 0.030,
-                     filter:'highpass', bus:'music' });
+    /* A \u2013 A \u2013 F \u2013 G: it turns around rather than resolving, so it loops */
+    var ROOTS = [55.00, 55.00, 43.65, 49.00];
+    var root  = ROOTS[bar];
+
+    /* kick on the ones and the and-of-three \u2014 a groove, not a gallop */
+    if (s === 0 || s === 6 || s === 8 || s === 14)
+      AR.sfx.drum('kick', t, s === 0 ? 0.80 : 0.58);
+
+    /* backbeat */
+    if (s === 4 || s === 12) AR.sfx.drum('snare', t, 0.52);
+
+    /* eighth hats, offbeats lighter, one open at the turn */
+    if (s % 2 === 0) AR.sfx.drum('hat', t, s % 4 ? 0.16 : 0.26);
+    if (bar === 3 && s === 14) AR.sfx.drum('open', t, 0.28);
+
+    /* the bass: on the beat, long, with a fifth under the last bar */
+    if (s % 4 === 0){
+      AR.sfx.tone({ t:t, freq:root*0.5, dur:0.42, type:'square',
+                    gain:0.150, bus:'music', cutoff:240, q:3 });
+      AR.sfx.tone({ t:t, freq:root, dur:0.34, type:'square',
+                    gain:0.110, bus:'music', cutoff:420, q:5 });
     }
 
-    /* ---- the reese --------------------------------------------------- */
-    const ROOT = [55.00, 55.00, 61.74, 49.00][bar];    /* A A B G */
-    if(S === 0 || S === 8){
-      const dur = (S === 0) ? 0.70 : 0.62;
-      [0, 0.6].forEach((cents, k) => {
-        AR.sfx.tone({ t, freq: ROOT * (1 + cents/100),
-                      dur: dur, type:'sawtooth',
-                      gain: 0.040, attack: 0.012,
-                      cutoff: 240 + (S === 0 ? 120 : 0), bus:'music' });
+    /* chords HELD across the bar rather than chugged \u2014 this is the difference
+       you hear between the menu and the race */
+    if (s === 0){
+      [0, 7, 12].forEach(function(n, k){
+        AR.sfx.tone({ t:t + k*0.012, freq: root * Math.pow(2, n/12) * 2,
+                      dur:1.6, type:'sawtooth', gain:0.055 - k*0.010,
+                      bus:'music', cutoff:900 + k*300, attack:0.05, verb:0.35 });
       });
     }
 
-    /* ---- the hook: a short high stab, every other bar ----------------- */
-    if((bar % 2 === 1) && (S === 6 || S === 14)){
-      const n = (S === 6) ? 12 : 15;
-      AR.sfx.tone({ t, freq: ROOT * Math.pow(2, n/12) * 4,
-                    dur: 0.10, type:'square', gain: 0.026,
-                    attack: 0.002, cutoff: 3200, verb: 0.35, bus:'music' });
+    /* a lead line on the offbeat, two notes a bar */
+    var LEAD = { 3: 12, 7: 15, 10: 19, 13: 14 };
+    if (LEAD[s] !== undefined){
+      AR.sfx.tone({ t:t, freq: root * Math.pow(2, LEAD[s]/12) * 2,
+                    dur:0.22, type:'square', gain:0.070,
+                    bus:'music', cutoff:2600, q:2, verb:0.30 });
     }
   },
 
@@ -3888,7 +3881,7 @@ function wreck(reason){
       r:rnd(2,7), c: Math.random()<0.5 ? '#ff8a3d' : '#ffe0a0'});
   }
   /* a game over belongs to the menu, so the menu's music takes over */
-  if(AR && AR.music){ AR.music.stop(); AR.music.start(174, 16, snd.menuBed); }
+  if(AR && AR.music){ AR.music.stop(); AR.music.start(128, 16, snd.menuBed); }
   setTimeout(()=>showEnd(reason), 700);
 }
 
@@ -4670,7 +4663,7 @@ function stepRacers(dt){
       best: bestScore, bestMi: +bestDist.toFixed(1), runs: runs,
       label: 'BEST ' + bestDist.toFixed(1) + ' MI'
     });
-    if(AR && AR.music){ AR.music.stop(); AR.music.start(174, 16, snd.menuBed); }
+    if(AR && AR.music){ AR.music.stop(); AR.music.start(128, 16, snd.menuBed); }
     snd.checkpoint();
     if(tourOn){
       tourScore(place);
@@ -5566,7 +5559,7 @@ function step(dt){
       label: 'BEST ' + bestDist.toFixed(1) + ' MI'
     });
     snd.dead();
-    if(AR && AR.music){ AR.music.stop(); AR.music.start(174, 16, snd.menuBed); }
+    if(AR && AR.music){ AR.music.stop(); AR.music.start(128, 16, snd.menuBed); }
     setTimeout(() => showEnd('OUT OF TIME'), 500);
     return;
   }
@@ -7935,7 +7928,7 @@ function showGarage(){
   /* the garage is reachable from the end card, so it has to tear down too —
      but it keeps the menu music rather than restarting it */
   if(state !== 'garage'){ endRun(); state = 'garage';
-    if(AR && AR.music) AR.music.start(174, 16, snd.menuBed); }
+    if(AR && AR.music) AR.music.start(128, 16, snd.menuBed); }
   state = 'garage';
   openVeil(
     '<div class="eyebrow">CHOOSE YOUR CAR</div>' +
@@ -8258,7 +8251,7 @@ function showTitle(){
   document.body.classList.add('titling');
   titleT = 0;
   requestAnimationFrame(drawTitleArt);
-  if(AR && AR.music) AR.music.start(174, 16, snd.menuBed);
+  if(AR && AR.music) AR.music.start(128, 16, snd.menuBed);
   openVeil(
     '<h1>Highway</h1>' +
     '<div class="tmenu">' +
