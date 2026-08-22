@@ -76,6 +76,14 @@ h1 em{display:block;font-family:"Space Mono",monospace;font-size:9.5px;font-styl
 @media (orientation:landscape) and (pointer:coarse){
   body.lock-portrait #rotate{display:grid}
 }
+
+#titleArt{position:absolute;inset:0;z-index:29;display:none;width:100%;height:100%}
+body.titling #titleArt{display:block}
+body.titling #veil{
+  background:linear-gradient(180deg, rgba(2,6,10,0) 0%, rgba(2,6,10,0) 42%,
+    rgba(2,6,10,.60) 60%, rgba(2,6,10,.93) 80%, rgba(2,6,10,.97) 100%);
+  align-items:end;padding-bottom:34px}
+body.titling #veil h1{display:none}
 </style>
 </head>
 <body>
@@ -87,6 +95,7 @@ h1 em{display:block;font-family:"Space Mono",monospace;font-size:9.5px;font-styl
   </div>
   <div id="wrap"><canvas id="field"></canvas></div>
 </div>
+<canvas id="titleArt"></canvas>
 <div id="veil"><div id="veilBody"></div></div>
 <script>
 (function(){
@@ -500,7 +509,8 @@ function frame(now){
 
 /* ---- state ------------------------------------------------------------- */
 function start(){
-  runs++; reset(); state='play'; veil.classList.add('hidden'); fitTight();
+  runs++; reset(); state='play'; document.body.classList.remove('titling');
+  veil.classList.add('hidden'); fitTight();
   if(AR && AR.music){ AR.music.stop(); AR.music.start(150, 2, snd.tick); }
 }
 function gameOver(){
@@ -517,7 +527,99 @@ function openVeil(html, acts){
   veilBody.querySelectorAll('[data-act]').forEach(b =>
     b.addEventListener('click', ()=>{ const fn=acts&&acts[b.dataset.act]; if(fn) fn(); }));
 }
+
+/* ---- TITLE: a vector monitor ---------------------------------------------
+   No sunset, no chrome. This game is a phosphor tube, so the card is one too:
+   black, a faint raster of burnt-in lines, a starfield of stroked triangles,
+   and the name drawn in the same single-weight green stroke the game itself
+   uses. The letters GLOW rather than shine — a beam has no bevel.
+   -------------------------------------------------------------------------- */
+let titleCv = null;
+function drawTitleArt(){
+  if(!titleCv) titleCv = document.getElementById('titleArt');
+  if(!titleCv) return;
+  const g = titleCv.getContext('2d');
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  const w = titleCv.clientWidth, h = titleCv.clientHeight;
+  if(titleCv.width !== w*dpr){ titleCv.width = w*dpr; titleCv.height = h*dpr; }
+  g.setTransform(dpr,0,0,dpr,0,0);
+
+  g.fillStyle = '#02060a'; g.fillRect(0,0,w,h);
+  /* the tube's own curvature, as a vignette */
+  const vg = g.createRadialGradient(w/2,h*0.45,h*0.1,w/2,h*0.5,h*0.75);
+  vg.addColorStop(0,'rgba(20,60,45,.30)'); vg.addColorStop(1,'rgba(0,0,0,.85)');
+  g.fillStyle = vg; g.fillRect(0,0,w,h);
+
+  /* drifting wireframe rocks, stroked only */
+  g.strokeStyle = 'rgba(120,255,180,.42)'; g.lineWidth = 1.4; g.lineJoin='round';
+  for(let i=0;i<11;i++){
+    const cx = (i*137 % w), cy = h*0.42 + ((i*89) % Math.round(h*0.5));
+    const r  = 10 + (i*23) % 26, n = 6 + (i % 3);
+    g.beginPath();
+    for(let k=0;k<n;k++){
+      const a = k/n*6.2832 + i, rr = r * (0.7 + ((k*7+i)%5)/9);
+      const x = cx + Math.cos(a)*rr, y = cy + Math.sin(a)*rr*0.9;
+      k ? g.lineTo(x,y) : g.moveTo(x,y);
+    }
+    g.closePath(); g.stroke();
+  }
+  /* the ship, dead centre, stroked */
+  g.strokeStyle = '#c8ffd8'; g.lineWidth = 2;
+  g.save(); g.translate(w*0.5, h*0.60);
+  g.beginPath();
+  g.moveTo(0,-24); g.lineTo(15,20); g.lineTo(0,11); g.lineTo(-15,20);
+  g.closePath(); g.stroke();
+  g.restore();
+
+  /* burn-in scanlines over everything */
+  g.fillStyle = 'rgba(0,0,0,.30)';
+  for(let y=0;y<h;y+=3) g.fillRect(0,y,w,1);
+
+  /* the name: one weight, no bevel, drawn twice for bloom */
+  /* ---- VECTOR'S OWN ALPHABET ------------------------------------------
+     A beam deflects in straight lines; it cannot draw an arc. So this face has
+     NO curves at all — every corner is chamfered off at 45 degrees, which is
+     what a real vector monitor's letters look like and is a completely
+     different silhouette from Highway's rounded strokes. Narrow box, tight
+     spacing: a readout, not a marquee.
+     -------------------------------------------------------------------- */
+  const VG = {
+    V:[[[0,0],[4,14],[8,0]]],
+    E:[[[8,0],[0,0],[0,14],[8,14]],[[0,7],[6,7]]],
+    C:[[[8,2],[6,0],[2,0],[0,2],[0,12],[2,14],[6,14],[8,12]]],
+    T:[[[0,0],[8,0]],[[4,0],[4,14]]],
+    O:[[[2,0],[6,0],[8,2],[8,12],[6,14],[2,14],[0,12],[0,2],[2,0]]],
+    R:[[[0,14],[0,0],[6,0],[8,2],[8,6],[6,8],[0,8]],[[4,8],[8,14]]]
+  };
+  AR.wordmark(g, 'VECTOR', w*0.5, h*0.20, Math.min(w*0.16, 76), {
+    glyphs: VG, box: 8, gap: 0.30,
+    maxW: w*0.86, rake: 0,
+    passes: ['glow','beam'],
+    paint: (gg, pass) => {
+      /* SQUARE ends and MITRED corners. The shared layout sets round joins,
+         which is right for Highway and wrong here — a deflected beam has no
+         radius anywhere, and round caps were quietly putting the curves back
+         into a face built entirely from straight lines. */
+            /* A miter limit of 8 lets a sharp vertex grow a SPIKE eight times the
+         stroke width — the V's point and the A's apex were shooting past the
+         baseline. At 2 anything sharper than about 60 degrees is bevelled off
+         instead, which is also what a real folded or plotted corner does. */
+      gg.lineCap = 'butt'; gg.lineJoin = 'miter'; gg.miterLimit = 2;
+      if(pass === 'glow'){
+        /* 10px of soft green at 14% read as a blurry SECOND word sitting
+           behind the first. A phosphor halo is tight and bright, not wide and
+           faint: half the width, twice the opacity. */
+        gg.strokeStyle = 'rgba(120,255,175,.30)'; gg.lineWidth = 5;
+      } else {
+        gg.strokeStyle = '#c9ffdc'; gg.lineWidth = 2.2;
+      }
+    }
+  });
+}
+
 function showTitle(){
+  document.body.classList.add('titling');
+  requestAnimationFrame(drawTitleArt);
   state='title';
   openVeil('<h1>Vector</h1>' +
     '<div class="tmenu">' +

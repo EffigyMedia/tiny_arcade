@@ -77,6 +77,16 @@ h1 em{display:block;font-family:"Major Mono Display",monospace;font-size:9.5px;f
 @media (orientation:landscape) and (pointer:coarse){
   body.lock-portrait #rotate{display:grid}
 }
+
+#titleArt{position:absolute;inset:0;z-index:29;display:none;width:100%;height:100%}
+body.titling #titleArt{display:block}
+body.titling #veil{
+  background:linear-gradient(180deg, rgba(3,5,10,0) 0%, rgba(3,5,10,0) 46%,
+    rgba(3,5,10,.55) 62%, rgba(3,5,10,.93) 82%, rgba(3,5,10,.97) 100%);
+  align-items:end;padding-bottom:34px}
+body.titling #veil h1{display:none}
+.legal{margin-top:14px;font-size:8px;letter-spacing:.14em;
+  color:rgba(255,255,255,.24);text-align:center}
 </style>
 </head>
 <body>
@@ -88,6 +98,7 @@ h1 em{display:block;font-family:"Major Mono Display",monospace;font-size:9.5px;f
   </div>
   <div id="wrap"><canvas id="scope"></canvas></div>
 </div>
+<canvas id="titleArt"></canvas>
 <div id="veil"><div id="veilBody"></div></div>
 <script>
 (function(){
@@ -481,7 +492,8 @@ function frame(now){
 
 /* ---- state ------------------------------------------------------------- */
 function start(){
-  runs++; reset(); state='play'; veil.classList.add('hidden'); fitTight();
+  runs++; reset(); state='play'; document.body.classList.remove('titling');
+  veil.classList.add('hidden'); fitTight();
   if(AR && AR.music){ AR.music.stop(); AR.music.start(96, 2, snd.tick); }
 }
 function gameOver(){
@@ -498,7 +510,198 @@ function openVeil(html, acts){
   veilBody.querySelectorAll('[data-act]').forEach(b =>
     b.addEventListener('click', ()=>{ const fn=acts&&acts[b.dataset.act]; if(fn) fn(); }));
 }
+
+/* ===========================================================================
+   TITLE: THE LAST MINUTE OF A CITY
+
+   Four times the work, and it goes into things that are true rather than
+   things that are decorative:
+
+     - the sky is a real gradient of a night being lit from below, not a flat
+       colour with stars on it
+     - the city is built from BUILDINGS, each with its own window grid, and
+       the lit windows thin out toward the edges of town
+     - the trails are ballistic: they arc, they leave a fading tail behind
+       the head, and the ones that have landed have bloomed and are dying
+     - a radar sweep passes over the whole картина on a slow cycle
+     - the wordmark is a RADAR READOUT: a hard scanline through it, phosphor
+       green, with the letters brighter where the sweep has just been
+   =========================================================================== */
+let titleCv = null, titleStart = 0;
+
+function drawTitleArt(){
+  if(!titleCv) titleCv = document.getElementById('titleArt');
+  if(!titleCv) return;
+  if(!titleStart) titleStart = performance.now();
+  const T = (performance.now() - titleStart) / 1000;
+  const g = titleCv.getContext('2d');
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  const w = titleCv.clientWidth, h = titleCv.clientHeight;
+  if(titleCv.width !== w*dpr){ titleCv.width = w*dpr; titleCv.height = h*dpr; }
+  g.setTransform(dpr,0,0,dpr,0,0);
+  /* The horizon was at 80%, which put the whole city behind the buttons — the
+     thing the game is about was the one thing you could not see. It sits at
+     62% now, clear of the panel, which also leaves the sky its full drama. */
+  const gy = h*0.62;
+
+  /* ---- sky: lit from below by what is happening to the city ------------- */
+  const sky = g.createLinearGradient(0,0,0,gy);
+  sky.addColorStop(0,   '#05070f');
+  sky.addColorStop(0.45,'#0b1024');
+  sky.addColorStop(0.78,'#241a35');
+  sky.addColorStop(1,   '#4a2436');
+  g.fillStyle = sky; g.fillRect(0,0,w,gy);
+
+  /* stars, denser high up where the glow has not reached */
+  for(let i=0;i<120;i++){
+    const sx = (i*127.3) % w, sy = (i*61.7) % gy;
+    const a = 0.55 * (1 - sy/gy) * (0.4 + ((i*13)%7)/10);
+    g.fillStyle = 'rgba(214,230,255,'+a+')';
+    g.fillRect(sx, sy, 1.3, 1.3);
+  }
+
+  /* ---- the city ---------------------------------------------------------- */
+  let bx = -12, bi = 0;
+  while(bx < w+12){
+    const bw = 16 + ((bi*37) % 26);
+    const centre = 1 - Math.abs((bx + bw/2) / w - 0.5) * 2;   /* 1 downtown */
+    const bh = (18 + ((bi*53) % 46)) * (0.55 + centre*0.95);
+    const by = gy - bh;
+    g.fillStyle = '#0a0d16';
+    g.fillRect(bx, by, bw, bh);
+    /* window grid: lit thins out toward the edge of town */
+    for(let wy = by+4; wy < gy-4; wy += 6){
+      for(let wx = bx+3; wx < bx+bw-3; wx += 5){
+        const r = ((wx*7 + wy*13 + bi*29) % 100) / 100;
+        if(r < 0.30 + centre*0.42){
+          g.fillStyle = r < 0.12 ? 'rgba(255,232,170,.95)' : 'rgba(255,200,120,.62)';
+          g.fillRect(wx, wy, 2, 3);
+        }
+      }
+    }
+    /* a red aircraft light on the tall ones */
+    if(bh > 60 && (bi % 3 === 0)){
+      const blink = (Math.sin(T*3 + bi) > 0) ? 0.9 : 0.15;
+      g.fillStyle = 'rgba(255,70,90,'+blink+')';
+      g.fillRect(bx + bw/2 - 1, by - 3, 2, 2);
+    }
+    bx += bw + 3 + ((bi*11) % 7); bi++;
+  }
+  /* the ground the city stands on */
+  g.fillStyle = '#05070c'; g.fillRect(0, gy, w, h-gy);
+
+  /* ---- incoming: ballistic arcs with fading tails ----------------------- */
+  const SHOTS = 7;
+  for(let i=0;i<SHOTS;i++){
+    const seed = i*97;
+    const x0 = ((seed*13) % w), x1 = ((seed*29) % w);
+    /* each runs on its own clock so they are never in step */
+    const t = ((T*0.22 + i*0.14) % 1);
+    /* A straight interpolation is a falling dot, not a trajectory. Easing the
+       DESCENT while the lateral run stays linear gives the shallow-then-steep
+       curve a ballistic object actually follows. */
+    const arc = (u) => {
+      const x = x0 + (x1-x0)*u;
+      const y = -20 + (gy+20) * (u*u*0.72 + u*0.28);
+      return [x, y];
+    };
+    /* the tail: a run of segments behind the head, fading out */
+    for(let k=0;k<26;k++){
+      const u = t - k*0.016;
+      if(u <= 0) continue;
+      const [px,py] = arc(u);
+      const a = (1 - k/26) * 0.95;
+      g.fillStyle = 'rgba(255,'+Math.max(40,150 - k*4)+','+Math.max(30,110 - k*3)+','+a+')';
+      g.fillRect(px, py, 2, 2);
+    }
+    if(t > 0 && t < 1){
+      const [hx,hy] = arc(t);
+      g.save();
+      g.globalCompositeOperation = 'lighter';
+      const hg = g.createRadialGradient(hx,hy,0,hx,hy,7);
+      hg.addColorStop(0,'rgba(255,236,200,.95)'); hg.addColorStop(1,'rgba(255,120,80,0)');
+      g.fillStyle = hg;
+      g.beginPath(); g.arc(hx,hy,7,0,6.2832); g.fill();
+      g.restore();
+    }
+    /* and where one has already landed, a bloom that is dying */
+    const land = ((T*0.22 + i*0.14) % 1);
+    if(land < 0.22){
+      const age = land/0.22, r = 6 + age*46;
+      g.save();
+      g.globalCompositeOperation = 'lighter';
+      const bg2 = g.createRadialGradient(x1,gy,0,x1,gy,r);
+      bg2.addColorStop(0,'rgba(255,210,150,'+(0.55*(1-age))+')');
+      bg2.addColorStop(0.5,'rgba(255,110,70,'+(0.28*(1-age))+')');
+      bg2.addColorStop(1,'rgba(255,60,50,0)');
+      g.fillStyle = bg2;
+      g.beginPath(); g.arc(x1,gy,r,0,6.2832); g.fill();
+      g.restore();
+    }
+  }
+
+  /* ---- our own battery, firing up ---------------------------------------- */
+  const bxp = w*0.5;
+  g.fillStyle = '#1a2130';
+  g.beginPath();
+  g.moveTo(bxp-16, gy); g.lineTo(bxp-9, gy-11); g.lineTo(bxp+9, gy-11);
+  g.lineTo(bxp+16, gy); g.closePath(); g.fill();
+  g.strokeStyle = 'rgba(120,220,255,.5)'; g.lineWidth = 2;
+  g.beginPath(); g.moveTo(bxp, gy-11); g.lineTo(bxp - 4, gy-24); g.stroke();
+
+  /* ---- the radar sweep, over everything ---------------------------------- */
+  const sweep = (T*0.55) % 1;
+  const sx2 = sweep * (w + 120) - 60;
+  g.save();
+  g.globalCompositeOperation = 'lighter';
+  const sg = g.createLinearGradient(sx2-60,0,sx2,0);
+  sg.addColorStop(0,'rgba(90,255,160,0)');
+  sg.addColorStop(1,'rgba(90,255,160,.10)');
+  g.fillStyle = sg; g.fillRect(sx2-60, 0, 60, h);
+  g.fillStyle = 'rgba(150,255,190,.16)'; g.fillRect(sx2-1, 0, 1.6, h);
+  g.restore();
+
+  /* ---- the wordmark: a radar readout ------------------------------------- */
+  const AG = {
+    A:[[[0,14],[4,0],[6,0],[10,14]],[[2,9],[8,9]]],
+    E:[[[9,0],[0,0],[0,14],[9,14]],[[0,7],[6,7]]],
+    G:[[[9,3],[6,0],[3,0],[0,3],[0,11],[3,14],[6,14],[9,11],[9,8],[5,8]]],
+    I:[[[5,0],[5,14]],[[2,0],[8,0]],[[2,14],[8,14]]],
+    S:[[[9,2],[6,0],[3,0],[0,2],[0,5],[3,7],[6,7],[9,9],[9,12],[6,14],[3,14],[0,12]]]
+  };
+  const lw = Math.min(w*0.15, 66);
+  AR.wordmark(g, 'AEGIS', w*0.5, h*0.17, lw, {
+    glyphs: AG, box: 9, gap: 0.30, maxW: w*0.84, rake: 0,
+    passes: ['bloom','trace'],
+    paint: (gg, pass) => {
+      gg.lineCap = 'butt'; gg.lineJoin = 'miter'; gg.miterLimit = 2;
+      if(pass === 'bloom'){
+        gg.strokeStyle = 'rgba(70,255,150,.22)'; gg.lineWidth = 6;
+      } else {
+        gg.strokeStyle = '#d6ffe6'; gg.lineWidth = 2.2;
+      }
+    }
+  });
+  /* a hard scanline cutting through the word, as on a tube */
+  g.save();
+  g.globalCompositeOperation = 'destination-out';
+  const sy2 = h*0.17 + Math.sin(T*1.3)*lw*0.28;
+  g.fillStyle = 'rgba(0,0,0,.55)';
+  g.fillRect(0, sy2, w, 2.5);
+  g.restore();
+
+  /* the tube's own scanlines, last, over the lot */
+  g.fillStyle = 'rgba(0,0,0,.22)';
+  for(let y=0;y<h;y+=3) g.fillRect(0,y,w,1);
+
+  if(document.body.classList.contains('titling'))
+    requestAnimationFrame(drawTitleArt);
+}
+
 function showTitle(){
+  document.body.classList.add('titling');
+  titleStart = 0;
+  requestAnimationFrame(drawTitleArt);
   state='title';
   openVeil('<h1>Aegis</h1>' +
     '<div class="tmenu">' +
