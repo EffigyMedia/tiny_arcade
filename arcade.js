@@ -401,6 +401,13 @@ function wordmark(g, word, cx, cy, size, opt){
      by that instead of by a constant.
      ---------------------------------------------------------------------- */
   var WD = opt.widths || null;
+  /* ---- and per-letter BASELINE offsets ---------------------------------
+     `rise` lets a cabinet lift or drop individual letters, in the same 14-unit
+     glyph space as everything else. A hand-painted sign does not sit on a
+     ruled line, and staggering the letters is most of what separates one from
+     a typeset word.
+     ---------------------------------------------------------------------- */
+  var RISE = opt.rise || null;
   var adv = function(ch){ return size * ((WD && WD[ch] !== undefined ? WD[ch] : boxW) / 14); };
   var lw   = size * boxW/14;
   var total = 0;
@@ -423,7 +430,7 @@ function wordmark(g, word, cx, cy, size, opt){
     for (var i = 0; i < word.length; i++) {
       var strokes = G[word[i]] || [];
       g.save();
-      g.translate(x, 0);
+      g.translate(x, (RISE && RISE[i] !== undefined ? RISE[i] : 0) * size/14);
       g.scale(size/14, size/14);
       g.lineJoin = "round"; g.lineCap = "round";
       for (var s2 = 0; s2 < strokes.length; s2++) {
