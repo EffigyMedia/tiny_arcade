@@ -4434,12 +4434,19 @@ function drawRoad(){
     const idx = base + n;
     const z1 = idx*SEG, z2 = z1 + SEG;
     const p1 = proj(0, z1), p2 = proj(0, z2);
-    if(!p1.ok || !p2.ok) continue;
-    if(p2.y >= H) continue;
+    /* ---- A SKIPPED SLICE MUST STILL EMIT ------------------------------
+       These guards drop degenerate geometry — a slice off the bottom of the
+       screen, a projection that did not resolve. They are NOT occlusion. But
+       they ran before `emitBucket`, so any car standing on such a slice simply
+       vanished for that frame, and as a car crossed between segments it
+       flickered. Only the crest test may hide a sprite; everything else has to
+       let it through. */
+    if(!p1.ok || !p2.ok){ emitBucket(n); continue; }
+    if(p2.y >= H){ emitBucket(n); continue; }
     const dark = ((idx/RUMBLE)|0) % 2 === 0;
     const fade = clamp(1 - n/DRAW, 0, 1);
     const y1 = p1.y, y2 = p2.y;
-    if(y1 < y2) continue;
+    if(y1 < y2){ emitBucket(n); continue; }
 
     /* ---- THE GROUND, not just the verge ---------------------------------
        The strip either side of the tarmac was being drawn only as tall as the
@@ -4478,6 +4485,8 @@ function drawRoad(){
       roadY[n] = y1;
       emitBucket(n);                 /* everything standing on this slice */
     }
+    /* if the slice WAS behind a crest, its bucket stays unemitted — that is
+       the occlusion, and the only case where a sprite is legitimately lost */
 
     /* every eighth segment carries a lamp, alternating sides, throwing an
        ellipse of sodium light across the near lanes */
@@ -5201,7 +5210,10 @@ function drawMirrorFull(mx, my, mw, mh){
     if(sw > 3){
       /* headlights, lit on the street-lamp schedule */
       const hw = sw*0.20, hh = sh*0.17, hy = y0 + sh*0.54;
-      const on = lampNow > 0.01;
+      /* A headlight is not on at noon. `lampNow` is the same ramp the street
+         lamps use, so anything above a real dusk threshold means dark enough
+         to need them — 0.01 let a sliver of daylight count. */
+      const on = lampNow > 0.30;
       for(const hx of [x0 + sw*0.06, x0 + sw - sw*0.06 - hw]){
         ctx.fillStyle = on ? 'rgba(255,248,222,.98)' : 'rgba(190,198,210,.75)';
         ctx.beginPath(); ctx.roundRect(hx, hy, hw, hh, hh*0.4); ctx.fill();
@@ -5219,7 +5231,7 @@ function drawMirrorFull(mx, my, mw, mh){
       /* AMBER markers, not red. Brake lights face rearward — you cannot see
          them from in front of a car, and putting red lamps on a grille made
          every car in the mirror look like it was reversing at you. */
-      if(lampNow > 0.01){
+      if(lampNow > 0.30){
         ctx.fillStyle = 'rgba(255,176,72,'+(0.50*lampNow)+')';
         ctx.fillRect(x0 + sw*0.02, y0 + sh*0.34, sw*0.05, sh*0.13);
         ctx.fillRect(x0 + sw*0.93, y0 + sh*0.34, sw*0.05, sh*0.13);
