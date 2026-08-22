@@ -1068,62 +1068,65 @@ var snd = {
      ---------------------------------------------------------------------- */
   menuBed: function(step, t){
     if(!AR) return;
-    /* ---- A MENU BED, NOT A FRUIT MACHINE ---------------------------------
-       The old one fired an arpeggio note on EVERY step at 96BPM \u2014 eight
-       evenly-spaced pings a bar, forever. That is the sound of a slot machine
-       paying out, and it is exactly what makes it unbearable after twenty
-       seconds.
+    /* ---- DRUM AND BASS, NOT A FUNERAL ------------------------------------
+       The last bed was a pad, a bass note on the one and four melody notes in
+       thirty-two \u2014 sparse, unresolved, and ominous. That is a horror menu, not
+       a driving game. This is the opposite: a break that never stops.
 
-       What a title bed actually needs: something long underneath, something
-       sparse on top, and enough space between events that the ear stops
-       tracking them. So:
+       Sixteen steps at 174BPM is two bars of proper D&B. The whole thing is
+       rhythm:
 
-         - a PAD that changes chord every four bars and is otherwise still
-         - a bass note on the ONE, not on every other step
-         - a melody note only four times in thirty-two, at unpredictable
-           spots, an octave apart so it reads as a phrase rather than a scale
-         - no percussion at all
+         - a KICK on 1 and on the 11th sixteenth \u2014 the offbeat one is what
+           makes it a break rather than four-on-the-floor
+         - a SNARE on 5 and 13, hard on the backbeat
+         - hats on every odd step, with the offbeats quieter, so it drives
+         - a REESE bass: two detuned saws a beat apart, held long and low
+         - a stab every other bar, high and short, for a hook
 
-       Thirty-two steps at 72BPM is about eleven seconds a cycle, and the
-       chord progression takes four cycles to come round \u2014 long enough that it
-       does not announce itself.
+       At 174 a step is 86ms, so this is dense on purpose. A menu you are
+       hearing for thirty seconds should have somewhere to go.
        -------------------------------------------------------------------- */
-    const S = step % 32;
-    const bar = Math.floor(step / 8) % 4;
+    const S = step % 16;
+    const bar = Math.floor(step / 16) % 4;
 
-    /* i \u2013 VI \u2013 III \u2013 VII in A minor: nothing resolves, which is what keeps a
-       menu from feeling like it is waiting for you */
-    const ROOT = [55.00, 43.65, 41.20, 49.00][bar];      /* A, F, E, G */
-    const CHORD = [
-      [0, 7, 15, 19],      /* minor, open */
-      [0, 7, 16, 23],      /* major, with the seventh */
-      [0, 7, 15, 22],
-      [0, 7, 16, 19]
-    ][bar];
-
-    /* the pad: struck once a bar, long, soft, and left to ring */
-    if(S % 8 === 0){
-      CHORD.forEach((n, k) => {
-        AR.sfx.tone({ t: t + k*0.04, freq: ROOT * Math.pow(2, n/12),
-                      dur: 4.2, type:'triangle',
-                      gain: 0.020 - k*0.003, attack: 0.9,
-                      cutoff: 900 + k*260, verb: 0.75, bus:'music' });
-      });
-      /* and the bass, on the one only */
-      AR.sfx.tone({ t, freq: ROOT/2, dur: 2.6, type:'sine',
-                    gain: 0.042, attack: 0.25, cutoff: 220, bus:'music' });
+    /* ---- the break ---------------------------------------------------- */
+    if(S === 0 || S === 10){
+      /* kick: a short pitch drop is what gives it a body rather than a click */
+      AR.sfx.tone({ t, freq: 128, to: 44, dur: 0.16, type:'sine',
+                    gain: 0.115, attack: 0.002, cutoff: 320, bus:'music' });
+    }
+    if(S === 4 || S === 12){
+      /* snare: noise with a tuned crack under it */
+      AR.sfx.noise({ t, freq: 1900, to: 900, dur: 0.13, gain: 0.070,
+                     filter:'bandpass', bus:'music' });
+      AR.sfx.tone({ t, freq: 210, to: 150, dur: 0.06, type:'triangle',
+                    gain: 0.030, attack: 0.001, cutoff: 2200, bus:'music' });
+    }
+    if(S % 2 === 1){
+      const off = (S % 4 === 3);
+      AR.sfx.noise({ t, freq: 9200, dur: 0.028,
+                     gain: off ? 0.016 : 0.030,
+                     filter:'highpass', bus:'music' });
     }
 
-    /* the melody: four notes in thirty-two, off the beat */
-    const HITS = { 6: 19, 11: 22, 20: 15, 27: 24 };
-    if(HITS[S] !== undefined){
-      const f = ROOT * Math.pow(2, HITS[S]/12) * 2;
-      AR.sfx.tone({ t, freq: f, dur: 1.6, type:'sine', gain: 0.026,
-                    attack: 0.10, cutoff: 2200, verb: 0.80, bus:'music' });
-      /* an octave under it, quieter \u2014 gives the note a body without a second
-         voice competing */
-      AR.sfx.tone({ t: t + 0.02, freq: f/2, dur: 1.4, type:'triangle',
-                    gain: 0.014, attack: 0.12, cutoff: 1100, verb: 0.6, bus:'music' });
+    /* ---- the reese --------------------------------------------------- */
+    const ROOT = [55.00, 55.00, 61.74, 49.00][bar];    /* A A B G */
+    if(S === 0 || S === 8){
+      const dur = (S === 0) ? 0.70 : 0.62;
+      [0, 0.6].forEach((cents, k) => {
+        AR.sfx.tone({ t, freq: ROOT * (1 + cents/100),
+                      dur: dur, type:'sawtooth',
+                      gain: 0.040, attack: 0.012,
+                      cutoff: 240 + (S === 0 ? 120 : 0), bus:'music' });
+      });
+    }
+
+    /* ---- the hook: a short high stab, every other bar ----------------- */
+    if((bar % 2 === 1) && (S === 6 || S === 14)){
+      const n = (S === 6) ? 12 : 15;
+      AR.sfx.tone({ t, freq: ROOT * Math.pow(2, n/12) * 4,
+                    dur: 0.10, type:'square', gain: 0.026,
+                    attack: 0.002, cutoff: 3200, verb: 0.35, bus:'music' });
     }
   },
 
@@ -3885,7 +3888,7 @@ function wreck(reason){
       r:rnd(2,7), c: Math.random()<0.5 ? '#ff8a3d' : '#ffe0a0'});
   }
   /* a game over belongs to the menu, so the menu's music takes over */
-  if(AR && AR.music){ AR.music.stop(); AR.music.start(72, 32, snd.menuBed); }
+  if(AR && AR.music){ AR.music.stop(); AR.music.start(174, 16, snd.menuBed); }
   setTimeout(()=>showEnd(reason), 700);
 }
 
@@ -4667,7 +4670,7 @@ function stepRacers(dt){
       best: bestScore, bestMi: +bestDist.toFixed(1), runs: runs,
       label: 'BEST ' + bestDist.toFixed(1) + ' MI'
     });
-    if(AR && AR.music){ AR.music.stop(); AR.music.start(72, 32, snd.menuBed); }
+    if(AR && AR.music){ AR.music.stop(); AR.music.start(174, 16, snd.menuBed); }
     snd.checkpoint();
     if(tourOn){
       tourScore(place);
@@ -5563,7 +5566,7 @@ function step(dt){
       label: 'BEST ' + bestDist.toFixed(1) + ' MI'
     });
     snd.dead();
-    if(AR && AR.music){ AR.music.stop(); AR.music.start(72, 32, snd.menuBed); }
+    if(AR && AR.music){ AR.music.stop(); AR.music.start(174, 16, snd.menuBed); }
     setTimeout(() => showEnd('OUT OF TIME'), 500);
     return;
   }
@@ -6077,11 +6080,21 @@ function step(dt){
     if(c.got) continue;
     if(Math.abs(c.z - pz) < 460 && Math.abs(c.x - playerX) < 0.30){
       c.got = true;
-      const before = dmg;
+      const before = dmg, nosBefore = nos;
       dmg = Math.max(0, dmg - 25);
+      /* ---- IT PAYS NOS TOO ----------------------------------------------
+         The crate healed and nothing else, while the two other pickup paths in
+         this file both top the bottle up as well. On a clean run there is no
+         damage to repair, so driving over one did literally nothing — a
+         reward that is invisible most of the time is not a reward. */
+      nos = Math.min(100, nos + 25);
 
       snd.threaded();
-      fx.push({txt:'REPAIRED \u2212' + Math.round(before-dmg) + '%', x:W/2, y:H*0.62, vy:-60, age:0, life:1.2});
+      const gained = Math.round(nos - nosBefore);
+      const healed = Math.round(before - dmg);
+      fx.push({txt: healed ? ('REPAIRED \u2212' + healed + '%  NOS +' + gained)
+                           : ('NOS +' + gained + '%'),
+               x:W/2, y:H*0.62, vy:-60, age:0, life:1.2});
       burst(c, '#3ddc84');
     }
   }
@@ -6370,10 +6383,15 @@ function drawSky(){
      bend a long way ahead, times 2.6, chased fast enough to keep up with a
      corner rather than drifting in after it.
      ------------------------------------------------------------------------ */
-  const skyWant = -bendPx(pos + 30000) * 2.6;
+  /* ---- THE SKYLINE IS MILES AWAY ---------------------------------------
+     2.6 swung it 228px on a single bend — the city lurching further than the
+     road did, which reads as the whole world sliding rather than as distance.
+     A skyline that far off barely moves: 0.55, and chased slower so it drifts
+     rather than snaps. */
+  const skyWant = -bendPx(pos + 30000) * 0.55;
   /* drawSky has no dt, so the chase uses a fixed frame step — a title screen
      and a run both call this at the same rate */
-  skySmooth += (skyWant - skySmooth) * 0.11;
+  skySmooth += (skyWant - skySmooth) * 0.045;
   const skyShift = skySmooth;
   let ox = ((-camX*W*0.018) + skyShift) % dw;
   if(ox>0) ox -= dw;
@@ -7136,10 +7154,20 @@ function drawPlayer(){
 function drawSpeedLines(){
   const v = clamp((spd - MAX_SPD*0.55)/(NOS_SPD - MAX_SPD*0.55), 0, 1);
   if(v <= 0.02 || reduceMotion) return;
-  const n = Math.round(10 + v*26);
-  ctx.strokeStyle = 'rgba(255,220,190,'+(0.05+0.16*v)+')';
+  const n = 36;
+  ctx.strokeStyle = 'rgba(255,220,190,'+(0.03+0.13*v)+')';
   ctx.lineWidth = 1.2;
   ctx.beginPath();
+  /* ---- THE SHEEN --------------------------------------------------------
+     `n` grew with speed, so lines were being ADDED and REMOVED as you
+     accelerated — and because each one's position comes from `i`, adding a
+     line reshuffles every line after it. The whole field jumped each time the
+     count changed, which is the intermittent sheen: not a light, a stripe
+     pattern re-seeding itself.
+
+     A fixed 36 now, faded in by `v` instead. The field is the same field at
+     every speed; only its opacity and length change.
+     ---------------------------------------------------------------------- */
   for(let i=0;i<n;i++){
     const a = (i*97.13 + pos*0.0011) % 1;
     const side = i%2 ? 1 : -1;
@@ -7907,7 +7935,7 @@ function showGarage(){
   /* the garage is reachable from the end card, so it has to tear down too —
      but it keeps the menu music rather than restarting it */
   if(state !== 'garage'){ endRun(); state = 'garage';
-    if(AR && AR.music) AR.music.start(72, 32, snd.menuBed); }
+    if(AR && AR.music) AR.music.start(174, 16, snd.menuBed); }
   state = 'garage';
   openVeil(
     '<div class="eyebrow">CHOOSE YOUR CAR</div>' +
@@ -8230,7 +8258,7 @@ function showTitle(){
   document.body.classList.add('titling');
   titleT = 0;
   requestAnimationFrame(drawTitleArt);
-  if(AR && AR.music) AR.music.start(72, 32, snd.menuBed);
+  if(AR && AR.music) AR.music.start(174, 16, snd.menuBed);
   openVeil(
     '<h1>Highway</h1>' +
     '<div class="tmenu">' +
@@ -8572,11 +8600,15 @@ resize();
 window.addEventListener('load', resize);
 reset();
 /* Options live in the pause menu, rendered and remembered by the shell. */
+/* the menu shows the LAST USED setting, not the default: `optManual` and the
+   rest are already loaded from `highway-opts` by the time this runs, so the
+   defaults are read off the live state rather than hardcoded. Without this the
+   pause menu always opened on AUTO however you had left it. */
 if (AR && AR.options) AR.options.define([
   { key:'side',  label:'CONTROLS', type:'cycle', of:['RIGHT','LEFT'],                    def:'RIGHT' },
-  { key:'manual', label:'GEARBOX',    type:'cycle', of:['AUTO','MANUAL'],              def:'AUTO' },
-  { key:'mirror', label:'MIRROR',      type:'cycle', of:['FULL','CHEAP','OFF'],           def:'FULL' },
-  { key:'touchui',label:'TOUCH CONTROLS', type:'cycle', of:['AUTO','ON','OFF'],            def:'AUTO' }
+  { key:'manual', label:'GEARBOX',    type:'cycle', of:['AUTO','MANUAL'],  def: optManual ? 'MANUAL' : 'AUTO' },
+  { key:'mirror', label:'MIRROR',      type:'cycle', of:['FULL','CHEAP','OFF'], def: optMirror || 'FULL' },
+  { key:'touchui',label:'TOUCH CONTROLS', type:'cycle', of:['AUTO','ON','OFF'], def: optTouchUI || 'AUTO' }
 ], function(key, val){
   if(key === 'side')  document.body.classList.toggle('pedals-left', val === 'LEFT');
   /* the toggle now names what it ADDS, so off is the quiet road */
@@ -8586,22 +8618,20 @@ if (AR && AR.options) AR.options.define([
     optManual = (val === 'MANUAL');
     syncBoxClass();
     if(AR && AR.save) AR.save.merge('highway-opts', { manual:optManual });
+    if(optManual){ knobRail = 0; knobY = TOP_Y; placeKnob(); }
+    else autoGear();
   }
   if(key === 'mirror') optMirror = val;
   if(key === 'touchui'){ optTouchUI = val; applyTouchUI(); }
   if(key === 'body' && val !== optBody){ optBody = val; buildSprites(); }
-  if(key === 'manual'){
-    optManual = !!val;
-    /* This is the ONLY place the class was set, and the callback fires only
-       when an option CHANGES — so on load it was never applied and the dials
-       sat at the manual height whatever the box was set to. `syncBoxClass()`
-       below runs it at startup too. */
-    syncBoxClass();
-    const sh = document.getElementById('shifter');
-    if(sh) sh.hidden = !val;
-    if(!val) autoGear();
-    else { knobRail = 0; knobY = TOP_Y; placeKnob(); }
-  }
+  /* ---- TWO HANDLERS, AND THE SECOND ONE WON ------------------------------
+     There were two `key === 'manual'` blocks. The first read the option
+     correctly; the second then ran `optManual = !!val` — and `val` is the
+     STRING 'AUTO' or 'MANUAL', so `!!val` is true either way. Selecting AUTO
+     mid-run set manual back on, which is why switching did nothing.
+
+     One handler, comparing the string. The shifter and the gear reset live
+     here too, where they belong. */
   if(key === 'paint' && val !== optPaint){
     optPaint = val;
     buildSprites();          /* repaint the coupe */
