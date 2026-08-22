@@ -54,6 +54,11 @@ canvas{display:block;width:100%;height:100%;touch-action:none}
 .stat i{font-style:normal;font-size:11px;font-weight:600;color:var(--dim);margin-left:2px}
 .stat.r{text-align:right}
 .stat.c{text-align:center;flex:0 0 auto}
+/* the clock is the loudest thing in the HUD, because it is the thing that
+   ends the run */
+#clockWrap b{font-size:30px;color:#ffb347;letter-spacing:.02em;
+  text-shadow:0 0 18px rgba(255,179,71,.55)}
+#clockWrap.low b{color:#ff5a4a;text-shadow:0 0 22px rgba(255,90,74,.75)}
 
 #pursuit{
   width:fit-content;margin:10px auto 0;font-size:9.5px;font-weight:700;letter-spacing:.28em;
@@ -144,7 +149,7 @@ canvas{display:block;width:100%;height:100%;touch-action:none}
   /* The dials and the gate were landing on top of it. 92px cleared the pedals
      but nothing above, so it needed the gap raising — not by much, or it
      drifts away from the thumb that presses it. */
-  right:0;bottom:100px;width:72px;height:30px;
+  right:0;bottom:84px;width:72px;height:30px;
 }
 
 #nitro i{
@@ -334,12 +339,12 @@ body.hardware #horn,
      with the scale — while these were fixed pixels. At any scale above 1 the
      bottle rose into the dials and they covered a third of it. Multiplying the
      offsets by the same variable keeps the stack together at every size. */
-  bottom:calc(env(safe-area-inset-bottom,0px) + 152px * var(--ark-ui,1));
+  bottom:calc(env(safe-area-inset-bottom,0px) + 132px * var(--ark-ui,1));
   width:115px;height:59px;
   transition:bottom .18s ease-out;
 }
 body.manual #dials{
-  bottom:calc(env(safe-area-inset-bottom,0px) + 262px * var(--ark-ui,1));
+  bottom:calc(env(safe-area-inset-bottom,0px) + 240px * var(--ark-ui,1));
 }
 /* ---- the wheel ----------------------------------------------------------
    Bottom-left, opposite the pedals. It ROTATES with the car and it FOLLOWS the
@@ -375,7 +380,7 @@ body.hardware #horn,
   transition:opacity .16s ease-out, left .10s ease-out, bottom .10s ease-out;
   position:absolute;z-index:12;
   left:calc(env(safe-area-inset-left,0px) + 10px);
-  bottom:calc(env(safe-area-inset-bottom,0px) + 16px);
+  bottom:calc(env(safe-area-inset-bottom,0px) + 8px);
   width:115px;height:115px;
   touch-action:none;
   transition:left .10s ease-out, bottom .10s ease-out;
@@ -429,7 +434,7 @@ body.pedals-left #wheel{ left:auto; right:calc(env(safe-area-inset-right,0px) + 
   transform-origin:100% 100%;
   transform:scale(var(--ark-ui,1));
   right:calc(env(safe-area-inset-right,0px) + 10px);
-  bottom:calc(env(safe-area-inset-bottom,0px) + 152px * var(--ark-ui,1));
+  bottom:calc(env(safe-area-inset-bottom,0px) + 132px * var(--ark-ui,1));
   width:86px;height:94px;touch-action:none;
 }
 #shifter[hidden]{ display:none }
@@ -538,6 +543,34 @@ h1 u{text-decoration:none;display:block;font-size:.34em;letter-spacing:.26em;col
 .gstack{display:flex;flex-direction:column;margin-top:0}
 .gstack .go{border-radius:0;margin:0;border-top-width:0}
 .gstack .go:last-child{border-radius:0 0 3px 3px}
+
+/* ---------------------------------------------------------------------------
+   PORTRAIT ON A PHONE, WIDE ON A DESKTOP
+
+   The manifest pins the INSTALLED app to portrait, but a browser tab cannot be
+   forced — `screen.orientation.lock()` only works from fullscreen and throws
+   everywhere else. So: on a touch device held sideways, a panel asks for it
+   back. On a desktop there is no such thing as the wrong orientation, and a
+   wide window is exactly what we want, so the panel never appears there.
+
+   The test is POINTER TYPE, not width. A landscape phone and a small laptop
+   window are the same number of pixels and want opposite things.
+   --------------------------------------------------------------------------- */
+#rotate{
+  position:fixed;inset:0;z-index:9000;display:none;
+  place-items:center;text-align:center;padding:28px;
+  background:#07050b;color:#e8e2f4;
+  font-family:var(--px,ui-monospace,monospace);
+}
+#rotate b{display:block;font-size:12px;letter-spacing:.22em;color:var(--gold,#e8b23a);margin-bottom:14px}
+#rotate span{display:block;font-size:10px;letter-spacing:.14em;color:#8a8296;line-height:2}
+#rotate i{display:block;width:52px;height:82px;margin:0 auto 22px;
+  border:2px solid rgba(232,178,58,.65);border-radius:8px;
+  transform:rotate(90deg);animation:rot 2.4s ease-in-out infinite}
+@keyframes rot{0%,40%{transform:rotate(90deg)}60%,100%{transform:rotate(0deg)}}
+@media (orientation:landscape) and (pointer:coarse){
+  body.lock-portrait #rotate{display:grid}
+}
 </style>
 </head>
 <body>
@@ -550,6 +583,7 @@ h1 u{text-decoration:none;display:block;font-size:.34em;letter-spacing:.26em;col
         <!-- DISTANCE moved into the speedometer as a mechanical odometer. In
              RACE it comes back, because how far is left is the whole point. -->
         <div class="stat" id="distWrap" hidden><span>TO GO</span><b id="dist">0.0<i>MI</i></b></div>
+        <div class="stat c" id="clockWrap"><span>TIME</span><b id="clock">60</b></div>
         <div class="stat c" id="placeWrap" hidden><span>PLACE</span><b id="place">12/12</b></div>
         <div class="stat r"><span>DISTANCE</span><b id="score">0</b></div>
       </div>
@@ -631,6 +665,19 @@ const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').match
 let state='title';
 let pos, playerX, camX, targetX, spd, dmg, nos, nosOn, nosTime;
 let dist, score, combo, comboTime, heat, heatT, runTopMph = 0;
+
+/* ---- THE CLOCK ------------------------------------------------------------
+   Out Run's spine: you are always running out of time, and the only thing that
+   buys more is distance. Sixty seconds to start, twenty at every checkpoint,
+   and a gantry every two miles so you always know where the next one is.
+
+   At zero the throttle simply stops answering — you keep whatever speed you
+   had and coast. That is a far better ending than a hard cut: you can see the
+   next gantry coming and know whether you will roll under it, and sometimes
+   you do. Coasting past one buys the twenty seconds and the run continues.
+   -------------------------------------------------------------------------- */
+const CLOCK_START = 60, CLOCK_BONUS = 20, CP_MILES = 2;
+let clock = CLOCK_START, nextCP = 0, cpGantries = [], lastBeep = -1, wreckWait = 0;
 let traffic, cops, blocks, crates, fx, shake, hitFlash, sirenPhase, lastKmh, iframe;
 let bestScore=0, bestDist=0, runs=0;
 const SV = AR && AR.save ? AR.save.get('highway') : null;
@@ -827,6 +874,26 @@ var snd = {
       vo.a.place(clamp(lateral * (0.9 + closeness*1.9), -1, 1), 0.07);
       vo.a.set(hz, 0.058 * fall * fall * snd.tScale, 300 + rr*900, 0.07);
     }
+  },
+
+  /* a bright two-note rise — unmistakable over the engine */
+  checkpoint: function(){
+    if(!AR) return;
+    const t = AR.audio.now();
+    [0, 4, 7, 12].forEach((n, i) =>
+      AR.sfx.tone({ t: t + i*0.055, freq: 523.25*Math.pow(2, n/12),
+                    dur: 0.30, type:'square', gain: 0.085, cutoff: 3600, verb: 0.30 }));
+    AR.sfx.noise({ t, freq: 5200, to: 2400, dur: 0.12, gain: 0.05, filter:'bandpass' });
+  },
+  /* the last five seconds: a hard pip, rising as it runs out */
+  tick: function(secondsLeft){
+    if(!AR) return;
+    const up = (6 - secondsLeft);
+    AR.sfx.tone({ freq: 660 + up*110, dur: 0.09, type:'square',
+                  gain: 0.075, cutoff: 3000 });
+    if(secondsLeft <= 1)
+      AR.sfx.tone({ t: AR.audio.now()+0.10, freq: 990, dur: 0.30,
+                    type:'square', gain: 0.07, cutoff: 3200 });
   },
 
   bed: function(step, t){
@@ -2131,6 +2198,7 @@ function reset(){
   const pw = document.getElementById('placeWrap');
   if(pw) pw.hidden = (mode !== 'race');
   dist=0; score=0; combo=0; comboTime=0; heat=1; heatT=0; runTopMph=0;
+  clock = CLOCK_START; nextCP = 1; cpGantries = []; lastBeep = -1; wreckWait = 0;
   /* dayClock deliberately NOT reset: the sky keeps its own time across runs */
   traffic=[]; cops=[]; blocks=[]; crates=[]; fx=[];
   shake=0; hitFlash=0; sirenPhase=0; lastKmh=0; iframe=0;
@@ -2157,6 +2225,22 @@ function start(){
 }
 
 function wreck(reason){
+  /* ---- A WRECK COSTS TWO SECONDS, NOT THE RUN -------------------------
+     The clock is what ends a run now, so crashing is a penalty against it
+     rather than a full stop: you lose the two seconds it takes to put a
+     fresh car on the road, in the middle, at rest. Whether that ends you
+     depends entirely on how much time was left — which is the tension the
+     whole design is built around.
+     ------------------------------------------------------------------- */
+  if(clock > 0){
+    snd.dead();
+    shake = 1.4;
+    wreckWait = 2.0;
+    spd = 0; dmg = 0; playerX = 0; targetX = 0; camX = 0;
+    gear = 1; nosOn = false;
+    flashWarn('WRECKED  \u22122s');
+    return;
+  }
   state='wrecked';
   snd.dead();
   bestScore=Math.max(bestScore, Math.round(dist*10)/10);
@@ -2505,6 +2589,89 @@ function tailLights(box, braking){
 }
 
 /* a chevron board on a post, beside the road */
+/* ---- the checkpoint gantry -----------------------------------------------
+   A green highway board on two legs spanning the whole carriageway. It has to
+   be readable from a long way out, because knowing whether you will REACH it
+   is the decision the clock is asking you to make.
+   -------------------------------------------------------------------------- */
+function drawGantry(cp){
+  const p1 = proj(0, cp.z);
+  if(!p1.ok) return;
+  const roadW = p1.scale * ROAD * W;
+  if(roadW < 6 || roadW > W*4) return;
+
+  /* ---- a real overhead sign --------------------------------------------
+     Two uprights outside the shoulder, a lattice TRUSS spanning between them
+     above the road, and ONE green board hanging beneath it. That is the order
+     a motorway gantry is actually built in, and it is what stops the thing
+     reading as a banner floating over the tarmac.
+     -------------------------------------------------------------------- */
+  const half  = roadW * 0.78;
+  const legH  = roadW * 0.62;
+  const truss = p1.y - legH;
+  const lw    = Math.max(1, roadW * 0.020);
+  const th    = Math.max(2, roadW * 0.075);
+  const bh    = Math.max(3, roadW * 0.20);
+  const bw    = roadW * 1.06;
+
+  ctx.fillStyle = '#4a5058';
+  ctx.fillRect(p1.x - half, truss, lw, legH);
+  ctx.fillRect(p1.x + half - lw, truss, lw, legH);
+
+  ctx.fillStyle = '#5a616a';
+  ctx.fillRect(p1.x - half, truss, half*2, Math.max(1, th*0.22));
+  ctx.fillRect(p1.x - half, truss + th - Math.max(1, th*0.22), half*2, Math.max(1, th*0.22));
+  if(roadW > 40){
+    ctx.strokeStyle = '#5a616a';
+    ctx.lineWidth = Math.max(0.8, th*0.13);
+    const bays = 12, step = (half*2)/bays;
+    for(let i2=0;i2<bays;i2++){
+      const x0 = p1.x - half + i2*step;
+      ctx.beginPath(); ctx.moveTo(x0, truss + th); ctx.lineTo(x0 + step, truss); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x0, truss); ctx.lineTo(x0 + step, truss + th); ctx.stroke();
+    }
+  }
+
+  const by = truss + th;
+  ctx.fillStyle = '#454b53';
+  ctx.fillRect(p1.x - bw*0.30, by, lw, Math.max(1, bh*0.10));
+  ctx.fillRect(p1.x + bw*0.30 - lw, by, lw, Math.max(1, bh*0.10));
+  const bTop = by + Math.max(1, bh*0.10);
+
+  ctx.fillStyle = '#0f2a18';
+  ctx.fillRect(p1.x - bw/2, bTop, bw, bh);
+  ctx.fillStyle = '#0d7a34';
+  ctx.fillRect(p1.x - bw/2 + lw*0.6, bTop + lw*0.6, bw - lw*1.2, bh - lw*1.2);
+
+  if(bh > 8){
+    ctx.strokeStyle = 'rgba(255,255,255,.92)';
+    ctx.lineWidth = Math.max(0.9, bh*0.045);
+    ctx.strokeRect(p1.x - bw/2 + bh*0.14, bTop + bh*0.14, bw - bh*0.28, bh - bh*0.28);
+    ctx.save();
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = '700 ' + Math.round(bh*0.52) + 'px ' +
+               getComputedStyle(document.body).getPropertyValue('--disp');
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText('CHECKPOINT', p1.x, bTop + bh*0.52);
+    ctx.restore();
+  }
+
+  const lit = lampsOn();
+  if(lit > 0.01 && bh > 6){
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    for(const fx2 of [-0.28, 0, 0.28]){
+      const gx = p1.x + bw*fx2, gy = bTop + bh;
+      const gl = ctx.createRadialGradient(gx, gy, 0, gx, gy, bh*0.9);
+      gl.addColorStop(0, 'rgba(255,244,206,' + (0.30*lit) + ')');
+      gl.addColorStop(1, 'rgba(255,236,180,0)');
+      ctx.fillStyle = gl;
+      ctx.beginPath(); ctx.arc(gx, gy, bh*0.9, 0, 6.2832); ctx.fill();
+    }
+    ctx.restore();
+  }
+}
+
 function drawSign(sg){
   const p1 = proj(sg.side * 1.34 * ROAD, sg.z);
   if(!p1.ok) return;
@@ -2738,7 +2905,9 @@ function stepRacers(dt){
     want = Math.min(want, AI_TOP);
     const rWas = r.spd;
     r.spd += aiAccel(r.spd, want, AI_TOP, dt);
-    r.braking = (r.spd < rWas - 60*dt);
+    const rDec = (rWas - r.spd) / Math.max(dt, 1/240);
+    if(rDec > 900) r.brakeT = 0.35; else if(r.brakeT > 0) r.brakeT -= dt;
+    r.braking = (r.brakeT || 0) > 0;
     r.z += r.spd*dt;
     /* rivals lay rubber on the same terms you do */
     const rdx = r.x - (r.lastX === undefined ? r.x : r.lastX);
@@ -3212,7 +3381,10 @@ if(wheelCv){
   /* A thumb sitting ON the wheel hides most of it. The wheel is placed a
      thumb's height ABOVE where you are touching, so your hand is below the
      rim and you can actually watch it turn. */
-  const THUMB = 62;
+  /* 62 put the rim well clear of the hand but too far up the glass — it read
+     as a separate object rather than the thing under your thumb. Half that is
+     enough to see the rim turn without losing the connection. */
+  const THUMB = 32;
   const placeWheel = (cx, cy) => {
     wheelCv.style.left = Math.round(cx - 57.5) + 'px';
     wheelCv.style.bottom = Math.round(window.innerHeight - cy - 57.5 + THUMB) + 'px';
@@ -3346,7 +3518,8 @@ function step(dt){
   /* in neutral the throttle is connected to nothing, so it coasts however
      hard you press */
   const inNeutral = optManual && (gear < 1 || gear > GEARS.length);
-  const onGas = (gas || nosOn) && !inNeutral;
+  /* out of time: the throttle stops answering, but you keep what you have */
+  const onGas = (gas || nosOn) && !inNeutral && clock > 0;
   /* THE COAST EXPLOIT: boost to well past MAX_SPD, then lift, and the car
      coasted down from 19,200 at the gentle neutral rate — so laying off the
      throttle was FASTER than using it. Above the natural top speed the car
@@ -3392,6 +3565,8 @@ function step(dt){
      it meant the car was genuinely decelerating half the time and the screech
      never stopped. */
   spd += clamp(top - spd, -rate*dt, rate*dt);
+  /* coming to rest with the clock out is the end of the run */
+  if(clock <= 0 && spd < MAX_SPD*0.004 && state === 'driving') gameOver();
   /* The floor was 1700 — about 22mph — so the car could never actually stop.
      It can now sit still, which is what a brake pedal is for. */
   /* the player's own rubber: hard steering at speed, or hard on the brakes */
@@ -3404,6 +3579,39 @@ function step(dt){
      below the bumper where you can actually see them. */
   if(pScrub > 0.05) layRubber(playerX, pos + PLAYER_Z - 340, pScrub, 0.265);
   stepRubber(dt);
+
+  /* serving a wreck penalty: the world stops, the clock does not */
+  if(wreckWait > 0){
+    wreckWait -= dt;
+    clock -= dt;
+    if(clock <= 0){ clock = 0; }
+    if(wreckWait <= 0) hasMoved = false;
+    return;
+  }
+
+  /* ---- the clock ------------------------------------------------------ */
+  if(!finished){
+    clock -= dt;
+    /* the last five seconds each get a beep */
+    const whole = Math.ceil(clock);
+    if(clock > 0 && whole <= 5 && whole !== lastBeep){ lastBeep = whole; snd.tick(whole); }
+    if(clock < 0) clock = 0;
+  }
+  /* a gantry every CP_MILES, placed a little way ahead as you approach */
+  while(nextCP * CP_MILES * MILE < pos + 90000){
+    cpGantries.push({ z: nextCP * CP_MILES * MILE, hit:false, n:nextCP });
+    nextCP++;
+  }
+  for(const cp of cpGantries){
+    if(!cp.hit && pos + PLAYER_Z > cp.z){
+      cp.hit = true;
+      clock += CLOCK_BONUS;
+      lastBeep = -1;
+      snd.checkpoint();
+      flashWarn('CHECKPOINT  +' + CLOCK_BONUS);
+    }
+  }
+  cpGantries = cpGantries.filter(cp => cp.z > pos - 8000);
 
   updateViewShift();
   /* the road only needs re-integrating as you consume it, not every frame */
@@ -3497,7 +3705,9 @@ function step(dt){
      it — so the whole pursuit system stands down together. */
   if(!optEasy){
     heatT += dt;
-    if(heatT > 20 && heat < 5){ heatT=0; heat++; flashWarn('HEAT '+heat); }
+    /* and the warning only means something when there is something to be
+       heated about */
+    if(heatT > 20 && heat < 5){ heatT=0; heat++; if(!optEasy) flashWarn('HEAT '+heat); }
   }
   nextCopT -= dt; nextBlockT -= dt; nextCrateT -= dt;
   if(nextCrateT <= 0){
@@ -3570,7 +3780,15 @@ function step(dt){
     const rate = want < c.spd ? 9000 : 2600;       // brakes beat the engine
     c.spd += clamp(want - c.spd, -rate*dt, rate*dt);
     /* anything shedding speed has its brake lights on — used by the mirror */
-    c.braking = (c.spd < wasSpd - 60*dt);
+    /* ---- NO CHATTER ---------------------------------------------------
+       `spd < was - 60*dt` flips on and off between frames whenever a car is
+       holding station, which is most of the time — that is the flicker. A
+       brake light needs hysteresis: it comes on at a real deceleration and
+       stays on for a beat afterwards, the way a real one does. */
+    const dec = (wasSpd - c.spd) / Math.max(dt, 1/240);
+    if(dec > 900) c.brakeT = 0.35;
+    else if(c.brakeT > 0) c.brakeT -= dt;
+    c.braking = (c.brakeT || 0) > 0;
     if(c.spd < 0) c.spd = 0;
   }
 
@@ -3603,7 +3821,9 @@ function step(dt){
       snd.nearMiss();
 
 
-      fx.push({txt:'+'+(90*combo), x:W/2+rnd(-30,30), y:H*0.64, vy:-70, age:0, life:.9});
+      /* A leftover from the score system: `90*combo` with combo permanently
+         zero printed "+0" over the road on every near miss. Nothing to award,
+         so nothing to say. */
     }
   }
 
@@ -3654,7 +3874,9 @@ function step(dt){
     want = Math.min(want, AI_TOP);
     const kWas = k.spd;
     k.spd += aiAccel(k.spd, want, AI_TOP, dt);
-    k.braking = (k.spd < kWas - 60*dt);
+    const kDec = (kWas - k.spd) / Math.max(dt, 1/240);
+    if(kDec > 900) k.brakeT = 0.35; else if(k.brakeT > 0) k.brakeT -= dt;
+    k.braking = (k.brakeT || 0) > 0;
     /* A cruiser will run you down at speed but it has no bottle. On the
        boost you genuinely pull away, which is what the boost is for. */
     /* The floor of 2000 meant a cruiser could never actually stop, so it
@@ -4154,6 +4376,13 @@ function buildHillClip(){
 }
 /* is a point at this z hidden behind a crest between here and there? */
 /* the screen y of the crest between here and worldZ, or null if clear */
+function hiddenBehindHill(worldZ){
+  const n = Math.floor((worldZ - pos)/SEG) - Math.floor(pos/SEG) + Math.floor(pos/SEG);
+  const idx = Math.floor((worldZ - pos)/SEG);
+  if(idx < 1 || idx > DRAW) return false;
+  /* the slice it stands on was skipped, so the ground in front hides it */
+  return roadY[idx] === undefined;
+}
 function crestY(worldZ){
   /* ---- DISABLED, deliberately ------------------------------------------
      This test was wrong in both directions at once. On a normal road y
@@ -4184,10 +4413,19 @@ function overBrow(worldZ, screenY){
   return screenY < hillClip[n] - H*0.012;
 }
 
+/* ---- where the road actually got painted ---------------------------------
+   `roadY[n]` is the screen y of the road surface at segment n, recorded as the
+   road paints and left undefined for any slice that was SKIPPED because it sat
+   behind a crest. That is the honest answer to "is this point visible": if the
+   slice a car stands on was never drawn, the car is behind a hill.
+
+   A single running minimum could never express this — it has no memory of
+   which slices were actually painted. This does.
+   -------------------------------------------------------------------------- */
+let roadY = [], spriteBuckets = {};
 function drawRoad(){
   buildHillClip();
-  /* the LOWEST ground painted so far, walking far to near — it only advances
-     toward the camera, so a slice that has dipped behind a crest is skipped */
+  roadY = [];
   let groundMax = -1e9;
   const lamp = lampsOn();
   const base = Math.floor(pos/SEG);
@@ -4237,6 +4475,8 @@ function drawRoad(){
     if(y2 > groundMax){
       ctx.fillRect(0, y2, W, H - y2);
       groundMax = y2;
+      roadY[n] = y1;
+      emitBucket(n);                 /* everything standing on this slice */
     }
 
     /* every eighth segment carries a lamp, alternating sides, throwing an
@@ -4257,9 +4497,14 @@ function drawRoad(){
       const armL  = Math.max(2, sc * 0.30) * -side;
       const topY  = y1 - poleH;
 
-      /* the column: solid, and it reads against sky or tarmac alike */
+      /* ---- SOLID -------------------------------------------------------
+         `globalAlpha = fade` made the whole post see-through for most of its
+         life, since `fade` is the distance ramp and only reaches 1 right in
+         front of you. A steel column is not translucent at any distance. The
+         ramp is now only used to fade a post IN at the far edge of the draw
+         distance, where it would otherwise pop. */
       ctx.save();
-      ctx.globalAlpha = fade;
+      ctx.globalAlpha = Math.min(1, fade * 4);
       ctx.fillStyle = '#2b3038';
       ctx.fillRect(lx - poleW/2, topY, poleW, poleH);
       ctx.fillStyle = 'rgba(255,255,255,.16)';
@@ -4360,10 +4605,9 @@ function drawSprite(img, worldX, worldZ, worldW, alpha){
   if(w < 1.2 || w > W*3.4) return null;
   const h = w * img.height/img.width;
   if(p.y - h > H || p.y < horizon - h) return null;
-  /* CLIP rather than cull. Dropping a whole sprite the instant its base went
-     over a crest is what made cars blink in and out — a car cresting a rise
-     should emerge roof-first, not appear all at once. The visible part is
-     everything below the brow line. */
+  /* a car standing on a slice the road never painted is behind a hill */
+  if(hiddenBehindHill(worldZ)) return null;
+
   const brow = crestY(worldZ);
   if(brow !== null && p.y < brow - H*0.012) return null;
   if(brow !== null && p.y - h < brow){
@@ -4429,11 +4673,37 @@ function drawWorld(){
   for(const k of cops)    items.push({z:k.z, kind:'k', o:k});
   for(const b of blocks)  items.push({z:b.z, kind:'b', o:b});
   for(const sg of signs)  items.push({z:sg.z, kind:'s', o:sg});
+  for(const cp of cpGantries) items.push({z:cp.z, kind:'c', o:cp});
   for(const r of racers)  items.push({z:r.z, kind:'g', o:r});
   for(const c of crates)  if(!c.got) items.push({z:c.z, kind:'r', o:c});
   items.sort((a,b)=>b.z-a.z);
+  /* ---- SPRITES ARE EMITTED INSIDE THE ROAD LOOP ------------------------
+     They used to be drawn in this pass, AFTER the whole road, which is why
+     nothing behind a hill could ever be hidden: by the time any test ran the
+     road was already finished and the sprite painted over it regardless.
+
+     Now each one is bucketed by the road segment it stands on, and the road
+     emits a bucket immediately after painting that slice — so a nearer slice
+     paints over anything further away exactly as it paints over itself. Four
+     different per-sprite conditions could not do this; the draw ORDER is the
+     answer, not a test.
+     -------------------------------------------------------------------- */
+  const base = Math.floor(pos/SEG);
+  spriteBuckets = {};
   for(const it of items){
-    if(it.kind==='s'){
+    const n = Math.floor(it.z/SEG) - base;
+    if(n < 0 || n > DRAW+1) continue;
+    (spriteBuckets[n] || (spriteBuckets[n] = [])).push(it);
+  }
+}
+/* draw everything standing on one segment */
+function emitBucket(n){
+  const list = spriteBuckets[n];
+  if(!list) return;
+  for(const it of list){
+    if(it.kind==='c'){
+      drawGantry(it.o);
+    } else if(it.kind==='s'){
       drawSign(it.o);
     } else if(it.kind==='g'){
       /* a rival: your car, in its own paint, with its number on the boot */
@@ -4477,6 +4747,35 @@ function drawWorld(){
       }
     }
   }
+}
+
+/* ---- your own brake lights -----------------------------------------------
+   Off by day and dim by night when you are coasting; BRIGHT the moment you
+   touch the brake, either way. The player had none at all — every other car
+   on the road had them.
+   -------------------------------------------------------------------------- */
+function playerBrakes(box){
+  if(!box || box.w < 10) return;
+  const lit = lampsOn();
+  const on = brake ? 1 : (lit > 0.01 ? 0.34 * lit : 0);
+  if(on <= 0.01) return;
+  const left = box.x - box.w/2;
+  const lw = box.w*0.265, lh = box.h*0.11;
+  const ly = box.y - box.h*0.34;
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  for(const lx of [left + box.w*0.135, left + box.w*0.60]){
+    ctx.fillStyle = 'rgba(255,' + (brake?52:26) + ',' + (brake?64:38) + ',' + on + ')';
+    ctx.fillRect(lx, ly, lw, lh);
+    if(box.w > 40){
+      const gl = ctx.createRadialGradient(lx+lw/2, ly+lh/2, 0, lx+lw/2, ly+lh/2, lw*1.5);
+      gl.addColorStop(0, 'rgba(255,40,60,' + (on*0.55) + ')');
+      gl.addColorStop(1, 'rgba(255,30,50,0)');
+      ctx.fillStyle = gl;
+      ctx.beginPath(); ctx.arc(lx+lw/2, ly+lh/2, lw*1.5, 0, 6.2832); ctx.fill();
+    }
+  }
+  ctx.restore();
 }
 
 function drawPlayer(){
@@ -4620,15 +4919,22 @@ function drawPlayer(){
   ctx.drawImage(SP.player, -w/2, -h, w, h);
   ctx.restore();
 
-  // brake/tail glow scaled with speed
-  const glow = 0.25 + 0.45*(spd/NOS_SPD);
+  /* ---- the lamps mean something now ----------------------------------
+     This glowed harder the FASTER you went, which is backwards: a tail lamp
+     does not brighten with speed, it brightens when you brake. Off by day
+     while coasting, dim by night, and bright the instant the pedal goes down
+     — the same rule every other car on the road follows. */
+  const litNow = lampsOn();
+  const glow = brake ? 0.85 : (litNow > 0.01 ? 0.30 * litNow : 0);
+  if(glow > 0.01){
   ctx.globalCompositeOperation='lighter';
   for(const ox of [-0.24,0.24]){
     const g = ctx.createRadialGradient(p.x+ox*w, p.y-h*0.34, 0, p.x+ox*w, p.y-h*0.34, w*0.30);
-    g.addColorStop(0,'rgba(255,60,80,'+glow+')');
+    g.addColorStop(0,'rgba(255,'+(brake?70:50)+',85,'+glow+')');
     g.addColorStop(1,'rgba(255,60,80,0)');
     ctx.fillStyle=g;
     ctx.beginPath(); ctx.arc(p.x+ox*w, p.y-h*0.34, w*0.30, 0, 6.2832); ctx.fill();
+  }
   }
   if(nosOn){
     for(const ox of [-0.13,0.13]){
@@ -4712,8 +5018,8 @@ function draw(){
   drawSky();
   ctx.fillStyle='#241a30';
   ctx.fillRect(0, horizon, W, H-horizon);
-  drawRoad();
-  drawWorld();
+  drawWorld();          /* buckets the sprites */
+  drawRoad();           /* paints the road AND emits them, far to near */
   drawHaze();
   drawPursuitWash();
   drawPlayer();
@@ -5223,6 +5529,11 @@ function hud(){
 
   /* the score slot now carries the one number that matters */
   $('score').textContent = dist.toFixed(1) + ' MI';
+  const cw = $('clockWrap');
+  if(cw){
+    $('clock').textContent = Math.ceil(clock);
+    cw.classList.toggle('low', clock <= 5);
+  }
   /* the bottle empties as you burn it */
   nitroBtn.style.setProperty('--nos', nos + '%');
   if(mode === 'race'){
@@ -5460,7 +5771,9 @@ function showEnd(reason){
     '<h1>'+dist.toFixed(1)+'<u>MILES DRIVEN</u></h1>'+
     '<div class="grid2">'+
       '<div class="gc"><span>DISTANCE</span><b>'+dist.toFixed(1)+' MI</b></div>'+
-      '<div class="gc"><span>HEAT</span><b>LV '+heat+'</b></div>'+
+      /* heat is a pursuit statistic — meaningless with the cops switched off */
+      (optEasy ? '<div class="gc"><span>TOP SPEED</span><b>'+Math.round(runTopMph)+' MPH</b></div>'
+               : '<div class="gc"><span>HEAT</span><b>LV '+heat+'</b></div>')+
       '<div class="gc"><span>BEST RUN</span><b>'+bestDist.toFixed(1)+' MI</b></div>'+
       '<div class="gc"><span>TOP SPEED</span><b>'+Math.round(runTopMph)+' MPH</b></div>'+
     '</div>'+
@@ -5477,11 +5790,19 @@ reset();
 /* Options live in the pause menu, rendered and remembered by the shell. */
 if (AR && AR.options) AR.options.define([
   { key:'side',  label:'CONTROLS', type:'cycle', of:['RIGHT','LEFT'],                    def:'RIGHT' },
+  { key:'manual', label:'GEARBOX',    type:'cycle', of:['AUTO','MANUAL'],              def:'AUTO' },
   { key:'mirror', label:'MIRROR',      type:'cycle', of:['FULL','CHEAP','OFF'],           def:'FULL' },
   { key:'touchui',label:'TOUCH CONTROLS', type:'cycle', of:['AUTO','ON','OFF'],            def:'AUTO' }
 ], function(key, val){
   if(key === 'side')  document.body.classList.toggle('pedals-left', val === 'LEFT');
   /* the toggle now names what it ADDS, so off is the quiet road */
+  if(key === 'manual'){
+    /* kept in the pause menu as well as the garage: changing your mind about
+       the box mid-run is reasonable, changing your CAR is not */
+    optManual = (val === 'MANUAL');
+    syncBoxClass();
+    if(AR && AR.save) AR.save.merge('highway-opts', { manual:optManual });
+  }
   if(key === 'mirror') optMirror = val;
   if(key === 'touchui'){ optTouchUI = val; applyTouchUI(); }
   if(key === 'body' && val !== optBody){ optBody = val; buildSprites(); }
@@ -5524,6 +5845,19 @@ if (AR && !AR.touch) document.body.classList.add('no-touch');
 
 showTitle();
 requestAnimationFrame(frameLoop);
+})();
+</script>
+
+<div id="rotate"><div><i></i><b>TURN YOUR PHONE</b>
+<span>TINY ARCADE IS PLAYED UPRIGHT</span></div></div>
+<script>
+/* only a device with a coarse pointer gets the portrait lock — a desktop
+   window is free to be any shape, and wide is the better shape there */
+(function(){
+  if(matchMedia('(pointer:coarse)').matches) document.body.classList.add('lock-portrait');
+  /* an installed app can genuinely lock; a tab cannot, and throwing is fine */
+  try{ if(screen.orientation && screen.orientation.lock)
+        screen.orientation.lock('portrait').catch(function(){}); }catch(e){}
 })();
 </script>
 </body>
