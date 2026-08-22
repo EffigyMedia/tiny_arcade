@@ -2059,10 +2059,17 @@ function paintRigFront(kind, o){
       g.fillStyle = liveryBand(P.body);
       g.fillRect(w*0.055, pDeck + h*0.100, w*0.89, h*0.045);
       drawMarque(g, 'CRUISER', w*0.5, pDeck + h*0.062, h*0.034);
-      g.fillStyle = '#14161a';
-      rr(g, w*0.32, pRoof-h*0.045, w*0.36, h*0.045, 3); g.fill();
-      g.fillStyle = '#2f6ad6'; rr(g, w*0.335, pRoof-h*0.038, w*0.15, h*0.030, 2); g.fill();
-      g.fillStyle = '#d63a3a'; rr(g, w*0.515, pRoof-h*0.038, w*0.15, h*0.030, 2); g.fill();
+      /* ---- THE REAR'S NUMBERS, VERBATIM ---------------------------------
+         The bar ran 0.32 to 0.68 here and 0.24 to 0.76 on the back — the same
+         fitting, 0.36 wide from the front and 0.52 from behind. These are the
+         rear's values, and the housing tone with them, so the two ends cannot
+         disagree about a part that is bolted to the roof. */
+      g.fillStyle = '#1b1e24';
+      rr(g, w*0.24, pRoof-h*0.055, w*0.52, h*0.045, 2); g.fill();
+      g.fillStyle = '#2f6bff';
+      rr(g, w*0.255, pRoof-h*0.050, w*0.235, h*0.034, 2); g.fill();
+      g.fillStyle = '#ff2b4a';
+      rr(g, w*0.51, pRoof-h*0.050, w*0.235, h*0.034, 2); g.fill();
     }
   };
 }
@@ -3281,7 +3288,10 @@ function paintCar(o){
       g.globalAlpha = .55; g.fillStyle = lamp1;
       rr(g, w*0.14, ty + h*0.012, w*0.72, th*0.22, th*0.11); g.fill();
       g.globalAlpha = 1;
-    } else if(kind === 'F'){
+    /* the rename missed this one, so STALLION fell past its own branch into
+       the `else` and wore MATADOR's chevrons — the second time a stray single
+       letter has survived a rename in this file */
+    } else if(kind === 'STALLION'){
       /* four rings, and a dark band linking them */
       g.fillStyle = 'rgba(18,14,16,.72)';
       rr(g, w*0.30, ty + th*0.22, w*0.40, th*0.42, 2); g.fill();
@@ -3504,22 +3514,28 @@ function buildSprites(){
   TRAFFIC_SP.taxi = [ sprite(200,164, paintRig('taxi', CAB)) ];
   FRONT_SP.taxi   = [ sprite(200,164, paintRigFront('taxi', CAB)) ];
 
-  /* lorries are their own thing: liveried panels, not car colours */
-  FRONT_SP.truck = [
-    { body:'#8a8477', hi:'#a8a293', lo:'#4e4a41' },
-    { body:'#9aa0a8', hi:'#c2c7cd', lo:'#5c6169' },
-    { body:'#4e5a6b', hi:'#6d7c90', lo:'#2c333e' },
-    { body:'#7a5f4e', hi:'#9b7c66', lo:'#453529' }
-  ].map(c => sprite(230,250, paintRigFront('truck',
-    { body:c.body, hi:c.hi, lo:c.lo, lamp:'#b8371f', lamp2:'#ffb066' })));
+  /* ---- A TRACTOR UNIT AND A TRAILER ARE TWO THINGS ----------------------
+     The four liveries were painting the WHOLE vehicle, so a blue lorry had a
+     blue box behind it. A haulier's trailer is the plain panel it always is —
+     beige — and the cab pulling it is whatever colour that operator painted it.
 
-  TRAFFIC_SP.truck = [
-    { body:'#8a8477', hi:'#a8a293', lo:'#4e4a41' },
-    { body:'#9aa0a8', hi:'#c2c7cd', lo:'#5c6169' },
-    { body:'#4e5a6b', hi:'#6d7c90', lo:'#2c333e' },
-    { body:'#7a5f4e', hi:'#9b7c66', lo:'#453529' }
-  ].map(c => sprite(230,250, paintRig('truck',
-    { body:c.body, hi:c.hi, lo:c.lo, lamp:'#b8371f', lamp2:'#ffb066' })));
+     `TRAILER` is fixed; the cab takes an ordinary traffic paint, so a lorry on
+     the road can be any colour from the front and is always the same from
+     behind.
+     -------------------------------------------------------------------- */
+  const TRAILER = { body:'#8a8477', hi:'#a8a293', lo:'#4e4a41' };
+  TRAFFIC_SP.truck = TRAFFIC_PAINT.map((c,i2) => {
+    const cab = trafficPaint(i2);
+    return sprite(230,250, paintRig('truck',
+      { body:TRAILER.body, hi:TRAILER.hi, lo:TRAILER.lo,
+        cab:cab, lamp:'#b8371f', lamp2:'#ffb066' }));
+  });
+  FRONT_SP.truck = TRAFFIC_PAINT.map((c,i2) => {
+    const cab = trafficPaint(i2);
+    /* the FRONT is all cab, so it is painted in the cab's colour outright */
+    return sprite(230,250, paintRigFront('truck',
+      { body:cab.body, hi:cab.hi, lo:cab.lo, lamp:'#b8371f', lamp2:'#ffb066' }));
+  });
 
   SP.repair = sprite(150,120, (g,w,h)=>{
     g.fillStyle='rgba(0,0,0,.45)';
