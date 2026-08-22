@@ -30,6 +30,8 @@
 "use strict";
 
 var A = window.Arcade = window.Arcade || {};
+/* every cabinet draws its name with the same hand */
+A.wordmark = wordmark;
 
 /* ---- Arcade.gesture ----------------------------------------------------
    Page-wide pointer input, shared by every machine. A thumb lands where it
@@ -324,6 +326,140 @@ function uiScale(){
   return s;
 }
 
+/* ===========================================================================
+   TITLE WORDMARKS
+
+   Every cabinet draws its own name rather than setting it in a font, because a
+   font says "UI" and a marquee does not. The letter skeletons live here so all
+   seventeen share one alphabet and one treatment: a heavy shell, then a face
+   gradient split at the midline — cool above, hot below — so the horizon runs
+   through the word the way it runs through the art behind it.
+
+   A game passes its own two colour ramps, so Highway is chrome-and-amber and
+   Deep is ice-and-abyss, but the construction is common.
+   =========================================================================== */
+var GLYPH = {
+  A:[[[0,14],[5,0],[10,14]],[[2,9],[8,9]]],
+  B:[[[0,0],[0,14]],[[0,0],[7,0],[9,2],[9,5],[7,7],[0,7]],[[0,7],[8,7],[10,9],[10,12],[8,14],[0,14]]],
+  C:[[[10,3],[7,0],[3,0],[0,3],[0,11],[3,14],[7,14],[10,11]]],
+  D:[[[0,0],[0,14]],[[0,0],[6,0],[10,4],[10,10],[6,14],[0,14]]],
+  E:[[[0,0],[0,14]],[[0,0],[9,0]],[[0,7],[7,7]],[[0,14],[9,14]]],
+  F:[[[0,0],[0,14]],[[0,0],[9,0]],[[0,7],[7,7]]],
+  G:[[[10,3],[7,0],[3,0],[0,3],[0,11],[3,14],[7,14],[10,11],[10,8],[5,8]]],
+  H:[[[0,0],[0,14]],[[10,0],[10,14]],[[0,7],[10,7]]],
+  I:[[[5,0],[5,14]],[[1,0],[9,0]],[[1,14],[9,14]]],
+  J:[[[8,0],[8,11],[5,14],[2,14],[0,11]]],
+  K:[[[0,0],[0,14]],[[9,0],[0,7]],[[3,5],[10,14]]],
+  L:[[[0,0],[0,14],[9,14]]],
+  M:[[[0,14],[0,0],[5,6],[10,0],[10,14]]],
+  N:[[[0,14],[0,0],[10,14],[10,0]]],
+  O:[[[3,0],[7,0],[10,3],[10,11],[7,14],[3,14],[0,11],[0,3],[3,0]]],
+  P:[[[0,14],[0,0],[7,0],[10,3],[10,6],[7,9],[0,9]]],
+  Q:[[[3,0],[7,0],[10,3],[10,11],[7,14],[3,14],[0,11],[0,3],[3,0]],[[6,10],[10,14]]],
+  R:[[[0,14],[0,0],[7,0],[10,3],[10,6],[7,9],[0,9]],[[5,9],[10,14]]],
+  S:[[[10,3],[7,0],[3,0],[0,3],[0,5],[3,7],[7,7],[10,9],[10,11],[7,14],[3,14],[0,11]]],
+  T:[[[0,0],[10,0]],[[5,0],[5,14]]],
+  U:[[[0,0],[0,11],[3,14],[7,14],[10,11],[10,0]]],
+  V:[[[0,0],[5,14],[10,0]]],
+  W:[[[0,0],[2,14],[5,5],[8,14],[10,0]]],
+  X:[[[0,0],[10,14]],[[10,0],[0,14]]],
+  Y:[[[0,0],[5,7],[10,0]],[[5,7],[5,14]]],
+  Z:[[[0,0],[10,0],[0,14],[10,14]]],
+  "0":[[[3,0],[7,0],[10,3],[10,11],[7,14],[3,14],[0,11],[0,3],[3,0]],[[0,12],[10,2]]],
+  " ":[]
+};
+
+/* ---- THE ALPHABET IS SHARED, THE TREATMENT IS NOT ------------------------
+   The letter skeletons are common so every cabinet gets the same construction
+   and the same fitting maths. Everything else is the game's own: pass a
+   `paint` function and it is called once per stroke with the path already
+   laid down, free to stroke it in phosphor, fill it like folded card, cut it
+   with a horizon, or anything else.
+
+   Sharing the treatment would have made seventeen marquees that all look like
+   Highway's, which is the exact problem a drawn logo is meant to solve.
+
+   paint(g, pass, i, n)  — pass is 'shell' then 'face'; i is the letter index.
+
+   `glyphs` — the ALPHABET ITSELF. Restyling one skeleton in three colours is
+   one typeface three times over, so a cabinet can hand in its own letterforms:
+   any map of character to a list of point-lists in a 10-wide, 14-tall box.
+   `box` widens or narrows that box, so a condensed or a squat face is possible
+   without redrawing anything. What is shared is the LAYOUT — fitting, rake,
+   spacing, passes — not the shapes.
+   -------------------------------------------------------------------------- */
+function wordmark(g, word, cx, cy, size, opt){
+  opt = opt || {};
+  var rake = opt.rake === undefined ? -0.16 : opt.rake;
+  var G    = opt.glyphs || GLYPH;
+  var boxW = opt.box || 10;
+  var gap  = size * (opt.gap === undefined ? 0.24 : opt.gap);
+  /* ---- PROPORTIONAL, if the cabinet asks for it -------------------------
+     A fixed slot per letter is a monospace grid, and on a hand-written face it
+     shows: an I floats in a gap twice its own width while a D and a C nearly
+     touch. `widths` lets a glyph declare its own advance, and the layout steps
+     by that instead of by a constant.
+     ---------------------------------------------------------------------- */
+  var WD = opt.widths || null;
+  var adv = function(ch){ return size * ((WD && WD[ch] !== undefined ? WD[ch] : boxW) / 14); };
+  var lw   = size * boxW/14;
+  var total = 0;
+  for (var q = 0; q < word.length; q++) total += adv(word[q]);
+  total += (word.length - 1) * gap;
+  var need  = total + Math.abs(rake) * size;
+  var k     = Math.min(1, (opt.maxW || 1e9) / need);
+  var cool  = opt.cool || ["#f6f8ff", "#9fb2d8", "#e9eefc"];
+  var hot   = opt.hot  || ["#ffd27a", "#ff8a2b", "#c93c1f"];
+
+  g.save();
+  g.translate(cx, cy);
+  g.scale(k, k);
+  g.transform(1, 0, rake, 1, 0, 0);
+  g.translate(-total/2, -size/2);
+
+  var passes = opt.passes || ["shell", "face"];
+  passes.forEach(function(pass){
+    var x = 0;
+    for (var i = 0; i < word.length; i++) {
+      var strokes = G[word[i]] || [];
+      g.save();
+      g.translate(x, 0);
+      g.scale(size/14, size/14);
+      g.lineJoin = "round"; g.lineCap = "round";
+      for (var s2 = 0; s2 < strokes.length; s2++) {
+        var st = strokes[s2];
+        g.beginPath();
+        g.moveTo(st[0][0], st[0][1]);
+        for (var j = 1; j < st.length; j++) g.lineTo(st[j][0], st[j][1]);
+        /* A cabinet that wants to draw the stroke ITSELF gets the points and
+           returns true to say "I have handled it" — the laid path is then
+           thrown away. That is what lets a smear vary its width ALONG a
+           stroke, which stroking a whole path can never do. */
+        if (opt.paint) {
+          var handled = opt.paint(g, pass, i, word.length, st, word[i]);
+          if (!handled) g.stroke();
+          continue;
+        }
+        if (pass === "shell") { g.strokeStyle = "#0a0710"; g.lineWidth = 5.2; }
+        else {
+          var grd = g.createLinearGradient(0, 0, 0, 14);
+          grd.addColorStop(0.00, cool[0]);
+          grd.addColorStop(0.34, cool[1]);
+          grd.addColorStop(0.49, cool[2]);
+          grd.addColorStop(0.51, hot[0]);
+          grd.addColorStop(0.72, hot[1]);
+          grd.addColorStop(1.00, hot[2]);
+          g.strokeStyle = grd; g.lineWidth = 3.4;
+        }
+        g.stroke();
+      }
+      g.restore();
+      x += adv(word[i]) + gap;
+    }
+  });
+  g.restore();
+}
+
 function glass(){
   if (document.querySelector('.ark-crt')) return;
   /* The launcher has had its own #crt overlay since it was built — full-screen
@@ -518,8 +654,18 @@ function boot(){
     try { localStorage.setItem(OPT_KEY, JSON.stringify(all)); } catch(e){}
     if (optOnChange) optOnChange(k, v);
   }
+  /* ---- the same rows, wherever they are asked for -----------------------
+     `paintOpts` only ever looked inside the pause veil, so a game's own title
+     OPTIONS screen could not show the same controls and had to say "they are
+     in the pause menu" instead. It now paints into ANY `.ark-opts` container
+     on the page, which lets a title screen host the identical rows — same
+     definitions, same storage, same callback.
+     ---------------------------------------------------------------------- */
   function paintOpts(){
-    var box = veil.querySelector('.ark-opts');
+    var boxes = document.querySelectorAll('.ark-opts');
+    for (var b = 0; b < boxes.length; b++) paintOptsInto(boxes[b]);
+  }
+  function paintOptsInto(box){
     if (!box) return;
     if (!optDefs.length){ box.innerHTML = ''; return; }
     var h = '<div class="ark-sep">OPTIONS</div>';
@@ -587,7 +733,9 @@ function boot(){
         optOnChange(optDefs[i].key, optGet(optDefs[i].key));
     },
     get: optGet,
-    set: function(k, v){ optSet(k, v); paintOpts(); }
+    set: function(k, v){ optSet(k, v); paintOpts(); },
+    /* a game calls this after rendering its own screen containing .ark-opts */
+    paint: paintOpts
   };
   /* anything registered before the shell was ready */
   if (A._optQueue){ A.options.define(A._optQueue.defs, A._optQueue.onChange); A._optQueue = null; }
@@ -651,7 +799,9 @@ function boot(){
     tag.textContent = 'PAD READY';
     setTimeout(function(){ tag.textContent = paused ? 'PAUSED' : 'RUNNING'; }, 1600);
   });
-  veil.addEventListener('click', function(e){
+  /* delegated to the DOCUMENT, not the pause veil: option rows can now live on
+     a game's own title screen, and a click there has to work the same way */
+  document.addEventListener('click', function(e){
     var el = e.target.closest ? e.target.closest('[data-a]') : e.target;
     var a = el && el.getAttribute('data-a');
     if (a === 'resume') setPaused(false);
