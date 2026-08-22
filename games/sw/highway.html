@@ -438,6 +438,36 @@ body.pedals-left #wheel{ left:auto; right:calc(env(safe-area-inset-right,0px) + 
   width:86px;height:94px;touch-action:none;
 }
 #shifter[hidden]{ display:none }
+
+/* ---- THE PADDLES -------------------------------------------------------
+   A formula car has no gate and no knob to move through one — it has two
+   paddles behind the wheel and a number between them. Same corner, same
+   scale, so the thumb goes where it already went. */
+#paddles{
+  position:absolute;z-index:13;pointer-events:auto;
+  transform-origin:100% 100%;
+  transform:scale(var(--ark-ui,1));
+  right:calc(env(safe-area-inset-right,0px) + 10px);
+  bottom:calc(env(safe-area-inset-bottom,0px) + 132px * var(--ark-ui,1));
+  width:150px;height:64px;touch-action:none;
+  display:flex;align-items:stretch;gap:6px;
+}
+#paddles[hidden]{ display:none }
+body.no-touch #paddles,
+body.hardware #paddles{ display:none }
+#paddles button{
+  flex:1;border:1px solid rgba(255,179,71,.55);
+  background:linear-gradient(180deg,rgba(60,42,26,.92),rgba(28,20,14,.92));
+  color:#ffd9a6;font:700 22px/1 var(--disp);border-radius:6px;
+  -webkit-tap-highlight-color:transparent;touch-action:none;
+}
+#paddles button:active{ background:rgba(255,179,71,.35);color:#1a1208 }
+#padGear{
+  flex:0 0 48px;display:grid;place-items:center;
+  border:1px solid rgba(255,255,255,.16);border-radius:6px;
+  background:rgba(12,10,16,.85);
+}
+#padGear b{ font:700 26px/1 var(--disp);color:#fff3e2 }
 #gate{
   position:absolute;inset:0;border-radius:9px;
   background:linear-gradient(to bottom,#1a1d22,#0d0f13);
@@ -528,12 +558,14 @@ h1 u{text-decoration:none;display:block;font-size:.34em;letter-spacing:.26em;col
 /* ONE ROW, always. Twelve fixed-width circles at any gap will wrap on a
    narrow phone, so they are sized as a FRACTION of the row instead: a grid of
    twelve equal columns that shrinks with the screen rather than spilling. */
-.swatches{display:grid;grid-template-columns:repeat(12,1fr);gap:4px;
+.swatches{display:grid;grid-template-columns:repeat(var(--sw,12),1fr);gap:4px;
   align-items:center;margin:12px 0 4px}
 .sw{width:100%;aspect-ratio:1;border-radius:50%;
   border:2px solid rgba(255,255,255,.20);cursor:pointer;padding:0;
   min-width:0}
 .sw.on{border-color:#fff;box-shadow:0 0 0 2px rgba(255,255,255,.25)}
+.gnote{font-size:9px;letter-spacing:.14em;color:var(--sodium,#ffb347);
+  padding:6px 0 2px;text-align:center}
 .gbox{display:flex;align-items:stretch;margin-top:12px}
 .gbox .go{flex:1;border-radius:0;margin:0;border-right-width:0}
 .gbox .go:first-child{flex:0 0 46px;border-radius:3px 0 0 3px}
@@ -575,6 +607,11 @@ h1 u{text-decoration:none;display:block;font-size:.34em;letter-spacing:.26em;col
 /* the title art sits behind the veil, and only for the title */
 #titleArt{position:absolute;inset:0;z-index:29;display:none;width:100%;height:100%}
 body.titling #titleArt{display:block}
+body.trophying #titleArt{display:block}
+body.trophying #veil{
+  background:linear-gradient(180deg, rgba(6,4,10,.30) 0%, rgba(6,4,10,.10) 26%,
+    rgba(6,4,10,.20) 48%, rgba(6,4,10,.80) 72%, rgba(6,4,10,.96) 100%);
+  align-items:end;padding-bottom:30px}
 /* with art behind it the veil only needs to darken the lower half for the
    buttons, not cover the picture */
 body.titling #veil{
@@ -629,6 +666,12 @@ body.titling #veil h1{display:none}
   <div id="shifter" hidden>
     <div id="gate"></div>
     <div id="knob" data-gear="1"><b>1</b></div>
+  </div>
+  <!-- a formula car does not have a gate: two paddles and a number -->
+  <div id="paddles" hidden>
+    <button id="padDown" type="button">−</button>
+    <div id="padGear"><b>1</b></div>
+    <button id="padUp" type="button">+</button>
   </div>
   <canvas id="titleArt"></canvas>
 <div id="veil"><div class="vw" id="veilBody"></div></div>
@@ -694,6 +737,71 @@ let dist, score, combo, comboTime, heat, heatT, runTopMph = 0;
    you do. Coasting past one buys the twenty seconds and the run continues.
    -------------------------------------------------------------------------- */
 const CLOCK_START = 60, CLOCK_BONUS = 20, CP_MILES = 2;
+/* TEST DRIVE is practice: the clock is optional there. A race always has one. */
+let timedRun = true;
+/* stripes are paint, not a body — any car can wear them */
+let optStripes = false;
+/* ---- ONE LIVERY PER RUN --------------------------------------------------
+   A force does not run half its cars in white and half in black on the same
+   night. The livery is chosen once when the run starts and every cruiser wears
+   it — including yours, so there is no "player version" and "NPC version", just
+   the cars that are out tonight.
+   ------------------------------------------------------------------------- */
+let copLivery = 'WHITE';
+const COP_PAINT = {
+  WHITE: { body:'#dfe4ec', hi:'#f4f7fb', lo:'#96a0ad' },
+  BLACK: { body:'#23262c', hi:'#3a3f47', lo:'#111317' }
+};
+/* a formula car has a livery and a police car has one too — neither takes
+   stripes over the top of it */
+function stripesAllowed(){ return optBody !== 'TYPE-Z' && optBody !== 'TYPE-C'; }
+/* A FUNCTION, not a const: it was declared halfway down step() and read above
+   it, so the temporal dead zone threw on the FIRST frame and killed the whole
+   update — which is why the skyline looked frozen even after being fixed. */
+function clockRuns(){ return (mode === 'race') || timedRun; }
+
+/* ===========================================================================
+   THE TOURNAMENT
+
+   Four races at 10, 12, 16 and 24 miles. Points by finishing position on the
+   usual descending scale, carried between rounds. The standings are what make
+   a bad race matter later — a fourth place in round one is still recoverable,
+   which is the only reason to keep driving.
+
+   A gold at the end unlocks TYPE-Z, and the unlock is permanent.
+   =========================================================================== */
+const TOUR_MILES = [10, 12, 16, 24];
+const TOUR_PTS   = [25, 18, 15, 12, 10, 8, 6, 4, 2, 1, 0, 0];   /* by place */
+let tourOn = false, tourRound = 0, tourPts = 0, tourField = [];
+
+function tourReset(){
+  tourRound = 0; tourPts = 0;
+  /* eleven rivals who carry their own points between rounds */
+  tourField = [];
+  for(let i=0;i<11;i++) tourField.push({ n:i, pts:0 });
+}
+function tourScore(myPlace){
+  tourPts += TOUR_PTS[Math.min(myPlace-1, TOUR_PTS.length-1)];
+  /* the rest of the field fills the other places, strongest first */
+  let slot = 1;
+  const order = tourField.slice().sort((a,b) => b.pts - a.pts);
+  for(const r of order){
+    if(slot === myPlace) slot++;
+    r.pts += TOUR_PTS[Math.min(slot-1, TOUR_PTS.length-1)];
+    slot++;
+  }
+}
+function tourStanding(){
+  /* where the player sits overall */
+  let ahead = 0;
+  for(const r of tourField) if(r.pts > tourPts) ahead++;
+  return ahead + 1;
+}
+function unlocked(key){
+  const sv = (AR && AR.save) ? AR.save.get('highway-opts') : null;
+  return !!(sv && sv[key]);
+}
+function zUnlocked(){ return unlocked('typeZ'); }
 let clock = CLOCK_START, nextCP = 0, cpGantries = [], lastBeep = -1, wreckWait = 0;
 let traffic, cops, blocks, crates, fx, shake, hitFlash, sirenPhase, lastKmh, iframe;
 let bestScore=0, bestDist=0, runs=0;
@@ -1002,7 +1110,10 @@ var snd = {
        upshift was almost inaudible. It now spans 58Hz to 470Hz, better than
        three octaves, so the climb to the limiter is something you can hear
        coming and the drop on a shift is unmistakable. */
-    var rpm = 58 + r * r * 300 + r * 112 + (nos ? 34 : 0);
+    /* the WHOLE curve scales, not just the floor — a V12 is higher everywhere,
+       not just at idle */
+    var ep = enginePitch();
+    var rpm = (58 + r * r * 300 + r * 112 + (nos ? 34 : 0)) * ep;
     snd.eng.set(rpm, 0.050 + r*0.042, 380 + r*2400, 0.05);
     snd.eng2.set(rpm*0.5, 0.024 + r*0.021, 280 + r*1400, 0.05);
     snd.wind.set(600 + r*2100, (off ? 0.045 : 0.009) + r*0.016, 0.10);
@@ -1043,10 +1154,13 @@ var snd = {
       }
     }
 
-    if (copNear > 0){
+    /* your own bar wails too, and louder than a distant pursuit */
+    var mine = (typeof barOn !== 'undefined' && barOn) ? 1.25 : 0;
+    var wail = Math.max(copNear, mine);
+    if (wail > 0){
       snd.sirenPhase += 0.055;
       var two = Math.sin(snd.sirenPhase) > 0 ? 760 : 560;
-      snd.siren.set(two, 0.048 * copNear, 2600, 0.02);
+      snd.siren.set(two, 0.048 * wail, 2600, 0.02);
     } else {
       snd.siren.set(undefined, 0, undefined, 0.15);
     }
@@ -1303,6 +1417,32 @@ function proj(worldX, worldZ){
 }
 
 /* ---------- sprites ---------- */
+/* ---- A STRIPE IS THE CAR'S OWN COLOUR, DARKER ----------------------------
+   Four hardcoded greys meant a red car wore charcoal stripes and a white one
+   wore the same charcoal — they read as a decal stuck on rather than paint.
+   `shade()` takes the body colour and drops it toward black, so the stripe is
+   always the same hue as the car and always reads against it.
+   ------------------------------------------------------------------------- */
+/* light body -> dark band; dark body -> WHITE band. Measured off the body's
+   own luminance rather than named colours, so it holds for anything. */
+function liveryBand(hex){
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex || '');
+  if(!m) return 'rgba(20,26,40,.85)';
+  const n = parseInt(m[1], 16);
+  const lum = (0.299*((n>>16)&255) + 0.587*((n>>8)&255) + 0.114*(n&255)) / 255;
+  return lum < 0.45 ? 'rgba(238,243,250,.92)' : shade(hex, 0.34);
+}
+
+function shade(hex, k){
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex || '');
+  if(!m) return 'rgba(22,24,30,.62)';
+  const n = parseInt(m[1], 16);
+  const r = Math.round(((n>>16)&255) * k);
+  const g2 = Math.round(((n>>8)&255) * k);
+  const b = Math.round((n&255) * k);
+  return 'rgb(' + r + ',' + g2 + ',' + b + ')';
+}
+
 function rr(g,x,y,w,h,r){
   r = Math.min(r, w/2, h/2);
   g.beginPath();
@@ -1364,6 +1504,43 @@ const BODY = {
   'TYPE-L': { bodyTop:0.52, cabinTop:0.24, cabW:0.44, cabOff:0.00, roofR:0.02,
               hip:0.105, wing:'high',  nose:0.16, spoiler:true, rear:'L', wide:0.045, arch:1.30, horn:1.06,
               pull:1.24, vmax:0.97, note:'FASTEST OFF THE LINE \u00B7 LOWEST TOP END' },
+  /* ---- THE PRIZE ---------------------------------------------------------
+     A Formula car: highest acceleration AND highest top end, which breaks the
+     trade every other car obeys. That is the point of a prize — it is not
+     another option, it is better, and you had to win a tournament for it. */
+  'TYPE-Z': { bodyTop:0.52, cabinTop:0.30, cabW:0.30, cabOff:0, roofR:0.02,
+              hip:0.135, wing:'high', nose:0.10, spoiler:true,
+              wide:0.145, arch:1.45, horn:1.42, rear:'Z', redline:15000, pitch:1.55,
+              pull:1.34, vmax:1.09, note:'FORMULA · NO COMPROMISE' },
+  /* ---- THE TWO CONSOLATION CARS ----------------------------------------
+     A silver unlocks TYPE-T, a bronze unlocks TYPE-M. Both are ROAD cars and
+     both are slower than any supercar — they are a reward for a good
+     tournament, not a shortcut past one. They rev to 10,000 rather than
+     12,000 and sound it: lower pitch, lower horns.
+
+     Between themselves they mirror the supercars' trade — the tuner pulls
+     harder and runs out sooner, the muscle car the other way — but both
+     ceilings sit under TYPE-L's 194, so no unlock ever beats the entry car on
+     both counts. */
+  /* `rig` means: draw this one with the TRAFFIC painter, not the supercar
+     one. They are the tuner and the muscle car you already designed — giving
+     them a Lamborghini and a Ferrari tail was my mistake, not a decision.
+     `gears` is their own box: a muscle car has four, a tuner five. */
+  'TYPE-T': { rig:'tuner',  gears:5, wide:0.030, arch:0.95,
+              horn:0.86, redline:10000, pitch:0.78, rear:'T',
+              pull:1.18, vmax:0.86, note:'TUNED \u00B7 FIVE SPEED \u00B7 QUICK, THEN DONE' },
+  'TYPE-M': { rig:'muscle', gears:4, wide:0.050, arch:1.05,
+              horn:0.72, redline:10000, pitch:0.66, rear:'M',
+              pull:0.78, vmax:0.92, note:'MUSCLE \u00B7 FOUR SPEED \u00B7 LONG LEGS' },
+  /* ---- THE CRUISER -------------------------------------------------------
+     Earned by surviving, not by winning: 20 miles on TEST DRIVE with the clock
+     AND hot pursuit on. It is an interceptor — a heavy saloon with a big engine
+     — so it is quick in a straight line and slow to get going, sits between the
+     road cars and the supercars, and keeps its light bar whoever is driving.
+     Five speeds, an 11k band, and a low burbling note. */
+  'TYPE-C': { rig:'cop', gears:5, wide:0.045, arch:1.00,
+              horn:0.80, redline:11000, pitch:0.72, rear:'C',
+              pull:0.92, vmax:0.95, note:'INTERCEPTOR \u00B7 HEAVY, AND FAST' },
   'TYPE-P': { bodyTop:0.40, cabinTop:0.10, cabW:0.48, cabOff:0, roofR:0.30,
               hip:0.085, wing:'ducktail', nose:0.24, spoiler:true, rear:'P', wide:0.010, arch:1.15, dome:true, horn:0.94,
               pull:1.02, vmax:1.00, note:'BALANCED' }
@@ -1380,6 +1557,323 @@ let optBody = 'TYPE-L';
    angle you ever see — they are completely different objects, and a road full
    of the same silhouette is what made the traffic read as filler.
    =========================================================================== */
+/* ===========================================================================
+   THE FRONT OF EVERY OTHER VEHICLE
+
+   The supercars got fronts and the rest of the road did not \u2014 which matters,
+   because oncoming traffic is the only thing you ever see head-on. Each type
+   keeps its own proportions from `paintRig` and gets the face that belongs to
+   it: a lorry is a wall of glass, a van is a slab, a pickup has a tall square
+   grille, a coupe sits low.
+   =========================================================================== */
+function paintRigFront(kind, o){
+  return (g, w, h) => {
+    const P = o;
+    const cy = h;
+    const grad = (y0,y1) => { const b = g.createLinearGradient(0,y0,0,y1);
+      b.addColorStop(0,P.hi); b.addColorStop(0.48,P.body); b.addColorStop(1,P.lo); return b; };
+
+    /* ---- THE REAR'S OWN NUMBERS, VERBATIM --------------------------------
+       Not a fresh set of proportions. Every value below is lifted straight out
+       of `paintRig` for the same `kind`, so a vehicle is dimensionally
+       identical from either end and only the FACE differs. Invented dimensions
+       are what made the first attempt read as five sizes of one van.
+       -------------------------------------------------------------------- */
+    const tw  = kind==='truck'||kind==='van' ? 0.155 : kind==='pickup' ? 0.145 : 0.13;
+    const th2 = kind==='truck' ? 0.20 : kind==='pickup' ? 0.24 : 0.26;
+
+    /* the wheels, exactly where the back puts them */
+    g.fillStyle = '#0b0d10';
+    rr(g, w*0.045, cy-h*th2*0.42, w*tw, h*th2*0.42, 3); g.fill();
+    rr(g, w*(0.955-tw), cy-h*th2*0.42, w*tw, h*th2*0.42, 3); g.fill();
+    g.fillStyle='rgba(0,0,0,.5)';
+    g.beginPath(); g.ellipse(w*0.5, cy-h*0.01, w*0.46, h*0.026, 0, 0, 6.2832); g.fill();
+
+    if(kind === 'truck'){
+      /* the cab: the SAME slab as the trailer \u2014 0.045 to 0.955, top h*0.05 */
+      const top = h*0.05, bot = cy - h*0.135;
+      g.fillStyle = grad(top, bot);
+      rr(g, w*0.045, top, w*0.91, bot-top, w*0.015); g.fill();
+      /* a lorry's face is mostly screen */
+      g.fillStyle = '#141c26';
+      rr(g, w*0.085, top+h*0.045, w*0.83, h*0.235, w*0.012); g.fill();
+      g.fillStyle = 'rgba(90,120,150,.20)';
+      rr(g, w*0.085, top+h*0.045, w*0.83, h*0.070, w*0.012); g.fill();
+      g.fillStyle = P.lo; g.fillRect(w*0.492, top+h*0.045, w*0.016, h*0.235);
+      /* mirrors on arms, outside the cab */
+      for(const mx of [0.012, 0.958]){
+        g.fillStyle = P.lo; g.fillRect(w*mx, top+h*0.075, w*0.030, h*0.145);
+      }
+      /* the grille band, where the trailer has its door seam */
+      g.fillStyle='rgba(12,14,18,.88)';
+      rr(g, w*0.10, bot-h*0.165, w*0.80, h*0.095, 3); g.fill();
+      g.strokeStyle='rgba(160,172,186,.22)'; g.lineWidth=1;
+      for(let k=1;k<5;k++){
+        const yy = bot-h*0.165 + k*h*0.019;
+        g.beginPath(); g.moveTo(w*0.115, yy); g.lineTo(w*0.885, yy); g.stroke();
+      }
+      /* lamps at the same height its rear lamps sit */
+      for(const lx of [0.10, 0.74]){
+        g.fillStyle='#f2f8ff'; rr(g, w*lx, cy-h*0.155, w*0.16, h*0.032, 2); g.fill();
+        headGlow(g, w*(lx+0.08), cy-h*0.139, w);
+      }
+      drawMarque(g, 'X', w*0.5, bot-h*0.215, h*0.030);
+      g.fillStyle='#20242a'; g.fillRect(w*0.055, bot-h*0.055, w*0.89, h*0.055);
+      g.fillStyle='#2a2f36'; g.fillRect(w*0.06, cy-h*0.115, w*0.88, h*0.014);
+      return;
+    }
+
+    if(kind === 'van'){
+      /* same slab: 0.055 to 0.945, top h*0.10, bot cy-h*0.10 */
+      const top = h*0.10, bot = cy - h*0.10;
+      g.fillStyle = grad(top, bot);
+      rr(g, w*0.055, top, w*0.89, bot-top, w*0.045); g.fill();
+      g.fillStyle = 'rgba(255,255,255,.10)';
+      rr(g, w*0.055, top, w*0.89, h*0.028, w*0.03); g.fill();
+      /* one wide screen where the back has two door windows */
+      g.fillStyle = '#141c26';
+      rr(g, w*0.11, top+h*0.055, w*0.78, h*0.145, 3); g.fill();
+      g.fillStyle = 'rgba(90,120,150,.18)';
+      rr(g, w*0.11, top+h*0.055, w*0.78, h*0.045, 3); g.fill();
+      for(const mx of [0.020, 0.950]){
+        g.fillStyle = P.lo; g.fillRect(w*mx, top+h*0.075, w*0.030, h*0.105);
+      }
+      /* a van's face is a big flat panel: the grille takes most of it, not a
+         letterbox slot */
+      g.fillStyle='rgba(12,14,18,.86)';
+      rr(g, w*0.145, bot-h*0.215, w*0.71, h*0.135, 4); g.fill();
+      g.strokeStyle='rgba(170,182,196,.20)'; g.lineWidth=1.2;
+      for(let k=1;k<4;k++){
+        const yy = bot-h*0.215 + k*h*0.034;
+        g.beginPath(); g.moveTo(w*0.165, yy); g.lineTo(w*0.835, yy); g.stroke();
+      }
+      /* lamps where the rear's tall corner lamps are: 0.07 and 0.855 */
+      for(const lx of [0.07, 0.855]){
+        g.fillStyle='#f2f8ff'; rr(g, w*lx, bot-h*0.135, w*0.075, h*0.070, 2); g.fill();
+        headGlow(g, w*(lx+0.037), bot-h*0.100, w);
+      }
+      g.fillStyle='#1b1f26'; g.fillRect(w*0.055, bot-h*0.055, w*0.89, h*0.055);
+      return;
+    }
+
+    if(kind === 'pickup'){
+      /* ---- THE PICKUP'S OWN NUMBERS -------------------------------------
+         Its back is cab 0.20 to 0.80 from h*0.10, and a BED 0.055 to 0.945
+         from h*0.40 down to cy-h*0.135. I had been folding it in with the
+         saloons at roofY 0.20 / deckY 0.50 / cabW 0.50, which is a different
+         vehicle. A pickup's cab is narrow and tall and its body is wide and
+         low, and the front has to say so. */
+      const cabTop = h*0.10, bedTop = h*0.40, bot = cy - h*0.135;
+      /* the cab, exactly as wide as the back's */
+      g.fillStyle = grad(cabTop, bedTop);
+      rr(g, w*0.20, cabTop, w*0.60, bedTop-cabTop+h*0.03, w*0.035); g.fill();
+      g.fillStyle = '#10151d';
+      rr(g, w*0.245, cabTop+h*0.035, w*0.51, h*0.145, 3); g.fill();
+      g.fillStyle = 'rgba(130,170,210,.18)';
+      rr(g, w*0.255, cabTop+h*0.042, w*0.49, h*0.048, 2); g.fill();
+      for(const mx of [0.145, 0.825]){
+        g.fillStyle = P.lo; g.fillRect(w*mx, cabTop+h*0.075, w*0.030, h*0.070);
+      }
+      /* the front body, the same 0.055 to 0.945 the bed uses */
+      g.fillStyle = grad(bedTop, bot);
+      rr(g, w*0.055, bedTop, w*0.89, bot-bedTop, w*0.02); g.fill();
+      g.fillStyle='rgba(255,255,255,.18)';
+      rr(g, w*0.055, bedTop, w*0.89, h*0.022, w*0.015); g.fill();
+      /* A BIG GRILLE. A pickup's face is mostly grille and it should be */
+      g.fillStyle='rgba(12,14,18,.88)';
+      rr(g, w*0.115, bedTop+h*0.055, w*0.77, h*0.175, 4); g.fill();
+      g.strokeStyle='rgba(170,182,196,.22)'; g.lineWidth=1.2;
+      for(let k=1;k<5;k++){
+        const yy = bedTop+h*0.055 + k*h*0.035;
+        g.beginPath(); g.moveTo(w*0.135, yy); g.lineTo(w*0.865, yy); g.stroke();
+      }
+      /* square lamps flanking it */
+      for(const lx of [0.075, 0.775]){
+        g.fillStyle='#f2f8ff'; rr(g, w*lx, bedTop+h*0.075, w*0.15, h*0.075, 3); g.fill();
+        headGlow(g, w*(lx+0.075), bedTop+h*0.112, w);
+      }
+      g.fillStyle='#1b1f26'; g.fillRect(w*0.055, bot-h*0.070, w*0.89, h*0.070);
+      return;
+    }
+
+    /* ---- the saloons, the coupe and the cruiser -------------------------- */
+    /* ---- THE TUNER --------------------------------------------------------
+       A coupe with a boot spoiler and round lamps. Everything else about it is
+       the coupe verbatim, which is the point: it is the same shell somebody has
+       been at with a catalogue, and it reads as a sixth vehicle on the road for
+       almost no extra geometry. */
+    /* ---- THE TAXI ---------------------------------------------------------
+       A sedan in cab yellow with a chequer band along its flank and a roof
+       sign. No unlock, no stats — it is scenery, and a road with one on it
+       looks like a road rather than a test track. */
+    const isTaxi = kind === 'taxi';
+    const isTuner  = kind === 'tuner';
+    /* ---- THE MUSCLE CAR ---------------------------------------------------
+       A saloon's width with a coupe's roof: long, low and heavy. It gets a
+       bonnet scoop, a pair of racing stripes over the roof, and quad round
+       lamps — all of which sit on the shared shell, so it costs the same
+       almost-nothing the tuner did. */
+    const isMuscle = kind === 'muscle';
+    const isCoupe = kind === 'coupe' || isTuner || isMuscle;
+    const roofY = h*(isMuscle ? 0.20 : isCoupe ? 0.22 : 0.16);
+    const deckY = h*(isCoupe ? 0.52 : 0.48);
+    const bot   = cy - h*0.075;
+    const cabW  = isMuscle ? 0.48 : isCoupe ? 0.44 : 0.52;
+
+    const pRoof = roofY, pDeck = deckY, pCab = cabW;
+
+    /* the spoiler is BEHIND the car from here, so it goes first */
+    if(kind === 'tuner'){
+      g.fillStyle = P.lo;
+      rr(g, w*0.16, pRoof + h*0.030, w*0.68, h*0.028, 3); g.fill();
+    }
+
+    /* the greenhouse: the rear's own trapezium, mirrored */
+    g.fillStyle = P.lo;
+    g.beginPath();
+    g.moveTo(w*(0.5-pCab/2+0.03), pRoof);
+    g.lineTo(w*(0.5+pCab/2-0.03), pRoof);
+    g.lineTo(w*(0.5+pCab/2+0.06), pDeck);
+    g.lineTo(w*(0.5-pCab/2-0.06), pDeck);
+    g.closePath(); g.fill();
+    /* the screen inside it */
+    g.fillStyle = '#141c26';
+    g.beginPath();
+    g.moveTo(w*(0.5-pCab/2+0.055), pRoof+h*0.022);
+    g.lineTo(w*(0.5+pCab/2-0.055), pRoof+h*0.022);
+    g.lineTo(w*(0.5+pCab/2+0.03), pDeck-h*0.015);
+    g.lineTo(w*(0.5-pCab/2-0.03), pDeck-h*0.015);
+    g.closePath(); g.fill();
+    g.fillStyle = 'rgba(90,120,150,.18)';
+    g.beginPath();
+    g.moveTo(w*(0.5-pCab/2+0.055), pRoof+h*0.022);
+    g.lineTo(w*(0.5+pCab/2-0.055), pRoof+h*0.022);
+    g.lineTo(w*(0.5+pCab/2-0.02), pRoof+h*0.070);
+    g.lineTo(w*(0.5-pCab/2+0.02), pRoof+h*0.070);
+    g.closePath(); g.fill();
+
+    /* the body: 0.055 to 0.945, exactly as the back */
+    g.fillStyle = grad(pDeck, bot);
+    rr(g, w*0.055, pDeck-h*0.02, w*0.89, bot-pDeck+h*0.02, w*0.035); g.fill();
+    /* arch blisters, the same 0.13 / 0.87 the rear uses */
+    for(const ax of [0.13, 0.87]){
+      g.fillStyle = P.lo;
+      g.beginPath(); g.ellipse(w*ax, bot-h*0.045, w*0.105, h*0.075, 0, 0, 6.2832); g.fill();
+    }
+    /* the stripes go AFTER the body — drawn before it they were painted over
+       and only showed on the rear, where the order happens to be the other way */
+    /* the muscle car wears them always; anything else when the option is on —
+       this was `kind === 'muscle'` only, so the TUNER never got front stripes
+       even with the toggle set */
+    if(kind === 'muscle' || P.stripes){
+      /* roof and bonnet, never across the windscreen */
+      g.fillStyle = shade(P.body, 0.42);
+      for(const sx of [0.415, 0.530]){
+        g.fillRect(w*sx, pRoof, w*0.055, h*0.030);
+        g.fillRect(w*sx, pDeck, w*0.055, bot - pDeck);
+      }
+    }
+
+    /* mirrors */
+    for(const sx of [-1,1]){
+      g.fillStyle = P.lo;
+      g.beginPath();
+      g.ellipse(w*0.5 + sx*w*(pCab/2+0.075), pDeck-h*0.005, w*0.038, h*0.020, 0, 0, 6.2832);
+      g.fill();
+    }
+
+    /* lamps at the rear's own lamp line: ly = deckY + (bot-deckY)*0.40 */
+    const ly = pDeck + (bot-pDeck)*0.40, lh = h*0.055;
+    if(kind === 'muscle'){
+      /* QUAD round lamps, stacked wide, with a chrome ring each */
+      for(const lx of [0.055, 0.685]){
+        /* four haloes at 0.054 merged into one white bar. Smaller lamps, and
+           only ONE glow per pair, centred between them. */
+        for(const k of [0.068, 0.185]){
+          g.fillStyle = 'rgba(185,194,205,.9)';
+          g.beginPath(); g.arc(w*(lx+k), ly+lh*0.5, w*0.042, 0, 6.2832); g.fill();
+          g.fillStyle = '#f2f8ff';
+          g.beginPath(); g.arc(w*(lx+k), ly+lh*0.5, w*0.030, 0, 6.2832); g.fill();
+        }
+        headGlow(g, w*(lx+0.127), ly+lh*0.5, w);
+      }
+    } else if(kind === 'tuner'){
+      /* ROUND lamps, a pair each side, in a dark housing */
+      for(const lx of [0.055, 0.685]){
+        g.fillStyle = 'rgba(12,14,18,.80)';
+        rr(g, w*lx, ly-h*0.012, w*0.26, lh+h*0.024, h*0.026); g.fill();
+        for(const k of [0.075, 0.185]){
+          g.fillStyle = '#f2f8ff';
+          g.beginPath(); g.arc(w*(lx+k), ly+lh*0.5, w*0.045, 0, 6.2832); g.fill();
+          g.fillStyle = 'rgba(180,215,255,.45)';
+          g.beginPath(); g.arc(w*(lx+k), ly+lh*0.38, w*0.024, 0, 6.2832); g.fill();
+          headGlow(g, w*(lx+k), ly+lh*0.5, w);
+        }
+      }
+    } else {
+      for(const lx of [0.055, 0.685]){
+        g.fillStyle = '#f2f8ff';
+        rr(g, w*lx, ly, w*0.26, lh, 3); g.fill();
+        g.fillStyle = 'rgba(180,215,255,.45)';
+        rr(g, w*(lx+0.01), ly+lh*0.14, w*0.24, lh*0.30, 2); g.fill();
+        headGlow(g, w*(lx+0.13), ly+lh*0.5, w);
+      }
+    }
+    /* and on the nose */
+    if(kind !== 'tuner' && kind !== 'muscle' && kind !== 'cop')
+      drawMarque(g, 'X', w*0.5, pDeck + h*0.075, h*0.034);
+    if(kind === 'tuner' || kind === 'muscle')
+      drawMarque(g, kind === 'tuner' ? 'T' : 'M', w*0.5, pDeck + h*0.075, h*0.038);
+
+    /* grille and bumper, where the plate and bumper are on the back */
+    g.fillStyle = 'rgba(12,14,18,.85)';
+    if(kind === 'muscle'){
+      /* ---- a BIG grille -------------------------------------------------
+         A muscle car's face is a wide open mouth between the lamp pairs, not a
+         letterbox. It runs the full span between them and is twice as deep. */
+      rr(g, w*0.245, ly-h*0.012, w*0.51, lh+h*0.030, 3); g.fill();
+      g.strokeStyle = 'rgba(170,182,196,.20)'; g.lineWidth = 1.1;
+      for(let k=1;k<4;k++){
+        const yy = ly-h*0.012 + k*(lh+h*0.030)/4;
+        g.beginPath(); g.moveTo(w*0.265, yy); g.lineTo(w*0.735, yy); g.stroke();
+      }
+      g.fillStyle = P.lo;
+      g.fillStyle = P.lo;
+      rr(g, w*0.375, pDeck - h*0.010, w*0.25, h*0.055, 4); g.fill();
+      g.fillStyle = 'rgba(10,12,16,.9)';
+      rr(g, w*0.395, pDeck - h*0.004, w*0.21, h*0.026, 3); g.fill();
+    } else {
+      rr(g, w*0.33, ly+lh*0.15, w*0.34, lh*0.62, 3); g.fill();
+    }
+    g.fillStyle = '#1b1f26';
+    rr(g, w*0.055, bot-h*0.075, w*0.89, h*0.075, w*0.02); g.fill();
+
+    /* the taxi wears the same band and sign from the front */
+    if(kind === 'taxi'){
+      const by = pDeck + h*0.055, bh2 = h*0.055, n = 12;
+      for(let k=0;k<n;k++){
+        g.fillStyle = (k % 2) ? '#14161a' : '#f2f4f7';
+        g.fillRect(w*(0.055 + k*0.89/n), by, w*0.89/n, bh2);
+      }
+      g.fillStyle = '#1b1e24';
+      rr(g, w*0.36, pRoof - h*0.050, w*0.28, h*0.042, 2); g.fill();
+      g.fillStyle = '#ffd23c';
+      rr(g, w*0.372, pRoof - h*0.044, w*0.256, h*0.030, 2); g.fill();
+    }
+
+    /* the cruiser keeps its bar, and its star */
+    if(kind === 'cop'){
+      g.fillStyle = liveryBand(P.body);
+      g.fillRect(w*0.055, pDeck + h*0.100, w*0.89, h*0.045);
+      drawMarque(g, 'C', w*0.5, pDeck + h*0.062, h*0.034);
+      g.fillStyle = '#14161a';
+      rr(g, w*0.32, pRoof-h*0.045, w*0.36, h*0.045, 3); g.fill();
+      g.fillStyle = '#2f6ad6'; rr(g, w*0.335, pRoof-h*0.038, w*0.15, h*0.030, 2); g.fill();
+      g.fillStyle = '#d63a3a'; rr(g, w*0.515, pRoof-h*0.038, w*0.15, h*0.030, 2); g.fill();
+    }
+  };
+}
+
 function paintRig(kind, o){
   return (g,w,h)=>{
     const cy = h;
@@ -1497,11 +1991,28 @@ function paintRig(kind, o){
     }
 
     /* ---- the saloons, the coupe and the cruiser ------------------------- */
-    const isCoupe = kind === 'coupe';
-    const roofY = h*(isCoupe ? 0.22 : 0.16);
+    /* ---- THE TUNER --------------------------------------------------------
+       A coupe with a boot spoiler and round lamps. Everything else about it is
+       the coupe verbatim, which is the point: it is the same shell somebody has
+       been at with a catalogue, and it reads as a sixth vehicle on the road for
+       almost no extra geometry. */
+    /* ---- THE TAXI ---------------------------------------------------------
+       A sedan in cab yellow with a chequer band along its flank and a roof
+       sign. No unlock, no stats — it is scenery, and a road with one on it
+       looks like a road rather than a test track. */
+    const isTaxi = kind === 'taxi';
+    const isTuner  = kind === 'tuner';
+    /* ---- THE MUSCLE CAR ---------------------------------------------------
+       A saloon's width with a coupe's roof: long, low and heavy. It gets a
+       bonnet scoop, a pair of racing stripes over the roof, and quad round
+       lamps — all of which sit on the shared shell, so it costs the same
+       almost-nothing the tuner did. */
+    const isMuscle = kind === 'muscle';
+    const isCoupe = kind === 'coupe' || isTuner || isMuscle;
+    const roofY = h*(isMuscle ? 0.20 : isCoupe ? 0.22 : 0.16);
     const deckY = h*(isCoupe ? 0.52 : 0.48);
     const bot   = cy - h*0.075;
-    const cabW  = isCoupe ? 0.44 : 0.52;
+    const cabW  = isMuscle ? 0.48 : isCoupe ? 0.44 : 0.52;
 
     /* the greenhouse: narrower than the body, and raked on a coupe */
     g.fillStyle = P.lo;
@@ -1550,14 +2061,86 @@ function paintRig(kind, o){
       g.beginPath();
       g.moveTo(w*0.10, deckY+h*0.055); g.lineTo(w*0.90, deckY+h*0.055); g.stroke();
     }
-    /* wraparound lamps */
+    /* wraparound lamps — but the muscle car's are SQUARE, which is most of
+       what says muscle car from behind */
     const ly = deckY + (bot-deckY)*0.40, lh = h*0.055;
+    if(isMuscle){
+      for(const lx of [0.075, 0.665]){
+        g.fillStyle = 'rgba(16,14,16,.85)';
+        rr(g, w*lx, ly-h*0.008, w*0.26, lh+h*0.016, 2); g.fill();
+        for(const k of [0.020, 0.100, 0.180]){
+          g.fillStyle = P.lamp || '#c8102e';
+          g.fillRect(w*(lx+k), ly, w*0.060, lh);
+          g.fillStyle = 'rgba(255,120,110,.45)';
+          g.fillRect(w*(lx+k), ly, w*0.060, lh*0.28);
+        }
+      }
+    } else {
     g.fillStyle = P.lamp || '#c8102e';
     rr(g, w*0.055, ly, w*0.26, lh, 3); g.fill();
     rr(g, w*0.685, ly, w*0.26, lh, 3); g.fill();
     g.fillStyle = 'rgba(255,255,255,.30)';
     rr(g, w*0.065, ly+lh*0.14, w*0.24, lh*0.30, 2); g.fill();
     rr(g, w*0.695, ly+lh*0.14, w*0.24, lh*0.30, 2); g.fill();
+    /* ---- the boot spoiler, at the FRONT's height ------------------------
+       The front draws it at `roofY + 0.030`; this was at `deckY - 0.055`,
+       which with roofY 0.22 and deckY 0.52 is most of the car apart. Same
+       expression both ends, so it cannot drift. */
+    if(isTuner){
+      const spY = roofY + h*0.030;
+      g.fillStyle = P.lo;
+      rr(g, w*0.16, spY, w*0.68, h*0.030, 3); g.fill();
+      g.fillStyle = 'rgba(255,255,255,.16)';
+      rr(g, w*0.16, spY, w*0.68, h*0.009, 3); g.fill();
+      g.fillStyle = P.body;
+      g.fillRect(w*0.255, spY + h*0.027, w*0.035, deckY - spY - h*0.027);
+      g.fillRect(w*0.710, spY + h*0.027, w*0.035, deckY - spY - h*0.027);
+    }
+
+    /* the scoop, seen from behind as a raised block on the bonnet line */
+    if(isMuscle){
+      g.fillStyle = P.lo;
+      rr(g, w*0.375, deckY - h*0.052, w*0.25, h*0.052, 4); g.fill();
+    }
+
+    }
+
+    /* ---- the stripes are PAINT, and paint is not on the glass ------------
+       They ran from the roofline down over the rear screen, which a decal
+       cannot do: roof above the glass, deck below it, window clear.
+
+       And they were sitting INSIDE the `else` opened for the round lamps, so
+       they drew for every car EXCEPT the muscle one. Outside it now. */
+    if(isMuscle || P.stripes){
+      g.fillStyle = shade(P.body, 0.42);
+      for(const sx of [0.415, 0.530]){
+        g.fillRect(w*sx, roofY, w*0.055, h*0.030);
+        g.fillRect(w*sx, deckY, w*0.055, bot - deckY);
+      }
+    }
+
+    /* the marque, on the boot lid between the lamps — the tuner and the
+       muscle car have their own, everything else gets the generic one */
+    if(!isTuner && !isMuscle && kind !== 'cop')
+      drawMarque(g, 'X', w*0.5, deckY + h*0.088, h*0.034);
+    if(isTuner || isMuscle)
+      /* lower: it was riding on the shut line rather than sitting on the
+         panel below it */
+      drawMarque(g, isTuner ? 'T' : 'M', w*0.5, deckY + h*0.088, h*0.038);
+
+    /* the taxi's chequer band and its roof sign */
+    if(isTaxi){
+      const by = deckY + h*0.055, bh2 = h*0.055, n = 12;
+      for(let k=0;k<n;k++){
+        g.fillStyle = (k % 2) ? '#14161a' : '#f2f4f7';
+        g.fillRect(w*(0.055 + k*0.89/n), by, w*0.89/n, bh2);
+      }
+      g.fillStyle = '#1b1e24';
+      rr(g, w*0.36, roofY - h*0.050, w*0.28, h*0.042, 2); g.fill();
+      g.fillStyle = '#ffd23c';
+      rr(g, w*0.372, roofY - h*0.044, w*0.256, h*0.030, 2); g.fill();
+    }
+
     /* plate and bumper */
     g.fillStyle='rgba(0,0,0,.40)';
     rr(g, w*0.055, bot-h*0.075, w*0.89, h*0.075, w*0.02); g.fill();
@@ -1565,9 +2148,24 @@ function paintRig(kind, o){
     g.fillRect(w*0.415, bot-h*0.062, w*0.17, h*0.038);
 
     if(kind === 'cop'){
+      /* ---- WHOSE CAR IS IT ----------------------------------------------
+         An NPC cruiser wears the force's colours — a white door panel and a
+         blue band. YOURS keeps the paint you chose and wears the band in a
+         darker shade of it, so it is recognisably the same vehicle without
+         pretending to be on duty. Either way the bar stays: it is what the
+         car IS. */
       /* livery, push bar and a light bar on the roof */
-      g.fillStyle='rgba(20,26,40,.85)';
+      /* ---- THE BAND HAS TO CONTRAST -------------------------------------
+         Darkening the body works on a white car and disappears on a black one
+         — shade(#2a2f36, 0.42) is very nearly the car. So the livery INVERTS
+         on a dark body: a white band on black, a dark band on white, which is
+         what a real two-tone patrol scheme does. */
+      /* the band contrasts with whatever the body is — white on a dark car,
+         dark on a light one. Same rule for every cruiser on the road. */
+      g.fillStyle = liveryBand(P.body);
       g.fillRect(w*0.045, deckY+h*0.10, w*0.91, h*0.05);
+      /* the star, on the door panel */
+      drawMarque(g, 'C', w*0.5, deckY + h*0.062, h*0.036);
       g.fillStyle='#1b1e24';
       rr(g, w*0.24, roofY-h*0.055, w*0.52, h*0.045, 2); g.fill();
       g.fillStyle='#2f6bff';
@@ -1575,6 +2173,409 @@ function paintRig(kind, o){
       g.fillStyle='#ff2b4a';
       rr(g, w*0.51, roofY-h*0.050, w*0.235, h*0.034, 2); g.fill();
     }
+  };
+}
+
+/* ===========================================================================
+   THE FRONT OF A CAR
+
+   There were no front views at all \u2014 the mirror only ever showed headlight
+   GLOWS, so an oncoming car was two smudges of light and nothing else. This
+   paints a nose: lamps, grille, splitter, arches, and for TYPE-Z the things
+   that only a formula car has.
+   =========================================================================== */
+/* a headlamp: a hot point with a modest halo, never a floodlight */
+function headGlow(g, x, y, w){
+  g.save(); g.globalCompositeOperation='lighter';
+  const lg = g.createRadialGradient(x, y, 0, x, y, w*0.12);
+  lg.addColorStop(0,'rgba(255,250,220,.42)'); lg.addColorStop(1,'rgba(255,244,200,0)');
+  g.fillStyle = lg; g.beginPath(); g.arc(x, y, w*0.12, 0, 6.2832); g.fill();
+  g.restore();
+}
+function slats(g, x, y, w2, h2, n){
+  g.strokeStyle = 'rgba(150,162,178,.20)'; g.lineWidth = 1;
+  for(let k=1;k<n;k++){
+    const yy = y + (h2/n)*k;
+    g.beginPath(); g.moveTo(x, yy); g.lineTo(x+w2, yy); g.stroke();
+  }
+}
+
+function paintFront(o){
+  return function(g, w, h){
+    /* `o.body` is a COLOUR on every other painter, so the type comes in under
+       its own name — otherwise the two collide silently and every car draws
+       the same nose. */
+    const kind = o.bodyType || 'TYPE-L';
+    const B = BODY[kind] || BODY['TYPE-L'];
+    /* ---- THE SAME CAR FROM BOTH ENDS ------------------------------------
+       The tail applies the arch blisters OUTSIDE this half-width, so a front
+       drawn at bare `wide` came out narrower than its own back. The arches are
+       included here the same way, and every face is laid out against the
+       result — so F is the widest at both ends, P the narrowest at both. */
+    const wid = (0.42 + (B.wide || 0.03)) * (1 + (B.arch || 1) * 0.055);
+    let topY = h*B.bodyTop; const botY = h*0.93;
+
+    /* the shadow it sits in */
+    g.fillStyle = 'rgba(0,0,0,.45)';
+    g.beginPath(); g.ellipse(w*0.5, botY, w*wid*1.05, h*0.045, 0, 0, 6.2832); g.fill();
+
+    if(kind === 'TYPE-Z'){
+      /* ---- A FORMULA NOSE, from the reference ------------------------------
+         The old one was a tall narrow tower. The real thing is LOW and WIDE:
+         the wheels sit far outboard and are the tallest things in the picture,
+         the body between them is a shallow wedge, the nose cone is broad and
+         close to the ground, and the roll hoop rises from a deck that is
+         barely above axle height. Nothing here is tall except the tyres.
+         -------------------------------------------------------------------- */
+      /* The rear fills its sprite; the front was drawn at two thirds the scale
+         and read as a different, smaller car. Same tyre height and the same
+         track as the rear, so the two ends are one vehicle. */
+      const TW = w*0.230, TH2 = h*0.440;      /* a front tyre */
+      const axle = h*0.620;
+      const track = w*0.340;
+
+      /* ---- WHAT IS BEHIND IT --------------------------------------------
+         An F1 car seen head-on shows its REAR tyres past the front ones — they
+         are wider and set further out — and the rear wing standing above the
+         body. Drawn first, dimmed and slightly higher, so they read as being
+         further away rather than as a second car.
+         ------------------------------------------------------------------- */
+      const RTW = w*0.215, RTH = h*0.420;
+      const rAxle = h*0.606;
+      /* far enough out that they clearly show past the front tyres */
+      const rTrack = w*0.455;
+      /* Dimmer, and much further out. At 55% and nearly the front's track they
+         merged into one dark slab filling the whole background — the rears
+         should only show as two dark shoulders past the front tyres, which is
+         all you actually see of them. */
+      g.save();
+      g.globalAlpha = 0.38;
+      for(const sx of [-1,1]){
+        const wx = w*0.5 + sx*rTrack;
+        g.fillStyle = '#0d0f12';
+        rr(g, wx - RTW*0.5, rAxle - RTH*0.5, RTW, RTH, RTW*0.30); g.fill();
+        g.fillStyle = 'rgba(150,165,180,.10)';
+        rr(g, wx - RTW*0.40, rAxle - RTH*0.42, RTW*0.80, RTH*0.15, RTW*0.14); g.fill();
+      }
+      /* the rear wing, above the body, on its endplates */
+      /* just above the roll hoop, not up in the sky — at RTH*0.66 it floated
+         clear of the whole car and read as a black bar across the frame */
+      const rwY = rAxle - RTH*0.50;
+      g.fillStyle = '#191d22';
+      g.fillRect(w*0.115, rwY, w*0.770, h*0.046);
+      g.fillStyle = 'rgba(200,215,230,.10)';
+      g.fillRect(w*0.115, rwY, w*0.770, h*0.011);
+      for(const sx of [-1,1]){
+        g.fillStyle = '#141820';
+        g.fillRect(w*0.5 + sx*w*0.385 - (sx>0?w*0.030:0), rwY - h*0.020,
+                   w*0.030, h*0.095);
+      }
+      g.restore();
+
+      /* ---- the tyres, first: the tallest things here --------------------- */
+      for(const sx of [-1,1]){
+        const wx = w*0.5 + sx*track;
+        g.fillStyle = 'rgba(0,0,0,.40)';
+        g.beginPath(); g.ellipse(wx, axle + TH2*0.52, TW*0.60, h*0.020, 0, 0, 6.2832); g.fill();
+        g.fillStyle = '#0a0b0d';
+        rr(g, wx - TW*0.5, axle - TH2*0.5, TW, TH2, TW*0.30); g.fill();
+        /* the shoulder, and a band low down */
+        g.fillStyle = 'rgba(170,184,198,.13)';
+        rr(g, wx - TW*0.40, axle - TH2*0.42, TW*0.80, TH2*0.16, TW*0.14); g.fill();
+        g.fillStyle = 'rgba(0,0,0,.55)';
+        rr(g, wx - TW*0.44, axle + TH2*0.16, TW*0.88, TH2*0.12, TW*0.10); g.fill();
+        /* the rim, seen edge-on */
+        g.fillStyle = '#4a545d';
+        g.beginPath(); g.ellipse(wx, axle, TW*0.19, TH2*0.17, 0, 0, 6.2832); g.fill();
+      }
+
+      /* ---- the body: a shallow wedge, low between the wheels ------------- */
+      const deckY = axle - TH2*0.30;
+      const tub = g.createLinearGradient(w*0.34, 0, w*0.66, 0);
+      tub.addColorStop(0, o.lo); tub.addColorStop(0.38, o.body);
+      tub.addColorStop(0.56, o.hi); tub.addColorStop(1, o.lo);
+      g.fillStyle = tub;
+      g.beginPath();
+      g.moveTo(w*0.408, deckY);
+      g.quadraticCurveTo(w*0.5, deckY - h*0.030, w*0.592, deckY);
+      g.lineTo(w*0.640, axle + TH2*0.40);
+      g.quadraticCurveTo(w*0.5, axle + TH2*0.50, w*0.360, axle + TH2*0.40);
+      g.closePath(); g.fill();
+
+      /* the nose cone: broad, low, and forward of everything */
+      g.fillStyle = o.hi;
+      g.beginPath();
+      g.moveTo(w*0.432, axle + TH2*0.02);
+      g.quadraticCurveTo(w*0.5, axle - TH2*0.05, w*0.568, axle + TH2*0.02);
+      g.lineTo(w*0.596, axle + TH2*0.44);
+      g.quadraticCurveTo(w*0.5, axle + TH2*0.54, w*0.404, axle + TH2*0.44);
+      g.closePath(); g.fill();
+      /* the number on it */
+      drawMarque(g, 'Z', w*0.5, axle + TH2*0.26, h*0.034);
+
+      /* ---- the roll hoop, low over a low deck ---------------------------- */
+      g.fillStyle = o.lo;
+      g.beginPath();
+      g.moveTo(w*0.452, deckY);
+      g.quadraticCurveTo(w*0.5, deckY - h*0.098, w*0.548, deckY);
+      g.closePath(); g.fill();
+      /* the halo, hugging it */
+      g.strokeStyle = '#1d2229';
+      g.lineWidth = Math.max(2.6, w*0.024);
+      g.beginPath();
+      g.moveTo(w*0.392, deckY + h*0.016);
+      g.quadraticCurveTo(w*0.5, deckY - h*0.072, w*0.608, deckY + h*0.016);
+      g.stroke();
+      g.lineWidth = Math.max(2, w*0.018);
+      g.beginPath();
+      g.moveTo(w*0.5, deckY - h*0.038); g.lineTo(w*0.5, deckY + h*0.016);
+      g.stroke();
+
+      /* ---- suspension: two wishbones a side, out to the hubs ------------- */
+      for(const sx of [-1,1]){
+        const wx = w*0.5 + sx*track;
+        g.strokeStyle = '#39424b'; g.lineWidth = Math.max(1.6, w*0.014);
+        g.beginPath();
+        g.moveTo(wx - sx*TW*0.34, axle - TH2*0.14);
+        g.lineTo(w*0.5 - sx*w*0.030, deckY + h*0.020); g.stroke();
+        g.beginPath();
+        g.moveTo(wx - sx*TW*0.34, axle + TH2*0.16);
+        g.lineTo(w*0.5 - sx*w*0.030, axle + TH2*0.30); g.stroke();
+      }
+
+      /* ---- the front wing: LOW, wide, and in front of the wheels --------- */
+      for(let k=0;k<3;k++){
+        const wy = axle + TH2*0.34 - k*h*0.028;
+        const ww = 0.470 - k*0.012;
+        g.fillStyle = k === 0 ? '#e9eef4' : (k === 1 ? '#c6cfd9' : '#a2adb8');
+        rr(g, w*(0.5-ww), wy, w*ww*2, h*0.024, h*0.007); g.fill();
+      }
+      for(const sx of [-1,1]){
+        g.fillStyle = '#232930';
+        rr(g, w*0.5 + sx*w*0.470 - (sx>0?w*0.034:0), axle + TH2*0.02,
+           w*0.034, h*0.150, 3); g.fill();
+      }
+      return;
+    }
+
+    /* ---- a road car's nose ------------------------------------------------
+       DIMENSIONALLY THE SAME CAR as its own tail: the width comes from the
+       body's `wide`, the arches from `arch`, the greenhouse from `cabW` and
+       `roofR`. What differs is the FACE \u2014 lamp shape, grille, intakes \u2014 which
+       is exactly how the three tails differ. A Ferrari and a Porsche are the
+       same size; they are not the same face.
+       -------------------------------------------------------------------- */
+    const F = kind === 'TYPE-F' ? 'F' : kind === 'TYPE-P' ? 'P' : 'L';
+    /* a rear-engined car has almost no nose, and it should look it: P's body
+       starts lower and its deck is shallower than the other two */
+    if(F === 'P') topY = h*(B.bodyTop + 0.055);
+    const archK = B.arch || 1;
+    const hipY  = botY - h*0.30;
+    /* the roofline is needed by the WING, which now draws first — so it is
+       computed here rather than down in the greenhouse block */
+    const cw2 = (B.cabW || 0.5) * 0.92, rr2 = h*((B.roofR||0.1)*0.4 + 0.03);
+    const roofT = topY - h*0.19;
+
+    /* ---- THE SPOILER SITS BEHIND THE CAR ---------------------------------
+       Drawn last it was in FRONT of the roof and the glass, which is backwards:
+       from the front of a car its own wing is the furthest thing away, behind
+       the whole body. So it goes first, before the arches and the greenhouse,
+       and everything else covers it — you see the ends of it past the roof and
+       nothing more, which is exactly what you see on the road. */
+    if(B.spoiler){
+      /* `roofT` is already near the top of the sprite, so anything above it
+         ran off the canvas — L's and P's wings were clipped away entirely. The
+         wing sits just BELOW the roofline, which is also where it really is:
+         you see it through and around the glasshouse, not floating over it. */
+      const wingY = F === 'L' ? roofT + h*0.020
+                  : F === 'P' ? roofT + h*0.038
+                  :             roofT + h*0.075;
+      /* ---- MATCH THE REAR, EXACTLY -----------------------------------
+         The rear wings are measured against the SPRITE, not against `wid`:
+         L's aerofoil runs 0.06 to 0.94 (0.88 across) and P's blade 0.015 to
+         0.985 (0.97). Deriving the front from `wid` made L's 1.02 wide —
+         wider than the car and wider than its own back. These are the rear's
+         numbers, halved. */
+      const wingW = F === 'L' ? 0.440 : F === 'P' ? 0.485 : wid*0.72;
+      g.fillStyle = o.lo;
+      if(F === 'F'){
+        /* a lip: shallow, close to the deck, the body's own colour */
+        rr(g, w*(0.5-wingW), wingY, w*wingW*2, h*0.022, h*0.008); g.fill();
+      } else {
+        /* ---- and the rear's COLOUR too ----------------------------------
+           L's aerofoil is body-coloured (`o.lo`); P's blade is dark
+           ('#1a1d22'). One rule for both was always going to be wrong for one
+           of them, so each front takes what its own back uses. */
+        g.fillStyle = (F === 'P') ? '#1a1d22' : o.lo;
+        rr(g, w*(0.5-wingW), wingY, w*wingW*2, h*0.026, h*0.006); g.fill();
+        g.fillStyle = 'rgba(210,222,236,.12)';
+        g.fillRect(w*(0.5-wingW), wingY, w*wingW*2, Math.max(1, h*0.006));
+        for(const sx of [-1,1]){
+          /* P's uprights hang from the blade and are darker still */
+          g.fillStyle = (F === 'P') ? '#15171b' : o.body;
+          g.fillRect(w*0.5 + sx*w*wingW*0.62 - w*0.010, wingY + h*0.024,
+                     w*0.020, h*0.038);
+        }
+      }
+    }
+
+
+    /* the arches, proud of the body, so the width reads before anything else */
+    for(const sx of [-1,1]){
+      g.fillStyle = o.lo;
+      g.beginPath();
+      g.ellipse(w*0.5 + sx*w*wid*0.88, hipY + h*0.05,
+                w*0.108*archK, h*0.100*archK, 0, 0, 6.2832);
+      g.fill();
+    }
+
+    /* stripes on the nose: over the roof and down the bonnet, glass clear */
+    const stripeOn = o.stripes && kind !== 'TYPE-Z';
+
+    /* the greenhouse */
+    g.fillStyle = o.lo;
+    g.beginPath();
+    g.moveTo(w*(0.5-wid*0.80), topY + h*0.02);
+    g.quadraticCurveTo(w*(0.5-cw2*0.62), roofT, w*(0.5-cw2*0.46), roofT);
+    g.lineTo(w*(0.5+cw2*0.46), roofT);
+    g.quadraticCurveTo(w*(0.5+cw2*0.62), roofT, w*(0.5+wid*0.80), topY + h*0.02);
+    g.closePath(); g.fill();
+    /* P's dome is right; its GLASS was small inside it. The pane springs
+       wider and reaches higher for that body only — the shell is untouched. */
+    const glassK = F === 'P' ? 1.0 : 0.0;
+    const gg4 = g.createLinearGradient(0, roofT, 0, topY + h*0.02);
+    gg4.addColorStop(0,'#38495c'); gg4.addColorStop(0.5,'#141c26'); gg4.addColorStop(1,'#0d131b');
+    g.fillStyle = gg4;
+    g.beginPath();
+    const gSpring = 0.70 + glassK*0.075;          /* wider at the shoulders */
+    const gRoof   = roofT + rr2 * (1 - glassK*0.55);   /* nearer the roof */
+    const gCtl    = 0.56 + glassK*0.05;
+    const gTop    = 0.40 + glassK*0.05;
+    g.moveTo(w*(0.5-wid*gSpring), topY - h*0.005);
+    g.quadraticCurveTo(w*(0.5-cw2*gCtl), gRoof, w*(0.5-cw2*gTop), gRoof);
+    g.lineTo(w*(0.5+cw2*gTop), gRoof);
+    g.quadraticCurveTo(w*(0.5+cw2*gCtl), gRoof, w*(0.5+wid*gSpring), topY - h*0.005);
+    g.closePath(); g.fill();
+    for(const sx of [-1,1]){
+      g.fillStyle = o.body;
+      g.beginPath();
+      g.ellipse(w*0.5 + sx*w*wid*0.94, topY + h*0.015, w*0.045, h*0.022, 0, 0, 6.2832);
+      g.fill();
+    }
+
+    /* the body, shouldered like its own tail */
+    const bg2 = g.createLinearGradient(w*(0.5-wid), 0, w*(0.5+wid), 0);
+    bg2.addColorStop(0, o.lo); bg2.addColorStop(0.28, o.body);
+    bg2.addColorStop(0.50, o.hi); bg2.addColorStop(0.76, o.body); bg2.addColorStop(1, o.lo);
+    g.fillStyle = bg2;
+    g.beginPath();
+    g.moveTo(w*(0.5-wid*0.90), topY);
+    g.lineTo(w*(0.5+wid*0.90), topY);
+    g.quadraticCurveTo(w*(0.5+wid), topY + h*0.05, w*(0.5+wid), hipY);
+    g.lineTo(w*(0.5+wid*0.94), botY);
+    g.lineTo(w*(0.5-wid*0.94), botY);
+    g.lineTo(w*(0.5-wid), hipY);
+    g.quadraticCurveTo(w*(0.5-wid), topY + h*0.05, w*(0.5-wid*0.90), topY);
+    g.closePath(); g.fill();
+
+    if(stripeOn){
+      g.fillStyle = shade(o.body, 0.42);
+      for(const sx of [0.398, 0.517]){
+        g.fillRect(w*sx, roofT, w*0.085, h*0.030);
+        g.fillRect(w*sx, topY, w*0.085, botY - topY - h*0.05);
+      }
+    }
+
+    /* ---- THE FACE, one per marque ---------------------------------------- */
+    if(F === 'F'){
+      /* wide slim lamps swept back into the wings, a low hexagonal mouth and
+         two brake ducts \u2014 front-engined, so the mouth is the biggest feature */
+      for(const sx of [-1,1]){
+        const lx = w*0.5 + sx*w*wid*0.60;
+        g.fillStyle = '#eef6ff';
+        g.beginPath();
+        g.moveTo(lx - sx*w*0.115, topY + h*0.085);
+        g.lineTo(lx + sx*w*0.075, topY + h*0.062);
+        g.lineTo(lx + sx*w*0.075, topY + h*0.102);
+        g.lineTo(lx - sx*w*0.115, topY + h*0.125);
+        g.closePath(); g.fill();
+        headGlow(g, lx, topY + h*0.093, w);
+      }
+      g.fillStyle = 'rgba(10,12,16,.9)';
+      g.beginPath();
+      g.moveTo(w*(0.5-wid*0.50), topY + h*0.20);
+      g.lineTo(w*(0.5+wid*0.50), topY + h*0.20);
+      g.lineTo(w*(0.5+wid*0.40), topY + h*0.325);
+      g.lineTo(w*(0.5-wid*0.40), topY + h*0.325);
+      g.closePath(); g.fill();
+      slats(g, w*(0.5-wid*0.46), topY + h*0.225, w*wid*0.92, h*0.075, 4);
+      for(const sx of [-1,1]){
+        g.fillStyle = 'rgba(10,12,16,.75)';
+        rr(g, w*0.5 + sx*w*wid*0.80 - (sx>0?w*0.085:0), topY + h*0.22, w*0.085, h*0.075, 3);
+        g.fill();
+      }
+    } else if(F === 'L'){
+      /* angular Y-shaped lamps, a narrow slot, and huge triangular side
+         intakes \u2014 mid-engined, so the sides do the breathing */
+      /* QUADRUPLE round lamps, angled back in a slanted housing — a stack of
+         two either side, which is what a Y-tail car should have at the front */
+      for(const sx of [-1,1]){
+        const lx = w*0.5 + sx*w*wid*0.60;
+        g.save();
+        g.translate(lx, topY + h*0.095);
+        g.rotate(sx * 0.30);
+        g.fillStyle = 'rgba(10,12,16,.88)';
+        rr(g, -w*0.098, -h*0.048, w*0.196, h*0.096, h*0.020); g.fill();
+        for(const k of [-1, 1]){
+          g.fillStyle = '#eef6ff';
+          g.beginPath(); g.arc(k*w*0.046, 0, w*0.036, 0, 6.2832); g.fill();
+          g.fillStyle = 'rgba(150,190,255,.35)';
+          g.beginPath(); g.arc(k*w*0.046, -h*0.008, w*0.020, 0, 6.2832); g.fill();
+        }
+        g.restore();
+        headGlow(g, lx - sx*w*0.03, topY + h*0.088, w);
+        headGlow(g, lx + sx*w*0.03, topY + h*0.102, w);
+      }
+      g.fillStyle = 'rgba(10,12,16,.9)';
+      rr(g, w*(0.5-wid*0.34), topY + h*0.215, w*wid*0.68, h*0.055, 3); g.fill();
+      for(const sx of [-1,1]){
+        g.fillStyle = 'rgba(8,10,14,.85)';
+        g.beginPath();
+        g.moveTo(w*0.5 + sx*w*wid*0.94, topY + h*0.17);
+        g.lineTo(w*0.5 + sx*w*wid*0.44, topY + h*0.30);
+        g.lineTo(w*0.5 + sx*w*wid*0.94, topY + h*0.33);
+        g.closePath(); g.fill();
+      }
+    } else {
+      /* four round lamps in two pods and a plain low mouth \u2014 rear-engined, so
+         the nose has almost nothing to do and looks it */
+      /* ---- A BANDED UNIBROW -------------------------------------------------
+         Its TAIL is one full-width bar, so its face is the same idea inverted:
+         a single band running nearly the whole width, split by a short break at
+         the centre, and divided into segments so it reads as lamps rather than
+         a stripe. */
+      const bw2 = wid*0.86, by2 = topY + h*0.075, bh2 = h*0.052;
+      g.fillStyle = 'rgba(10,12,16,.88)';
+      rr(g, w*(0.5-bw2), by2 - h*0.010, w*bw2*2, bh2 + h*0.020, bh2*0.6); g.fill();
+      for(const sx of [-1,1]){
+        const x0 = sx < 0 ? w*(0.5-bw2*0.94) : w*(0.5+bw2*0.10);
+        const segW = w*bw2*0.84;
+        g.fillStyle = '#eef6ff';
+        rr(g, x0, by2, segW, bh2, bh2*0.5); g.fill();
+        /* the bands across it */
+        g.fillStyle = 'rgba(20,26,34,.55)';
+        for(let k=1;k<4;k++)
+          g.fillRect(x0 + segW*(k/4) - w*0.004, by2, w*0.008, bh2);
+        headGlow(g, x0 + segW*0.5, by2 + bh2*0.5, w);
+      }
+      g.fillStyle = 'rgba(10,12,16,.85)';
+      rr(g, w*(0.5-wid*0.42), topY + h*0.235, w*wid*0.84, h*0.060, h*0.024); g.fill();
+    }
+
+    /* splitter and shadow, common to all three */
+    g.fillStyle = '#1b1f26';
+    g.fillRect(w*(0.5-wid*0.96), botY - h*0.05, w*wid*1.92, h*0.05);
+    if(B.rear) drawMarque(g, B.rear, w*0.5, topY + h*0.155, h*0.036);
   };
 }
 
@@ -1668,6 +2669,20 @@ function paintCar(o){
     }
     g.restore();
 
+    /* ---- STRIPES, if the car is wearing them --------------------------
+       Paint, so they stop at the glass: one run over the roof, one down the
+       deck, and the window left clear — the same rule the muscle car uses. */
+    if(o.stripes){
+      /* FATTER on a supercar — 0.055 on a body this wide read as pinstripes.
+         0.085 with a narrower gap is a proper pair of racing stripes. */
+      g.fillStyle = shade(o.body, 0.42);
+      const rT = h*o.cabinTop, dT = h*o.bodyTop;
+      for(const sx of [0.398, 0.517]){
+        g.fillRect(w*sx, rT, w*0.085, h*0.030);
+        g.fillRect(w*sx, dT, w*0.085, cy - dT - h*0.08);
+      }
+    }
+
     /* the shoulder crease that runs across every one of them */
     g.strokeStyle = 'rgba(255,255,255,.16)'; g.lineWidth = Math.max(1, h*0.006);
     g.beginPath();
@@ -1720,7 +2735,26 @@ function paintCar(o){
         g.lineTo(w*springX, springY + h*0.03);
         g.closePath(); g.fill();
       } else {
-        rr(g, w*(0.5-cw/2+co), h*o.cabinTop, w*cw, h*(o.bodyTop-o.cabinTop)+h*0.06, rad); g.fill();
+        /* ---- THE SAME GREENHOUSE AS THE FRONT --------------------------------
+           The rear cabin was a rounded BOX; the front is a shouldered curve
+           springing from the body, and that shape is much better. Same
+           construction here, driven by the same `cabW` and `roofR`, so a car
+           has one roofline seen from either end. */
+        /* ---- IDENTICAL TO THE FRONT ------------------------------------
+           The front springs from `wid*0.80` and pulls its control points to
+           `cabW*0.92 * 0.62`, with the roof line 0.19h above the body. Those
+           are the numbers, verbatim, so the two ends cannot disagree. */
+        const cw3 = (B ? B.cabW*0.92 : 0.46);
+        const spX = 0.5 - wid*0.80;
+        const roofY = h*o.bodyTop - h*0.19;
+        g.beginPath();
+        g.moveTo(w*spX, h*o.bodyTop + h*0.06);
+        g.lineTo(w*spX, h*o.bodyTop + h*0.02);
+        g.quadraticCurveTo(w*(0.5-cw3*0.62), roofY, w*(0.5-cw3*0.46), roofY);
+        g.lineTo(w*(0.5+cw3*0.46), roofY);
+        g.quadraticCurveTo(w*(0.5+cw3*0.62), roofY, w*(1-spX), h*o.bodyTop + h*0.02);
+        g.lineTo(w*(1-spX), h*o.bodyTop + h*0.06);
+        g.closePath(); g.fill();
       }
       // rear glass
       const gg = g.createLinearGradient(0, h*o.cabinTop, 0, h*o.bodyTop);
@@ -1735,9 +2769,11 @@ function paintCar(o){
            roof rail comes down, and it does not reach the shoulders. Springs
            from the SAME y as the dome so the rail is even on both sides.
            ------------------------------------------------------------------ */
-        const sX = springX + 0.085, sY = springY - h*0.012;
+        /* the pane was small inside a big dome. Nearer the springing line and
+           taller, so it fills the glasshouse without touching the roof rail. */
+        const sX = springX + 0.055, sY = springY - h*0.006;
         const sSpan = (1 - sX*2);
-        const sApex = apex + h*0.052;
+        const sApex = apex + h*0.030;
         g.beginPath();
         g.moveTo(w*sX, sY);
         /* up the near pillar */
@@ -1755,8 +2791,17 @@ function paintCar(o){
         g.quadraticCurveTo(w*0.5, sApex + h*0.010, w*(sX+sSpan*0.20), sApex + h*0.004);
         g.closePath(); g.fill();
       } else {
-        rr(g, w*(0.5-cw/2+co)+w*0.045, h*o.cabinTop+h*0.035,
-              w*cw-w*0.09, h*(o.bodyTop-o.cabinTop)-h*0.02, rad*0.7); g.fill();
+        /* and the glass takes the front's inset numbers too */
+        const cw4 = (B ? B.cabW*0.92 : 0.46);
+        const rr4 = h*((B ? B.roofR : 0.1)*0.4 + 0.03);
+        const spX2 = 0.5 - wid*0.70;
+        const roofY2 = h*o.bodyTop - h*0.19 + rr4;
+        g.beginPath();
+        g.moveTo(w*spX2, h*o.bodyTop - h*0.005);
+        g.quadraticCurveTo(w*(0.5-cw4*0.56), roofY2, w*(0.5-cw4*0.40), roofY2);
+        g.lineTo(w*(0.5+cw4*0.40), roofY2);
+        g.quadraticCurveTo(w*(0.5+cw4*0.56), roofY2, w*(1-spX2), h*o.bodyTop - h*0.005);
+        g.closePath(); g.fill();
       }
     }
     /* the wing, and each shape wears a different one */
@@ -1810,6 +2855,90 @@ function paintCar(o){
     const ty = cy - h*0.34, th = h*0.11;
     const lamp1 = o.lamp2 || '#ff6a5a', lamp0 = o.lamp || '#c8102e';
 
+    if(kind === 'Z'){
+      /* ---- A FORMULA TAIL, second pass -------------------------------------
+         The first one had the wing floating above a cone. From the reference,
+         what actually reads: the tyres are ENORMOUS and nearly touch the wing
+         endplates; the wing is a deep single plane with a visible bridge over
+         it; the body between the wheels is LOW and mostly dark; and the
+         diffuser is the tallest, brightest thing at the bottom.
+         -------------------------------------------------------------------- */
+      /* BACK to the proportions that worked. The second pass shrank the tyres
+         and lifted the wing, and it lost the stance entirely. */
+      const TW = w*0.30, TH2 = h*0.50;
+      const cyT = ty + h*0.10;
+
+      /* the two slicks, first, so everything else sits between them */
+      for(const sx of [-1,1]){
+        const wx = w*0.5 + sx*w*0.335;
+        g.fillStyle = '#08090b';
+        /* round-shouldered, not a square slab — a slick is a barrel */
+        rr(g, wx - TW*0.5, cyT - TH2*0.5, TW, TH2, TW*0.32); g.fill();
+        /* the shoulder catching light, and a sidewall band */
+        g.fillStyle = 'rgba(150,164,178,.10)';
+        rr(g, wx - TW*0.42, cyT - TH2*0.44, TW*0.84, TH2*0.16, TW*0.10); g.fill();
+        g.fillStyle = 'rgba(0,0,0,.5)';
+        rr(g, wx - TW*0.46, cyT + TH2*0.10, TW*0.92, TH2*0.10, TW*0.06); g.fill();
+      }
+
+      /* the body: low, dark, and clearly narrower than the track */
+      const ec = g.createLinearGradient(w*0.38,0,w*0.62,0);
+      ec.addColorStop(0,o.lo); ec.addColorStop(0.5,o.body); ec.addColorStop(1,o.lo);
+      g.fillStyle = ec;
+      g.beginPath();
+      g.moveTo(w*0.435, cyT - TH2*0.34);
+      g.lineTo(w*0.565, cyT - TH2*0.34);
+      g.lineTo(w*0.605, cyT + TH2*0.22);
+      g.lineTo(w*0.395, cyT + TH2*0.22);
+      g.closePath(); g.fill();
+      /* the rain light, low and central */
+      g.fillStyle = '#ff2f3a';
+      g.beginPath(); g.arc(w*0.5, cyT + TH2*0.02, w*0.028, 0, 6.2832); g.fill();
+      g.save(); g.globalCompositeOperation='lighter';
+      const rl = g.createRadialGradient(w*0.5, cyT+TH2*0.02, 0, w*0.5, cyT+TH2*0.02, w*0.085);
+      rl.addColorStop(0,'rgba(255,55,64,.6)'); rl.addColorStop(1,'rgba(255,45,55,0)');
+      g.fillStyle = rl; g.beginPath(); g.arc(w*0.5, cyT+TH2*0.02, w*0.085, 0, 6.2832); g.fill();
+      g.restore();
+
+      /* the diffuser: the tallest, brightest thing down here */
+      const dY = cyT + TH2*0.22;
+      g.fillStyle = '#0b0d10';
+      g.fillRect(w*0.30, dY, w*0.40, h*0.16);
+      g.strokeStyle = 'rgba(170,186,202,.30)'; g.lineWidth = Math.max(1.2, w*0.012);
+      for(let k=-2;k<=2;k++){
+        g.beginPath();
+        g.moveTo(w*0.5 + k*w*0.072, dY);
+        g.lineTo(w*0.5 + k*w*0.086, dY + h*0.16);
+        g.stroke();
+      }
+
+      /* the wing: a deep plane, right across, with a bridge above it */
+      const wgY = cyT - TH2*0.62;
+      g.fillStyle = '#14171b';
+      g.fillRect(w*0.05, wgY, w*0.90, h*0.075);
+      g.fillStyle = 'rgba(205,220,235,.14)';
+      g.fillRect(w*0.05, wgY, w*0.90, h*0.014);
+      /* the bridge over the top */
+      g.fillStyle = '#1b1f25';
+      g.fillRect(w*0.32, wgY - h*0.030, w*0.36, h*0.020);
+      /* endplates, tall, nearly touching the tyres */
+      for(const sx of [-1,1]){
+        g.fillStyle = '#14171b';
+        g.fillRect(w*0.5 + sx*w*0.455 - (sx>0?w*0.040:0), wgY - h*0.035, w*0.040, h*0.155);
+      }
+      /* swan necks, over the top of the plane */
+      for(const sx of [-1,1]){
+        g.strokeStyle = '#1c2127'; g.lineWidth = Math.max(2.5, w*0.026);
+        g.beginPath();
+        g.moveTo(w*0.5 + sx*w*0.115, wgY + h*0.005);
+        g.quadraticCurveTo(w*0.5 + sx*w*0.150, wgY + h*0.075,
+                           w*0.5 + sx*w*0.105, cyT - TH2*0.36);
+        g.stroke();
+      }
+      drawMarque(g, 'Z', w*0.5, wgY + h*0.038, h*0.030);
+      return;
+    }
+
     if(kind === 'P'){
       /* the bar */
       g.fillStyle = 'rgba(20,16,18,.85)';
@@ -1841,14 +2970,25 @@ function paintCar(o){
         rr(g, x0, ty, w*0.36, th*0.95, 2); g.fill();
         g.strokeStyle = lamp0; g.lineWidth = Math.max(1.2, th*0.34);
         g.lineCap = 'round'; g.lineJoin = 'round';
+        /* ---- THREE chevrons a side ------------------------------------
+           One big arrow read as a single graphic. Three nested, each smaller
+           and further out, reads as a LAMP CLUSTER — and it echoes the triple
+           blades on its own front intakes. */
         const ax = sideL ? x0 + w*0.02 : x0 + w*0.34;
-        g.beginPath();
-        g.moveTo(ax, ty + th*0.20);
-        g.lineTo(ax + dir*w*0.20, ty + th*0.46);
-        g.lineTo(ax, ty + th*0.74);
-        g.stroke();
-        g.strokeStyle = lamp1; g.lineWidth = Math.max(0.6, th*0.14);
-        g.stroke();
+        for(let k=0;k<3;k++){
+          const inset = k * w*0.058;
+          const span  = w*0.115 - k*w*0.014;
+          g.strokeStyle = lamp0;
+          g.lineWidth = Math.max(1.1, th*0.30 - k*th*0.045);
+          g.beginPath();
+          g.moveTo(ax + dir*inset, ty + th*0.20);
+          g.lineTo(ax + dir*(inset + span), ty + th*0.46);
+          g.lineTo(ax + dir*inset, ty + th*0.74);
+          g.stroke();
+          g.strokeStyle = lamp1;
+          g.lineWidth = Math.max(0.5, th*0.12 - k*th*0.018);
+          g.stroke();
+        }
       }
     }
 
@@ -1949,21 +3089,38 @@ function trafficPaint(seed){
   return { body:c.body, hi:c.hi, lo:c.lo, lamp:'#c8102e' };
 }
 let optPaint = 'WHITE', optEasy = true, optMirror = 'FULL';   /* no cops unless HOT PURSUIT is on */
+/* the cars a RIVAL may be given: the three you start with, and nothing else.
+   An unlock you had to win a tournament for should not be sitting on the grid
+   opposite you. */
+const RIVAL_BODIES = ['TYPE-F','TYPE-L','TYPE-P'];
 const RIVAL_SP = {};
-let TRAFFIC_SP = {};
+let TRAFFIC_SP = {}, FRONT_SP = {};
 function buildSprites(){
   const shape = BODY[optBody] || BODY['TYPE-L'];
-  SP.player = sprite(220,168, paintCar(Object.assign({
-    cabin:true, spoiler:true, shape,
-    bodyTop:shape.bodyTop, cabinTop:shape.cabinTop,
-    lamp:'#d61b3c', lamp2:'#ff7a86'
-  }, PAINT[optPaint] || PAINT.WHITE)));
+  /* a `rig` body is a road car and uses the traffic painter, at that shape's
+     own sprite size; everything else is a supercar and uses paintCar */
+  const pt = PAINT[optPaint] || PAINT.WHITE;
+  if(shape.rig){
+    const rz = shape.rig === 'muscle' ? [210,158] : [206,150];
+    SP.player = sprite(rz[0], rz[1],
+      paintRig(shape.rig, Object.assign({ lamp:'#d61b3c', lamp2:'#ff7a86',
+                                          player:true,
+                                          stripes:optStripes && stripesAllowed() }, pt)));
+  } else {
+    SP.player = sprite(220,168, paintCar(Object.assign({
+      cabin:true, spoiler:true, shape,
+      bodyTop:shape.bodyTop, cabinTop:shape.cabinTop,
+      stripes:optStripes && stripesAllowed(),
+      lamp:'#d61b3c', lamp2:'#ff7a86'
+    }, pt)));
+  }
   /* Every rival is the SAME sports car as yours, in a different paint. They
      used to be a tinted saloon, which is why the grid never looked like a
      field of equals. Built once per colour and cached. */
   /* one sprite per body AND paint, so a rival's shape and colour are both its
      own — keyed 'TYPE-L|CYAN' and cached, which is 36 small canvases */
-  for(const bk of Object.keys(BODY)){
+  /* and the cache only needs the bodies a rival can actually be given */
+  for(const bk of RIVAL_BODIES){
     const rs = BODY[bk];
     for(const k of PAINT_KEYS){
       RIVAL_SP[bk+'|'+k] = sprite(220,168, paintCar(Object.assign({
@@ -1987,15 +3144,44 @@ function buildSprites(){
      at boot. Cheap, and it turns a road of identical grey saloons into
      traffic. */
   TRAFFIC_SP = {};
-  for(const kind of ['sedan','sedan2','coupe','pickup','van']){
+  for(const kind of ['sedan','sedan2','coupe','tuner','muscle','pickup','van']){
     const rig = kind === 'sedan2' ? 'sedan' : kind;
     const size = kind === 'van'    ? [200,196]
                : kind === 'pickup' ? [206,176]
-               : kind === 'coupe'  ? [206,150] : [200,164];
+               : kind === 'coupe' || kind === 'tuner' ? [206,150]
+               : kind === 'muscle' ? [210,158] : [200,164];
     TRAFFIC_SP[kind] = TRAFFIC_PAINT.map((c,i2) =>
       sprite(size[0], size[1], paintRig(rig, trafficPaint(i2))));
   }
+  /* ---- AND THEIR FRONTS -------------------------------------------------
+     The mirror shows oncoming cars, so it needs the noses. Same paints, same
+     shapes, one sprite each — cached at build time like the rears rather than
+     painted per frame. */
+  FRONT_SP = {};
+  for(const kind of ['sedan','sedan2','coupe','tuner','muscle','pickup','van']){
+    const rig = kind === 'sedan2' ? 'sedan' : kind;
+    const size = kind === 'van'    ? [200,196]
+               : kind === 'pickup' ? [206,176]
+               : kind === 'coupe' || kind === 'tuner' ? [206,150]
+               : kind === 'muscle' ? [210,158] : [200,164];
+    FRONT_SP[kind] = TRAFFIC_PAINT.map((c,i2) =>
+      sprite(size[0], size[1], paintRigFront(rig, trafficPaint(i2))));
+  }
+
+  /* the taxi has ONE colour, because a cab is yellow */
+  const CAB = { body:'#f2b32c', hi:'#ffd45e', lo:'#8f6408', lamp:'#c8102e' };
+  TRAFFIC_SP.taxi = [ sprite(200,164, paintRig('taxi', CAB)) ];
+  FRONT_SP.taxi   = [ sprite(200,164, paintRigFront('taxi', CAB)) ];
+
   /* lorries are their own thing: liveried panels, not car colours */
+  FRONT_SP.truck = [
+    { body:'#8a8477', hi:'#a8a293', lo:'#4e4a41' },
+    { body:'#9aa0a8', hi:'#c2c7cd', lo:'#5c6169' },
+    { body:'#4e5a6b', hi:'#6d7c90', lo:'#2c333e' },
+    { body:'#7a5f4e', hi:'#9b7c66', lo:'#453529' }
+  ].map(c => sprite(230,250, paintRigFront('truck',
+    { body:c.body, hi:c.hi, lo:c.lo, lamp:'#b8371f', lamp2:'#ffb066' })));
+
   TRAFFIC_SP.truck = [
     { body:'#8a8477', hi:'#a8a293', lo:'#4e4a41' },
     { body:'#9aa0a8', hi:'#c2c7cd', lo:'#5c6169' },
@@ -2118,16 +3304,20 @@ function spawnBehind(){
   }
   if(lane < 0) return;
   const roll = Math.random();
+  /* the tuner takes a slice out of the coupe's share — it IS a coupe, so the
+     road does not get more sports cars, just a more varied set of them */
   const t = roll<0.10 ? 'truck'  : roll<0.24 ? 'van'
-          : roll<0.40 ? 'pickup' : roll<0.60 ? 'coupe'
-          : roll<0.80 ? 'sedan'  : 'sedan2';
+          : roll<0.40 ? 'pickup' : roll<0.52 ? 'coupe'
+          : roll<0.58 ? 'tuner'  : roll<0.66 ? 'muscle'
+          : roll<0.72 ? 'taxi'
+          : roll<0.86 ? 'sedan'  : 'sedan2';
   traffic.push({
     z, lane, x: LANE_X[lane] + rnd(-0.03,0.03),
     /* it must actually be quicker than you or it will never arrive */
     spd: 0, cruise: Math.max(spd * 1.25, (t==='truck' ? 0.36 : 0.55) * MAX_SPD),
     type: t,
     w: t==='truck' ? 0.32 : t==='van' ? 0.30 : t==='pickup' ? 0.29
-     : t==='coupe' ? 0.26 : 0.275,
+     : (t==='coupe'||t==='tuner') ? 0.26 : t==='muscle' ? 0.285 : 0.275,
     len: t==='truck' ? 520 : t==='van' ? 440 : t==='pickup' ? 420 : 380,
     near:false, drift: rnd(-1,1)*0.0002, fromBehind:true, paintN: (Math.random()*10)|0
   });
@@ -2162,16 +3352,21 @@ function spawnWave(z){
     if(inGap) continue;
     /* a real mix of what is on a motorway, not three saloons and a lorry */
     const roll = Math.random();
+    /* the MAIN spawner — the other table is only for cars coming up behind
+       you, and a type added to one and not the other appears in half the
+       traffic and nowhere else */
     const t = roll<0.12 ? 'truck'  : roll<0.26 ? 'van'
-            : roll<0.42 ? 'pickup' : roll<0.60 ? 'coupe'
-            : roll<0.80 ? 'sedan'  : 'sedan2';
+            : roll<0.42 ? 'pickup' : roll<0.53 ? 'coupe'
+            : roll<0.59 ? 'tuner'  : roll<0.67 ? 'muscle'
+            : roll<0.73 ? 'taxi'
+            : roll<0.86 ? 'sedan'  : 'sedan2';
     traffic.push({
       z: z + rnd(-600,600), lane,
       x: LANE_X[lane] + rnd(-0.03,0.03),
       spd: 0, cruise: (t==='truck' ? rnd(0.30,0.38) : rnd(0.42,0.60)) * MAX_SPD,
       type: t,
       w: t==='truck' ? 0.32 : t==='van' ? 0.30 : t==='pickup' ? 0.29
-       : t==='coupe' ? 0.26 : 0.275,
+       : (t==='coupe'||t==='tuner') ? 0.26 : t==='muscle' ? 0.285 : 0.275,
       len: t==='truck' ? 520 : t==='van' ? 440 : t==='pickup' ? 420 : 380,
       near: false, drift: rnd(-1,1)*0.0002, paintN: (Math.random()*10)|0
     });
@@ -2253,6 +3448,12 @@ function reset(){
   if(pw) pw.hidden = (mode !== 'race');
   dist=0; score=0; combo=0; comboTime=0; heat=1; heatT=0; runTopMph=0;
   clock = CLOCK_START; nextCP = 1; cpGantries = []; lastBeep = -1; wreckWait = 0;
+  /* if you are driving one, the force matches you; otherwise the night decides */
+  barOn = false; wonCruiser = false;
+  if(hornBtn) hornBtn.classList.remove('on');
+  copLivery = (optBody === 'TYPE-C')
+    ? (optPaint === 'BLACK' ? 'BLACK' : 'WHITE')
+    : (Math.random() < 0.5 ? 'BLACK' : 'WHITE');
   /* dayClock deliberately NOT reset: the sky keeps its own time across runs */
   traffic=[]; cops=[]; blocks=[]; crates=[]; fx=[];
   shake=0; hitFlash=0; sirenPhase=0; lastKmh=0; iframe=0;
@@ -2271,6 +3472,7 @@ const IDLE_SPD = MAX_SPD * (60/200);   /* exactly 60 on the readout */
 const BRAKE_SPD = 0;   /* the brakes stop the car, they do not settle it */
 
 function start(){
+  syncBoxClass();
   runs++;
   reset();
   snd.begin();
@@ -2313,6 +3515,23 @@ function wreck(reason){
   if(AR && AR.music){ AR.music.stop(); AR.music.start(96, 8, snd.menuBed); }
   setTimeout(()=>showEnd(reason), 700);
 }
+
+/* ---- the paddles shift, and the number follows the box ------------------ */
+(function(){
+  const up = document.getElementById('padUp');
+  const dn = document.getElementById('padDown');
+  const tap = (el, d) => {
+    if(!el) return;
+    const go = (ev) => {
+      ev.preventDefault();
+      const n = gearCount();
+      const want = clamp(gear + d, 1, n);
+      if(want !== gear){ gear = want; if(snd.shift) snd.shift(); }
+    };
+    el.addEventListener('pointerdown', go);
+  };
+  tap(up, 1); tap(dn, -1);
+})();
 
 /* ---------- input ---------- */
 let dragging=false, grabPx=0, grabX=0, padNos=false;
@@ -2367,6 +3586,57 @@ function setBrake(on){
    gear almost as soon as you are in this one. */
 /* Six close ratios. Back from four because the gaps were huge — a 24% jump to
    second is a truck's gearbox, not a sports car's. */
+/* ---- HOW MANY gearTable() THIS CAR HAS ----------------------------------------
+   The six-speed table is the supercars'. A four- or five-speed car uses the
+   same ratios but stops early and stretches the last one to the top of the
+   rev range, which is what a shorter box actually feels like: fewer, longer
+   pulls rather than the same pulls truncated.
+   ------------------------------------------------------------------------- */
+/* ---- 0 TO 60, NOT "PULL" -------------------------------------------------
+   `pull` is a torque multiplier and means nothing to anyone. The same number
+   run through the acceleration the car actually has gives a figure everybody
+   knows. Simulated rather than guessed: step the real curve at 120Hz until it
+   passes 60mph.
+   ------------------------------------------------------------------------- */
+function zeroSixty(key){
+  const B = BODY[key] || BODY['TYPE-L'];
+  /* the REAL numbers: speed is in MAX_SPD units where MAX_SPD is 200mph, and
+     the driving code adds `2850 * gearFactor() * pull` per second. My first
+     attempt invented a 0.62 constant and produced 0.3s for everything. */
+  const target = MAX_SPD * (60 / 200);
+  const gt = (BODY[key] && BODY[key].gears) || 6;
+  let v = 0, t = 0, shifts = 0;
+  const DT = 1/120;
+  while(v < target && t < 40){
+    /* ---- SHIFTS COST TIME ----------------------------------------------
+       The card read 2.7s against 3.2s on the road, and the difference was
+       every upshift: the sim was pulling continuously through a gearbox the
+       car has to actually change. A quarter of a second each, and a car with
+       fewer, longer gears makes fewer of them — which is part of why a
+       four-speed muscle car is not as slow as its pull suggests. */
+    const nowGear = Math.min(gt, 1 + Math.floor(v / (MAX_SPD * B.vmax) * gt));
+    if(nowGear > shifts + 1){ shifts++; t += 0.25; }
+    /* which gear, and how much pull it has left — the same shape gearFactor
+       uses: strong low down, tailing off toward the top of each ratio */
+    const frac = v / (MAX_SPD * B.vmax);
+    const g = Math.max(0.30, 1.55 - Math.min(1, frac * (6 / gt)) * 1.05);
+    v += 1000 * g * B.pull * DT;
+    t += DT;
+  }
+  /* NO SCALING. The card prints what the car does — which is the whole reason
+     the acceleration was retuned rather than the number massaged. */
+  return t;
+}
+
+function gearCount(){ return (BODY[optBody] && BODY[optBody].gears) || 6; }
+function gearTable(){
+  const n = gearCount();
+  if(n >= GEARS.length) return GEARS;
+  const cut = GEARS.slice(0, n).map(g => Object.assign({}, g));
+  cut[n-1] = Object.assign({}, cut[n-1], { to: 1.0 });
+  return cut;
+}
+
 const GEARS = [
   { g:1, ratio:3.82, from:0,    to:0.17, pull:1.55 },
   { g:2, ratio:2.62, from:0.13, to:0.31, pull:1.42 },
@@ -2376,6 +3646,10 @@ const GEARS = [
   { g:6, ratio:1.00, from:0.75, to:1.00, pull:0.96 }
 ];
 const REDLINE = 12000;
+/* TYPE-Z is a V12: it spins to fifteen and sings a fifth higher than anything
+   with a road-car engine in it. */
+function redline(){ return (BODY[optBody] && BODY[optBody].redline) || REDLINE; }
+function enginePitch(){ return (BODY[optBody] && BODY[optBody].pitch) || 1; }
 /* Engine speed, from road speed and whatever ratio is selected. In neutral it
    falls back to an idle that lifts when you blip the throttle — the engine is
    not connected to anything, so the road cannot tell it what to do. */
@@ -2387,18 +3661,18 @@ let idleRev = 900;
    from a standstill. */
 const IDLE = 800;
 function gearRpm(g, v){
-  const G = GEARS[g-1];
+  const G = gearTable()[g-1];
   /* against THIS car's top speed, so every car still redlines at the top of
      each gear rather than the tall one never reaching its limiter */
   const ceiling = MAX_SPD * bodyStat('vmax') * G.to;
-  return clamp(IDLE + (v / ceiling) * (REDLINE - IDLE), IDLE, REDLINE + 300);
+  return clamp(IDLE + (v / ceiling) * (redline() - IDLE), IDLE, redline() + 300);
 }
 function engineRpm(){
   if(!optManual){
-    if(gear < 1 || gear > GEARS.length) gear = 1;
+    if(gear < 1 || gear > gearTable().length) gear = 1;
     return gearRpm(gear, spd);
   }
-  if(gear < 1 || gear > GEARS.length){
+  if(gear < 1 || gear > gearTable().length){
     /* NEUTRAL lets go of the tacho. It used to jump straight to idle, which
        read as the engine being switched off mid-shift. Off the throttle the
        revs FALL away under their own inertia; blip it and they rise. */
@@ -2407,12 +3681,12 @@ function engineRpm(){
        12,000 redline, so the needle stopped in the middle of the dial.
        It now runs to the limiter and BOUNCES off it, the way a rev limiter
        actually behaves rather than pinning flat against the stop. */
-    const want = (gas || nosOn) ? REDLINE + 250 : IDLE;
+    const want = (gas || nosOn) ? redline() + 250 : IDLE;
     /* free-revving climbs much faster than under load */
     idleRev += (want - idleRev) * (want > idleRev ? 0.22 : 0.045);
-    if((gas || nosOn) && idleRev > REDLINE*0.985){
+    if((gas || nosOn) && idleRev > redline()*0.985){
       /* the limiter cutting in and out */
-      idleRev = REDLINE - Math.abs(Math.sin(performance.now()/38)) * 620;
+      idleRev = redline() - Math.abs(Math.sin(performance.now()/38)) * 620;
     }
     return idleRev;
   }
@@ -2440,10 +3714,10 @@ const AI_TOP = MAX_SPD * (180/200);
 /* the gear an AI would be in at this speed, as a fraction of ITS top */
 function aiGearFactor(v, top){
   const r = clamp(v / top, 0, 1);
-  let G = GEARS[GEARS.length-1];
-  for(const g2 of GEARS) if(r <= g2.to){ G = g2; break; }
-  const rpm = IDLE + (r / Math.max(0.01, G.to)) * (REDLINE - IDLE);
-  return torqueAt(Math.min(REDLINE, rpm)) * (G.ratio / 2.0);
+  let G = gearTable()[gearTable().length-1];
+  for(const g2 of gearTable()) if(r <= g2.to){ G = g2; break; }
+  const rpm = IDLE + (r / Math.max(0.01, G.to)) * (redline() - IDLE);
+  return torqueAt(Math.min(redline(), rpm)) * (G.ratio / 2.0);
 }
 /* how hard any AI car accelerates toward a target speed */
 function aiAccel(v, want, top, dt){
@@ -2452,7 +3726,7 @@ function aiAccel(v, want, top, dt){
 }
 
 function torqueAt(rpm){
-  const f = (rpm - IDLE) / (REDLINE - IDLE);       /* 0 at idle, 1 at redline */
+  const f = (rpm - IDLE) / (redline() - IDLE);       /* 0 at idle, 1 at redline */
   /* The bottom has to be BRUTAL or a tall gear still hauls you off the line.
      Below a quarter of the range the engine is lugging and gives you almost
      nothing — which is why fourth from a standstill should crawl. */
@@ -2472,28 +3746,33 @@ let optManual = false, gear = 1, bogT = 0;
    gearbox setting — called on change AND once at startup */
 function syncBoxClass(){
   document.body.classList.toggle('manual', !!optManual);
+  /* one manual UI or the other, never both: the gate for a road car, paddles
+     for the formula car */
+  const paddleCar = optBody === 'TYPE-Z';
   const sh = document.getElementById('shifter');
-  if(sh) sh.hidden = !optManual;
+  const pd = document.getElementById('paddles');
+  if(sh) sh.hidden = !optManual ||  paddleCar;
+  if(pd) pd.hidden = !optManual || !paddleCar;
 }
 
 /* how well the current gear suits the speed you are at */
 function gearFactor(){
   /* pull = the engine's torque at these revs, times what the gear multiplies */
   if(optManual || true){
-    if(gear < 1 || gear > GEARS.length) return 0;
-    const G = GEARS[gear-1];
+    if(gear < 1 || gear > gearTable().length) return 0;
+    const G = gearTable()[gear-1];
     return torqueAt(gearRpm(gear, spd)) * (G.ratio / 2.0);
   }
   /* The automatic used to return a flat 1.00, so it ignored the ratio table
      entirely and pulled like nothing on the road. It now runs the SAME
      ratios — it just picks the gear for you, and because autoGear keeps it in
      band you rarely feel the penalty. */
-  /* NEUTRAL is gear 0, so GEARS[-1] was undefined and reading G.from threw on
+  /* NEUTRAL is gear 0, so gearTable()[-1] was undefined and reading G.from threw on
      every single frame — the game appeared to hang the moment the knob passed
      through the centre of the gate, which it must do to reach any other gear. */
-  if(gear < 1 || gear > GEARS.length) return 0;
+  if(gear < 1 || gear > gearTable().length) return 0;
   const r = spd / MAX_SPD;
-  const G = GEARS[gear-1];
+  const G = gearTable()[gear-1];
   /* lugging and the limiter still hurt, but not catastrophically — being one
      gear out should cost you a length, not the whole race */
   if(r < G.from - 0.06) return 0.55;
@@ -2514,12 +3793,12 @@ function gearFactor(){
    -------------------------------------------------------------------------- */
 let autoHold = 0, autoDownT = 0;
 function autoGear(dt){
-  if(gear < 1 || gear > GEARS.length) gear = 1;
+  if(gear < 1 || gear > gearTable().length) gear = 1;
   if(autoHold > 0) return;
   const rpm = gearRpm(gear, spd);
 
   /* UP: at the limiter, and only if there is somewhere to go */
-  if(gear < GEARS.length && rpm >= REDLINE * 0.985){
+  if(gear < gearTable().length && rpm >= redline() * 0.985){
     gear++; autoHold = 0.22; autoDownT = 0; snd.shift(gear);
     return;
   }
@@ -2532,7 +3811,7 @@ function autoGear(dt){
      in this gear. */
   const wantPower = (gas || nosOn);
   const dropBelow = wantPower ? 0.56 : 0.45;
-  if(gear > 1 && rpm < REDLINE * dropBelow){
+  if(gear > 1 && rpm < redline() * dropBelow){
     /* A full second was longer than it takes to stop from 120mph, so the box
        only ever dropped once you were already stationary. Off power it is
        0.18s, under power a quarter of that. Braking from 135mph to a stop
@@ -2541,7 +3820,7 @@ function autoGear(dt){
     autoDownT += (dt || 1/60) * (wantPower ? 4 : 1);
     if(autoDownT >= 0.18){
       let g = gear;
-      while(g > 1 && gearRpm(g-1, spd) < REDLINE * 0.97) g--;
+      while(g > 1 && gearRpm(g-1, spd) < redline() * 0.97) g--;
       if(g !== gear){
         gear = g; autoHold = 0.22; snd.shift(gear);
         engineBrake();
@@ -2884,7 +4163,9 @@ function buildField(){
   /* Dealt round-robin then shuffled, so the three types are always evenly
      represented. Drawing each independently clustered badly — one grid came
      out seven TYPE-F from eleven. */
-  const kinds = Object.keys(BODY);
+  /* only the three starting cars — `Object.keys(BODY)` now includes the three
+     unlockables, and a grid handing you a TYPE-Z you have not won is absurd */
+  const kinds = RIVAL_BODIES;
   const deck = [];
   for(let i=0;i<racers.length;i++) deck.push(kinds[i % kinds.length]);
   for(let i=deck.length-1;i>0;i--){
@@ -2902,7 +4183,8 @@ function buildField(){
     r.base  = r.vmax * (0.99 - i*0.008 + rnd(-0.006,0.006));
     r.spd   = r.base * 0.92;
   });
-  finishZ = pos + RACE_MILES * MILE;
+  /* a tournament round sets its own distance */
+  finishZ = pos + (tourOn ? TOUR_MILES[tourRound] : RACE_MILES) * MILE;
   place = 12; finished = false;
 }
 
@@ -3000,14 +4282,69 @@ function stepRacers(dt){
   place = ahead + 1;
 
   if(!finished && pos >= finishZ){
+    /* ---- CROSSING THE LINE ENDS IT --------------------------------------
+       This called `wreck()`, which now returns early whenever the clock has
+       time left — so finishing a race did nothing at all. A finish is not a
+       crash and must not go through the crash path. */
     finished = true;
-    wreck(place === 1 ? 'WON' : 'FINISHED ' + place + ordinal(place));
+    state = 'wrecked';
+    bestScore = Math.max(bestScore, Math.round(dist*10)/10);
+    bestDist  = Math.max(bestDist, dist);
+    if(AR && AR.save) AR.save.merge('highway', {
+      best: bestScore, bestMi: +bestDist.toFixed(1), runs: runs,
+      label: 'BEST ' + bestDist.toFixed(1) + ' MI'
+    });
+    if(AR && AR.music){ AR.music.stop(); AR.music.start(96, 8, snd.menuBed); }
+    snd.checkpoint();
+    if(tourOn){
+      tourScore(place);
+      const last = (tourRound >= TOUR_MILES.length - 1);
+      if(last){
+        const st = tourStanding();
+        /* gold unlocks the formula car, silver the tuner, bronze the muscle
+           car — so a tournament is worth finishing even when the win is gone */
+        if(AR && AR.save){
+          if(st === 1) AR.save.merge('highway-opts', { typeZ:true });
+          if(st <= 2)  AR.save.merge('highway-opts', { typeT:true });
+          if(st <= 3)  AR.save.merge('highway-opts', { typeM:true });
+        }
+        setTimeout(() => showTrophy(st), 700);
+      } else {
+        tourRound++;
+        setTimeout(() => showRound(place), 700);
+      }
+    } else {
+      setTimeout(() => showEnd(place === 1 ? 'WON'
+        : 'FINISHED ' + place + ordinal(place)), 700);
+    }
   }
 }
 function ordinal(n){
   return n===1?'ST' : n===2?'ND' : n===3?'RD' : 'TH';
 }
+/* ---- YOU HAVE A LIGHT BAR, NOT A HORN -----------------------------------
+   In the cruiser the horn button becomes what it would actually be: a LATCHING
+   switch for the bar and the siren. Press once and they are on, press again and
+   they are off — a horn is momentary, a light bar is not.
+
+   It still scatters traffic. That is the point of the thing: you are asking the
+   car in front to move over, and this is the version of that request the
+   interceptor has.
+   ------------------------------------------------------------------------- */
+let barOn = false;
+let wonCruiser = false;
+function inCruiser(){ return optBody === 'TYPE-C'; }
+
 function setHorn(on){
+  if(inCruiser()){
+    /* only the press latches; the release does nothing */
+    if(!on) return;
+    barOn = !barOn;
+    hornBtn.classList.toggle('on', barOn);
+    horning = false;
+    snd.honk(false);
+    return;
+  }
   if(on === horning) return;
   horning = on;
   hornBtn.classList.toggle('on', on);
@@ -3017,20 +4354,50 @@ function setHorn(on){
 /* Anything ahead of you in your lane gets a chance to move over. Not a
    certainty — a horn is a request, not a command — and a car with nowhere to
    go stays put, which is what makes the ones that do move feel like a break. */
-function scatter(){
+/* ---- ONE MECHANISM, TWO VOICES -------------------------------------------
+   A horn asks and a siren tells. Same code either way — the difference is the
+   odds (40% against 90%) and the fact that a siren keeps asking for as long as
+   it is on, where a horn asks once per press.
+
+   Forty is deliberately low: a horn should feel like a favour when it works,
+   not a button that parts traffic.
+
+   `fromZ` and `fromLane` let an NPC cruiser use it too, so traffic gets out of
+   ITS way exactly as it gets out of yours.
+   ------------------------------------------------------------------------- */
+function scatter(chance, fromZ, fromLane){
   if(hornCool > 0) return;
   hornCool = 0.55;
+  const oz = (fromZ === undefined) ? pos : fromZ;
+  const ol = (fromLane === undefined) ? lane : fromLane;
+  const odds = (chance === undefined) ? 0.40 : chance;
   for(const c of traffic){
-    const ahead = c.z - pos;
+    const ahead = c.z - oz;
     if(ahead < 40 || ahead > 1500) continue;
-    if(Math.abs(c.lane - lane) > 0.6) continue;
-    if(Math.random() > 0.55) continue;
+    if(Math.abs(c.lane - ol) > 0.6) continue;
+    /* ---- THEY GET FED UP ------------------------------------------------
+       Each car carries its own `heed`, starting at 1. Every time it is asked
+       and refuses, that drops — so leaning on the horn behind the same car
+       stops working, which is what actually happens. Asking a DIFFERENT car
+       is unaffected, because the multiplier lives on the vehicle rather than
+       on you.
+
+       It recovers slowly once you are past, so a long run does not end with a
+       road full of cars that will never move again.
+       -------------------------------------------------------------------- */
+    if(c.heed === undefined) c.heed = 1;
+    if(Math.random() > odds * c.heed){
+      c.heed = Math.max(0.12, c.heed * 0.62);
+      continue;
+    }
     const room = [];
     if(c.lane > 0) room.push(c.lane - 1);
     if(c.lane < LANES - 1) room.push(c.lane + 1);
     if(!room.length) continue;
     c.lane = room[(Math.random()*room.length)|0];
     c.swerve = 1;
+    /* it moved, so it is not the one being stubborn */
+    c.heed = Math.max(0.12, c.heed * 0.86);
   }
 }
 
@@ -3149,6 +4516,112 @@ function drawMarque(g, kind, cx, cy, r, tint){
     g.moveTo(-3.4,-2.2); g.lineTo(0,1.4); g.lineTo(3.4,-2.2);
     g.lineTo(3.4,1.0);   g.lineTo(0,4.6); g.lineTo(-3.4,1.0);
     g.closePath(); g.fill();
+  /* ---- ONE PAIR OF BRANCHES, NOT TWO -------------------------------------
+     There were TWO 'T' branches and two 'M' branches: an earlier pair sitting
+     above the ones I later wrote. `else if` takes the FIRST match, so the real
+     designs never ran and editing them showed nothing. The stale pair is gone.
+     ---------------------------------------------------------------------- */
+  } else if(kind === 'C'){
+    /* ---- A SHERIFF'S STAR -------------------------------------------------
+       Seven points with balled tips, on a dark disc — the shape a highway
+       patrol badge is, and unmistakable at eight pixels because nothing else
+       on the road is a star. */
+    g.fillStyle = 'rgba(10,14,22,.85)';
+    g.beginPath(); g.arc(0,0,9.8,0,6.2832); g.fill();
+    g.fillStyle = '#e8c45a';
+    g.beginPath();
+    for(let k=0;k<14;k++){
+      const a = -Math.PI/2 + k*Math.PI/7, r = (k%2===0) ? 8.4 : 3.6;
+      const x = Math.cos(a)*r, y = Math.sin(a)*r;
+      k ? g.lineTo(x,y) : g.moveTo(x,y);
+    }
+    g.closePath(); g.fill();
+    /* the balls on the points */
+    g.fillStyle = '#f3dc92';
+    for(let k=0;k<7;k++){
+      const a = -Math.PI/2 + k*2*Math.PI/7;
+      g.beginPath(); g.arc(Math.cos(a)*8.4, Math.sin(a)*8.4, 1.5, 0, 6.2832); g.fill();
+    }
+    g.fillStyle = 'rgba(10,14,22,.85)';
+    g.beginPath(); g.arc(0,0,3.0,0,6.2832); g.fill();
+  } else if(kind === 'X'){
+    /* ---- AN ORDINARY CAR'S BADGE ------------------------------------------
+       Every civilian vehicle carries one, and it must NOT look like a marque:
+       a plain chrome oval with a bar across it, the shape a manufacturer's
+       roundel is when you cannot read it from three lanes away. */
+    g.fillStyle = 'rgba(12,14,18,.75)';
+    g.beginPath(); g.ellipse(0,0,9.0,6.2,0,0,6.2832); g.fill();
+    g.fillStyle = '#b9c1cb';
+    g.beginPath(); g.ellipse(0,0,7.6,5.0,0,0,6.2832); g.fill();
+    g.fillStyle = 'rgba(30,36,44,.85)';
+    g.fillRect(-7.6,-1.0,15.2,2.0);
+    g.fillStyle = 'rgba(255,255,255,.35)';
+    g.beginPath(); g.ellipse(-1.8,-2.0,4.2,1.8,0,0,6.2832); g.fill();
+  } else if(kind === 'T'){
+    /* ---- THE TUNER ------------------------------------------------------
+       A disc, not a shield: a rising sun on a deep red ground, rays running
+       out to the rim. Round because the car is a road car and its badge is a
+       cap on a boss, not a crest. */
+    g.fillStyle = '#d8dee6';
+    g.beginPath(); g.arc(0,0,9.6,0,6.2832); g.fill();
+    g.fillStyle = '#b8202c';
+    g.beginPath(); g.arc(0,0,8.0,0,6.2832); g.fill();
+    g.fillStyle = '#ffd9a0';
+    for(let k=0;k<8;k++){
+      const a = k/8*6.2832;
+      g.beginPath();
+      g.moveTo(0,0);
+      g.lineTo(Math.cos(a-0.16)*8, Math.sin(a-0.16)*8);
+      g.lineTo(Math.cos(a+0.16)*8, Math.sin(a+0.16)*8);
+      g.closePath(); g.fill();
+    }
+    g.fillStyle = '#fff3d6';
+    g.beginPath(); g.arc(0,0,3.2,0,6.2832); g.fill();
+  } else if(kind === 'M'){
+    /* ---- THE MUSCLE CAR -------------------------------------------------
+       A blunt chrome shield with a single star and two bars — the American
+       idiom, and about as far from the tuner's disc as a badge can get. */
+    g.fillStyle = '#0e1014';
+    g.beginPath();
+    g.moveTo(-9,-8); g.lineTo(9,-8); g.lineTo(9,3);
+    g.quadraticCurveTo(9,9, 0,10.4);
+    g.quadraticCurveTo(-9,9, -9,3);
+    g.closePath(); g.fill();
+    g.fillStyle = '#cfd6de';
+    g.beginPath();
+    g.moveTo(-7.2,-6.4); g.lineTo(7.2,-6.4); g.lineTo(7.2,2.6);
+    g.quadraticCurveTo(7.2,7.4, 0,8.6);
+    g.quadraticCurveTo(-7.2,7.4, -7.2,2.6);
+    g.closePath(); g.fill();
+    g.fillStyle = '#0e1014';
+    g.fillRect(-7.2,-2.2,14.4,1.7); g.fillRect(-7.2,0.9,14.4,1.7);
+    /* the star */
+    g.fillStyle = '#b8202c';
+    g.beginPath();
+    for(let k=0;k<10;k++){
+      const a = -Math.PI/2 + k*Math.PI/5, r = (k%2===0) ? 4.4 : 1.9;
+      const x = Math.cos(a)*r, y = Math.sin(a)*r - 3.4;
+      k ? g.lineTo(x,y) : g.moveTo(x,y);
+    }
+    g.closePath(); g.fill();
+  } else if(kind === 'Z'){
+    /* ---- A GOLD LIGHTNING BOLT --------------------------------------------
+       No shield, no diamond, no plate. The mark IS the bolt — a single struck
+       shape, which is the only thing that survives at eight pixels on a nose.
+       A thin dark edge keeps it readable on a white car. */
+    g.fillStyle = 'rgba(20,16,8,.85)';
+    g.beginPath();
+    g.moveTo(2.6,-10.4); g.lineTo(-5.6,1.0); g.lineTo(-0.4,1.0);
+    g.lineTo(-3.0,10.4); g.lineTo(6.0,-1.6); g.lineTo(0.6,-1.6);
+    g.closePath(); g.fill();
+    const bg3 = g.createLinearGradient(-6,-10,6,10);
+    bg3.addColorStop(0,'#fff0a8'); bg3.addColorStop(0.45,'#e8b23a');
+    bg3.addColorStop(1,'#9a6c12');
+    g.fillStyle = bg3;
+    g.beginPath();
+    g.moveTo(2.2,-9.2); g.lineTo(-4.6,0.4); g.lineTo(0.2,0.4);
+    g.lineTo(-2.4,9.2); g.lineTo(5.2,-1.0); g.lineTo(0.2,-1.0);
+    g.closePath(); g.fill();
   } else {
     /* ROUND SILVER DISC, red quarters, a bold cross */
     g.fillStyle = '#c9ced8';
@@ -3185,16 +4658,49 @@ function drawWheel(){
   /* ONE rim for all three. Three shapes was a distinction nobody asked for and
      it made the wheel unfamiliar every time you changed car — the badge is
      what should tell you which one you are in. */
-  const TH = 9.5;
+  /* the formula yoke is not a ring, so it must not be drawn on one */
+  const TH = (MK === 'Z') ? 13 : 9.5;
   /* ---- the rim ----------------------------------------------------------
      A flat-bottomed sports wheel: circular through the top and sides, cut off
      square along the bottom, with the corners squared off where the leather
      grips are. Drawn as a stroked path rather than a circle so the flat is
      real geometry rather than something painted over it.
      -------------------------------------------------------------------------- */
-  const flatY = R*0.62;
+  /* ---- THE WHEEL FOLLOWS THE CLASS --------------------------------------
+     Three classes, not "road cars and supercars":
+
+       FORMULA     TYPE-Z              a yoke, no rim at the top
+       SUPERCAR    TYPE-F, L, P        a flat-bottomed rim
+       PRODUCTION  TYPE-T, M, C        a plain circular rim
+
+     The cruiser is a production car with a light bar on it, so it takes the
+     production wheel — it was getting the supercar's flat bottom. Pushing the
+     flat almost to the rim radius leaves a ring, and the bottom bar and its arm
+     are skipped with it. */
+  const roundRim = (MK === 'T' || MK === 'M' || MK === 'C');
+  const flatY = roundRim ? R*0.995 : R*0.62;
   const aFlat = Math.asin(flatY/R);
   function rimPath(){
+    if(MK === 'Z'){
+      /* ---- A FORMULA WHEEL ----------------------------------------------
+         From the reference: not a ring at all. A wide rectangular yoke with
+         the whole top cut away, deep thumb cut-outs, and a screen in the
+         middle where a road car has a boss. */
+      const hw = R*0.98, ht = R*0.46, hb = R*0.62;
+      g.beginPath();
+      g.moveTo(-hw, -ht);
+      g.lineTo(-R*0.34, -ht);
+      g.lineTo(-R*0.34, -R*0.10);
+      g.lineTo( R*0.34, -R*0.10);
+      g.lineTo( R*0.34, -ht);
+      g.lineTo( hw, -ht);
+      g.lineTo( hw,  hb*0.55);
+      g.quadraticCurveTo(hw, hb, R*0.52, hb);
+      g.lineTo(-R*0.52, hb);
+      g.quadraticCurveTo(-hw, hb, -hw, hb*0.55);
+      g.closePath();
+      return;
+    }
     /* In canvas, increasing angle goes DOWN the screen — so sweeping from
        aFlat to PI-aFlat drew the BOTTOM semicircle, which is why the rim kept
        coming out as a smile under the boss. The top runs from PI-aFlat round
@@ -3219,8 +4725,15 @@ function drawWheel(){
   /* the weave, painted into the top third and the bottom bar */
   g.save();
   g.beginPath();
-  g.arc(0,0,R+TH/2, Math.PI*1.18, Math.PI*1.82, false);
-  g.arc(0,0,R-TH/2, Math.PI*1.82, Math.PI*1.18, true);
+  if(MK === 'Z'){
+    /* the carbon weave was clipped to a circular ARC of the rim, which drew a
+       ghost ring above the yoke on the one wheel that is not round. It clips
+       to the yoke's own path instead. */
+    rimPath();
+  } else {
+    g.arc(0,0,R+TH/2, Math.PI*1.18, Math.PI*1.82, false);
+    g.arc(0,0,R-TH/2, Math.PI*1.82, Math.PI*1.18, true);
+  }
   g.closePath();
   g.clip();
   g.fillStyle = '#26292f'; g.fillRect(-R-8,-R-8,(R+8)*2,(R+8)*2);
@@ -3241,6 +4754,7 @@ function drawWheel(){
      that shape — so the flat is part of the wheel rather than sitting on it.
      -------------------------------------------------------------------------- */
   const barX = R*Math.cos(aFlat) - TH*0.16;
+  if(!roundRim){
   g.save();
   g.beginPath();
   g.roundRect(-barX, flatY - TH/2, barX*2, TH, TH/2);
@@ -3255,10 +4769,16 @@ function drawWheel(){
   g.strokeStyle = 'rgba(255,255,255,.14)'; g.lineWidth = TH*0.26;
   g.beginPath(); g.moveTo(-barX, flatY-TH*0.30); g.lineTo(barX, flatY-TH*0.30); g.stroke();
   g.restore();
+  }
 
-  /* the twelve-o'clock stripe */
-  g.strokeStyle = '#e8ecf2'; g.lineWidth = 2.4;
-  g.beginPath(); g.moveTo(0, -R-TH/2+0.5); g.lineTo(0, -R+TH/2-0.5); g.stroke();
+  /* the twelve-o'clock stripe — a formula yoke has no top to put one on, and
+     it was left floating in the gap */
+  /* the guard has to wrap the DRAW, not the style line before it — an if with
+     no braces takes only the next statement, so the tick still drew */
+  if(MK !== 'Z'){
+    g.strokeStyle = '#e8ecf2'; g.lineWidth = 2.4;
+    g.beginPath(); g.moveTo(0, -R-TH/2+0.5); g.lineTo(0, -R+TH/2-0.5); g.stroke();
+  }
 
   /* rim highlight and shadow, so it reads as round stock */
   g.save();
@@ -3286,13 +4806,29 @@ function drawWheel(){
     g.fillRect( armW/2-3.5-armW*0.30, -armH/2+2.6, armW*0.30, armH-5.2);
     g.restore();
   }
-  /* the bottom arm */
+  /* the bottom arm — a round wheel has three spokes, not a stalk to a flat */
+  if(!roundRim){
   g.fillStyle = '#1d2025';
   g.beginPath(); g.roundRect(-6, 8, 12, flatY-4, 3); g.fill();
   g.fillStyle = 'rgba(196,203,214,.9)';
   g.beginPath(); g.roundRect(-4, 12, 8, flatY-9, 2); g.fill();
   g.fillStyle = '#0e1013';
   g.fillRect(-1.2, 14, 2.4, flatY-13);
+  } else {
+    /* ---- the V POINTS DOWN ---------------------------------------------
+       The bar is drawn from the boss DOWNWARD, so rotating it by 130° and 50°
+       swung it up and over the top — the V was inverted. ±0.52 rad splays the
+       two spokes down and out to five and seven o'clock, which is where a
+       three-spoke road wheel puts them. */
+    for(const a of [-0.52, 0.52]){
+      g.save(); g.rotate(a);
+      g.fillStyle = '#1d2025';
+      g.beginPath(); g.roundRect(-5, 8, 10, R-16, 3); g.fill();
+      g.fillStyle = 'rgba(196,203,214,.9)';
+      g.beginPath(); g.roundRect(-3.4, 11, 6.8, R-21, 2); g.fill();
+      g.restore();
+    }
+  }
 
   /* ---- the boss ---------------------------------------------------------- */
   const bR = 21;
@@ -3301,7 +4837,7 @@ function drawWheel(){
   g.fillStyle = boss;
   g.beginPath(); g.arc(0,0,bR,0,6.2832); g.fill();
   g.strokeStyle = 'rgba(255,255,255,.10)'; g.lineWidth = 1;
-  g.beginPath(); g.arc(0,0,bR-0.5,0,6.2832); g.stroke();
+  if(MK !== 'Z'){ g.beginPath(); g.arc(0,0,bR-0.5,0,6.2832); g.stroke(); }
 
   /* THE CAR'S OWN BADGE. A hard-coded horse lived here, drawn after the
      marque call, so every car wore the same emblem however the marque table
@@ -3336,8 +4872,8 @@ let knobRail = 0, knobY = TOP_Y;
    engine braking IS, and the needle jumps to the top of the new band with it. */
 function engineBrake(){
   if(!optManual) return;
-  if(gear < 1 || gear > GEARS.length) return;
-  const cap = MAX_SPD * GEARS[gear-1].to;
+  if(gear < 1 || gear > gearTable().length) return;
+  const cap = MAX_SPD * gearTable()[gear-1].to;
   if(spd > cap) spd = cap;
 }
 
@@ -3574,9 +5110,9 @@ function step(dt){
      than the brake, so lifting is a real choice rather than a soft brake. */
   /* in neutral the throttle is connected to nothing, so it coasts however
      hard you press */
-  const inNeutral = optManual && (gear < 1 || gear > GEARS.length);
+  const inNeutral = optManual && (gear < 1 || gear > gearTable().length);
   /* out of time: the throttle stops answering, but you keep what you have */
-  const onGas = (gas || nosOn) && !inNeutral && clock > 0;
+  const onGas = (gas || nosOn) && !inNeutral && (!clockRuns() || clock > 0);
   /* THE COAST EXPLOIT: boost to well past MAX_SPD, then lift, and the car
      coasted down from 19,200 at the gentle neutral rate — so laying off the
      throttle was FASTER than using it. Above the natural top speed the car
@@ -3592,8 +5128,8 @@ function step(dt){
      -------------------------------------------------------------------------- */
   /* the car's own top end, and the gear's ceiling within it */
   const carTop = MAX_SPD * bodyStat('vmax');
-  const gearCap = (optManual && gear >= 1 && gear <= GEARS.length)
-                ? carTop * GEARS[gear-1].to
+  const gearCap = (optManual && gear >= 1 && gear <= gearTable().length)
+                ? carTop * gearTable()[gear-1].to
                 : carTop;
   const top = braking ? BRAKE_SPD
             : overRun ? MAX_SPD * bodyStat('vmax')
@@ -3614,7 +5150,15 @@ function step(dt){
                 which is quick for a road car and still an arcade cheat. */
              /* the bottle is worth using now: better than double the shove,
                 where before it was a 23% bump nobody could feel */
-             : spd < top ? (nosOn ? 7200 : 2850) * gearFactor() * bodyStat('pull')
+             /* ---- REAL ACCELERATION ---------------------------------------
+                2850 put every car through 60mph in under a second, which is
+                why the stat card needed a fudge factor to look sane. 1000 is
+                the number that makes the HONEST figure the printed one: a
+                supercar in the mid-twos, a muscle car in the mid-fours.
+
+                NOS scales with it and keeps its edge — 2.6x the base shove
+                rather than 2.5x, so the bottle is still worth the button. */
+             : spd < top ? (nosOn ? 2600 : 1000) * gearFactor() * bodyStat('pull')
              : (offRoad ? 11000 : 2400);
   /* Approach the target without crossing it. It used to add or subtract a
      fixed step, so on the brakes the car overshot the floor and juddered
@@ -3632,7 +5176,7 @@ function step(dt){
      is `showEnd(reason)`, reached through `wreck()`. So the clock ran out,
      the car coasted to a stop, and then nothing happened at all. The run
      simply sat there. */
-  if(clock <= 0 && spd < MAX_SPD*0.004 && state === 'driving'){
+  if(clockRuns() && clock <= 0 && spd < MAX_SPD*0.004 && state === 'driving'){
     state = 'wrecked';
     bestScore = Math.max(bestScore, Math.round(dist*10)/10);
     bestDist  = Math.max(bestDist, dist);
@@ -3658,6 +5202,17 @@ function step(dt){
   if(pScrub > 0.05) layRubber(playerX, pos + PLAYER_Z - 340, pScrub, 0.265);
   stepRubber(dt);
 
+  /* ---- A SIREN KEEPS ASKING ---------------------------------------------
+     A horn is one request per press; a siren is a standing one. While the bar
+     is on it clears the lane ahead at 90%, on the same cooldown the horn uses
+     so it cannot be spammed into a wall of swerving cars. */
+  if(barOn && inCruiser()) scatter(0.90);
+  /* and every NPC cruiser does exactly the same from where IT is */
+  for(const k of cops){
+    if(k.wreck > 0) continue;
+    if(k.z > pos - 400) scatter(0.90, k.z, k.lane);
+  }
+
   /* serving a wreck penalty: the world stops, the clock does not */
   if(wreckWait > 0){
     wreckWait -= dt;
@@ -3668,7 +5223,7 @@ function step(dt){
   }
 
   /* ---- the clock ------------------------------------------------------ */
-  if(!finished){
+  if(!finished && clockRuns()){
     clock -= dt;
     /* the last five seconds each get a beep */
     const whole = Math.ceil(clock);
@@ -3677,7 +5232,13 @@ function step(dt){
   }
   /* a gantry every CP_MILES, placed a little way ahead as you approach */
   while(nextCP * CP_MILES * MILE < pos + 90000){
-    cpGantries.push({ z: nextCP * CP_MILES * MILE, hit:false, n:nextCP });
+    const cz = nextCP * CP_MILES * MILE;
+    /* ---- the last board is the FINISH, not a checkpoint --------------------
+       A race ending at 12 miles had a CHECKPOINT gantry sitting on the line,
+       which is the wrong sign at the one place it matters. In a race nothing
+       is placed at or beyond the finish, and the finish gets its own board. */
+    if(mode === 'race' && cz >= finishZ - 200){ nextCP++; continue; }
+    if(timedRun) cpGantries.push({ z: cz, hit:false, n:nextCP });
     nextCP++;
   }
   for(const cp of cpGantries){
@@ -3690,6 +5251,24 @@ function step(dt){
     }
   }
   cpGantries = cpGantries.filter(cp => cp.z > pos - 8000);
+
+  /* patience comes back, slowly */
+  for(const c of traffic)
+    if(c.heed !== undefined && c.heed < 1) c.heed = Math.min(1, c.heed + dt*0.14);
+
+  /* ---- THE CRUISER IS EARNED BY SURVIVING --------------------------------
+     Twenty miles on TEST DRIVE with the clock running AND the cops on. Not a
+     race — the tournament rewards winning, and this rewards lasting. All three
+     conditions matter: without the clock there is no pressure, and without
+     pursuit there is nothing to survive. */
+  if(mode !== 'race' && timedRun && !optEasy && dist >= 20 && !unlocked('typeC')){
+    if(AR && AR.save) AR.save.merge('highway-opts', { typeC:true });
+    /* flagged now, SHOWN when the run ends — a reward screen mid-run would be
+       taking the wheel away from you at 190mph */
+    wonCruiser = true;
+    snd.checkpoint();
+    flashWarn('CRUISER UNLOCKED');
+  }
 
   updateViewShift();
   /* the road only needs re-integrating as you consume it, not every frame */
@@ -4132,7 +5711,7 @@ function step(dt){
      to 200 and never changed when you shifted — the one moment an engine most
      obviously changes pitch. Feeding it rpm means every upshift drops the note
      and every downshift blips it, for free. */
-  const revFrac = clamp((engineRpm() - IDLE) / (REDLINE - IDLE), 0, 1);
+  const revFrac = clamp((engineRpm() - IDLE) / (redline() - IDLE), 0, 1);
   /* ---- audio is not a per-frame job -------------------------------------
      Sorting forty vehicles and pushing 64 automation events into Web Audio
      sixty times a second was costing real frames for no audible benefit: the
@@ -4354,6 +5933,21 @@ function drawSky(){
      segment to the next — so the skyline teleported every time a bend began or
      ended. It now follows a single smoothed value chased frame to frame, and
      is driven only by where the road actually is on screen. */
+  /* ---- THE SKYLINE NEVER MOVED -------------------------------------------
+     `skySmooth` was read here and declared at the top — and updated NOWHERE.
+     Two earlier "fixes" changed a coefficient on a line that did not exist, so
+     the value sat at 0 for the whole run and the city was welded to the
+     horizon. It is chased here, where it is used, so it cannot go missing
+     again.
+
+     The city is the furthest thing in the scene, so it sweeps the most: the
+     bend a long way ahead, times 2.6, chased fast enough to keep up with a
+     corner rather than drifting in after it.
+     ------------------------------------------------------------------------ */
+  const skyWant = -bendPx(pos + 30000) * 2.6;
+  /* drawSky has no dt, so the chase uses a fixed frame step — a title screen
+     and a run both call this at the same rate */
+  skySmooth += (skyWant - skySmooth) * 0.11;
   const skyShift = skySmooth;
   let ox = ((-camX*W*0.018) + skyShift) % dw;
   if(ox>0) ox -= dw;
@@ -4917,9 +6511,26 @@ function drawPlayer(){
     const q  = clamp((dmg - 25) / 50, 0, 1);        /* 0 at 25 dmg, 1 at 75 */
     const now = performance.now();
     ctx.save();
+    /* ---- SMOKE RISES. IT DOES NOT LEAN. ---------------------------------
+       The plume is emitted in screen space and must stay that way whatever the
+       body is doing. Two things make that true rather than accidental:
+
+         - the transform is reset to the plain device scale here, so no ambient
+           rotation from anywhere up the call chain can shear the column
+         - the ORIGIN follows the leaning nose, because rotating the sprite
+           moves where the bonnet actually is; the source tracks the car while
+           the column itself stays vertical
+
+       Which is what you see on a real one: the bonnet swings, the smoke keeps
+       going straight up. */
+    const _dpr = Math.min(2, window.devicePixelRatio || 1);
+    ctx.setTransform(_dpr, 0, 0, _dpr, 0, 0);
+    /* where the nose has swung to, given the body roll */
+    const noseX = p.x + Math.sin(lean*0.12) * h * 0.42;
+    const noseY = p.y + bump - Math.abs(Math.sin(lean*0.12)) * h * 0.05;
     /* everything below the bonnet line is hidden by the car itself */
     ctx.beginPath();
-    ctx.rect(0, 0, W, p.y + bump - h*0.62);
+    ctx.rect(0, 0, W, noseY - h*0.62);
     ctx.clip();
 
     /* Sixteen puffs read as a wisp at this size, not a plume. The column has
@@ -4936,8 +6547,8 @@ function drawPlayer(){
       /* each puff is thinner now, because there are far more of them stacking
          — otherwise sixty at the old alpha is a solid grey wall */
       const a    = (1 - life*0.86) * (0.13 + q*0.26);
-      const sx   = p.x + sway + ((i%3)-1) * w*0.10;
-      const sy   = p.y + bump - h*0.58 - rise;
+      const sx   = noseX + sway + ((i%3)-1) * w*0.10;
+      const sy   = noseY - h*0.58 - rise;
       /* grey to dirty charcoal: true black is invisible on a night road */
       const tone = Math.round(180 - q*100);
       const gr = ctx.createRadialGradient(sx, sy, 0, sx, sy, Math.max(1, rad));
@@ -4958,8 +6569,8 @@ function drawPlayer(){
         const sway = Math.sin(life*7 + i*1.7) * w * 0.07 * life;
         const rad  = w * (0.09 + (1-life)*0.11) * (0.7 + f*0.6);
         const a    = (1 - life) * (0.20 + f*0.26);
-        const fx   = p.x + sway + ((i%5)-2) * w*0.045;
-        const fy   = p.y + bump - h*0.60 - rise;
+        const fx   = noseX + sway + ((i%5)-2) * w*0.045;
+        const fy   = noseY - h*0.60 - rise;
         const gr = ctx.createRadialGradient(fx, fy, 0, fx, fy, Math.max(1, rad));
         gr.addColorStop(0,   'rgba(255,244,205,'+a+')');
         gr.addColorStop(0.35,'rgba(255,168,54,'+(a*0.85)+')');
@@ -5026,6 +6637,40 @@ function drawPlayer(){
   ctx.scale(1 - Math.abs(lean)*0.10, 1);
   ctx.drawImage(SP.player, -w/2, -h, w, h);
   ctx.restore();
+
+  /* ---- YOUR OWN LIGHT BAR ---------------------------------------------
+     Two heads alternating on the same phase the pursuit sirens use, and a wash
+     thrown forward onto the road — the same treatment an NPC cruiser gets, so
+     it reads as the same machine. */
+  if(barOn && optBody === 'TYPE-C'){
+    const blue = Math.sin(sirenPhase) > 0;
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    for(const side of [-1, 1]){
+      /* on the roof, not floating over it — 0.98 put it clear of the car */
+      const bx = p.x + side*w*0.20, by = p.y - h*0.90;
+      const lit = (side < 0) === blue;
+      const col = side < 0 ? '90,140,255' : '255,70,80';
+      /* the unlit head still reads as a LAMP: 0.22 was indistinguishable from
+         nothing being there */
+      ctx.fillStyle = 'rgba(' + col + ',' + (lit ? 0.95 : 0.45) + ')';
+      ctx.fillRect(bx - w*0.085, by, w*0.17, h*0.045);
+      if(lit){
+        const gl = ctx.createRadialGradient(bx, by, 0, bx, by, w*0.55);
+        gl.addColorStop(0, 'rgba(' + col + ',.45)');
+        gl.addColorStop(1, 'rgba(' + col + ',0)');
+        ctx.fillStyle = gl;
+        ctx.beginPath(); ctx.arc(bx, by, w*0.55, 0, 6.2832); ctx.fill();
+      }
+    }
+    /* the wash it throws up the road ahead */
+    const wash = ctx.createLinearGradient(0, p.y - h*1.2, 0, horizon);
+    wash.addColorStop(0, blue ? 'rgba(90,140,255,.10)' : 'rgba(255,70,80,.10)');
+    wash.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = wash;
+    ctx.fillRect(0, horizon, W, p.y - horizon);
+    ctx.restore();
+  }
 
   /* ---- the lamps mean something now ----------------------------------
      This glowed harder the FASTER you went, which is backwards: a tail lamp
@@ -5299,6 +6944,19 @@ function drawMirrorFull(mx, my, mw, mh){
     const sh = sw * 0.60;
     const x0 = p1.x - sw/2, y0 = p1.y - sh;
 
+    /* ---- THE REAL NOSE, once it is big enough to read -------------------
+       Below about 26px wide the sprite is mush and the drawn block is
+       cleaner, so the simplified version stays for distant cars. Close up
+       you get the actual front — which is the whole reason the painters
+       exist. */
+    const fs = (!it.cop && it.o.type && FRONT_SP[it.o.type])
+      ? FRONT_SP[it.o.type][(it.o.paintN|0) % FRONT_SP[it.o.type].length] : null;
+    if(fs && sw >= 26){
+      const fh = sw * fs.height / fs.width;
+      ctx.drawImage(fs, x0, p1.y - fh, sw, fh);
+      continue;
+    }
+
     /* body */
     ctx.fillStyle = it.tint;
     ctx.beginPath(); ctx.roundRect(x0, y0, sw, sh, Math.max(0.5, sw*0.10)); ctx.fill();
@@ -5474,7 +7132,7 @@ function drawDials(){
   g.clearRect(0,0,115,59);
 
   const rpm = engineRpm();
-  face(g, 30, 30, 26, rpm / REDLINE, (rpm/1000).toFixed(1), 'x1000',
+  face(g, 30, 30, 26, rpm / redline(), (rpm/1000).toFixed(1), 'x1000',
        0.86, '#5ff0d8', '#ff3b5c', undefined, gearLabel());
   const mph = spd / MAX_SPD;
   face(g, 85, 30, 26, mph, Math.round(spd/MAX_SPD*200), 'MPH',
@@ -5483,7 +7141,7 @@ function drawDials(){
 function gearLabel(){
   /* Just the number. The D prefix was noise — you know which box you chose,
      and the only thing worth reading at a glance is which gear you are in. */
-  return (gear >= 1 && gear <= GEARS.length) ? String(gear) : 'N';
+  return (gear >= 1 && gear <= gearTable().length) ? String(gear) : 'N';
 }
 function dialCurve(f){ return clamp(f, 0, 1.02); }
 function face(g, cx, cy, r, frac, big, label, redAt, tint, red, odo, gearTag){
@@ -5645,10 +7303,21 @@ function hud(){
 
   /* the score slot now carries the one number that matters */
   $('score').textContent = dist.toFixed(1) + ' MI';
+  const pg2 = document.getElementById('padGear');
+  if(pg2 && !document.getElementById('paddles').hidden)
+    /* `inNeutral` is a local inside step(); the HUD cannot see it, and reading
+       it here threw every frame and killed the whole update — which is why the
+       paddles did nothing. Derived from the same expression instead. */
+    pg2.firstElementChild.textContent =
+      (optManual && (gear < 1 || gear > gearTable().length)) ? 'N' : gear;
   const cw = $('clockWrap');
   if(cw){
-    $('clock').textContent = Math.ceil(clock);
-    cw.classList.toggle('low', clock <= 5);
+    const on = clockRuns();
+    cw.hidden = !on;
+    if(on){
+      $('clock').textContent = Math.ceil(clock);
+      cw.classList.toggle('low', clock <= 5);
+    }
   }
   /* the bottle empties as you burn it */
   nitroBtn.style.setProperty('--nos', nos + '%');
@@ -5765,12 +7434,20 @@ function garageCard(){
     '<div class="gname">' + optBody + '</div>' +
     '<div class="gnote">' + B.note + '</div>' +
     '<div class="gstat"><span>TOP SPEED</span><b>' + top + ' MPH</b></div>' +
-    '<div class="gstat"><span>ACCELERATION</span>' + bars(B.pull, 0.80, 1.28) + '</div>' +
+    '<div class="gstat"><span>0\u201360 MPH</span><b>' + zeroSixty(optBody).toFixed(1) + 's</b></div>' +
     '<div class="gstat"><span>TOP END</span>' + bars(B.vmax, 0.93, 1.04) + '</div>' +
   '</div>';
 }
+/* ---- WHAT COLOURS THIS CAR COMES IN --------------------------------------
+   A patrol car is white or black. Not because the painter cannot manage lime,
+   but because a lime police car is a different joke than the one this game is
+   telling. Everything else takes the full dozen.
+   ------------------------------------------------------------------------- */
+function paintChoices(){
+  return optBody === 'TYPE-C' ? ['WHITE','BLACK'] : PAINT_KEYS;
+}
 function paintSwatches(){
-  return '<div class="swatches">' + PAINT_KEYS.map(k =>
+  return '<div class="swatches">' + paintChoices().map(k =>
     '<button class="sw' + (k === optPaint ? ' on' : '') + '" data-act="paint:' + k +
     '" style="background:' + PAINT[k].body + '" aria-label="' + k + '"></button>'
   ).join('') + '</div>';
@@ -5799,6 +7476,7 @@ function showGarage(){
   openVeil(
     '<div class="eyebrow">CHOOSE YOUR CAR</div>' +
     garageCard() +
+    '<style>.swatches{--sw:' + paintChoices().length + '}</style>' +
     paintSwatches() +
     '<div class="gbox">' +
       '<button class="go ghost" data-act="prev">\u2039</button>' +
@@ -5809,8 +7487,24 @@ function showGarage(){
     /* the run's SHAPE belongs with the car, not on the title card: both are
        choices about the drive you are about to take */
     '<div class="gstack">' +
+      /* a formula car has a livery, not stripes — and on that narrow engine
+         cover they were lost between the tyres anyway */
+      (stripesAllowed()
+        ? '<button class="go ghost" data-act="stripes">STRIPES \u00B7 <b>' +
+            (optStripes ? 'ON' : 'OFF') + '</b></button>'
+        : '') +
       '<button class="go ghost" data-act="mode">MODE \u00B7 <b>' +
-        (mode === 'race' ? 'RACE' : 'ENDLESS') + '</b></button>' +
+        (mode === 'race' ? (tourOn ? 'TOURNAMENT' : 'SINGLE RACE') : 'TEST DRIVE') +
+        '</b></button>' +
+      (mode === 'race' && tourOn
+        ? '<div class="gnote">ROUND ' + (tourRound+1) + ' OF 4 \u00B7 ' +
+          TOUR_MILES[tourRound] + ' MI' +
+          (tourRound ? ' \u00B7 ' + tourPts + ' PTS, P' + tourStanding() : '') +
+          '</div>' : '') +
+      /* practice has a clock only if you ask for one */
+      (mode === 'race' ? '' :
+        '<button class="go ghost" data-act="timed">TIMED \u00B7 <b>' +
+          (timedRun ? 'ON' : 'OFF') + '</b></button>') +
       '<button class="go ghost" data-act="chase">HOT PURSUIT \u00B7 <b>' +
         (optEasy ? 'OFF' : 'ON') + '</b></button>' +
       '<button class="go" data-act="drive">DRIVE</button>' +
@@ -5822,7 +7516,20 @@ function showGarage(){
       box:  () => { optManual = !optManual; syncBoxClass();
                     if(AR && AR.save) AR.save.merge('highway-opts', { manual:optManual });
                     showGarage(); },
-      mode:  () => { mode = (mode === 'race' ? 'endless' : 'race'); showGarage(); },
+      /* three states in one control: TEST DRIVE, SINGLE RACE, TOURNAMENT */
+      stripes: () => { if(stripesAllowed()) optStripes = !optStripes;
+                       buildSprites();
+                       if(AR && AR.save) AR.save.merge('highway-opts', { stripes:optStripes });
+                       showGarage(); },
+      mode:  () => {
+        if(mode !== 'race'){ mode = 'race'; tourOn = false; }
+        else if(!tourOn){ tourOn = true; tourReset(); }
+        else { mode = 'endless'; tourOn = false; }
+        showGarage();
+      },
+      timed: () => { timedRun = !timedRun;
+                     if(AR && AR.save) AR.save.merge('highway-opts', { timed:timedRun });
+                     showGarage(); },
       chase: () => { optEasy = !optEasy;
                      if(AR && AR.save) AR.save.merge('highway-opts', { easy:optEasy });
                      showGarage(); },
@@ -5832,10 +7539,15 @@ function showGarage(){
   drawGarageCar();
 }
 function cycleBody(d){
-  const ks = Object.keys(BODY);
+  /* TYPE-Z is not in the list until it has been won */
+  const LOCK = { 'TYPE-Z':'typeZ', 'TYPE-T':'typeT', 'TYPE-M':'typeM', 'TYPE-C':'typeC' };
+  const ks = Object.keys(BODY).filter(k => !LOCK[k] || unlocked(LOCK[k]));
   const i = (ks.indexOf(optBody) + d + ks.length) % ks.length;
   optBody = ks[i];
+  /* a car with a restricted palette cannot keep a colour it does not offer */
+  if(paintChoices().indexOf(optPaint) < 0) optPaint = paintChoices()[0];
   buildSprites();
+  syncBoxClass();
   if(AR && AR.save) AR.save.merge('highway-opts', { body:optBody });
   showGarage();
 }
@@ -6024,10 +7736,20 @@ function drawTitleArt(){
     g.fillStyle = 'rgba(0,0,0,.45)';
     g.beginPath(); g.ellipse(cxp, cyp-2, cw*0.42, ch*0.07, 0, 0, 6.2832); g.fill();
     g.drawImage(img, cxp - cw/2, cyp - ch, cw, ch);
-    /* tail lamps, breathing */
+    /* ---- THE LAMPS THEMSELVES ARE LIT -------------------------------------
+       There was a halo but nothing under it, so the car had a red smudge
+       floating behind a dark tail. The lamps are painted ON the sprite's own
+       lamp positions first, then the halo sits over them. */
+    const pulse = 0.55 + 0.25*Math.sin(T*2.0);
+    const lampW = cw*0.265, lampH = ch*0.10, lampY = cyp - ch*0.335;
+    for(const lx of [cxp - cw/2 + cw*0.135, cxp - cw/2 + cw*0.60]){
+      g.fillStyle = 'rgba(255,64,74,' + (0.75 + pulse*0.25) + ')';
+      g.fillRect(lx, lampY, lampW, lampH);
+      g.fillStyle = 'rgba(255,190,190,.55)';
+      g.fillRect(lx, lampY, lampW, Math.max(1, lampH*0.28));
+    }
     g.save();
     g.globalCompositeOperation = 'lighter';
-    const pulse = 0.55 + 0.25*Math.sin(T*2.0);
     for(const ox of [-0.082, 0.082]){
       const gl = g.createRadialGradient(cxp+ox*w, cyp-ch*0.34, 0,
                                         cxp+ox*w, cyp-ch*0.34, cw*0.26);
@@ -6118,6 +7840,229 @@ function showControls(){
     '<button class="go" data-act="back" style="margin-top:16px">BACK</button>',
     { back: () => showOptions() });
 }
+/* ---- between rounds ------------------------------------------------------
+   The standings are the whole reason to keep driving, so they are the screen.
+   -------------------------------------------------------------------------- */
+function showRound(place){
+  const rows = tourField.slice().sort((a,b)=>b.pts-a.pts).slice(0,4);
+  openVeil(
+    '<div class="eyebrow">ROUND ' + tourRound + ' COMPLETE</div>' +
+    '<h1>' + place + '<u>' + ordinal(place) + ' PLACE</u></h1>' +
+    '<div class="grid2">' +
+      '<div class="gc"><span>YOUR POINTS</span><b>' + tourPts + '</b></div>' +
+      '<div class="gc"><span>STANDING</span><b>P' + tourStanding() + '</b></div>' +
+      '<div class="gc"><span>NEXT ROUND</span><b>' + (tourRound+1) + ' OF 4</b></div>' +
+      '<div class="gc"><span>DISTANCE</span><b>' + TOUR_MILES[tourRound] + ' MI</b></div>' +
+    '</div>' +
+    '<div class="gstack">' +
+      '<button class="go" data-act="next">NEXT RACE</button>' +
+      '<button class="go ghost" data-act="garage">CHANGE CAR</button>' +
+      '<button class="go ghost" data-act="quit">RETIRE</button>' +
+    '</div>',
+    { next: start, garage: showGarage,
+      quit: () => { tourOn = false; showTitle(); } });
+}
+
+/* ---- the end of the tournament -------------------------------------------
+   The payoff screen gets the same treatment as a title card: a drawn SCENE
+   behind the panel, not a cup icon in a box. Your car on the top step under a
+   spotlight, the trophy beside it, confetti in the beam, and the standings
+   underneath so the four races add up to something.
+   -------------------------------------------------------------------------- */
+let trophyCv = null, trophyT = 0, trophyPlace = 1;
+
+function drawTrophyArt(){
+  if(!trophyCv) trophyCv = document.getElementById('titleArt');
+  if(!trophyCv) return;
+  const T = (performance.now() - trophyT) / 1000;
+  const g = trophyCv.getContext('2d');
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  const w = trophyCv.clientWidth, h = trophyCv.clientHeight;
+  if(trophyCv.width !== w*dpr){ trophyCv.width = w*dpr; trophyCv.height = h*dpr; }
+  g.setTransform(dpr,0,0,dpr,0,0);
+
+  const M = trophyPlace === 1 ? ['#fff3b0','#e8b23a','#7d5a10']
+          : trophyPlace === 2 ? ['#f4f8fb','#b9c4cf','#616973']
+          : trophyPlace === 3 ? ['#ffdcb4','#c8813f','#6e4118']
+          :                     ['#c8ccd4','#8d949e','#4b5058'];
+
+  /* the hall */
+  const bg = g.createLinearGradient(0,0,0,h);
+  bg.addColorStop(0,'#0b0710'); bg.addColorStop(0.55,'#160f1c'); bg.addColorStop(1,'#070509');
+  g.fillStyle = bg; g.fillRect(0,0,w,h);
+
+  const PY = h*0.60;                       /* the podium's top surface */
+
+  /* the spotlight, wide above and tight on the step */
+  g.save(); g.globalCompositeOperation='lighter';
+  const beam = g.createLinearGradient(0,0,0,PY);
+  beam.addColorStop(0,'rgba(255,236,190,.16)');
+  beam.addColorStop(1,'rgba(255,226,170,.02)');
+  g.fillStyle = beam;
+  g.beginPath();
+  g.moveTo(w*0.30,0); g.lineTo(w*0.70,0);
+  g.lineTo(w*0.62,PY); g.lineTo(w*0.38,PY);
+  g.closePath(); g.fill();
+  const pool = g.createRadialGradient(w*0.5,PY,0,w*0.5,PY,w*0.42);
+  pool.addColorStop(0,'rgba(255,240,200,.22)'); pool.addColorStop(1,'rgba(255,230,180,0)');
+  g.fillStyle = pool; g.fillRect(0,PY-h*0.14,w,h*0.28);
+  g.restore();
+
+  /* the podium: three steps, yours lit */
+  const stepW = w*0.20;
+  [[-1, 0.62, '2'], [0, 1.00, '1'], [1, 0.44, '3']].forEach(function(st){
+    const sx = w*0.5 + st[0]*stepW*1.02;
+    const sh = h*0.10 * st[1] + h*0.03;
+    const lit = (st[2] === String(trophyPlace));
+    g.fillStyle = lit ? '#3b3348' : '#241f2e';
+    g.fillRect(sx - stepW/2, PY - sh, stepW, sh + h*0.10);
+    g.fillStyle = lit ? 'rgba(255,238,200,.20)' : 'rgba(255,255,255,.05)';
+    g.fillRect(sx - stepW/2, PY - sh, stepW, Math.max(2, h*0.006));
+    g.save();
+    g.textAlign='center'; g.textBaseline='middle';
+    g.font = '700 ' + Math.round(w*0.045) + 'px ' +
+             getComputedStyle(document.body).getPropertyValue('--disp');
+    g.fillStyle = lit ? M[0] : 'rgba(200,200,215,.28)';
+    g.fillText(st[2], sx, PY - sh + h*0.045);
+    g.restore();
+  });
+
+  /* your car, on your step */
+  const img = SP.player;
+  if(img){
+    const off = trophyPlace === 1 ? 0 : trophyPlace === 2 ? -1 : 1;
+    const stH = h*0.10 * (off === 0 ? 1 : off < 0 ? 0.62 : 0.44) + h*0.03;
+    const cw = w*0.30, ch = cw*img.height/img.width;
+    g.drawImage(img, w*0.5 + off*stepW*1.02 - cw/2, PY - stH - ch + 2, cw, ch);
+  }
+
+  /* the trophy, standing beside the podium */
+  const tx = w*0.80, ty = PY - h*0.02, ts = Math.min(w*0.16, 76);
+  g.save();
+  g.translate(tx, ty);
+  const mg = g.createLinearGradient(-ts*0.5,-ts,ts*0.5,ts*0.3);
+  mg.addColorStop(0,M[0]); mg.addColorStop(0.5,M[1]); mg.addColorStop(1,M[2]);
+  g.fillStyle = mg;
+  /* bowl */
+  g.beginPath();
+  g.moveTo(-ts*0.42,-ts*0.92); g.lineTo(ts*0.42,-ts*0.92);
+  g.lineTo(ts*0.42,-ts*0.62); g.quadraticCurveTo(ts*0.42,-ts*0.12, 0,-ts*0.12);
+  g.quadraticCurveTo(-ts*0.42,-ts*0.12,-ts*0.42,-ts*0.62);
+  g.closePath(); g.fill();
+  /* handles */
+  g.lineWidth = ts*0.075; g.strokeStyle = mg;
+  g.beginPath(); g.arc(-ts*0.52,-ts*0.62, ts*0.19, -1.2, 1.9); g.stroke();
+  g.beginPath(); g.arc( ts*0.52,-ts*0.62, ts*0.19, 1.24, 4.3); g.stroke();
+  /* stem and base */
+  g.fillStyle = mg;
+  g.fillRect(-ts*0.07,-ts*0.14, ts*0.14, ts*0.20);
+  g.fillRect(-ts*0.24, ts*0.06, ts*0.48, ts*0.07);
+  g.fillStyle = '#2a2230';
+  g.fillRect(-ts*0.34, ts*0.13, ts*0.68, ts*0.16);
+  /* a shine that travels across it */
+  g.save();
+  g.globalCompositeOperation='lighter';
+  const sh2 = ((T*0.5) % 1) * ts*1.4 - ts*0.7;
+  const shg = g.createLinearGradient(sh2-ts*0.16, 0, sh2+ts*0.16, 0);
+  shg.addColorStop(0,'rgba(255,255,255,0)');
+  shg.addColorStop(0.5,'rgba(255,255,255,.30)');
+  shg.addColorStop(1,'rgba(255,255,255,0)');
+  g.fillStyle = shg;
+  g.fillRect(-ts*0.45,-ts*0.95, ts*0.9, ts*0.85);
+  g.restore();
+  g.restore();
+
+  /* confetti, only for a win, falling and tumbling through the beam */
+  if(trophyPlace === 1){
+    for(let i=0;i<54;i++){
+      const sp = 0.35 + (i%7)*0.06;
+      const life = ((T*sp + i*0.137) % 1);
+      const cx2 = ((i*89) % w) + Math.sin(T*1.2 + i)*w*0.05;
+      const cy2 = life * (PY + h*0.12);
+      const rot = T*3 + i;
+      g.save();
+      g.translate(cx2, cy2); g.rotate(rot);
+      g.globalAlpha = Math.min(1, (1-life)*2.4);
+      g.fillStyle = ['#e8b23a','#ff5a7a','#5bd6c8','#c3ff4a','#f4f4f8'][i%5];
+      g.fillRect(-3, -1.6, 6, 3.2);
+      g.restore();
+    }
+  }
+
+  /* dust hanging in the light */
+  for(let i=0;i<28;i++){
+    const dy = ((i*i*11 + T*7) % h);
+    const dx = w*0.34 + ((i*53) % Math.round(w*0.32));
+    g.fillStyle = 'rgba(255,240,205,.10)';
+    g.fillRect(dx, dy, 1.4, 1.4);
+  }
+
+  if(document.body.classList.contains('trophying'))
+    requestAnimationFrame(drawTrophyArt);
+}
+
+/* ---- WHAT YOU WON --------------------------------------------------------
+   A trophy tells you how you did; this tells you what you GOT. The car itself,
+   large, in your own paint, with the numbers that make it worth driving.
+   -------------------------------------------------------------------------- */
+function showUnlock(key){
+  const was = optBody;
+  optBody = key; buildSprites();
+  const B = BODY[key];
+  document.body.classList.remove('trophying');
+  openVeil(
+    '<div class="eyebrow">UNLOCKED</div>' +
+    '<canvas id="gcar" width="300" height="180"></canvas>' +
+    '<div class="gname">' + key + '</div>' +
+    '<div class="gnote">' + B.note + '</div>' +
+    '<div class="grid2">' +
+      '<div class="gc"><span>TOP SPEED</span><b>' + Math.round(B.vmax*200) + ' MPH</b></div>' +
+      '<div class="gc"><span>GEARBOX</span><b>' + (B.gears || 6) + '-SPEED</b></div>' +
+      '<div class="gc"><span>REDLINE</span><b>' + ((B.redline||12000)/1000) + 'K</b></div>' +
+      '<div class="gc"><span>0\u201360 MPH</span><b>' + zeroSixty(key).toFixed(1) + 's</b></div>' +
+    '</div>' +
+    (key === 'TYPE-C'
+      ? '<div class="gnote">20 MILES \u00B7 ON THE CLOCK \u00B7 UNDER PURSUIT</div>'
+      : '') +
+    '<div class="gstack">' +
+      '<button class="go" data-act="drive">DRIVE IT</button>' +
+      '<button class="go ghost" data-act="keep">KEEP MY CAR</button>' +
+    '</div>',
+    { drive: () => { tourOn = false; showGarage(); },
+      keep:  () => { optBody = was; buildSprites(); tourOn = false; showGarage(); } });
+  drawGarageCar();
+}
+
+function showTrophy(st){
+  trophyPlace = st; trophyT = performance.now();
+  document.body.classList.remove('titling');
+  document.body.classList.add('trophying');
+  requestAnimationFrame(drawTrophyArt);
+  const NAME = st === 1 ? 'GOLD' : st === 2 ? 'SILVER' : st === 3 ? 'BRONZE' : 'P' + st;
+  /* the four races, and where the points came from */
+  const rows = tourField.slice().sort((a,b)=>b.pts-a.pts).slice(0,3);
+  openVeil(
+    '<div class="eyebrow">TOURNAMENT COMPLETE</div>' +
+    '<h1>' + NAME + '<u>' + (st === 1 ? 'CHAMPION' : 'FINAL STANDING') + '</u></h1>' +
+    '<div class="grid2">' +
+      '<div class="gc"><span>POINTS</span><b>' + tourPts + '</b></div>' +
+      '<div class="gc"><span>PLACE</span><b>P' + st + '</b></div>' +
+    '</div>' +
+    (st === 1
+      ? '<div class="gnote">TYPE-Z UNLOCKED \u00b7 FORMULA \u00b7 NO COMPROMISE</div>'
+      : '<div class="tip">A GOLD UNLOCKS THE FOURTH CAR</div>') +
+    '<div class="gstack">' +
+      (st <= 3 ? '<button class="go" data-act="unlock">SEE YOUR NEW CAR</button>' : '') +
+      '<button class="go' + (st <= 3 ? ' ghost' : '') + '" data-act="again">NEW TOURNAMENT</button>' +
+      '<button class="go ghost" data-act="menu">MAIN MENU</button>' +
+    '</div>',
+    { again: () => { document.body.classList.remove('trophying');
+                     tourReset(); showGarage(); },
+      unlock: () => showUnlock(st === 1 ? 'TYPE-Z' : st === 2 ? 'TYPE-T' : 'TYPE-M'),
+      menu:  () => { document.body.classList.remove('trophying');
+                     tourOn = false; showTitle(); } });
+}
+
 function showEnd(reason){
   openVeil(
     '<div class="eyebrow">'+reason+'</div>'+
@@ -6194,6 +8139,8 @@ if (AR && AR.options) AR.options.define([
     if(g0.body && BODY[g0.body]) optBody = g0.body;
     if(g0.paint && PAINT[g0.paint]) optPaint = g0.paint;
     if(typeof g0.manual === 'boolean') optManual = g0.manual;
+    if(typeof g0.timed === 'boolean') timedRun = g0.timed;
+    if(typeof g0.stripes === 'boolean') optStripes = g0.stripes;
   }
   buildSprites();
 })();
