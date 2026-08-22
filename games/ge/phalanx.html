@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0b0d0e">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Phalanx</title>
+<meta name="arcade-home" content="../../index.html#ge">
+<meta name="arcade-title" content="Phalanx">
+<meta name="arcade-accent" content="#c3ff4a">
+<script src="../../audio.js"></script>
+<script src="../../arcade.js"></script>
+<style>
+@font-face{font-family:"Major Mono Display";font-style:normal;font-weight:400;font-display:swap;src:url("../../fonts/majormonodisplay-400.woff2") format("woff2")}
+@font-face{font-family:"Cutive Mono";font-style:normal;font-weight:400;font-display:swap;src:url("../../fonts/cutivemono-400.woff2") format("woff2")}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;overflow:hidden;background:#0b0d0e;
+  font-family:"Cutive Mono",ui-monospace,monospace;color:#d6dbd2;
+  user-select:none;-webkit-user-select:none}
+#stage{position:fixed;inset:0;display:flex;flex-direction:column;padding-top:var(--safe-top,0px)}
+#head{flex:none;display:flex;justify-content:space-between;align-items:baseline;
+  padding:9px 14px 5px;font-size:9px;letter-spacing:.20em;color:#6d7566}
+#head b{font-size:17px;color:#c3ff4a;font-weight:700;font-variant-numeric:tabular-nums}
+#wrap{flex:1;position:relative;display:grid;place-items:center;min-height:0;
+  padding:0 6px calc(6px + var(--safe-bot,0px))}
+#plate{display:block;touch-action:none;border-radius:2px;
+  box-shadow:0 0 0 1px #232620, 0 18px 50px -20px #000}
+#veil{position:fixed;inset:0;background:rgba(9,11,12,.95);display:grid;place-items:center;
+  padding:26px;text-align:center;z-index:40}
+#veil.hidden{display:none}
+#veilBody{max-width:330px;width:100%}
+.eyebrow{font-size:9px;letter-spacing:.26em;color:#c3ff4a;margin-bottom:9px}
+h1{font-family:"Major Mono Display",sans-serif;font-size:40px;font-weight:800;margin:0;
+  letter-spacing:-.02em;line-height:1;color:#eef2e8}
+h1 em{display:block;font-family:"Cutive Mono",monospace;font-size:9.5px;font-style:normal;
+  font-weight:400;letter-spacing:.24em;color:#6d7566;margin-top:9px}
+.tmenu{display:flex;flex-direction:column;gap:8px;max-width:240px;margin:24px auto 0}
+.btn{padding:14px 0;width:100%;border:0;border-radius:3px;cursor:pointer;font:inherit;
+  font-size:11.5px;letter-spacing:.18em;background:#c3ff4a;color:#12180a}
+.btn.ghost{background:transparent;color:#c3ff4a;border:1px solid rgba(195,255,74,.34)}
+.btn:active{opacity:.85}
+.ctrls{margin:16px auto 0;max-width:290px}
+.crow{display:flex;justify-content:space-between;gap:12px;align-items:baseline;padding:7px 2px;
+  border-bottom:1px solid rgba(255,255,255,.07);font-size:12px;text-align:left}
+.crow b{font-weight:600;white-space:nowrap}
+.crow i{font-style:normal;color:#8d9484;text-align:right}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:18px}
+.gc{border:1px solid #262a22;border-radius:3px;padding:9px}
+.gc span{display:block;font-size:8px;letter-spacing:.18em;color:#6d7566}
+.gc b{display:block;font-size:17px;margin-top:3px;font-variant-numeric:tabular-nums}
+/* ---------------------------------------------------------------------------
+   PORTRAIT ON A PHONE, WIDE ON A DESKTOP
+
+   The manifest pins the INSTALLED app to portrait, but a browser tab cannot be
+   forced — `screen.orientation.lock()` only works from fullscreen and throws
+   everywhere else. So: on a touch device held sideways, a panel asks for it
+   back. On a desktop there is no such thing as the wrong orientation, and a
+   wide window is exactly what we want, so the panel never appears there.
+
+   The test is POINTER TYPE, not width. A landscape phone and a small laptop
+   window are the same number of pixels and want opposite things.
+   --------------------------------------------------------------------------- */
+#rotate{
+  position:fixed;inset:0;z-index:9000;display:none;
+  place-items:center;text-align:center;padding:28px;
+  background:#07050b;color:#e8e2f4;
+  font-family:var(--px,ui-monospace,monospace);
+}
+#rotate b{display:block;font-size:12px;letter-spacing:.22em;color:var(--gold,#e8b23a);margin-bottom:14px}
+#rotate span{display:block;font-size:10px;letter-spacing:.14em;color:#8a8296;line-height:2}
+#rotate i{display:block;width:52px;height:82px;margin:0 auto 22px;
+  border:2px solid rgba(232,178,58,.65);border-radius:8px;
+  transform:rotate(90deg);animation:rot 2.4s ease-in-out infinite}
+@keyframes rot{0%,40%{transform:rotate(90deg)}60%,100%{transform:rotate(0deg)}}
+@media (orientation:landscape) and (pointer:coarse){
+  body.lock-portrait #rotate{display:grid}
+}
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="head">
+    <div>SCORE <b id="sc">0</b></div>
+    <div>WAVE <b id="wv">1</b></div>
+    <div>LIVES <b id="lv">3</b></div>
+  </div>
+  <div id="wrap"><canvas id="plate"></canvas></div>
+</div>
+<div id="veil"><div id="veilBody"></div></div>
+<script>
+(function(){
+"use strict";
+const AR = window.Arcade, $ = id => document.getElementById(id);
+const cv = $('plate'), g = cv.getContext('2d');
+const veil = $('veil'), veilBody = $('veilBody');
+
+/* Logical field: 320 x 440. */
+const W = 320, H = 440;
+let S = 1;
+
+const ROWS = 5, COLS = 11;
+let form, dir, dropPending, shot, bombs, shields, ship, bonus;
+let score, lives, wave, best, state, alive, marchAcc, stepIdx, runs = 0;
+let deadT = 0, flashes = [];
+
+/* ---- the ranks ---------------------------------------------------------
+   Three body plans, worst at the back. Drawn as pale silhouettes on a grey
+   wash with a suggestion of structure inside — an x-ray plate of something
+   marine, rather than green pixel aliens. */
+const PLAN = ['medusa','crab','louse'];
+function planFor(r){ return r === 0 ? 'medusa' : r < 3 ? 'crab' : 'louse'; }
+function valueFor(r){ return r === 0 ? 30 : r < 3 ? 20 : 10; }
+
+function buildWave(){
+  form = [];
+  const x0 = 26, y0 = 58 + Math.min(60, (wave-1) * 8), dx = 25, dy = 24;
+  for(let r=0;r<ROWS;r++)
+    for(let c=0;c<COLS;c++)
+      form.push({ x:x0 + c*dx, y:y0 + r*dy, r, c, alive:true,
+                  plan:planFor(r), val:valueFor(r), wob:0 });
+  alive = form.length;
+  dir = 1; dropPending = false; marchAcc = 0; stepIdx = 0;
+  bombs = []; shot = null; bonus = null;
+}
+
+function buildShields(){
+  /* Four blocks, each a grid of cells that erode one at a time. */
+  shields = [];
+  const bw = 7, bh = 5, cell = 5;
+  for(let i=0;i<4;i++){
+    const ox = 30 + i * 70, oy = H - 92;
+    const cells = [];
+    for(let r=0;r<bh;r++)
+      for(let c=0;c<bw;c++){
+        /* notch the underside so it reads as a bunker */
+        if(r >= bh-2 && c > 1 && c < bw-2) continue;
+        cells.push({ x:ox + c*cell, y:oy + r*cell, hp:2 });
+      }
+    shields.push(cells);
+  }
+}
+
+/* ---- march -------------------------------------------------------------
+   The formation speeds up as it thins, so killing them is what makes them
+   dangerous. This is the whole design and the tempo is the readout. */
+function stepInterval(){
+  const frac = alive / (ROWS*COLS);
+  const base = 0.62 - (wave-1)*0.045;
+  return Math.max(0.055, base * (0.22 + frac*0.78));
+}
+
+function march(){
+  let hitEdge = false;
+  for(const e of form){
+    if(!e.alive) continue;
+    const nx = e.x + dir * 8;
+    if(nx < 12 || nx > W - 24) hitEdge = true;
+  }
+  if(hitEdge){
+    dir = -dir;
+    for(const e of form) if(e.alive) e.y += 14;
+  } else {
+    for(const e of form) if(e.alive) e.x += dir * 8;
+  }
+  stepIdx = (stepIdx + 1) % 4;
+  snd.march(stepIdx);
+  for(const e of form) if(e.alive) e.wob = e.wob ? 0 : 1;
+
+  /* they drop when they are close and when there are few of them */
+  const chance = 0.08 + (1 - alive/(ROWS*COLS)) * 0.30 + (wave-1)*0.03;
+  if(Math.random() < chance) dropBomb();
+
+  for(const e of form){
+    if(!e.alive) continue;
+    if(e.y > H - 96){ landfall(); return; }
+  }
+}
+
+function dropBomb(){
+  /* only the lowest of a column can fire — the rank in front shields the rest */
+  const cols = {};
+  for(const e of form){
+    if(!e.alive) continue;
+    if(!cols[e.c] || e.y > cols[e.c].y) cols[e.c] = e;
+  }
+  const keys = Object.keys(cols);
+  if(!keys.length) return;
+  const e = cols[keys[(Math.random()*keys.length)|0]];
+  bombs.push({ x:e.x + 8, y:e.y + 14, vy: 1.5 + wave*0.12, wig:Math.random()*6.28 });
+}
+
+/* ---- step -------------------------------------------------------------- */
+function step(dt){
+  if(state !== 'play'){ return; }
+  const k = Math.min(2.2, dt*60);
+
+  if(deadT > 0){ deadT -= dt; if(deadT <= 0) respawn(); return; }
+
+  marchAcc += dt;
+  if(marchAcc >= stepInterval()){ marchAcc = 0; march(); }
+  /* Keep the shell's music clock in step with the formation. The march is the
+     bed — there is no separate loop — so the tempo the player hears IS the
+     difficulty readout, and re-arming it here keeps the two from drifting. */
+  const want = Math.round(60 / Math.max(0.055, stepInterval()));
+  if(want !== bedBpm){ bedBpm = want; armBed(); }
+
+  /* the one shot */
+  if(shot){
+    shot.y -= 6.2 * k;
+    if(shot.y < 30){ shot = null; }
+    else {
+      if(hitShields(shot.x, shot.y, true)) shot = null;
+    }
+    if(shot){
+      for(const e of form){
+        if(!e.alive) continue;
+        if(shot.x > e.x-2 && shot.x < e.x+18 && shot.y > e.y-2 && shot.y < e.y+15){
+          e.alive = false; alive--;
+          score += e.val * wave;
+          flashes.push({ x:e.x+8, y:e.y+7, t:1 });
+          shot = null; snd.hit(e.r);
+          if(alive <= 0) nextWave();
+          break;
+        }
+      }
+    }
+    if(shot && bonus && shot.x > bonus.x-4 && shot.x < bonus.x+26 &&
+       shot.y > bonus.y-4 && shot.y < bonus.y+12){
+      score += bonus.val * wave;
+      flashes.push({ x:bonus.x+11, y:bonus.y+5, t:1 });
+      bonus = null; shot = null; snd.bonusHit();
+    }
+  }
+
+  for(let i=bombs.length-1;i>=0;i--){
+    const b = bombs[i];
+    b.y += b.vy * k;
+    b.wig += 0.3 * k;
+    if(b.y > H){ bombs.splice(i,1); continue; }
+    if(hitShields(b.x, b.y, false)){ bombs.splice(i,1); continue; }
+    if(b.y > H-42 && b.y < H-26 && Math.abs(b.x - ship.x) < 13){
+      bombs.splice(i,1); killShip(); continue;
+    }
+  }
+
+  /* the bonus craft */
+  if(!bonus && Math.random() < 0.0016 * k * 60){
+    const fromLeft = Math.random() < 0.5;
+    bonus = { x: fromLeft ? -26 : W, vx: fromLeft ? 0.9 : -0.9,
+              y: 40, val: [50,100,150,300][(Math.random()*4)|0] };
+    snd.bonusIn();
+  }
+  if(bonus){
+    bonus.x += bonus.vx * k;
+    if(bonus.x < -40 || bonus.x > W + 40) bonus = null;
+  }
+
+  for(let i=flashes.length-1;i>=0;i--){ flashes[i].t -= 0.07*k; if(flashes[i].t<=0) flashes.splice(i,1); }
+  paintHud();
+}
+
+function hitShields(x, y, fromPlayer){
+  for(const block of shields){
+    for(let i=0;i<block.length;i++){
+      const c = block[i];
+      if(x < c.x || x > c.x+5 || y < c.y || y > c.y+5) continue;
+      c.hp--;
+      snd.chip();
+      if(c.hp <= 0) block.splice(i,1);
+      return true;
+    }
+  }
+  return false;
+}
+
+function fire(){
+  if(state !== 'play' || shot || deadT > 0) return;
+  /* ONE shot in flight. Every trigger pull is a decision. */
+  shot = { x: ship.x, y: H - 46 };
+  snd.fire();
+}
+
+function killShip(){
+  lives--;
+  deadT = 1.1;
+  snd.die();
+  flashes.push({ x:ship.x, y:H-36, t:1.6 });
+  paintHud();
+  if(lives <= 0) gameOver();
+}
+function respawn(){ ship.x = W/2; bombs = []; }
+function landfall(){ lives = 0; snd.die(); gameOver(); }
+
+function nextWave(){
+  wave++;
+  snd.wave();
+  score += 150 * wave;
+  buildWave();
+  paintHud();
+}
+
+/* ---- audio ------------------------------------------------------------- */
+const MARCH = [55.00, 51.91, 49.00, 46.25];   /* four notes, walking down */
+
+/* The bed is the march itself. Arcade.music.start owns the clock so the bed
+   sits on the music bus, obeys the music mute and the volume slider, and stops
+   with the game — everything a separate loop would have given us, without a
+   second thing to keep in sync with the formation. */
+let bedBpm = 0;
+function armBed(){
+  if(!AR || !AR.music) return;
+  AR.music.stop();
+  AR.music.start(bedBpm || 96, 1, () => {});
+}
+function stopBed(){ if(AR && AR.music) AR.music.stop(); bedBpm = 0; }
+const snd = {
+  march(i){
+    if(!AR) return;
+    /* the bed IS the march — no separate loop, so tempo is difficulty */
+    AR.sfx.tone({ freq:MARCH[i], dur:0.16, type:'square', gain:0.085,
+                  attack:0.004, cutoff:420, bus:'music' });
+    AR.sfx.tone({ freq:MARCH[i]*2, dur:0.10, type:'triangle', gain:0.030,
+                  attack:0.004, cutoff:700, bus:'music' });
+  },
+  fire(){ if(AR) AR.sfx.tone({ freq:760, to:1500, dur:0.10, type:'square', gain:0.055, cutoff:2600 }); },
+  hit(row){ if(AR){ AR.sfx.noise({ freq:1400 - row*160, dur:0.13, gain:0.075, filter:'bandpass' });
+                    AR.sfx.tone({ freq:400 - row*40, to:120, dur:0.12, type:'square', gain:0.04 }); } },
+  chip(){ if(AR) AR.sfx.noise({ freq:2600, dur:0.035, gain:0.035, filter:'highpass' }); },
+  die(){ if(AR){ AR.sfx.noise({ freq:700, to:90, dur:0.75, gain:0.11, filter:'lowpass' });
+                 AR.sfx.tone({ freq:180, to:40, dur:0.8, type:'sawtooth', gain:0.07, cutoff:600 }); } },
+  bonusIn(){ if(!AR) return;
+    for(let i=0;i<8;i++) AR.sfx.tone({ t:AR.audio.ctx.currentTime + i*0.07,
+      freq: i%2 ? 880 : 660, dur:0.06, type:'sine', gain:0.035 }); },
+  bonusHit(){ if(!AR) return; [0,1,2,3].forEach(i =>
+    AR.sfx.tone({ t:AR.audio.ctx.currentTime + i*0.05, freq:660*Math.pow(1.26,i),
+                  dur:0.16, type:'sine', gain:0.07, verb:0.4 })); },
+  wave(){ if(AR) AR.sfx.tone({ freq:220, to:660, dur:0.5, type:'square', gain:0.075, cutoff:2000 }); }
+};
+
+/* ---- draw -------------------------------------------------------------- */
+function fit(){
+  const wrap = $('wrap');
+  const aw = wrap.clientWidth - 4, ah = wrap.clientHeight - 4;
+  S = Math.min(aw / W, ah / H);
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  cv.width = Math.round(W*S*dpr); cv.height = Math.round(H*S*dpr);
+  cv.style.width = (W*S)+'px'; cv.style.height = (H*S)+'px';
+  g.setTransform(dpr*S,0,0,dpr*S,0,0);
+  draw();
+}
+function fitTight(){
+  fit();
+  for(let i=0;i<6;i++){
+    const r = cv.getBoundingClientRect();
+    if(r.right <= window.innerWidth && r.bottom <= $('wrap').getBoundingClientRect().bottom + 1) break;
+    S *= 0.97;
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    cv.width = Math.round(W*S*dpr); cv.height = Math.round(H*S*dpr);
+    cv.style.width = (W*S)+'px'; cv.style.height = (H*S)+'px';
+    g.setTransform(dpr*S,0,0,dpr*S,0,0);
+  }
+  draw();
+}
+
+/* the specimens, as pale forms with structure showing through */
+function creature(x, y, plan, wob){
+  const white = '#e8ede2';
+  g.fillStyle = white;
+  if(plan === 'medusa'){
+    g.beginPath(); g.ellipse(x+8, y+5, 8, 5.5, 0, Math.PI, 0); g.fill();
+    g.fillRect(x, y+5, 16, 2);
+    for(let i=0;i<4;i++){
+      const tx = x + 2 + i*4 + (wob ? 1 : -1);
+      g.fillRect(tx, y+7, 1.6, 6 + (i%2)*2);
+    }
+  } else if(plan === 'crab'){
+    g.fillRect(x+3, y+2, 10, 8);
+    g.fillRect(x+1, y+4, 2, 4); g.fillRect(x+13, y+4, 2, 4);
+    g.fillRect(x + (wob?0:2), y+10, 3, 3);
+    g.fillRect(x+11 + (wob?2:0), y+10, 3, 3);
+    g.fillRect(x+5, y, 2, 2); g.fillRect(x+9, y, 2, 2);
+  } else {
+    g.beginPath(); g.ellipse(x+8, y+6, 7, 5, 0, 0, 6.2832); g.fill();
+    for(let i=0;i<3;i++){
+      g.fillRect(x+2 + i*5, y+10, 1.5, wob ? 4 : 3);
+      g.fillRect(x+2 + i*5, y+1, 1.5, wob ? 3 : 4);
+    }
+  }
+  /* the bone: a darker core, so it reads as a plate rather than a sticker */
+  g.fillStyle = 'rgba(20,24,20,.42)';
+  if(plan === 'medusa') g.fillRect(x+6, y+1, 4, 3);
+  else if(plan === 'crab'){ g.fillRect(x+6, y+4, 4, 4); }
+  else g.fillRect(x+6, y+4, 4, 3);
+}
+
+function draw(){
+  g.fillStyle = '#131615';
+  g.fillRect(0,0,W,H);
+  /* the wash: a plate, slightly uneven */
+  const wash = g.createLinearGradient(0,0,0,H);
+  wash.addColorStop(0,'rgba(255,255,255,.045)');
+  wash.addColorStop(0.5,'rgba(255,255,255,.015)');
+  wash.addColorStop(1,'rgba(0,0,0,.20)');
+  g.fillStyle = wash; g.fillRect(0,0,W,H);
+
+  g.strokeStyle = 'rgba(195,255,74,.16)';
+  g.lineWidth = 1;
+  g.beginPath(); g.moveTo(0, H-24.5); g.lineTo(W, H-24.5); g.stroke();
+
+  for(const e of form) if(e.alive) creature(e.x, e.y, e.plan, e.wob);
+
+  if(bonus){
+    g.fillStyle = '#c3ff4a';
+    g.beginPath(); g.ellipse(bonus.x+11, bonus.y+5, 12, 4.5, 0, 0, 6.2832); g.fill();
+    g.fillStyle = 'rgba(20,24,20,.5)';
+    g.fillRect(bonus.x+7, bonus.y+3, 8, 3);
+  }
+
+  for(const block of shields)
+    for(const c of block){
+      g.fillStyle = c.hp > 1 ? 'rgba(195,255,74,.72)' : 'rgba(195,255,74,.34)';
+      g.fillRect(c.x, c.y, 5, 5);
+    }
+
+  if(shot){ g.fillStyle = '#eef2e8'; g.fillRect(shot.x-1, shot.y-7, 2, 8); }
+
+  for(const b of bombs){
+    g.fillStyle = '#e8ede2';
+    const wig = Math.sin(b.wig) * 1.6;
+    g.fillRect(b.x-1+wig, b.y-5, 2, 4);
+    g.fillRect(b.x-1-wig, b.y-1, 2, 4);
+  }
+
+  if(deadT <= 0 || Math.floor(deadT*10) % 2 === 0){
+    g.fillStyle = '#c3ff4a';
+    g.fillRect(ship.x-12, H-34, 24, 6);
+    g.fillRect(ship.x-3, H-40, 6, 6);
+    g.fillStyle = 'rgba(255,255,255,.4)';
+    g.fillRect(ship.x-12, H-34, 24, 1.5);
+  }
+
+  for(const f of flashes){
+    g.fillStyle = 'rgba(255,255,255,' + Math.min(1,f.t) + ')';
+    const rr = (1.4-Math.min(1,f.t)) * 12;
+    g.beginPath(); g.arc(f.x, f.y, rr, 0, 6.2832); g.fill();
+  }
+}
+
+function paintHud(){
+  $('sc').textContent = score.toLocaleString();
+  $('wv').textContent = wave;
+  $('lv').textContent = Math.max(0, lives);
+}
+
+let last = 0;
+function frame(now){
+  requestAnimationFrame(frame);
+  const dt = Math.min(0.05,(now-last)/1000) || 0;
+  last = now;
+  step(dt); draw();
+}
+
+/* ---- state ------------------------------------------------------------- */
+function reset(){
+  score = 0; lives = 3; wave = 1; deadT = 0; flashes = [];
+  ship = { x: W/2 };
+  buildWave(); buildShields(); paintHud();
+}
+function start(){ runs++; reset(); state='play'; veil.classList.add('hidden'); fitTight(); bedBpm = 96; armBed(); }
+function gameOver(){
+  state = 'over';
+  stopBed();
+  const sv = AR && AR.save ? AR.save.get('phalanx') : null;
+  best = Math.max((sv && sv.best) || 0, score);
+  if(AR && AR.save) AR.save.merge('phalanx', { best, wave, label:'BEST ' + best.toLocaleString() });
+  showOver();
+}
+
+/* ---- panels ------------------------------------------------------------ */
+function openVeil(html, acts){
+  veilBody.innerHTML = html;
+  veil.classList.remove('hidden');
+  veilBody.querySelectorAll('[data-act]').forEach(b =>
+    b.addEventListener('click', () => { const fn = acts && acts[b.dataset.act]; if(fn) fn(); }));
+}
+function showTitle(){
+  state='title';
+  openVeil('<h1>Phalanx</h1>' +
+    '<div class="tmenu">' +
+      '<button class="btn" data-act="play">PLAY</button>' +
+      '<button class="btn ghost" data-act="opts">OPTIONS</button>' +
+      '<button class="btn ghost" data-act="quit">QUIT</button>' +
+    '</div>',
+    { play:start, opts:showOptions, quit:()=>{ if(AR&&AR.home) AR.home(); } });
+}
+function showOptions(){
+  openVeil('<div class="eyebrow">PHALANX</div><h1>Options</h1>' +
+    '<div class="tmenu">' +
+      '<button class="btn ghost" data-act="ctrl">CONTROLS</button>' +
+      '<button class="btn" data-act="back">BACK</button>' +
+    '</div>', { ctrl:showControls, back:showTitle });
+}
+function showControls(){
+  const touch = !!(AR && AR.touch);
+  const v = touch ? 'Drag' : 'Drag, or arrow keys';
+  const rows = [
+    [v, 'move along the line'],
+    [touch ? 'Tap' : 'Tap, or space', 'fire'],
+    ['One shot at a time', 'wait for it to land or miss'],
+    ['They speed up as they thin', 'the last one is the fastest'],
+    ['Pause, top right', 'options']
+  ];
+  openVeil('<div class="eyebrow">' + (touch?'TOUCH':'POINTER') + '</div><h1>Controls</h1>' +
+    '<div class="ctrls">' + rows.map(r=>'<div class="crow"><b>'+r[0]+'</b><i>'+r[1]+'</i></div>').join('') + '</div>' +
+    '<button class="btn" data-act="back" style="margin-top:16px">BACK</button>', { back:showOptions });
+}
+function showOver(){
+  openVeil('<div class="eyebrow">' + (alive > 0 ? 'THEY REACHED THE LINE' : 'SHIP LOST') + '</div>' +
+    '<h1>' + score.toLocaleString() + '<em>FINAL SCORE</em></h1>' +
+    '<div class="grid2">' +
+      '<div class="gc"><span>WAVE</span><b>' + wave + '</b></div>' +
+      '<div class="gc"><span>BEST</span><b>' + best.toLocaleString() + '</b></div>' +
+    '</div>' +
+    '<div class="tmenu">' +
+      '<button class="btn" data-act="again">PLAY AGAIN</button>' +
+      '<button class="btn ghost" data-act="title">TITLE</button>' +
+    '</div>', { again:start, title:showTitle });
+}
+
+/* ---- input ------------------------------------------------------------- */
+let px0=0, sh0=0, dragging=false, moved=false;
+const toLogical = x => { const r = cv.getBoundingClientRect(); return (x - r.left)/S; };
+cv.addEventListener('pointerdown', e => {
+  cv.setPointerCapture(e.pointerId);
+  dragging=true; moved=false; px0=toLogical(e.clientX); sh0=ship.x;
+});
+cv.addEventListener('pointermove', e => {
+  if(!dragging || state!=='play') return;
+  const d = toLogical(e.clientX) - px0;
+  if(Math.abs(d) > 2) moved = true;
+  ship.x = Math.max(14, Math.min(W-14, sh0 + d));
+});
+cv.addEventListener('pointerup', () => {
+  if(dragging && !moved && state==='play') fire();
+  dragging=false;
+});
+window.addEventListener('keydown', e => {
+  if(state!=='play'){
+    if(e.key==='Enter'||e.key===' '){ const b=veilBody.querySelector('.btn'); if(b){ e.preventDefault(); b.click(); } }
+    return;
+  }
+  if(e.key==='ArrowLeft'){ e.preventDefault(); ship.x=Math.max(14, ship.x-16); }
+  else if(e.key==='ArrowRight'){ e.preventDefault(); ship.x=Math.min(W-14, ship.x+16); }
+  else if(e.key===' '){ e.preventDefault(); fire(); }
+});
+if(AR && AR.pad) AR.pad.onPress(name => {
+  if(AR.paused && AR.paused()) return;
+  if(state!=='play'){ if(name==='a'||name==='start'){ const b=veilBody.querySelector('.btn'); if(b) b.click(); } return; }
+  if(name==='left') ship.x=Math.max(14, ship.x-16);
+  else if(name==='right') ship.x=Math.min(W-14, ship.x+16);
+  else if(name==='a') fire();
+});
+if(AR && AR.onRestart) AR.onRestart(start);
+window.addEventListener('resize', fitTight);
+if(window.ResizeObserver) new ResizeObserver(fitTight).observe($('wrap'));
+
+const sv0 = AR && AR.save ? AR.save.get('phalanx') : null;
+best = (sv0 && sv0.best) || 0;
+reset(); fit(); showTitle();
+requestAnimationFrame(()=>{ fitTight(); setTimeout(fitTight,200); });
+requestAnimationFrame(frame);
+})();
+</script>
+<div id="rotate"><div><i></i><b>TURN YOUR PHONE</b>
+<span>TINY ARCADE IS PLAYED UPRIGHT</span></div></div>
+<script>
+/* only a device with a coarse pointer gets the portrait lock — a desktop
+   window is free to be any shape, and wide is the better shape there */
+(function(){
+  if(matchMedia('(pointer:coarse)').matches) document.body.classList.add('lock-portrait');
+  /* an installed app can genuinely lock; a tab cannot, and throwing is fine */
+  try{ if(screen.orientation && screen.orientation.lock)
+        screen.orientation.lock('portrait').catch(function(){}); }catch(e){}
+})();
+</script>
+</body>
+</html>

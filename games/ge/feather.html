@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#070a0c">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Feather</title>
+<meta name="arcade-home" content="../../index.html#ge">
+<meta name="arcade-title" content="Feather">
+<meta name="arcade-accent" content="#cfd8e3">
+<script src="../../audio.js"></script>
+<script src="../../arcade.js"></script>
+<style>
+@font-face{font-family:"Space Grotesk";font-style:normal;font-weight:300 700;font-display:swap;src:url("../../fonts/spacegrotesk-var.woff2") format("woff2")}
+@font-face{font-family:"Major Mono Display";font-style:normal;font-weight:400;font-display:swap;src:url("../../fonts/majormonodisplay-400.woff2") format("woff2")}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;overflow:hidden;background:#070a0c;
+  font-family:"Major Mono Display",ui-monospace,monospace;color:#cfd8e3;
+  user-select:none;-webkit-user-select:none}
+#stage{position:fixed;inset:0;display:flex;flex-direction:column;padding-top:var(--safe-top,0px)}
+#head{flex:none;display:flex;justify-content:space-between;align-items:baseline;
+  padding:9px 14px 5px;font-size:9px;letter-spacing:.20em;color:#5f6b78}
+#head b{font-size:17px;color:#cfd8e3;font-weight:700;font-variant-numeric:tabular-nums}
+#wrap{flex:1;position:relative;display:grid;place-items:center;min-height:0;
+  padding:0 6px calc(6px + var(--safe-bot,0px))}
+#glass{display:block;touch-action:none;border-radius:2px;
+  box-shadow:0 0 0 1px #18242c, 0 18px 50px -20px #000}
+#veil{position:fixed;inset:0;background:rgba(6,9,11,.95);display:grid;place-items:center;
+  padding:26px;text-align:center;z-index:40}
+#veil.hidden{display:none}
+#veilBody{max-width:330px;width:100%}
+.eyebrow{font-size:9px;letter-spacing:.26em;color:#7fd4e8;margin-bottom:9px}
+h1{font-family:"Space Grotesk",sans-serif;font-size:42px;font-weight:700;margin:0;
+  letter-spacing:-.02em;line-height:1;color:#eaf2f8}
+h1 em{display:block;font-family:"Major Mono Display",monospace;font-size:9.5px;font-style:normal;
+  font-weight:400;letter-spacing:.24em;color:#5f6b78;margin-top:9px}
+.tmenu{display:flex;flex-direction:column;gap:8px;max-width:240px;margin:24px auto 0}
+.btn{padding:14px 0;width:100%;border:0;border-radius:3px;cursor:pointer;font:inherit;
+  font-size:11.5px;letter-spacing:.18em;background:#cfd8e3;color:#0b1216}
+.btn.ghost{background:transparent;color:#cfd8e3;border:1px solid rgba(207,216,227,.30)}
+.btn:active{opacity:.85}
+.ctrls{margin:16px auto 0;max-width:290px}
+.crow{display:flex;justify-content:space-between;gap:12px;align-items:baseline;padding:7px 2px;
+  border-bottom:1px solid rgba(255,255,255,.07);font-size:12px;text-align:left}
+.crow b{font-weight:600;white-space:nowrap}
+.crow i{font-style:normal;color:#8d99a6;text-align:right}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:18px}
+.gc{border:1px solid #1c2830;border-radius:3px;padding:9px}
+.gc span{display:block;font-size:8px;letter-spacing:.18em;color:#5f6b78}
+.gc b{display:block;font-size:17px;margin-top:3px;font-variant-numeric:tabular-nums}
+/* ---------------------------------------------------------------------------
+   PORTRAIT ON A PHONE, WIDE ON A DESKTOP
+
+   The manifest pins the INSTALLED app to portrait, but a browser tab cannot be
+   forced — `screen.orientation.lock()` only works from fullscreen and throws
+   everywhere else. So: on a touch device held sideways, a panel asks for it
+   back. On a desktop there is no such thing as the wrong orientation, and a
+   wide window is exactly what we want, so the panel never appears there.
+
+   The test is POINTER TYPE, not width. A landscape phone and a small laptop
+   window are the same number of pixels and want opposite things.
+   --------------------------------------------------------------------------- */
+#rotate{
+  position:fixed;inset:0;z-index:9000;display:none;
+  place-items:center;text-align:center;padding:28px;
+  background:#07050b;color:#e8e2f4;
+  font-family:var(--px,ui-monospace,monospace);
+}
+#rotate b{display:block;font-size:12px;letter-spacing:.22em;color:var(--gold,#e8b23a);margin-bottom:14px}
+#rotate span{display:block;font-size:10px;letter-spacing:.14em;color:#8a8296;line-height:2}
+#rotate i{display:block;width:52px;height:82px;margin:0 auto 22px;
+  border:2px solid rgba(232,178,58,.65);border-radius:8px;
+  transform:rotate(90deg);animation:rot 2.4s ease-in-out infinite}
+@keyframes rot{0%,40%{transform:rotate(90deg)}60%,100%{transform:rotate(0deg)}}
+@media (orientation:landscape) and (pointer:coarse){
+  body.lock-portrait #rotate{display:grid}
+}
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="head">
+    <div>SCORE <b id="sc">0</b></div>
+    <div>SITE <b id="st">1</b></div>
+    <div>CRAFT <b id="lv">3</b></div>
+  </div>
+  <div id="wrap"><canvas id="glass"></canvas></div>
+</div>
+<div id="veil"><div id="veilBody"></div></div>
+<script>
+(function(){
+"use strict";
+const AR = window.Arcade, $ = id => document.getElementById(id);
+const cv = $('glass'), g = cv.getContext('2d');
+const veil = $('veil'), veilBody = $('veilBody');
+
+const W = 320, H = 440;
+let S = 1;
+
+/* world is wider than the glass; the camera pans and zooms */
+const WORLD = 900;
+const GRAV = 0.028;
+
+let ship, ground, pads, state, score, lives, site, best, fuel;
+let cam, debris, msg, msgT = 0, deadT = 0, landedT = 0, runs = 0;
+let held = { l:false, r:false, up:false };
+
+function reset(){
+  score = 0; lives = 3; site = 1;
+  newSite(); paintHud();
+}
+
+/* ---- terrain -----------------------------------------------------------
+   A profile of heights, with flat pads cut into it. Smaller pad, bigger
+   multiplier — the whole risk decision of the game.
+   -------------------------------------------------------------------------- */
+function newSite(){
+  const n = 120;
+  ground = new Array(n);
+  let h = H*0.62;
+  for(let i=0;i<n;i++){
+    h += (Math.random()-0.5) * (26 + site*2.5);
+    h = Math.max(H*0.30, Math.min(H*0.86, h));
+    ground[i] = h;
+  }
+  pads = [];
+  const count = Math.max(2, 4 - Math.floor(site/3));
+  const widths = [9, 6, 4, 3];
+  for(let p=0;p<count;p++){
+    const w = widths[Math.min(widths.length-1, p)];
+    let i0 = 8 + ((p*29 + site*11) % (n - w - 16));
+    const y = ground[i0];
+    for(let i=i0;i<i0+w;i++) ground[i] = y;
+    pads.push({ i0, w, y, mult: w>=9?1 : w>=6?2 : w>=4?4 : 6 });
+  }
+
+  ship = { x: 60 + Math.random()*80, y: 40, vx: 0.35 + Math.random()*0.25, vy: 0,
+           a: 0, thrust: 0, alive:true };
+  fuel = 1;
+  cam = { x: ship.x, y: ship.y, z: 1, tz: 1 };
+  debris = []; deadT = 0; landedT = 0;
+}
+
+const gx = i => i / (ground.length-1) * WORLD;
+function heightAt(x){
+  const t = Math.max(0, Math.min(1, x / WORLD)) * (ground.length-1);
+  const i = Math.floor(t), f = t - i;
+  const a = ground[Math.min(ground.length-1, i)], b = ground[Math.min(ground.length-1, i+1)];
+  return a + (b-a)*f;
+}
+function padAt(x){
+  for(const p of pads){
+    if(x >= gx(p.i0) && x <= gx(p.i0 + p.w - 1)) return p;
+  }
+  return null;
+}
+
+/* ---- step -------------------------------------------------------------- */
+function step(dt){
+  if(state !== 'play') return;
+  const k = Math.min(2.4, dt*60);
+
+  if(msgT > 0) msgT -= dt;
+
+  if(landedT > 0){
+    landedT -= dt;
+    if(landedT <= 0){ site++; newSite(); paintHud(); }
+    return;
+  }
+  if(deadT > 0){
+    deadT -= dt;
+    for(const d of debris){
+      d.x += d.vx*k*0.35; d.y += d.vy*k*0.35; d.vy += GRAV*k*0.35; d.rot += d.spin*k*0.35;
+    }
+    if(deadT <= 0){
+      if(lives > 0){ newSite(); }
+      else { gameOver(); return; }
+    }
+    return;
+  }
+
+  if(ship.alive){
+    if(held.l) ship.a -= 0.042*k;
+    if(held.r) ship.a += 0.042*k;
+    const wantThrust = held.up && fuel > 0;
+    ship.thrust += ((wantThrust ? 1 : 0) - ship.thrust) * Math.min(1, dt*12);
+    if(wantThrust){
+      ship.vx += Math.sin(ship.a) * 0.062 * ship.thrust * k;
+      ship.vy -= Math.cos(ship.a) * 0.062 * ship.thrust * k;
+      /* fuel is the real clock */
+      fuel = Math.max(0, fuel - dt*0.055);
+      if(fuel < 0.18 && Math.random() < 0.03) snd.lowFuel();
+    }
+    ship.vy += GRAV*k;
+    ship.x += ship.vx*k; ship.y += ship.vy*k;
+    if(ship.x < 0) ship.x += WORLD;
+    if(ship.x > WORLD) ship.x -= WORLD;
+
+    const gh = heightAt(ship.x);
+    if(ship.y + 7 >= gh) touchdown(gh);
+  }
+
+  /* the camera: it zooms IN as you get close, which is the moment that sells
+     the whole thing — the ground stops being a line and becomes a place */
+  const alt = Math.max(0, heightAt(ship.x) - ship.y - 7);
+  cam.tz = alt < 120 ? (1 + (1 - alt/120) * 1.6) : 1;
+  cam.z += (cam.tz - cam.z) * Math.min(1, dt*3.2);
+  cam.x += (ship.x - cam.x) * Math.min(1, dt*6);
+  cam.y += ((ship.y + 40/cam.z) - cam.y) * Math.min(1, dt*4);
+
+  paintHud();
+}
+
+function touchdown(gh){
+  const p = padAt(ship.x);
+  const vy = ship.vy, vx = Math.abs(ship.vx);
+  const att = Math.abs(((ship.a + Math.PI) % (Math.PI*2)) - Math.PI);
+  /* all three have to be right. any one of them wrong is a crash. */
+  const okV = vy < 0.55, okH = vx < 0.30, okA = att < 0.20;
+  if(p && okV && okH && okA){
+    ship.y = gh - 7; ship.vx = ship.vy = 0; ship.alive = true;
+    const soft = Math.max(0, 1 - vy/0.55);
+    const gained = Math.round((260 * p.mult) + soft*220*p.mult + fuel*400);
+    score += gained;
+    msg = 'DOWN \u00B7 x' + p.mult + ' PAD \u00B7 +' + gained.toLocaleString(); msgT = 2.2;
+    landedT = 2.0;
+    snd.touchdown();
+  } else {
+    crash(okV, okH, okA, p);
+  }
+}
+
+function crash(okV, okH, okA, p){
+  ship.alive = false; lives--; deadT = 2.2;
+  debris = [];
+  for(let i=0;i<14;i++){
+    const a = Math.random()*6.2832;
+    debris.push({ x:ship.x, y:ship.y, vx:Math.cos(a)*(0.6+Math.random()*1.8) + ship.vx,
+                  vy:Math.sin(a)*(0.6+Math.random()*1.8) + ship.vy,
+                  rot:Math.random()*6.28, spin:(Math.random()-0.5)*0.4,
+                  len:2+Math.random()*5 });
+  }
+  msg = !p ? 'NOT A PAD' : !okV ? 'TOO FAST DOWN' : !okH ? 'DRIFTING' : 'NOT LEVEL';
+  msgT = 2.2;
+  snd.crash();
+  paintHud();
+}
+
+/* ---- audio ------------------------------------------------------------- */
+let thrustV = null;
+const snd = {
+  tick(stp, t){
+    if(!AR || state !== 'play') return;
+    /* near-ambient, and it thins toward the ground so the approach is quiet */
+    const alt = Math.max(0, heightAt(ship.x) - ship.y - 7);
+    const near = alt < 140;
+    if(stp % 16 === 0)
+      AR.sfx.tone({ t, freq: 55, dur:2.6, type:'sine', gain: near?0.020:0.050,
+                    attack:1.1, verb:0.7, bus:'music' });
+    if(stp % 16 === 8)
+      AR.sfx.tone({ t, freq: 82.4, dur:2.2, type:'sine', gain: near?0.012:0.034,
+                    attack:1.0, verb:0.7, bus:'music' });
+    /* the beacon: it is the pad, and it keeps pinging while you are high */
+    if(!near && stp % 8 === 4)
+      AR.sfx.tone({ t, freq:1320, dur:0.06, type:'sine', gain:0.030, verb:0.5, bus:'music' });
+  },
+  thrust(on, level){
+    if(!AR) return;
+    if(on && !thrustV){
+      thrustV = AR.sfx.hold ? AR.sfx.hold({ freq:150, type:'noise', gain:0.05, filter:'lowpass' }) : null;
+      if(!thrustV) AR.sfx.noise({ freq:420, dur:0.18, gain:0.05, filter:'lowpass' });
+    }
+    if(on && !AR.sfx.hold && Math.random() < 0.4)
+      AR.sfx.noise({ freq: 300 + level*320, dur:0.10, gain:0.035 + level*0.03, filter:'lowpass' });
+    if(!on && thrustV && thrustV.stop){ thrustV.stop(); thrustV = null; }
+  },
+  lowFuel(){ if(AR) AR.sfx.tone({ freq:1500, dur:0.07, type:'square', gain:0.045 }); },
+  touchdown(){ if(!AR) return;
+    AR.sfx.noise({ freq:180, to:70, dur:0.18, gain:0.06, filter:'lowpass' });
+    AR.sfx.noise({ t:AR.audio.now()+0.13, freq:150, to:60, dur:0.22, gain:0.05, filter:'lowpass' });
+    [0,4,7,12].forEach((n,i) => AR.sfx.tone({ t:AR.audio.now()+0.30+i*0.09,
+      freq:440*Math.pow(2,n/12), dur:0.34, type:'sine', gain:0.06, verb:0.5 })); },
+  crash(){ if(AR){ AR.sfx.noise({ freq:900, to:50, dur:0.9, gain:0.11, filter:'lowpass' });
+                   AR.sfx.tone({ freq:190, to:34, dur:0.95, type:'sawtooth', gain:0.07, cutoff:500 }); } }
+};
+
+/* ---- draw: instrument glass -------------------------------------------- */
+function fit(){
+  const wrap = $('wrap');
+  S = Math.min((wrap.clientWidth-4)/W, (wrap.clientHeight-4)/H);
+  const dpr = Math.min(2, window.devicePixelRatio||1);
+  cv.width=Math.round(W*S*dpr); cv.height=Math.round(H*S*dpr);
+  cv.style.width=(W*S)+'px'; cv.style.height=(H*S)+'px';
+  g.setTransform(dpr*S,0,0,dpr*S,0,0);
+  draw();
+}
+function fitTight(){
+  fit();
+  for(let i=0;i<6;i++){
+    const r = cv.getBoundingClientRect();
+    if(r.right <= window.innerWidth && r.bottom <= $('wrap').getBoundingClientRect().bottom+1) break;
+    S *= 0.97;
+    const dpr = Math.min(2, window.devicePixelRatio||1);
+    cv.width=Math.round(W*S*dpr); cv.height=Math.round(H*S*dpr);
+    cv.style.width=(W*S)+'px'; cv.style.height=(H*S)+'px';
+    g.setTransform(dpr*S,0,0,dpr*S,0,0);
+  }
+  draw();
+}
+
+const toS = (wx, wy) => ({ x: (wx - cam.x)*cam.z + W/2, y: (wy - cam.y)*cam.z + H/2 });
+
+function draw(){
+  g.fillStyle='#080c0f'; g.fillRect(0,0,W,H);
+
+  /* the glass: a faint reticle grid that does not move with the world */
+  g.strokeStyle='rgba(127,212,232,.055)'; g.lineWidth=1;
+  for(let x=0;x<=W;x+=32){ g.beginPath(); g.moveTo(x,0); g.lineTo(x,H); g.stroke(); }
+  for(let y=0;y<=H;y+=32){ g.beginPath(); g.moveTo(0,y); g.lineTo(W,y); g.stroke(); }
+
+  /* the altimeter profile */
+  g.beginPath();
+  let first = true;
+  for(let i=0;i<ground.length;i++){
+    const p = toS(gx(i), ground[i]);
+    if(p.x < -40 || p.x > W+40) { }
+    if(first){ g.moveTo(p.x, p.y); first = false; } else g.lineTo(p.x, p.y);
+  }
+  const last = toS(WORLD, ground[ground.length-1]), firstP = toS(0, ground[0]);
+  g.lineTo(last.x, H+40); g.lineTo(firstP.x, H+40); g.closePath();
+  g.fillStyle='rgba(20,40,50,.55)'; g.fill();
+
+  g.beginPath(); first = true;
+  for(let i=0;i<ground.length;i++){
+    const p = toS(gx(i), ground[i]);
+    if(first){ g.moveTo(p.x, p.y); first=false; } else g.lineTo(p.x, p.y);
+  }
+  g.strokeStyle='rgba(127,212,232,.75)'; g.lineWidth=1.4; g.stroke();
+
+  /* pads, labelled with what they pay */
+  for(const p of pads){
+    const a = toS(gx(p.i0), p.y), b = toS(gx(p.i0+p.w-1), p.y);
+    g.strokeStyle='#7fd4e8'; g.lineWidth=3;
+    g.beginPath(); g.moveTo(a.x, a.y); g.lineTo(b.x, b.y); g.stroke();
+    g.fillStyle='rgba(127,212,232,.85)';
+    g.font=(8*Math.min(1.6,cam.z))+'px "Major Mono Display", monospace';
+    g.textAlign='center';
+    g.fillText('x'+p.mult, (a.x+b.x)/2, a.y - 6*cam.z);
+    /* the beacon on it */
+    const pu = 0.5+Math.sin(performance.now()/300)*0.5;
+    g.fillStyle='rgba(127,212,232,'+(0.25+pu*0.4)+')';
+    g.beginPath(); g.arc((a.x+b.x)/2, a.y-2, 2.4*cam.z, 0, 6.2832); g.fill();
+  }
+
+  for(const d of debris){
+    const p = toS(d.x, d.y);
+    g.save(); g.translate(p.x,p.y); g.rotate(d.rot);
+    g.strokeStyle='rgba(207,216,227,.8)'; g.lineWidth=1.2;
+    g.beginPath(); g.moveTo(-d.len*cam.z,0); g.lineTo(d.len*cam.z,0); g.stroke();
+    g.restore();
+  }
+
+  if(ship.alive && deadT <= 0) craft();
+
+  hud();
+
+  if(msgT > 0){
+    g.globalAlpha = Math.min(1, msgT);
+    g.fillStyle = msg.startsWith('DOWN') ? '#7fd4e8' : '#ff6b6b';
+    g.font='bold 12px "Major Mono Display", monospace'; g.textAlign='center';
+    g.fillText(msg, W/2, H*0.30);
+    g.globalAlpha = 1;
+  }
+}
+
+/* the craft: a schematic, not a picture */
+function craft(){
+  const p = toS(ship.x, ship.y);
+  const z = cam.z;
+  g.save(); g.translate(p.x, p.y); g.rotate(ship.a); g.scale(z,z);
+  /* thrust plume, scaled by throttle */
+  if(ship.thrust > 0.02 && fuel > 0){
+    const t = ship.thrust;
+    const fl = g.createLinearGradient(0,7,0,7+16*t);
+    fl.addColorStop(0,'rgba(255,235,180,.9)');
+    fl.addColorStop(0.45,'rgba(255,150,60,.5)');
+    fl.addColorStop(1,'rgba(255,90,40,0)');
+    g.fillStyle=fl;
+    g.beginPath(); g.moveTo(-3.2,7); g.lineTo(0, 7+(12+Math.random()*7)*t); g.lineTo(3.2,7);
+    g.closePath(); g.fill();
+  }
+  /* legs */
+  g.strokeStyle='#cfd8e3'; g.lineWidth=1.1; g.lineCap='round';
+  g.beginPath(); g.moveTo(-4,4); g.lineTo(-7,8); g.stroke();
+  g.beginPath(); g.moveTo( 4,4); g.lineTo( 7,8); g.stroke();
+  g.beginPath(); g.moveTo(-8.4,8); g.lineTo(-5.6,8); g.stroke();
+  g.beginPath(); g.moveTo( 5.6,8); g.lineTo( 8.4,8); g.stroke();
+  /* body: an octagonal can, drawn as a schematic outline */
+  g.beginPath();
+  g.moveTo(-5,-2); g.lineTo(-3,-6); g.lineTo(3,-6); g.lineTo(5,-2);
+  g.lineTo(5,3); g.lineTo(3,6); g.lineTo(-3,6); g.lineTo(-5,3);
+  g.closePath();
+  g.fillStyle='rgba(20,34,42,.9)'; g.fill();
+  g.strokeStyle='#eaf2f8'; g.lineWidth=1.3; g.stroke();
+  /* the bell */
+  g.strokeStyle='#cfd8e3'; g.lineWidth=1;
+  g.beginPath(); g.moveTo(-2.4,6); g.lineTo(-3.4,8); g.lineTo(3.4,8); g.lineTo(2.4,6); g.stroke();
+  /* attitude tick, so you can read level at a glance */
+  g.strokeStyle='#7fd4e8'; g.lineWidth=1.2;
+  g.beginPath(); g.moveTo(0,-6); g.lineTo(0,-9); g.stroke();
+  g.restore();
+}
+
+/* the overlaid figures — this is a HUD game, so they ARE the scenery */
+function hud(){
+  const alt = Math.max(0, heightAt(ship.x) - ship.y - 7);
+  const vy = ship.vy, vx = ship.vx;
+  const att = Math.abs(((ship.a + Math.PI) % (Math.PI*2)) - Math.PI);
+  const ok = (v) => v ? '#7fd4e8' : '#ff6b6b';
+
+  g.textAlign='left';
+  g.font='9px "Major Mono Display", monospace';
+  const rows = [
+    ['ALT',  alt.toFixed(0).padStart(4), '#cfd8e3'],
+    ['V.SPD', (vy*10).toFixed(1).padStart(5), ok(vy < 0.55)],
+    ['H.SPD', (Math.abs(vx)*10).toFixed(1).padStart(5), ok(Math.abs(vx) < 0.30)],
+    ['ATT',  (att*57.3).toFixed(0).padStart(4)+'\u00B0', ok(att < 0.20)]
+  ];
+  rows.forEach((r,i) => {
+    g.fillStyle='rgba(95,107,120,.9)'; g.fillText(r[0], 10, 18+i*13);
+    g.fillStyle=r[2]; g.fillText(r[1], 52, 18+i*13);
+  });
+
+  /* fuel, as a bar that is the actual clock */
+  g.fillStyle='rgba(95,107,120,.9)'; g.fillText('FUEL', W-74, 18);
+  g.strokeStyle='rgba(127,212,232,.4)'; g.lineWidth=1;
+  g.strokeRect(W-42.5, 11.5, 33, 7);
+  g.fillStyle = fuel < 0.18 ? '#ff6b6b' : '#7fd4e8';
+  g.fillRect(W-41, 13, 30*fuel, 4);
+
+  /* an off-screen pad indicator, so you are never lost */
+  let nearest = null, nd = 1e9;
+  for(const p of pads){
+    const c = gx(p.i0 + p.w/2);
+    const d = Math.abs(c - ship.x);
+    if(d < nd){ nd = d; nearest = c; }
+  }
+  if(nearest !== null){
+    const sp = toS(nearest, heightAt(nearest));
+    if(sp.x < 10 || sp.x > W-10){
+      const side = sp.x < 10 ? 12 : W-12;
+      g.fillStyle='rgba(127,212,232,.8)';
+      g.beginPath();
+      g.moveTo(side + (sp.x<10?-6:6), H*0.5);
+      g.lineTo(side, H*0.5-5); g.lineTo(side, H*0.5+5);
+      g.closePath(); g.fill();
+      g.font='8px "Major Mono Display", monospace'; g.textAlign='center';
+      g.fillText(Math.round(nd)+'', side + (sp.x<10?14:-14), H*0.5+3);
+    }
+  }
+}
+
+function paintHud(){
+  $('sc').textContent=score.toLocaleString();
+  $('st').textContent=site;
+  $('lv').textContent=Math.max(0,lives);
+}
+
+let last=0;
+function frame(now){
+  requestAnimationFrame(frame);
+  const dt=Math.min(0.05,(now-last)/1000)||0; last=now;
+  step(dt);
+  snd.thrust(state==='play' && held.up && fuel>0 && ship.alive, ship.thrust);
+  draw();
+}
+
+/* ---- state ------------------------------------------------------------- */
+function start(){
+  runs++; reset(); state='play'; veil.classList.add('hidden'); fitTight();
+  if(AR && AR.music){ AR.music.stop(); AR.music.start(88, 4, snd.tick); }
+}
+function gameOver(){
+  state='over';
+  snd.thrust(false,0);
+  if(AR && AR.music) AR.music.stop();
+  const sv = AR&&AR.save ? AR.save.get('feather') : null;
+  best = Math.max((sv&&sv.best)||0, score);
+  if(AR && AR.save) AR.save.merge('feather', { best, landings:site-1, label:'BEST '+best.toLocaleString() });
+  showOver();
+}
+
+function openVeil(html, acts){
+  veilBody.innerHTML=html; veil.classList.remove('hidden');
+  veilBody.querySelectorAll('[data-act]').forEach(b =>
+    b.addEventListener('click', ()=>{ const fn=acts&&acts[b.dataset.act]; if(fn) fn(); }));
+}
+function showTitle(){
+  state='title';
+  openVeil('<h1>Feather</h1>' +
+    '<div class="tmenu">' +
+      '<button class="btn" data-act="play">PLAY</button>' +
+      '<button class="btn ghost" data-act="opts">OPTIONS</button>' +
+      '<button class="btn ghost" data-act="quit">QUIT</button>' +
+    '</div>', { play:start, opts:showOptions, quit:()=>{ if(AR&&AR.home) AR.home(); } });
+}
+function showOptions(){
+  openVeil('<div class="eyebrow">FEATHER</div><h1>Options</h1>' +
+    '<div class="tmenu">' +
+      '<button class="btn ghost" data-act="ctrl">CONTROLS</button>' +
+      '<button class="btn" data-act="back">BACK</button>' +
+    '</div>', { ctrl:showControls, back:showTitle });
+}
+function showControls(){
+  const touch=!!(AR&&AR.touch);
+  const rows = touch ? [
+    ['Left half of the glass','rotate left'],
+    ['Right half','rotate right'],
+    ['Bottom strip, or a second finger','thrust'],
+    ['Down slow, level, and not drifting','all three, or it is a crash'],
+    ['The smaller pad','pays more']
+  ] : [
+    ['Left / Right','rotate'],
+    ['Up','thrust'],
+    ['Down slow, level, and not drifting','all three, or it is a crash'],
+    ['The smaller pad','pays more'],
+    ['Fuel','is the real clock']
+  ];
+  openVeil('<div class="eyebrow">'+(touch?'TOUCH':'KEYBOARD')+'</div><h1>Controls</h1>' +
+    '<div class="ctrls">'+rows.map(r=>'<div class="crow"><b>'+r[0]+'</b><i>'+r[1]+'</i></div>').join('')+'</div>' +
+    '<button class="btn" data-act="back" style="margin-top:16px">BACK</button>', { back:showOptions });
+}
+function showOver(){
+  openVeil('<div class="eyebrow">NO CRAFT REMAINING</div>' +
+    '<h1>'+score.toLocaleString()+'<em>FINAL SCORE</em></h1>' +
+    '<div class="grid2">' +
+      '<div class="gc"><span>LANDINGS</span><b>'+(site-1)+'</b></div>' +
+      '<div class="gc"><span>BEST</span><b>'+best.toLocaleString()+'</b></div>' +
+    '</div>' +
+    '<div class="tmenu">' +
+      '<button class="btn" data-act="again">PLAY AGAIN</button>' +
+      '<button class="btn ghost" data-act="title">TITLE</button>' +
+    '</div>', { again:start, title:showTitle });
+}
+
+/* ---- input --------------------------------------------------------------
+   Screen halves rotate; the bottom strip or any second finger thrusts. */
+const zones = new Map();
+function apply(){
+  held.l = held.r = held.up = false;
+  for(const z of zones.values()){
+    if(z === 'up') held.up = true;
+    else if(z === 'l') held.l = true;
+    else if(z === 'r') held.r = true;
+  }
+}
+function zoneFor(cx, cy){
+  const r = cv.getBoundingClientRect();
+  const x = (cx-r.left)/S, y = (cy-r.top)/S;
+  if(y > H*0.78) return 'up';
+  return x < W/2 ? 'l' : 'r';
+}
+cv.addEventListener('pointerdown', e => {
+  cv.setPointerCapture(e.pointerId);
+  /* a second finger anywhere is thrust, which keeps both thumbs useful */
+  zones.set(e.pointerId, zones.size >= 1 ? 'up' : zoneFor(e.clientX, e.clientY));
+  apply();
+});
+cv.addEventListener('pointermove', e => {
+  if(!zones.has(e.pointerId)) return;
+  if(zones.get(e.pointerId) === 'up' && zones.size > 1) return;
+  zones.set(e.pointerId, zoneFor(e.clientX, e.clientY));
+  apply();
+});
+function lift(e){ zones.delete(e.pointerId); apply(); }
+cv.addEventListener('pointerup', lift);
+cv.addEventListener('pointercancel', lift);
+
+window.addEventListener('keydown', e => {
+  if(state!=='play'){
+    if(e.key==='Enter'||e.key===' '){ const b=veilBody.querySelector('.btn'); if(b){ e.preventDefault(); b.click(); } }
+    return;
+  }
+  if(e.key==='ArrowLeft'){ e.preventDefault(); held.l=true; }
+  else if(e.key==='ArrowRight'){ e.preventDefault(); held.r=true; }
+  else if(e.key==='ArrowUp'||e.key===' '){ e.preventDefault(); held.up=true; }
+});
+window.addEventListener('keyup', e => {
+  if(e.key==='ArrowLeft') held.l=false;
+  else if(e.key==='ArrowRight') held.r=false;
+  else if(e.key==='ArrowUp'||e.key===' ') held.up=false;
+});
+if(AR && AR.pad) AR.pad.onPress(name => {
+  if(AR.paused&&AR.paused()) return;
+  if(state!=='play'){ if(name==='a'||name==='start'){ const b=veilBody.querySelector('.btn'); if(b) b.click(); } }
+});
+setInterval(() => {
+  if(!AR || !AR.pad || !AR.pad.connected || !AR.pad.connected()) return;
+  if(state!=='play') return;
+  held.l = AR.pad.down('left'); held.r = AR.pad.down('right');
+  held.up = AR.pad.down('a') || AR.pad.down('rt') || AR.pad.down('up');
+}, 16);
+
+if(AR && AR.onRestart) AR.onRestart(start);
+window.addEventListener('resize', fitTight);
+if(window.ResizeObserver) new ResizeObserver(fitTight).observe($('wrap'));
+
+const sv0 = AR&&AR.save ? AR.save.get('feather') : null;
+best=(sv0&&sv0.best)||0;
+reset(); fit(); showTitle();
+requestAnimationFrame(()=>{ fitTight(); setTimeout(fitTight,200); });
+requestAnimationFrame(frame);
+})();
+</script>
+<div id="rotate"><div><i></i><b>TURN YOUR PHONE</b>
+<span>TINY ARCADE IS PLAYED UPRIGHT</span></div></div>
+<script>
+/* only a device with a coarse pointer gets the portrait lock — a desktop
+   window is free to be any shape, and wide is the better shape there */
+(function(){
+  if(matchMedia('(pointer:coarse)').matches) document.body.classList.add('lock-portrait');
+  /* an installed app can genuinely lock; a tab cannot, and throwing is fine */
+  try{ if(screen.orientation && screen.orientation.lock)
+        screen.orientation.lock('portrait').catch(function(){}); }catch(e){}
+})();
+</script>
+</body>
+</html>

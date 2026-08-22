@@ -1,0 +1,770 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0c0a12">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Swarm</title>
+<meta name="arcade-home" content="../../index.html#ge">
+<meta name="arcade-title" content="Swarm">
+<meta name="arcade-accent" content="#b06cff">
+<script src="../../audio.js"></script>
+<script src="../../arcade.js"></script>
+<style>
+@font-face{font-family:"Rajdhani";font-style:normal;font-weight:400;font-display:swap;src:url("../../fonts/rajdhani-400.woff2") format("woff2")}
+@font-face{font-family:"Space Mono";font-style:normal;font-weight:400;font-display:swap;src:url("../../fonts/spacemono-400.woff2") format("woff2")}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;overflow:hidden;background:#0c0a12;
+  font-family:"Space Mono",ui-monospace,monospace;color:#e7e2f0;
+  user-select:none;-webkit-user-select:none}
+#stage{position:fixed;inset:0;display:flex;flex-direction:column;padding-top:var(--safe-top,0px)}
+#head{flex:none;display:flex;justify-content:space-between;align-items:baseline;
+  padding:9px 14px 5px;font-size:9px;letter-spacing:.20em;color:#7a6f92}
+#head b{font-size:17px;color:#b06cff;font-weight:700;font-variant-numeric:tabular-nums}
+#wrap{flex:1;position:relative;display:grid;place-items:center;min-height:0;
+  padding:0 6px calc(6px + var(--safe-bot,0px))}
+#field{display:block;touch-action:none;border-radius:2px;
+  box-shadow:0 0 0 1px #241d33, 0 18px 50px -20px #000}
+#veil{position:fixed;inset:0;background:rgba(10,8,16,.95);display:grid;place-items:center;
+  padding:26px;text-align:center;z-index:40}
+#veil.hidden{display:none}
+#veilBody{max-width:330px;width:100%}
+.eyebrow{font-size:9px;letter-spacing:.26em;color:#b06cff;margin-bottom:9px}
+h1{font-family:"Rajdhani",sans-serif;font-size:42px;font-weight:800;margin:0;
+  letter-spacing:-.02em;line-height:1;color:#f2eefb}
+h1 em{display:block;font-family:"Space Mono",monospace;font-size:9.5px;font-style:normal;
+  font-weight:400;letter-spacing:.24em;color:#7a6f92;margin-top:9px}
+.tmenu{display:flex;flex-direction:column;gap:8px;max-width:240px;margin:24px auto 0}
+.btn{padding:14px 0;width:100%;border:0;border-radius:3px;cursor:pointer;font:inherit;
+  font-size:11.5px;letter-spacing:.18em;background:#b06cff;color:#150a24}
+.btn.ghost{background:transparent;color:#b06cff;border:1px solid rgba(176,108,255,.34)}
+.btn:active{opacity:.85}
+.ctrls{margin:16px auto 0;max-width:290px}
+.crow{display:flex;justify-content:space-between;gap:12px;align-items:baseline;padding:7px 2px;
+  border-bottom:1px solid rgba(255,255,255,.07);font-size:12px;text-align:left}
+.crow b{font-weight:600;white-space:nowrap}
+.crow i{font-style:normal;color:#9a8fb2;text-align:right}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:18px}
+.gc{border:1px solid #2a2340;border-radius:3px;padding:9px}
+.gc span{display:block;font-size:8px;letter-spacing:.18em;color:#7a6f92}
+.gc b{display:block;font-size:17px;margin-top:3px;font-variant-numeric:tabular-nums}
+/* ---------------------------------------------------------------------------
+   PORTRAIT ON A PHONE, WIDE ON A DESKTOP
+
+   The manifest pins the INSTALLED app to portrait, but a browser tab cannot be
+   forced — `screen.orientation.lock()` only works from fullscreen and throws
+   everywhere else. So: on a touch device held sideways, a panel asks for it
+   back. On a desktop there is no such thing as the wrong orientation, and a
+   wide window is exactly what we want, so the panel never appears there.
+
+   The test is POINTER TYPE, not width. A landscape phone and a small laptop
+   window are the same number of pixels and want opposite things.
+   --------------------------------------------------------------------------- */
+#rotate{
+  position:fixed;inset:0;z-index:9000;display:none;
+  place-items:center;text-align:center;padding:28px;
+  background:#07050b;color:#e8e2f4;
+  font-family:var(--px,ui-monospace,monospace);
+}
+#rotate b{display:block;font-size:12px;letter-spacing:.22em;color:var(--gold,#e8b23a);margin-bottom:14px}
+#rotate span{display:block;font-size:10px;letter-spacing:.14em;color:#8a8296;line-height:2}
+#rotate i{display:block;width:52px;height:82px;margin:0 auto 22px;
+  border:2px solid rgba(232,178,58,.65);border-radius:8px;
+  transform:rotate(90deg);animation:rot 2.4s ease-in-out infinite}
+@keyframes rot{0%,40%{transform:rotate(90deg)}60%,100%{transform:rotate(0deg)}}
+@media (orientation:landscape) and (pointer:coarse){
+  body.lock-portrait #rotate{display:grid}
+}
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="head">
+    <div>SCORE <b id="sc">0</b></div>
+    <div>WAVE <b id="wv">1</b></div>
+    <div>SHIPS <b id="lv">3</b></div>
+  </div>
+  <div id="wrap"><canvas id="field"></canvas></div>
+</div>
+<div id="veil"><div id="veilBody"></div></div>
+<script>
+(function(){
+"use strict";
+const AR = window.Arcade, $ = id => document.getElementById(id);
+const cv = $('field'), g = cv.getContext('2d');
+const veil = $('veil'), veilBody = $('veilBody');
+
+const W = 320, H = 460;
+let S = 1;
+
+let foes, shots, bombs, ship, state, score, lives, wave, best;
+let held, captor, beam, flashes, folds, runs = 0, fired = 0, hits = 0;
+let waveT = 0, diveT = 0, breath = 0, deadT = 0;
+
+/* ---- paths -------------------------------------------------------------
+   Defined MATHEMATICALLY, as the spec warned to do — a cubic bezier from an
+   off-screen start to a formation slot. Four entry shapes, mirrored, which is
+   enough variety without a path editor to maintain.
+   -------------------------------------------------------------------------- */
+function bez(p, a, b, c, d){
+  const m = 1-p;
+  return { x: m*m*m*a.x + 3*m*m*p*b.x + 3*m*p*p*c.x + p*p*p*d.x,
+           y: m*m*m*a.y + 3*m*m*p*b.y + 3*m*p*p*c.y + p*p*p*d.y };
+}
+const ENTRIES = [
+  (t, s) => [{x:-30,y:80},  {x:110,y:-40}, {x:250,y:170}, s],   /* sweep in low */
+  (t, s) => [{x:W+30,y:80}, {x:210,y:-40}, {x:70,y:170},  s],   /* mirrored */
+  (t, s) => [{x:W/2,y:-40}, {x:-40,y:120}, {x:W+40,y:60}, s],   /* loop across */
+  (t, s) => [{x:W/2,y:-40}, {x:W+40,y:120},{x:-40,y:60},  s]
+];
+/* a dive path: from the slot, out and around, then down past the player */
+function divePath(from, px){
+  const side = from.x < W/2 ? -1 : 1;
+  return [ from,
+           { x: from.x + side*90, y: from.y - 30 },
+           { x: px - side*70,     y: H*0.55 },
+           { x: px + side*20,     y: H + 40 } ];
+}
+
+const COLS = 8, ROWS = 4;
+function slotFor(r, c){ return { x: 42 + c*32, y: 66 + r*26 }; }
+
+/* ---- bonus stage --------------------------------------------------------
+   Every fourth wave. They fly the entry patterns and never stop, never rank
+   up and never shoot back — pure marksmanship, scored on the percentage you
+   hit. Perfect pays a bonus worth chasing.
+   -------------------------------------------------------------------------- */
+let bonusStage = false, bonusFired = 0, bonusHits = 0, bonusTotal = 0, bonusT = 0;
+
+function isBonusWave(w){ return w % 4 === 0; }
+
+function buildBonus(){
+  foes = [];
+  bonusStage = true; bonusFired = 0; bonusHits = 0; bonusT = 0;
+  const n = 16;
+  bonusTotal = n;
+  for(let i=0;i<n;i++){
+    const lane = i % 4;
+    const slot = { x: 40 + (i%8)*32, y: 70 + ((i/8)|0)*26 };
+    foes.push({
+      r:0, c:i, slot, kind: i%4===0 ? 'flagship' : i%2 ? 'escort' : 'drone',
+      x:slot.x, y:slot.y, a:Math.PI, state:'passing', p:0,
+      delay: i * 0.30,
+      path: ENTRIES[lane](0, { x: lane<2 ? W+50 : -50, y: H*0.30 + lane*22 }),
+      alive:true, hp:1, val:200, unfold:0
+    });
+  }
+  diveT = 999; waveT = 0;
+}
+
+function buildWave(){
+  foes = [];
+  const n = COLS*ROWS;
+  for(let i=0;i<n;i++){
+    const r = (i / COLS) | 0, c = i % COLS;
+    const slot = slotFor(r, c);
+    const kind = r === 0 ? 'flagship' : r < 2 ? 'escort' : 'drone';
+    foes.push({
+      r, c, slot, kind,
+      x: slot.x, y: slot.y, a: Math.PI,
+      state: 'entering', p: 0,
+      delay: i * 0.055 + (i % 2) * 0.22,
+      path: ENTRIES[i % ENTRIES.length](0, slot),
+      alive: true, hp: kind === 'flagship' ? 2 : 1,
+      val: kind === 'flagship' ? 150 : kind === 'escort' ? 80 : 50,
+      unfold: 0
+    });
+  }
+  diveT = 2.6; waveT = 0;
+}
+
+/* ---- step -------------------------------------------------------------- */
+function step(dt){
+  if(state !== 'play') return;
+  const k = Math.min(2.2, dt*60);
+  waveT += dt;
+  breath += dt;
+
+  if(deadT > 0){ deadT -= dt; if(deadT <= 0) respawn(); }
+
+  let inFormation = 0, anyAlive = 0;
+  for(const f of foes){
+    if(!f.alive){ if(f.unfold > 0) f.unfold -= dt*2; continue; }
+    anyAlive++;
+    if(f.state === 'entering'){
+      if(waveT < f.delay) continue;
+      f.p += dt * 0.55;
+      const q = Math.min(1, f.p);
+      const pt = bez(q, f.path[0], f.path[1], f.path[2], f.path[3]);
+      const nx = bez(Math.min(1,q+0.02), f.path[0], f.path[1], f.path[2], f.path[3]);
+      f.a = Math.atan2(nx.y-pt.y, nx.x-pt.x) + Math.PI/2;
+      f.x = pt.x; f.y = pt.y;
+      if(q >= 1){ f.state = 'ranked'; f.a = Math.PI; }
+    } else if(f.state === 'ranked'){
+      inFormation++;
+      /* the formation breathes rather than sitting still */
+      f.x = f.slot.x + Math.sin(breath*1.1 + f.r*0.5) * 7;
+      f.y = f.slot.y + Math.sin(breath*0.7 + f.c*0.4) * 3;
+      f.a = Math.PI;   /* facing you, which is the point of a formation */
+    } else if(f.state === 'diving'){
+      f.p += dt * 0.42;
+      const q = Math.min(1, f.p);
+      const pt = bez(q, f.dive[0], f.dive[1], f.dive[2], f.dive[3]);
+      const nx = bez(Math.min(1,q+0.02), f.dive[0], f.dive[1], f.dive[2], f.dive[3]);
+      f.a = Math.atan2(nx.y-pt.y, nx.x-pt.x) + Math.PI/2;
+      f.x = pt.x; f.y = pt.y;
+      if(!bonusStage && Math.random() < 0.014*k*60*dt*10 && f.y < H-90) dropBomb(f);
+      if(q >= 1){
+        /* off the bottom, come back around into the slot */
+        f.state = 'entering'; f.p = 0; f.delay = waveT;
+        f.path = [{x:f.slot.x, y:-30}, {x:f.slot.x+40, y:20}, {x:f.slot.x-20, y:50}, f.slot];
+      }
+    } else if(f.state === 'passing'){
+      if(waveT < f.delay) continue;
+      f.p += dt * 0.30;
+      const q = Math.min(1, f.p);
+      const pt = bez(q, f.path[0], f.path[1], f.path[2], f.path[3]);
+      const nx = bez(Math.min(1,q+0.02), f.path[0], f.path[1], f.path[2], f.path[3]);
+      f.a = Math.atan2(nx.y-pt.y, nx.x-pt.x) + Math.PI/2;
+      f.x = pt.x; f.y = pt.y;
+      if(q >= 1){ f.alive = false; }        /* it got away; that is the cost */
+    } else if(f.state === 'capturing'){
+      f.p += dt * 0.35;
+      const q = Math.min(1, f.p);
+      f.x = f.capX; f.y = 90 + Math.sin(q*Math.PI)*40;
+      if(q >= 1){ endCapture(f); }
+    }
+  }
+
+  /* dive runs */
+  diveT -= dt;
+  if(diveT <= 0 && inFormation > 0 && deadT <= 0){
+    diveT = Math.max(0.55, 2.4 - wave*0.16);
+    const pool = foes.filter(f => f.alive && f.state === 'ranked');
+    if(pool.length){
+      const f = pool[(Math.random()*pool.length)|0];
+      /* a flagship may try to take the ship instead of simply attacking */
+      if(f.kind === 'flagship' && !held && !captor && Math.random() < 0.30){
+        beginCapture(f);
+      } else {
+        f.state = 'diving'; f.p = 0; f.dive = divePath({x:f.x,y:f.y}, ship.x);
+        snd.dive();
+      }
+    }
+  }
+
+  for(let i=shots.length-1;i>=0;i--){
+    const s = shots[i];
+    s.y -= 7*k;
+    if(s.y < -8){ shots.splice(i,1); continue; }
+    let gone = false;
+    for(const f of foes){
+      if(!f.alive) continue;
+      if(Math.abs(s.x - f.x) > 11 || Math.abs(s.y - f.y) > 11) continue;
+      f.hp--; hits++;
+      if(bonusStage) bonusHits++;
+      if(f.hp <= 0){
+        f.alive = false; f.unfold = 1;
+        score += f.val * (held ? 2 : 1);
+        flashes.push({x:f.x,y:f.y,t:1,col:HULL[f.kind]});
+        if(f === captor) freeShip();
+        snd.hit(f.kind);
+      } else snd.ping();
+      shots.splice(i,1); gone = true; break;
+    }
+    if(gone) continue;
+  }
+
+  for(let i=bombs.length-1;i>=0;i--){
+    const b = bombs[i];
+    b.x += b.vx*k; b.y += b.vy*k;
+    if(b.y > H+8 || b.x < -8 || b.x > W+8){ bombs.splice(i,1); continue; }
+    if(deadT <= 0 && b.y > H-46 && b.y < H-24 && Math.abs(b.x - ship.x) < (held ? 18 : 11)){
+      bombs.splice(i,1); killShip();
+    }
+  }
+
+  /* ram */
+  if(deadT <= 0 && !bonusStage)
+    for(const f of foes){
+      if(!f.alive || f.state === 'ranked' || f.state === 'entering') continue;
+      if(Math.abs(f.x - ship.x) < (held ? 20 : 13) && Math.abs(f.y - (H-34)) < 13){
+        f.alive = false; f.unfold = 1; killShip();
+      }
+    }
+
+  for(let i=flashes.length-1;i>=0;i--){ flashes[i].t -= dt*2.6; if(flashes[i].t<=0) flashes.splice(i,1); }
+  if(beam) beam.t += dt;
+  if(bonusCard && bonusCard.t > 0) bonusCard.t -= dt;
+
+  if(bonusStage){
+    bonusT += dt;
+    /* the stage ends when they have all been hit or all flown off */
+    if(anyAlive === 0 || bonusT > 16) endBonus();
+  } else if(anyAlive === 0) nextWave();
+  paintHud();
+}
+
+function dropBomb(f){
+  const dx = ship.x - f.x, dy = (H-34) - f.y, d = Math.hypot(dx,dy) || 1;
+  bombs.push({ x:f.x, y:f.y, vx: dx/d*2.1, vy: dy/d*2.1 });
+}
+
+/* ---- capture: the hook -------------------------------------------------
+   A flagship holds a beam over you. If it lands you lose a ship and it hangs
+   under the captor. Kill the captor and you get it back flying doubled —
+   twice the guns and twice the width to be hit. That trade is the game.
+   -------------------------------------------------------------------------- */
+function beginCapture(f){
+  f.state = 'capturing'; f.p = 0; f.capX = ship.x;
+  beam = { x: ship.x, t: 0, foe: f };
+  snd.beam();
+}
+function endCapture(f){
+  if(beam && beam.foe === f && deadT <= 0 && Math.abs(ship.x - beam.x) < 22){
+    lives--;
+    held = true; captor = f;
+    f.state = 'ranked';
+    beam = null;
+    snd.taken();
+    if(lives <= 0){ gameOver(); return; }
+    deadT = 0.9;
+  } else {
+    f.state = 'ranked'; beam = null;
+  }
+}
+function freeShip(){
+  if(!held) return;
+  held = false; captor = null;
+  ship.doubled = true;
+  lives++;
+  snd.rescue();
+  paintHud();
+}
+
+function fire(){
+  if(state !== 'play' || deadT > 0) return;
+  /* two shots in flight; doubled fires a pair */
+  const cap = ship.doubled ? 4 : 2;
+  if(shots.length >= cap) return;
+  fired++;
+  if(ship.doubled){
+    shots.push({x:ship.x-9,y:H-44}); shots.push({x:ship.x+9,y:H-44});
+    fired++;
+  } else shots.push({x:ship.x,y:H-44});
+  snd.fire();
+}
+
+function killShip(){
+  lives--; deadT = 1.1; snd.die();
+  flashes.push({x:ship.x,y:H-34,t:1.6,col:'#c3ff4a'});
+  ship.doubled = false;
+  paintHud();
+  if(lives <= 0) gameOver();
+}
+function respawn(){ ship.x = W/2; bombs = []; }
+function nextWave(){
+  wave++;
+  score += 200*wave;
+  snd.wave();
+  if(isBonusWave(wave)) buildBonus(); else buildWave();
+  paintHud();
+}
+
+function endBonus(){
+  bonusStage = false;
+  const pct = bonusTotal ? Math.round(bonusHits / bonusTotal * 100) : 0;
+  score += bonusHits * 200;
+  if(pct === 100){ score += 5000; snd.rescue(); }
+  else snd.wave();
+  bonusCard = { pct, hits:bonusHits, total:bonusTotal, t: 2.6 };
+  wave++;
+  buildWave();
+  paintHud();
+}
+let bonusCard = null;
+
+/* ---- audio ------------------------------------------------------------- */
+const ARP = [0,7,12,15,19,15,12,7];
+const snd = {
+  tick(step, t){
+    if(!AR || state !== 'play') return;
+    const base = 110 * Math.pow(2, (wave-1) * 0.02);
+    AR.sfx.tone({ t, freq: base * Math.pow(2, ARP[step % 8]/12) / 2,
+                  dur:0.10, type:'square', gain:0.030, attack:0.004,
+                  cutoff:2200, bus:'music' });
+    if(step % 8 === 0)
+      AR.sfx.tone({ t, freq: base/2, dur:0.30, type:'triangle', gain:0.060,
+                    attack:0.004, cutoff:420, bus:'music' });
+    /* the capture motif: while a beam is out, everything gains a tritone */
+    if(beam && step % 2 === 0)
+      AR.sfx.tone({ t, freq: base * 1.414, dur:0.16, type:'sawtooth',
+                    gain:0.045, attack:0.01, cutoff:1400, bus:'music' });
+  },
+  fire(){ if(AR) AR.sfx.tone({ freq:880, to:1700, dur:0.07, type:'square', gain:0.045, cutoff:2800 }); },
+  ping(){ if(AR) AR.sfx.tone({ freq:1200, dur:0.04, type:'sine', gain:0.04 }); },
+  hit(kind){ if(AR){ AR.sfx.noise({ freq:kind==='flagship'?700:1500, dur:0.16, gain:0.075, filter:'bandpass' });
+    AR.sfx.tone({ freq:kind==='flagship'?300:520, to:110, dur:0.16, type:'square', gain:0.045 }); } },
+  dive(){ if(AR) AR.sfx.noise({ freq:400, to:1800, dur:0.28, gain:0.045, filter:'bandpass' }); },
+  beam(){ if(!AR) return;
+    for(let i=0;i<10;i++) AR.sfx.tone({ t:AR.audio.ctx.currentTime + i*0.055,
+      freq: 300*Math.pow(1.13,i), dur:0.09, type:'sine', gain:0.045, verb:0.4 }); },
+  taken(){ if(AR) AR.sfx.tone({ freq:420, to:90, dur:0.7, type:'sawtooth', gain:0.09, cutoff:900 }); },
+  rescue(){ if(!AR) return; [0,2,4,7].forEach((n,i) =>
+    AR.sfx.tone({ t:AR.audio.ctx.currentTime + i*0.08, freq:440*Math.pow(2,n/12),
+                  dur:0.32, type:'square', gain:0.075, cutoff:2600, verb:0.4 })); },
+  die(){ if(AR){ AR.sfx.noise({ freq:700, to:80, dur:0.7, gain:0.10, filter:'lowpass' });
+    AR.sfx.tone({ freq:200, to:40, dur:0.75, type:'sawtooth', gain:0.07, cutoff:600 }); } },
+  wave(){ if(AR) AR.sfx.tone({ freq:330, to:880, dur:0.45, type:'square', gain:0.07, cutoff:2400 }); }
+};
+
+/* ---- draw: machined hulls ----------------------------------------------
+   The same language as Soviet Blocks and Ricochet — solid bodies with a lit
+   top edge, a shadowed underside and a bright specular seam, plus a shaded
+   dome for the canopy. Not paper. On death the hull blows apart into lit
+   fragments rather than unfolding.
+   -------------------------------------------------------------------------- */
+const HULL = { flagship:'#b06cff', escort:'#ff7ac0', drone:'#7ad4ff', player:'#c3ff4a' };
+function craft(x, y, a, kind, dying){
+  const col = HULL[kind] || '#7ad4ff';
+  g.save(); g.translate(x, y); g.rotate(a || 0);
+  const sc = kind === 'flagship' ? 1.22 : kind === 'escort' ? 1.04 : 0.94;
+  g.scale(sc, sc);
+  if(dying) g.globalAlpha = Math.max(0, dying);
+
+  const dark = shade(col, -0.50), mid = shade(col, -0.16), lite = shade(col, 0.44);
+
+  /* Every hull is nose-UP in local space. The caller rotates: PI for anything
+     coming at the player, 0 for the player's own ship. Getting that wrong drew
+     the whole swarm flying backwards, which is what it was doing. */
+
+  if(kind === 'flagship'){
+    g.fillStyle = dark;
+    g.beginPath(); g.moveTo(-13,4); g.lineTo(-9,-3); g.lineTo(-6,6); g.closePath(); g.fill();
+    g.beginPath(); g.moveTo( 13,4); g.lineTo( 9,-3); g.lineTo( 6,6); g.closePath(); g.fill();
+    g.fillStyle = mid;
+    g.fillRect(-11,-4, 3.4, 9);  g.fillRect(7.6,-4, 3.4, 9);
+    g.fillStyle = 'rgba(255,255,255,.30)';
+    g.fillRect(-11,-4, 3.4, 1.3); g.fillRect(7.6,-4, 3.4, 1.3);
+    const body = g.createLinearGradient(-7,0,7,0);
+    body.addColorStop(0, dark); body.addColorStop(0.42, col);
+    body.addColorStop(0.55, lite); body.addColorStop(1, mid);
+    g.fillStyle = body;
+    g.beginPath();
+    g.moveTo(0,-12); g.lineTo(4,-4); g.lineTo(6.5,6); g.lineTo(-6.5,6); g.lineTo(-4,-4);
+    g.closePath(); g.fill();
+    g.fillStyle = 'rgba(0,0,0,.35)'; g.fillRect(-6.5,5.2,13,1.6);
+  } else if(kind === 'escort'){
+    g.fillStyle = dark;
+    g.beginPath(); g.moveTo(-11,5); g.lineTo(-2,-1); g.lineTo(-2,5); g.closePath(); g.fill();
+    g.beginPath(); g.moveTo( 11,5); g.lineTo( 2,-1); g.lineTo( 2,5); g.closePath(); g.fill();
+    g.fillStyle = 'rgba(255,255,255,.22)';
+    g.beginPath(); g.moveTo(-11,5); g.lineTo(-2,-1); g.lineTo(-2.6,0.2); g.closePath(); g.fill();
+    g.beginPath(); g.moveTo( 11,5); g.lineTo( 2,-1); g.lineTo( 2.6,0.2); g.closePath(); g.fill();
+    const body = g.createLinearGradient(-5,0,5,0);
+    body.addColorStop(0, dark); body.addColorStop(0.44, col);
+    body.addColorStop(0.58, lite); body.addColorStop(1, mid);
+    g.fillStyle = body;
+    g.beginPath();
+    g.moveTo(0,-10); g.lineTo(3.4,-2); g.lineTo(4.6,7); g.lineTo(-4.6,7); g.lineTo(-3.4,-2);
+    g.closePath(); g.fill();
+    g.fillStyle = shade(col,-0.62); g.fillRect(-2.4,6.4,4.8,2);
+  } else if(kind === 'player'){
+    g.fillStyle = dark;
+    g.beginPath(); g.moveTo(-10,6); g.lineTo(-3,0); g.lineTo(-3,6); g.closePath(); g.fill();
+    g.beginPath(); g.moveTo( 10,6); g.lineTo( 3,0); g.lineTo( 3,6); g.closePath(); g.fill();
+    g.fillStyle = mid;
+    g.fillRect(-7.6,1, 2.6, 7); g.fillRect(5,1, 2.6, 7);
+    g.fillStyle = 'rgba(255,255,255,.35)';
+    g.fillRect(-7.6,1, 2.6, 1.1); g.fillRect(5,1, 2.6, 1.1);
+    const body = g.createLinearGradient(-4,0,4,0);
+    body.addColorStop(0, dark); body.addColorStop(0.40, col);
+    body.addColorStop(0.56, lite); body.addColorStop(1, mid);
+    g.fillStyle = body;
+    g.beginPath();
+    g.moveTo(0,-11); g.lineTo(2.6,-3); g.lineTo(4,8); g.lineTo(-4,8); g.lineTo(-2.6,-3);
+    g.closePath(); g.fill();
+    g.fillStyle = 'rgba(255,224,102,.75)';
+    g.fillRect(-6.6,8, 2.4, 2.6); g.fillRect(4.2,8, 2.4, 2.6);
+  } else {
+    g.fillStyle = dark;
+    g.beginPath(); g.moveTo(-9,4); g.lineTo(-2,0); g.lineTo(-2,5); g.closePath(); g.fill();
+    g.beginPath(); g.moveTo( 9,4); g.lineTo( 2,0); g.lineTo( 2,5); g.closePath(); g.fill();
+    const body = g.createLinearGradient(-4,0,4,0);
+    body.addColorStop(0, dark); body.addColorStop(0.46, col);
+    body.addColorStop(0.60, lite); body.addColorStop(1, mid);
+    g.fillStyle = body;
+    g.beginPath();
+    g.moveTo(0,-8); g.lineTo(3.6,-1); g.lineTo(4,6); g.lineTo(-4,6); g.lineTo(-3.6,-1);
+    g.closePath(); g.fill();
+  }
+
+  g.fillStyle = 'rgba(255,255,255,.42)';
+  g.fillRect(-0.55, -8, 1.1, 9);
+  const dome = g.createRadialGradient(-1.1,-4.2,0.3, 0,-3.2,3.9);
+  dome.addColorStop(0,'#ffffff');
+  dome.addColorStop(0.34, shade(col, 0.6));
+  dome.addColorStop(0.75, shade(col, -0.22));
+  dome.addColorStop(1, shade(col, -0.55));
+  g.fillStyle = dome;
+  g.beginPath(); g.ellipse(0,-3.2, 2.5, 3.2, 0, 0, 6.2832); g.fill();
+  g.fillStyle = 'rgba(255,255,255,.85)';
+  g.beginPath(); g.ellipse(-0.9,-4.3, 0.85, 1.0, 0, 0, 6.2832); g.fill();
+
+  g.restore();
+  g.globalAlpha = 1;
+}
+
+function shade(hex, amt){
+  const n = parseInt(hex.slice(1),16);
+  const f = v => Math.max(0,Math.min(255,Math.round(amt<0 ? v*(1+amt) : v+(255-v)*amt)));
+  return 'rgb(' + f((n>>16)&255) + ',' + f((n>>8)&255) + ',' + f(n&255) + ')';
+}
+
+function fit(){
+  const wrap = $('wrap');
+  S = Math.min((wrap.clientWidth-4)/W, (wrap.clientHeight-4)/H);
+  const dpr = Math.min(2, window.devicePixelRatio||1);
+  cv.width=Math.round(W*S*dpr); cv.height=Math.round(H*S*dpr);
+  cv.style.width=(W*S)+'px'; cv.style.height=(H*S)+'px';
+  g.setTransform(dpr*S,0,0,dpr*S,0,0);
+  draw();
+}
+function fitTight(){
+  fit();
+  for(let i=0;i<6;i++){
+    const r = cv.getBoundingClientRect();
+    if(r.right <= window.innerWidth && r.bottom <= $('wrap').getBoundingClientRect().bottom+1) break;
+    S *= 0.97;
+    const dpr = Math.min(2, window.devicePixelRatio||1);
+    cv.width=Math.round(W*S*dpr); cv.height=Math.round(H*S*dpr);
+    cv.style.width=(W*S)+'px'; cv.style.height=(H*S)+'px';
+    g.setTransform(dpr*S,0,0,dpr*S,0,0);
+  }
+  draw();
+}
+
+function draw(){
+  g.fillStyle='#0e0c16'; g.fillRect(0,0,W,H);
+  /* a faint machined grid, and a vignette, matching the other cabinets */
+  g.strokeStyle='rgba(176,108,255,.045)'; g.lineWidth=1;
+  for(let x=0;x<=W;x+=40){ g.beginPath(); g.moveTo(x,0); g.lineTo(x,H); g.stroke(); }
+  for(let y=0;y<=H;y+=40){ g.beginPath(); g.moveTo(0,y); g.lineTo(W,y); g.stroke(); }
+  const vg = g.createRadialGradient(W/2,H*0.35,H*0.12,W/2,H*0.5,H*0.95);
+  vg.addColorStop(0,'rgba(176,108,255,.05)'); vg.addColorStop(1,'rgba(0,0,0,.36)');
+  g.fillStyle=vg; g.fillRect(0,0,W,H);
+
+  if(beam){
+    const a = 0.30 + Math.sin(beam.t*10)*0.14;
+    const gr = g.createLinearGradient(0, beam.foe.y, 0, H-30);
+    gr.addColorStop(0, 'rgba(176,108,255,' + a + ')');
+    gr.addColorStop(1, 'rgba(176,108,255,0)');
+    g.fillStyle = gr;
+    const wTop = 8, wBot = 26;
+    g.beginPath();
+    g.moveTo(beam.x-wTop, beam.foe.y); g.lineTo(beam.x+wTop, beam.foe.y);
+    g.lineTo(beam.x+wBot, H-30); g.lineTo(beam.x-wBot, H-30);
+    g.closePath(); g.fill();
+  }
+
+  for(const f of foes){
+    if(f.alive) craft(f.x, f.y, f.a, f.kind, 0);
+    else if(f.unfold > 0) craft(f.x, f.y, f.a, f.kind, f.unfold);
+  }
+
+  /* the captured ship, hanging under its captor */
+  if(held && captor && captor.alive){
+    craft(captor.x, captor.y + 20, Math.PI, 'player', 0);
+  }
+
+  if(bonusStage){
+    g.fillStyle = 'rgba(195,255,74,.85)';
+    g.font = 'bold 11px "Space Mono", monospace'; g.textAlign='center';
+    g.fillText('BONUS \u00B7 THEY DO NOT SHOOT BACK', W/2, 34);
+    g.fillStyle = 'rgba(231,226,240,.55)';
+    g.font = '9px "Space Mono", monospace';
+    g.fillText(bonusHits + ' OF ' + bonusTotal, W/2, 48);
+  }
+  if(bonusCard && bonusCard.t > 0){
+    g.globalAlpha = Math.min(1, bonusCard.t);
+    g.fillStyle = bonusCard.pct === 100 ? '#c3ff4a' : '#b06cff';
+    g.font = 'bold 20px "Space Mono", monospace'; g.textAlign='center';
+    g.fillText(bonusCard.pct + '%', W/2, H*0.42);
+    g.font = '10px "Space Mono", monospace';
+    g.fillStyle = 'rgba(231,226,240,.75)';
+    g.fillText(bonusCard.pct === 100 ? 'PERFECT \u00B7 +5000'
+                                     : bonusCard.hits + ' OF ' + bonusCard.total, W/2, H*0.42+18);
+    g.globalAlpha = 1;
+  }
+  for(const s of shots){ g.fillStyle='#f2eefb'; g.fillRect(s.x-1, s.y-6, 2, 7); }
+  for(const b of bombs){ g.fillStyle='#ff7ac0'; g.fillRect(b.x-1.5, b.y-3, 3, 5); }
+
+  if(deadT <= 0 || Math.floor(deadT*10)%2===0){
+    const dx = ship.doubled ? 9 : 0;
+    for(const off of (ship.doubled ? [-dx,dx] : [0]))
+      craft(ship.x+off, H-34, 0, 'player', 0);
+  }
+
+  /* the hull comes apart: lit shards thrown outward, tumbling */
+  for(const f of flashes){
+    const p = 1 - Math.min(1, f.t);
+    g.globalAlpha = Math.min(1, f.t);
+    for(let i=0;i<7;i++){
+      const a = i*0.897 + f.t*3;
+      const d = p * 17;
+      const fx = f.x + Math.cos(a)*d, fy = f.y + Math.sin(a)*d;
+      g.save(); g.translate(fx, fy); g.rotate(a + p*4);
+      g.fillStyle = i%2 ? '#f2eefb' : shade(f.col || '#b06cff', 0.1);
+      g.fillRect(-1.8, -1.2, 3.6, 2.4);
+      g.fillStyle = 'rgba(255,255,255,.5)';
+      g.fillRect(-1.8, -1.2, 3.6, 0.7);
+      g.restore();
+    }
+    g.globalAlpha = 1;
+  }
+}
+
+function paintHud(){
+  $('sc').textContent=score.toLocaleString();
+  $('wv').textContent=wave;
+  $('lv').textContent=Math.max(0,lives);
+}
+
+let last=0;
+function frame(now){
+  requestAnimationFrame(frame);
+  const dt=Math.min(0.05,(now-last)/1000)||0; last=now;
+  step(dt); draw();
+}
+
+/* ---- state ------------------------------------------------------------- */
+function reset(){
+  score=0; lives=3; wave=1; fired=0; hits=0; deadT=0;
+  shots=[]; bombs=[]; flashes=[]; beam=null; held=false; captor=null;
+  bonusStage=false; bonusCard=null;
+  ship={x:W/2, doubled:false};
+  buildWave(); paintHud();
+}
+function start(){
+  runs++; reset(); state='play'; veil.classList.add('hidden'); fitTight();
+  if(AR && AR.music){ AR.music.stop(); AR.music.start(150, 4, snd.tick); }
+}
+function gameOver(){
+  state='over';
+  if(AR && AR.music) AR.music.stop();
+  const sv = AR && AR.save ? AR.save.get('swarm') : null;
+  best = Math.max((sv&&sv.best)||0, score);
+  const rate = fired ? Math.round(hits/fired*100) : 0;
+  if(AR && AR.save) AR.save.merge('swarm', { best, hitRate:rate, label:'BEST '+best.toLocaleString() });
+  showOver(rate);
+}
+
+/* ---- panels ------------------------------------------------------------ */
+function openVeil(html, acts){
+  veilBody.innerHTML=html; veil.classList.remove('hidden');
+  veilBody.querySelectorAll('[data-act]').forEach(b =>
+    b.addEventListener('click', ()=>{ const fn=acts&&acts[b.dataset.act]; if(fn) fn(); }));
+}
+function showTitle(){
+  state='title';
+  openVeil('<h1>Swarm</h1>' +
+    '<div class="tmenu">' +
+      '<button class="btn" data-act="play">PLAY</button>' +
+      '<button class="btn ghost" data-act="opts">OPTIONS</button>' +
+      '<button class="btn ghost" data-act="quit">QUIT</button>' +
+    '</div>', { play:start, opts:showOptions, quit:()=>{ if(AR&&AR.home) AR.home(); } });
+}
+function showOptions(){
+  openVeil('<div class="eyebrow">SWARM</div><h1>Options</h1>' +
+    '<div class="tmenu">' +
+      '<button class="btn ghost" data-act="ctrl">CONTROLS</button>' +
+      '<button class="btn" data-act="back">BACK</button>' +
+    '</div>', { ctrl:showControls, back:showTitle });
+}
+function showControls(){
+  const touch=!!(AR&&AR.touch);
+  const rows=[
+    [touch?'Drag':'Drag, or arrow keys','move'],
+    [touch?'Tap':'Tap, or space','fire \u00B7 two shots up at once'],
+    ['A beam takes your ship','you lose one'],
+    ['Kill the one holding it','you get it back, and fly doubled'],
+    ['Doubled is wider','twice the guns, twice the target']
+  ];
+  openVeil('<div class="eyebrow">'+(touch?'TOUCH':'POINTER')+'</div><h1>Controls</h1>' +
+    '<div class="ctrls">'+rows.map(r=>'<div class="crow"><b>'+r[0]+'</b><i>'+r[1]+'</i></div>').join('')+'</div>' +
+    '<button class="btn" data-act="back" style="margin-top:16px">BACK</button>', { back:showOptions });
+}
+function showOver(rate){
+  openVeil('<div class="eyebrow">SWARM BROKE THROUGH</div>' +
+    '<h1>'+score.toLocaleString()+'<em>FINAL SCORE</em></h1>' +
+    '<div class="grid2">' +
+      '<div class="gc"><span>WAVE</span><b>'+wave+'</b></div>' +
+      '<div class="gc"><span>HIT RATE</span><b>'+rate+'%</b></div>' +
+      '<div class="gc"><span>SHOTS</span><b>'+fired+'</b></div>' +
+      '<div class="gc"><span>BEST</span><b>'+best.toLocaleString()+'</b></div>' +
+    '</div>' +
+    '<div class="tmenu">' +
+      '<button class="btn" data-act="again">PLAY AGAIN</button>' +
+      '<button class="btn ghost" data-act="title">TITLE</button>' +
+    '</div>', { again:start, title:showTitle });
+}
+
+/* ---- input ------------------------------------------------------------- */
+let px0=0, sh0=0, dragging=false, moved=false, holdFire=null;
+const toLogical = x => { const r=cv.getBoundingClientRect(); return (x-r.left)/S; };
+cv.addEventListener('pointerdown', e => {
+  cv.setPointerCapture(e.pointerId);
+  dragging=true; moved=false; px0=toLogical(e.clientX); sh0=ship.x;
+  if(state==='play'){ fire(); holdFire = setInterval(fire, 190); }
+});
+cv.addEventListener('pointermove', e => {
+  if(!dragging||state!=='play') return;
+  const d=toLogical(e.clientX)-px0;
+  if(Math.abs(d)>2) moved=true;
+  ship.x=Math.max(14,Math.min(W-14, sh0+d));
+});
+function endPtr(){ dragging=false; if(holdFire){ clearInterval(holdFire); holdFire=null; } }
+cv.addEventListener('pointerup', endPtr);
+cv.addEventListener('pointercancel', endPtr);
+window.addEventListener('keydown', e => {
+  if(state!=='play'){
+    if(e.key==='Enter'||e.key===' '){ const b=veilBody.querySelector('.btn'); if(b){ e.preventDefault(); b.click(); } }
+    return;
+  }
+  if(e.key==='ArrowLeft'){ e.preventDefault(); ship.x=Math.max(14,ship.x-16); }
+  else if(e.key==='ArrowRight'){ e.preventDefault(); ship.x=Math.min(W-14,ship.x+16); }
+  else if(e.key===' '){ e.preventDefault(); fire(); }
+});
+if(AR && AR.pad) AR.pad.onPress(name => {
+  if(AR.paused&&AR.paused()) return;
+  if(state!=='play'){ if(name==='a'||name==='start'){ const b=veilBody.querySelector('.btn'); if(b) b.click(); } return; }
+  if(name==='left') ship.x=Math.max(14,ship.x-16);
+  else if(name==='right') ship.x=Math.min(W-14,ship.x+16);
+  else if(name==='a'||name==='rt') fire();
+});
+if(AR && AR.onRestart) AR.onRestart(start);
+window.addEventListener('resize', fitTight);
+if(window.ResizeObserver) new ResizeObserver(fitTight).observe($('wrap'));
+
+const sv0 = AR&&AR.save ? AR.save.get('swarm') : null;
+best=(sv0&&sv0.best)||0;
+reset(); fit(); showTitle();
+requestAnimationFrame(()=>{ fitTight(); setTimeout(fitTight,200); });
+requestAnimationFrame(frame);
+})();
+</script>
+<div id="rotate"><div><i></i><b>TURN YOUR PHONE</b>
+<span>TINY ARCADE IS PLAYED UPRIGHT</span></div></div>
+<script>
+/* only a device with a coarse pointer gets the portrait lock — a desktop
+   window is free to be any shape, and wide is the better shape there */
+(function(){
+  if(matchMedia('(pointer:coarse)').matches) document.body.classList.add('lock-portrait');
+  /* an installed app can genuinely lock; a tab cannot, and throwing is fine */
+  try{ if(screen.orientation && screen.orientation.lock)
+        screen.orientation.lock('portrait').catch(function(){}); }catch(e){}
+})();
+</script>
+</body>
+</html>
