@@ -627,7 +627,14 @@ body.titling #veil{
   background:linear-gradient(180deg,
     rgba(8,5,14,0) 0%, rgba(8,5,14,0) 40%,
     rgba(8,5,14,.55) 58%, rgba(8,5,14,.90) 78%, rgba(8,5,14,.96) 100%);
-  align-items:end;padding-bottom:34px}
+  /* ---- THE TITLE SITS AT THE BOTTOM ------------------------------------
+     `align-items` places an item within its ROW; `align-content` places the
+     rows. Adding `align-content:safe center` to #veil for the garage overflow
+     therefore centred the title menu too, and align-items could not override
+     it. The title needs both. */
+  align-items:end;align-content:safe end;
+  padding-bottom:calc(env(safe-area-inset-bottom,0px) + 30px)}
+body.titling #veil .vw{margin:0}
 body.titling #veil h1{display:none}
 /* a bezel line, not a credit: small, dim, and out of the way at the very
    bottom where a cabinet actually carries it */
@@ -750,6 +757,8 @@ const CLOCK_START = 60, CLOCK_BONUS = 20, CP_MILES = 2;
 let timedRun = true;
 /* stripes are paint, not a body — any car can wear them */
 let optStripes = false;
+/* debug only — never saved, never treated as an unlock */
+let dbgRacers = false, dbgTraffic = false;
 /* ---- ONE LIVERY PER RUN --------------------------------------------------
    A force does not run half its cars in white and half in black on the same
    night. The livery is chosen once when the run starts and every cruiser wears
@@ -763,7 +772,7 @@ const COP_PAINT = {
 };
 /* a formula car has a livery and a police car has one too — neither takes
    stripes over the top of it */
-function stripesAllowed(){ return optBody !== 'TYPE-Z' && optBody !== 'TYPE-C'; }
+function stripesAllowed(){ return optBody !== 'FORMULA' && optBody !== 'CRUISER'; }
 /* A FUNCTION, not a const: it was declared halfway down step() and read above
    it, so the temporal dead zone threw on the FIRST frame and killed the whole
    update — which is why the skyline looked frozen even after being fixed. */
@@ -777,7 +786,7 @@ function clockRuns(){ return (mode === 'race') || timedRun; }
    a bad race matter later — a fourth place in round one is still recoverable,
    which is the only reason to keep driving.
 
-   A gold at the end unlocks TYPE-Z, and the unlock is permanent.
+   A gold at the end unlocks FORMULA, and the unlock is permanent.
    =========================================================================== */
 const TOUR_MILES = [10, 12, 16, 24];
 const TOUR_PTS   = [25, 18, 15, 12, 10, 8, 6, 4, 2, 1, 0, 0];   /* by place */
@@ -810,7 +819,7 @@ function unlocked(key){
   const sv = (AR && AR.save) ? AR.save.get('highway-opts') : null;
   return !!(sv && sv[key]);
 }
-function zUnlocked(){ return unlocked('typeZ'); }
+function zUnlocked(){ return unlocked('formula'); }
 let clock = CLOCK_START, nextCP = 0, cpGantries = [], lastBeep = -1, wreckWait = 0;
 let traffic, cops, blocks, crates, fx, shake, hitFlash, sirenPhase, lastKmh, iframe;
 let bestScore=0, bestDist=0, runs=0;
@@ -916,9 +925,9 @@ var snd = {
       /* set() is (freq, level, CUTOFF, glide) — passing the glide third was
          setting the filter to 0.012Hz, which silenced the horn completely. */
       /* ---- each car has its own horn --------------------------------
-         Same two-note chord, transposed per body: TYPE-F is a bright,
-         high Italian bark, TYPE-P sits a tone and a half below it, and
-         TYPE-L is between them. None goes lower than the original note by
+         Same two-note chord, transposed per body: STALLION is a bright,
+         high Italian bark, CREST sits a tone and a half below it, and
+         MATADOR is between them. None goes lower than the original note by
          much — a supercar horn is not a lorry's. */
       const hp = (BODY[optBody] && BODY[optBody].horn) || 1;
       snd.horn1.set(440*hp,   on ? 0.085 : 0, 1500*hp, on ? 0.008 : 0.04);
@@ -938,6 +947,41 @@ var snd = {
      Doppler maths.
      ------------------------------------------------------------------------- */
   voices: [],
+  /* ---- WHAT EACH VEHICLE SOUNDS LIKE -------------------------------------
+     Every NPC ran the same curve — `54 + rr*rr*250 + rr*95` — so a lorry, a
+     taxi and a tuner all made one noise at different volumes. Each type has an
+     engine now: a pitch multiplier and its own rev ceiling, matching the player
+     car where they share a body.
+
+       truck   a diesel: low, and it runs out of revs early
+       van     the same idea, a little higher
+       tuner   TUNER's 10k band and 0.78 pitch
+       muscle  MUSCLE's 10k band and 0.66 pitch — the lowest thing on the road
+       cop     CRUISER's 11k and 0.72
+       taxi    a tired saloon
+       coupe   the quickest of the ordinary traffic
+     ---------------------------------------------------------------------- */
+  /* ---- ONE SET OF MACHINERY -----------------------------------------------
+     There was a separate ENGINE table for NPCs, so a lorry you passed and a
+     lorry you drove were tuned in two different places and could drift apart.
+     Gone: an NPC reads the SAME `BODY` entry its driveable version uses — same
+     pitch, same redline, same top speed.
+
+     `rig` is how a body says which traffic shape it wears, so the lookup is
+     just "which BODY has this rig". Built once.
+     ------------------------------------------------------------------------ */
+  /* built on FIRST USE, not at load: `snd` is defined above `BODY`, so
+     reading it here at definition time threw before the game could start */
+  _rig: null,
+  rigBody: function(){
+    if(snd._rig) return snd._rig;
+    var m = {};
+    for(var k in BODY) if(BODY[k].rig) m[BODY[k].rig] = k;
+    m.sedan2 = m.sedan;          /* the variant borrows the saloon's numbers */
+    snd._rig = m;
+    return m;
+  },
+
   traffic: function(list){
     if(!AR || !AR.audio.ctx) return;
     if(!snd.voices.length){
@@ -998,8 +1042,15 @@ var snd = {
       var fall = Math.max(0, 1 - dist / 36000);
       if(fall <= 0.01){ vo.a.set(90, 0, 400, 0.12); continue; }
       /* its own revs: speed against ITS top, through the same gearing */
-      var rr = Math.min(1, (c.spd || c.cruise || 0) / AI_TOP);
-      var hz = 54 + rr*rr*250 + rr*95;
+      /* the same BODY the driveable version uses */
+      var bk = snd.rigBody()[c.type];
+      var B2 = bk ? BODY[bk] : null;
+      var pitch = B2 ? (B2.pitch || 1) : 1;
+      var ceil  = B2 ? B2.vmax : 0.9;
+      /* its revs against ITS OWN top speed, not a shared one — a lorry at
+         60mph is near its limit where a coupe at 60 is barely off idle */
+      var rr = Math.min(1, (c.spd || c.cruise || 0) / (MAX_SPD * ceil));
+      var hz = (54 + rr*rr*250 + rr*95) * pitch;
       /* PLACEMENT: lateral offset, exaggerated as it gets close, because a
          car alongside is hard left or hard right and one far ahead is centred */
       var lateral = ((c.x || 0) - playerX);
@@ -1488,6 +1539,19 @@ function liveryBand(hex){
   return lum < 0.45 ? 'rgba(238,243,250,.92)' : shade(hex, 0.34);
 }
 
+/* ---- HOW WIDE THE STRIPES ARE ------------------------------------------
+   STALLION and CREST are the widest bodies, so a stripe that reads as bold on
+   MATADOR looks like a pinstripe on them. The pair is defined ONCE here, by
+   body, and both the front and the rear painter read it — so the two ends can
+   never disagree about the width or the gap.
+   ------------------------------------------------------------------------ */
+const STRIPE_W = { 'STALLION':0.115, 'CREST':0.115, 'MATADOR':0.085 };
+function stripeCols(key){
+  const w = STRIPE_W[key] || 0.085;
+  const gap = w * 0.28;                       /* the lane between them */
+  return { w:w, xs:[0.5 - w - gap/2, 0.5 + gap/2] };
+}
+
 function shade(hex, k){
   const m = /^#?([0-9a-f]{6})$/i.exec(hex || '');
   if(!m) return 'rgba(22,24,30,.62)';
@@ -1518,11 +1582,11 @@ function sprite(w,h,paint){
    Not three colours of the same shape. Each has its own proportions, and the
    silhouette is what you recognise at a glance in a mirror:
 
-     TYPE-F  long nose, cab set back, a shallow ducktail  — the front-engined
+     STALLION  long nose, cab set back, a shallow ducktail  — the front-engined
              grand tourer
-     TYPE-L  wedge. Flat, wide, hard shoulders, a big rear wing — the mid-
+     MATADOR  wedge. Flat, wide, hard shoulders, a big rear wing — the mid-
              engined poster car
-     TYPE-P  rounded haunches over the rear wheels, low roof, integrated lip —
+     CREST  rounded haunches over the rear wheels, low roof, integrated lip —
              the rear-engined one
    -------------------------------------------------------------------------- */
 /* Each also DRIVES differently, and the numbers follow the shape rather than
@@ -1542,50 +1606,61 @@ const BODY = {
        L  narrow cabin, tall deck, the BIGGEST arches, hard-edged
        P  narrowest overall, tall domed roof, arches that dominate the flanks
   */
-  'TYPE-F': { bodyTop:0.44, cabinTop:0.19, cabW:0.62, cabOff:0, roofR:0.06,
+  'STALLION': { bodyTop:0.44, cabinTop:0.19, cabW:0.62, cabOff:0, roofR:0.06,
               /* cabOff shifts the cabin SIDEWAYS, not backwards — 0.04 was putting the
                  greenhouse visibly off centre on the body. The long-nose look
                  comes from the deck height, not from moving the roof. */
-              hip:0.055, wing:'lip',   nose:0.30, spoiler:true, rear:'F', wide:0.075, arch:0.85, horn:1.19,
+              hip:0.055, wing:'lip',   nose:0.30, spoiler:true, rear:'STALLION', wide:0.075, arch:0.85, horn:1.19,
               /* 200mph is the ceiling the whole game is scaled to, so the
                  fastest car sits AT it and the others come down from there —
                  anything above 1.0 was simply clamped and two cars tied. */
               /* ---- every supercar must out-run a cruiser ------------------------
-                 AI_TOP is 180 and TYPE-L was 172, so a police car could simply
+                 AI_TOP is 180 and MATADOR was 172, so a police car could simply
                  drive away from the thing you had chosen to drive. The slowest
                  of the three is 188 now: they still differ, but the floor is
                  above anything else on the road. */
               pull:0.84, vmax:1.03, note:'SLOWER OFF THE LINE \u00B7 HIGHEST TOP END' },
-  'TYPE-L': { bodyTop:0.52, cabinTop:0.24, cabW:0.44, cabOff:0.00, roofR:0.02,
-              hip:0.105, wing:'high',  nose:0.16, spoiler:true, rear:'L', wide:0.045, arch:1.30, horn:1.06,
+  'MATADOR': { bodyTop:0.52, cabinTop:0.24, cabW:0.44, cabOff:0.00, roofR:0.02,
+              hip:0.105, wing:'high',  nose:0.16, spoiler:true, rear:'MATADOR', wide:0.045, arch:1.30, horn:1.06,
               pull:1.24, vmax:0.97, note:'FASTEST OFF THE LINE \u00B7 LOWEST TOP END' },
   /* ---- THE PRIZE ---------------------------------------------------------
      A Formula car: highest acceleration AND highest top end, which breaks the
      trade every other car obeys. That is the point of a prize — it is not
      another option, it is better, and you had to win a tournament for it. */
-  'TYPE-Z': { bodyTop:0.52, cabinTop:0.30, cabW:0.30, cabOff:0, roofR:0.02,
+  'FORMULA': { bodyTop:0.52, cabinTop:0.30, cabW:0.30, cabOff:0, roofR:0.02,
               hip:0.135, wing:'high', nose:0.10, spoiler:true,
-              wide:0.145, arch:1.45, horn:1.42, rear:'Z', redline:15000, pitch:1.55,
+              wide:0.145, arch:1.45, horn:1.42, rear:'FORMULA', redline:15000, pitch:1.55,
               pull:1.34, vmax:1.09, note:'FORMULA · NO COMPROMISE' },
   /* ---- THE TWO CONSOLATION CARS ----------------------------------------
-     A silver unlocks TYPE-T, a bronze unlocks TYPE-M. Both are ROAD cars and
+     A silver unlocks TUNER, a bronze unlocks MUSCLE. Both are ROAD cars and
      both are slower than any supercar — they are a reward for a good
      tournament, not a shortcut past one. They rev to 10,000 rather than
      12,000 and sound it: lower pitch, lower horns.
 
      Between themselves they mirror the supercars' trade — the tuner pulls
      harder and runs out sooner, the muscle car the other way — but both
-     ceilings sit under TYPE-L's 194, so no unlock ever beats the entry car on
+     ceilings sit under MATADOR's 194, so no unlock ever beats the entry car on
      both counts. */
   /* `rig` means: draw this one with the TRAFFIC painter, not the supercar
      one. They are the tuner and the muscle car you already designed — giving
      them a Lamborghini and a Ferrari tail was my mistake, not a decision.
      `gears` is their own box: a muscle car has four, a tuner five. */
-  'TYPE-T': { rig:'tuner',  gears:5, wide:0.030, arch:0.95,
-              horn:0.86, redline:10000, pitch:0.78, rear:'T',
+  /* ---- THE THREE THAT SIT BETWEEN ---------------------------------------
+     These are not TYPE cars and they are not ordinary traffic. They are the
+     best of what is on the road: marginally quicker than a stock coupe,
+     comfortably slower than the slowest racer. That is the whole rung.
+
+         MATADOR      194mph   2.9s     <- the racers
+         CRUISER     190      4.0
+         MUSCLE      184      4.9
+         TUNER       172      3.2
+         COUPE       160      6.0      <- ordinary traffic
+     -------------------------------------------------------------------- */
+  'TUNER': { rig:'tuner',  gears:5, wide:0.030, arch:0.95,
+              horn:0.86, redline:10000, pitch:0.78, rear:'TUNER',
               pull:1.18, vmax:0.86, note:'TUNED \u00B7 FIVE SPEED \u00B7 QUICK, THEN DONE' },
-  'TYPE-M': { rig:'muscle', gears:4, wide:0.050, arch:1.05,
-              horn:0.72, redline:10000, pitch:0.66, rear:'M',
+  'MUSCLE': { rig:'muscle', gears:4, wide:0.050, arch:1.05,
+              horn:0.72, redline:10000, pitch:0.66, rear:'MUSCLE',
               pull:0.78, vmax:0.92, note:'MUSCLE \u00B7 FOUR SPEED \u00B7 LONG LEGS' },
   /* ---- THE CRUISER -------------------------------------------------------
      Earned by surviving, not by winning: 20 miles on TEST DRIVE with the clock
@@ -1593,15 +1668,46 @@ const BODY = {
      — so it is quick in a straight line and slow to get going, sits between the
      road cars and the supercars, and keeps its light bar whoever is driving.
      Five speeds, an 11k band, and a low burbling note. */
-  'TYPE-C': { rig:'cop', gears:5, wide:0.045, arch:1.00,
-              horn:0.80, redline:11000, pitch:0.72, rear:'C',
+  'CRUISER': { rig:'cop', gears:5, wide:0.045, arch:1.00,
+              horn:0.80, redline:11000, pitch:0.72, rear:'CRUISER',
               pull:0.92, vmax:0.95, note:'INTERCEPTOR \u00B7 HEAVY, AND FAST' },
-  'TYPE-P': { bodyTop:0.40, cabinTop:0.10, cabW:0.48, cabOff:0, roofR:0.30,
-              hip:0.085, wing:'ducktail', nose:0.24, spoiler:true, rear:'P', wide:0.010, arch:1.15, dome:true, horn:0.94,
+  /* ---- THE TRAFFIC, DRIVEABLE ---------------------------------------------
+     A hundred miles in TEST DRIVE, on any settings, unlocks the lot. They are
+     not racers and the numbers say so: nothing here beats MUSCLE's 184mph or
+     its 4.9s, so the slowest supercar is still quicker than the quickest van.
+
+     They keep the engine character their NPC versions already have — same
+     pitch, same rev band — so a lorry sounds like a lorry whoever is in it.
+     ------------------------------------------------------------------------ */
+  'COUPE': { rig:'coupe',  gears:4, wide:0.010, arch:0.90, horn:1.02,
+               redline:9000, pitch:1.05, rear:'GENERIC', pull:0.62, vmax:0.80,
+               note:'COUPE \u00B7 THE QUICKEST THING THAT IS NOT A RACER' },
+  'SALOON': { rig:'sedan',  gears:4, wide:0.020, arch:0.92, horn:0.96,
+               redline:8500, pitch:0.92, rear:'GENERIC', pull:0.54, vmax:0.74,
+               note:'SALOON \u00B7 ENTIRELY UNREMARKABLE' },
+  'CAB': { rig:'taxi',   gears:4, wide:0.020, arch:0.92, horn:0.90,
+               redline:7500, pitch:0.80, rear:'GENERIC', pull:0.46, vmax:0.66,
+               note:'CAB \u00B7 THREE HUNDRED THOUSAND MILES' },
+  'PICKUP': { rig:'pickup', gears:4, wide:0.045, arch:1.05, horn:0.84,
+               redline:7000, pitch:0.70, rear:'GENERIC', pull:0.44, vmax:0.68,
+               note:'PICKUP \u00B7 CARRIES THINGS, SLOWLY' },
+  'VAN': { rig:'van',    gears:4, wide:0.060, arch:1.00, horn:0.78,
+               redline:6500, pitch:0.58, rear:'GENERIC', pull:0.36, vmax:0.60,
+               note:'VAN \u00B7 A BOX WITH A STEERING WHEEL' },
+    /* ---- FOUR SPEEDS, AND A LORRY DOES 80 ---------------------------------
+     Every ordinary traffic car is a four-speed — only the tuner, the muscle
+     car and the cruiser get more. And a lorry's ceiling is 80mph, not 104:
+     `vmax` is a fraction of 200, so 0.40.
+     -------------------------------------------------------------------- */
+  'LORRY': { rig:'truck',  gears:4, wide:0.120, arch:1.10, horn:0.52,
+               redline:5000, pitch:0.42, rear:'GENERIC', pull:0.24, vmax:0.40,
+               note:'LORRY \u00B7 NOTHING GETS OUT OF ITS WAY TWICE' },
+  'CREST': { bodyTop:0.40, cabinTop:0.10, cabW:0.48, cabOff:0, roofR:0.30,
+              hip:0.085, wing:'ducktail', nose:0.24, spoiler:true, rear:'CREST', wide:0.010, arch:1.15, dome:true, horn:0.94,
               pull:1.02, vmax:1.00, note:'BALANCED' }
 };
-function bodyStat(k){ return (BODY[optBody] || BODY['TYPE-L'])[k]; }
-let optBody = 'TYPE-L';
+function bodyStat(k){ return (BODY[optBody] || BODY['MATADOR'])[k]; }
+let optBody = 'MATADOR';
 
 
 /* ===========================================================================
@@ -1665,14 +1771,16 @@ function paintRigFront(kind, o){
       g.strokeStyle='rgba(160,172,186,.22)'; g.lineWidth=1;
       for(let k=1;k<5;k++){
         const yy = bot-h*0.165 + k*h*0.019;
-        g.beginPath(); g.moveTo(w*0.115, yy); g.lineTo(w*0.885, yy); g.stroke();
+        /* the slats were drawn 0.115–0.885 across a panel that runs 0.10–0.90,
+           so they overhung it at both ends */
+        g.beginPath(); g.moveTo(w*0.125, yy); g.lineTo(w*0.875, yy); g.stroke();
       }
       /* lamps at the same height its rear lamps sit */
       for(const lx of [0.10, 0.74]){
         g.fillStyle='#f2f8ff'; rr(g, w*lx, cy-h*0.155, w*0.16, h*0.032, 2); g.fill();
         headGlow(g, w*(lx+0.08), cy-h*0.139, w);
       }
-      drawMarque(g, 'X', w*0.5, bot-h*0.215, h*0.030);
+      drawMarque(g, 'GENERIC', w*0.5, bot-h*0.215, h*0.030);   /* the cab, front only */
       g.fillStyle='#20242a'; g.fillRect(w*0.055, bot-h*0.055, w*0.89, h*0.055);
       g.fillStyle='#2a2f36'; g.fillRect(w*0.06, cy-h*0.115, w*0.88, h*0.014);
       return;
@@ -1707,6 +1815,8 @@ function paintRigFront(kind, o){
         g.fillStyle='#f2f8ff'; rr(g, w*lx, bot-h*0.135, w*0.075, h*0.070, 2); g.fill();
         headGlow(g, w*(lx+0.037), bot-h*0.100, w);
       }
+      /* the van wears it on the NOSE only */
+      drawMarque(g, 'GENERIC', w*0.5, bot-h*0.285, h*0.030);
       g.fillStyle='#1b1f26'; g.fillRect(w*0.055, bot-h*0.055, w*0.89, h*0.055);
       return;
     }
@@ -1735,18 +1845,28 @@ function paintRigFront(kind, o){
       g.fillStyle='rgba(255,255,255,.18)';
       rr(g, w*0.055, bedTop, w*0.89, h*0.022, w*0.015); g.fill();
       /* A BIG GRILLE. A pickup's face is mostly grille and it should be */
+      /* ---- THE GRILLE STOPS AT THE LAMPS -------------------------------
+         It ran 0.115 to 0.885 while the lamps occupy 0.075–0.225 and
+         0.775–0.925, so the mouth was painted UNDER both of them — a black
+         band crossing behind the light units. It spans the gap between them
+         now, derived from the lamp edges rather than set by hand. */
+      const LX0 = 0.075, LW = 0.15;                 /* the lamp block */
+      const gL = LX0 + LW + 0.020, gR = 1 - LX0 - LW - 0.020;
       g.fillStyle='rgba(12,14,18,.88)';
-      rr(g, w*0.115, bedTop+h*0.055, w*0.77, h*0.175, 4); g.fill();
+      rr(g, w*gL, bedTop+h*0.055, w*(gR-gL), h*0.175, 4); g.fill();
       g.strokeStyle='rgba(170,182,196,.22)'; g.lineWidth=1.2;
       for(let k=1;k<5;k++){
         const yy = bedTop+h*0.055 + k*h*0.035;
-        g.beginPath(); g.moveTo(w*0.135, yy); g.lineTo(w*0.865, yy); g.stroke();
+        g.beginPath(); g.moveTo(w*(gL+0.02), yy); g.lineTo(w*(gR-0.02), yy); g.stroke();
       }
       /* square lamps flanking it */
       for(const lx of [0.075, 0.775]){
         g.fillStyle='#f2f8ff'; rr(g, w*lx, bedTop+h*0.075, w*0.15, h*0.075, 3); g.fill();
         headGlow(g, w*(lx+0.075), bedTop+h*0.112, w);
       }
+      /* the pickup front returns before the shared badge line, so it needs its
+         own — on the bonnet, above the grille */
+      drawMarque(g, 'GENERIC', w*0.5, bedTop + h*0.028, h*0.032);
       g.fillStyle='#1b1f26'; g.fillRect(w*0.055, bot-h*0.070, w*0.89, h*0.070);
       return;
     }
@@ -1876,9 +1996,18 @@ function paintRigFront(kind, o){
     }
     /* and on the nose */
     if(kind !== 'tuner' && kind !== 'muscle' && kind !== 'cop')
-      drawMarque(g, 'X', w*0.5, pDeck + h*0.075, h*0.034);
-    if(kind === 'tuner' || kind === 'muscle')
-      drawMarque(g, kind === 'tuner' ? 'T' : 'M', w*0.5, pDeck + h*0.075, h*0.038);
+      drawMarque(g, 'GENERIC', w*0.5, pDeck + h*0.026, h*0.030);
+    /* ---- CLEAR OF THE SCOOP ---------------------------------------------
+       The muscle car's bonnet scoop runs `pDeck - 0.010` to `pDeck + 0.045`,
+       and the badge at +0.026 was sitting inside it. It drops below the scoop;
+       the tuner has no scoop so it keeps the higher position.
+
+       BRACES: a bare `if` takes only the next statement, so declaring a const
+       under one is a syntax error and the whole file stops parsing. */
+    if(kind === 'tuner' || kind === 'muscle'){
+      const bY = (kind === 'muscle') ? pDeck + h*0.072 : pDeck + h*0.026;
+      drawMarque(g, kind === 'tuner' ? 'TUNER' : 'MUSCLE', w*0.5, bY, h*0.034);
+    }
 
     /* grille and bumper, where the plate and bumper are on the back */
     g.fillStyle = 'rgba(12,14,18,.85)';
@@ -1886,11 +2015,15 @@ function paintRigFront(kind, o){
       /* ---- a BIG grille -------------------------------------------------
          A muscle car's face is a wide open mouth between the lamp pairs, not a
          letterbox. It runs the full span between them and is twice as deep. */
-      rr(g, w*0.245, ly-h*0.012, w*0.51, lh+h*0.030, 3); g.fill();
+      /* the inner lamp of each pair sits at 0.685+0.185 ± 0.042, so its inner
+         edge is 0.198 on the left and 0.802 on the right — the mouth has to
+         start inside those, not at 0.245 which cut across them */
+      const mL = 0.055 + 0.185 + 0.042 + 0.022, mR = 1 - mL;
+      rr(g, w*mL, ly-h*0.012, w*(mR-mL), lh+h*0.030, 3); g.fill();
       g.strokeStyle = 'rgba(170,182,196,.20)'; g.lineWidth = 1.1;
       for(let k=1;k<4;k++){
         const yy = ly-h*0.012 + k*(lh+h*0.030)/4;
-        g.beginPath(); g.moveTo(w*0.265, yy); g.lineTo(w*0.735, yy); g.stroke();
+        g.beginPath(); g.moveTo(w*(mL+0.02), yy); g.lineTo(w*(mR-0.02), yy); g.stroke();
       }
       g.fillStyle = P.lo;
       g.fillStyle = P.lo;
@@ -1898,7 +2031,9 @@ function paintRigFront(kind, o){
       g.fillStyle = 'rgba(10,12,16,.9)';
       rr(g, w*0.395, pDeck - h*0.004, w*0.21, h*0.026, 3); g.fill();
     } else {
-      rr(g, w*0.33, ly+lh*0.15, w*0.34, lh*0.62, 3); g.fill();
+      /* the car lamps run to 0.315 and 0.685, so 0.33 clears them by 0.015 —
+         tightened to 0.345 so the gap reads as a gap rather than a seam */
+      rr(g, w*0.345, ly+lh*0.15, w*0.31, lh*0.62, 3); g.fill();
     }
     g.fillStyle = '#1b1f26';
     rr(g, w*0.055, bot-h*0.075, w*0.89, h*0.075, w*0.02); g.fill();
@@ -1914,13 +2049,16 @@ function paintRigFront(kind, o){
       rr(g, w*0.36, pRoof - h*0.050, w*0.28, h*0.042, 2); g.fill();
       g.fillStyle = '#ffd23c';
       rr(g, w*0.372, pRoof - h*0.044, w*0.256, h*0.030, 2); g.fill();
+      /* the badge was drawn BEFORE the chequer band and the band covered it.
+         It goes on after, above the chequers rather than behind them. */
+      drawMarque(g, 'GENERIC', w*0.5, pDeck + h*0.018, h*0.032);
     }
 
     /* the cruiser keeps its bar, and its star */
     if(kind === 'cop'){
       g.fillStyle = liveryBand(P.body);
       g.fillRect(w*0.055, pDeck + h*0.100, w*0.89, h*0.045);
-      drawMarque(g, 'C', w*0.5, pDeck + h*0.062, h*0.034);
+      drawMarque(g, 'CRUISER', w*0.5, pDeck + h*0.062, h*0.034);
       g.fillStyle = '#14161a';
       rr(g, w*0.32, pRoof-h*0.045, w*0.36, h*0.045, 3); g.fill();
       g.fillStyle = '#2f6ad6'; rr(g, w*0.335, pRoof-h*0.038, w*0.15, h*0.030, 2); g.fill();
@@ -1958,6 +2096,8 @@ function paintRig(kind, o){
       for(const hx of [0.30, 0.70]){
         g.beginPath(); g.moveTo(w*hx, top+h*0.03); g.lineTo(w*hx, bot-h*0.03); g.stroke();
       }
+      /* no badge on a trailer's back doors — the tractor unit wears it, and
+         what you are looking at here is the box it is pulling */
       /* hinges and a latch bar */
       g.fillStyle='rgba(255,255,255,.14)';
       for(const hy of [0.22,0.46,0.70]) g.fillRect(w*0.045, top+(bot-top)*hy, w*0.03, h*0.02);
@@ -1981,6 +2121,7 @@ function paintRig(kind, o){
 
     if(kind === 'van'){
       /* a tall slab with a distinct roof edge, small high glass, twin doors */
+      /* the generic badge goes on after the doors, below */
       const top = h*0.10, bot = cy - h*0.10;
       g.fillStyle = grad(top, bot);
       rr(g, w*0.055, top, w*0.89, bot-top, w*0.045); g.fill();
@@ -2007,6 +2148,7 @@ function paintRig(kind, o){
       g.fillStyle='rgba(255,190,120,.85)';
       rr(g, w*0.07, bot-h*0.135, w*0.075, h*0.030, 2); g.fill();
       rr(g, w*0.855, bot-h*0.135, w*0.075, h*0.030, 2); g.fill();
+      /* and none on the van's doors either — front only */
       /* bumper */
       g.fillStyle='#2b2e34';
       rr(g, w*0.05, cy-h*0.105, w*0.90, h*0.045, 3); g.fill();
@@ -2028,6 +2170,7 @@ function paintRig(kind, o){
       rr(g, w*0.055, bedTop, w*0.89, bot-bedTop, w*0.02); g.fill();
       g.fillStyle='rgba(255,255,255,.18)';
       rr(g, w*0.055, bedTop, w*0.89, h*0.022, w*0.015); g.fill();
+      drawMarque(g, 'GENERIC', w*0.5, bedTop + h*0.055, h*0.030);
       /* tailgate seam and handle */
       g.strokeStyle='rgba(0,0,0,.30)'; g.lineWidth=Math.max(1,w*0.007);
       g.beginPath(); g.moveTo(w*0.10, bedTop+h*0.055); g.lineTo(w*0.90, bedTop+h*0.055); g.stroke();
@@ -2177,11 +2320,11 @@ function paintRig(kind, o){
     /* the marque, on the boot lid between the lamps — the tuner and the
        muscle car have their own, everything else gets the generic one */
     if(!isTuner && !isMuscle && kind !== 'cop')
-      drawMarque(g, 'X', w*0.5, deckY + h*0.088, h*0.034);
+      drawMarque(g, 'GENERIC', w*0.5, deckY + h*0.088, h*0.034);
     if(isTuner || isMuscle)
       /* lower: it was riding on the shut line rather than sitting on the
          panel below it */
-      drawMarque(g, isTuner ? 'T' : 'M', w*0.5, deckY + h*0.088, h*0.038);
+      drawMarque(g, isTuner ? 'TUNER' : 'MUSCLE', w*0.5, deckY + h*0.088, h*0.038);
 
     /* the taxi's chequer band and its roof sign */
     if(isTaxi){
@@ -2194,6 +2337,7 @@ function paintRig(kind, o){
       rr(g, w*0.36, roofY - h*0.050, w*0.28, h*0.042, 2); g.fill();
       g.fillStyle = '#ffd23c';
       rr(g, w*0.372, roofY - h*0.044, w*0.256, h*0.030, 2); g.fill();
+      drawMarque(g, 'GENERIC', w*0.5, deckY + h*0.018, h*0.032);
     }
 
     /* plate and bumper */
@@ -2220,7 +2364,7 @@ function paintRig(kind, o){
       g.fillStyle = liveryBand(P.body);
       g.fillRect(w*0.045, deckY+h*0.10, w*0.91, h*0.05);
       /* the star, on the door panel */
-      drawMarque(g, 'C', w*0.5, deckY + h*0.062, h*0.036);
+      drawMarque(g, 'CRUISER', w*0.5, deckY + h*0.062, h*0.036);
       g.fillStyle='#1b1e24';
       rr(g, w*0.24, roofY-h*0.055, w*0.52, h*0.045, 2); g.fill();
       g.fillStyle='#2f6bff';
@@ -2236,7 +2380,7 @@ function paintRig(kind, o){
 
    There were no front views at all \u2014 the mirror only ever showed headlight
    GLOWS, so an oncoming car was two smudges of light and nothing else. This
-   paints a nose: lamps, grille, splitter, arches, and for TYPE-Z the things
+   paints a nose: lamps, grille, splitter, arches, and for FORMULA the things
    that only a formula car has.
    =========================================================================== */
 /* a headlamp: a hot point with a modest halo, never a floodlight */
@@ -2260,8 +2404,8 @@ function paintFront(o){
     /* `o.body` is a COLOUR on every other painter, so the type comes in under
        its own name — otherwise the two collide silently and every car draws
        the same nose. */
-    const kind = o.bodyType || 'TYPE-L';
-    const B = BODY[kind] || BODY['TYPE-L'];
+    const kind = o.bodyType || 'MATADOR';
+    const B = BODY[kind] || BODY['MATADOR'];
     /* ---- THE SAME CAR FROM BOTH ENDS ------------------------------------
        The tail applies the arch blisters OUTSIDE this half-width, so a front
        drawn at bare `wide` came out narrower than its own back. The arches are
@@ -2274,7 +2418,7 @@ function paintFront(o){
     g.fillStyle = 'rgba(0,0,0,.45)';
     g.beginPath(); g.ellipse(w*0.5, botY, w*wid*1.05, h*0.045, 0, 0, 6.2832); g.fill();
 
-    if(kind === 'TYPE-Z'){
+    if(kind === 'FORMULA'){
       /* ---- A FORMULA NOSE, from the reference ------------------------------
          The old one was a tall narrow tower. The real thing is LOW and WIDE:
          the wheels sit far outboard and are the tallest things in the picture,
@@ -2299,12 +2443,12 @@ function paintFront(o){
       const rAxle = h*0.606;
       /* far enough out that they clearly show past the front tyres */
       const rTrack = w*0.455;
-      /* Dimmer, and much further out. At 55% and nearly the front's track they
-         merged into one dark slab filling the whole background — the rears
-         should only show as two dark shoulders past the front tyres, which is
-         all you actually see of them. */
+      /* ---- IT HAS TO BE VISIBLE --------------------------------------
+         At 38% none of this read at all: on a white car the whole background
+         vanished and the front looked like a tub between two tyres. 0.62 is
+         still clearly further away than the front but is actually THERE. */
       g.save();
-      g.globalAlpha = 0.38;
+      g.globalAlpha = 0.62;
       for(const sx of [-1,1]){
         const wx = w*0.5 + sx*rTrack;
         g.fillStyle = '#0d0f12';
@@ -2315,11 +2459,42 @@ function paintFront(o){
       /* the rear wing, above the body, on its endplates */
       /* just above the roll hoop, not up in the sky — at RTH*0.66 it floated
          clear of the whole car and read as a black bar across the frame */
+      /* ---- THE ENGINE COVER, BEHIND THE COCKPIT ------------------------
+         From the reference: past the roll hoop there is a body of metal
+         running back to the rear axle — the airbox and the engine cover — and
+         the wing sits ABOVE that, not floating on its own. Without it the car
+         had nothing between the cockpit and the wing but air.
+         ---------------------------------------------------------------- */
+      const ecTop = rAxle - RTH*0.34, ecBot = rAxle + RTH*0.18;
+      const ec = g.createLinearGradient(w*0.42, 0, w*0.58, 0);
+      ec.addColorStop(0, o.lo); ec.addColorStop(0.42, o.body);
+      ec.addColorStop(0.58, o.hi); ec.addColorStop(1, o.lo);
+      g.fillStyle = ec;
+      g.beginPath();
+      g.moveTo(w*0.452, ecTop);
+      g.quadraticCurveTo(w*0.5, ecTop - h*0.030, w*0.548, ecTop);
+      g.lineTo(w*0.600, ecBot);
+      g.lineTo(w*0.400, ecBot);
+      g.closePath(); g.fill();
+      /* No sidepods. They were two dark blocks either side of the cover and at
+         this size they read as clutter rather than bodywork — the cover and
+         the wing are the two things you actually see past a formula car's
+         cockpit, and adding a third only muddied them. */
+
+      /* the rear wing, standing on the engine cover */
       const rwY = rAxle - RTH*0.50;
       g.fillStyle = '#191d22';
       g.fillRect(w*0.115, rwY, w*0.770, h*0.046);
-      g.fillStyle = 'rgba(200,215,230,.10)';
+      g.fillStyle = 'rgba(200,215,230,.14)';
       g.fillRect(w*0.115, rwY, w*0.770, h*0.011);
+      /* the swan necks holding it up off the cover */
+      for(const sx of [-1,1]){
+        g.strokeStyle = '#1b1f26'; g.lineWidth = Math.max(2, w*0.020);
+        g.beginPath();
+        g.moveTo(w*0.5 + sx*w*0.090, rwY + h*0.044);
+        g.lineTo(w*0.5 + sx*w*0.075, ecTop);
+        g.stroke();
+      }
       for(const sx of [-1,1]){
         g.fillStyle = '#141820';
         g.fillRect(w*0.5 + sx*w*0.385 - (sx>0?w*0.030:0), rwY - h*0.020,
@@ -2366,7 +2541,7 @@ function paintFront(o){
       g.quadraticCurveTo(w*0.5, axle + TH2*0.54, w*0.404, axle + TH2*0.44);
       g.closePath(); g.fill();
       /* the number on it */
-      drawMarque(g, 'Z', w*0.5, axle + TH2*0.26, h*0.034);
+      drawMarque(g, 'FORMULA', w*0.5, axle + TH2*0.26, h*0.034);
 
       /* ---- the roll hoop, low over a low deck ---------------------------- */
       g.fillStyle = o.lo;
@@ -2420,7 +2595,7 @@ function paintFront(o){
        is exactly how the three tails differ. A Ferrari and a Porsche are the
        same size; they are not the same face.
        -------------------------------------------------------------------- */
-    const F = kind === 'TYPE-F' ? 'F' : kind === 'TYPE-P' ? 'P' : 'L';
+    const F = kind === 'STALLION' ? 'F' : kind === 'CREST' ? 'P' : 'L';
     /* a rear-engined car has almost no nose, and it should look it: P's body
        starts lower and its deck is shallower than the other two */
     if(F === 'P') topY = h*(B.bodyTop + 0.055);
@@ -2456,6 +2631,8 @@ function paintFront(o){
       if(F === 'F'){
         /* a lip: shallow, close to the deck, the body's own colour */
         rr(g, w*(0.5-wingW), wingY, w*wingW*2, h*0.022, h*0.008); g.fill();
+        g.fillStyle = 'rgba(255,255,255,.16)';
+        g.fillRect(w*(0.5-wingW), wingY, w*wingW*2, Math.max(1.5, h*0.007));
       } else {
         /* ---- and the rear's COLOUR too ----------------------------------
            L's aerofoil is body-coloured (`o.lo`); P's blade is dark
@@ -2463,8 +2640,11 @@ function paintFront(o){
            of them, so each front takes what its own back uses. */
         g.fillStyle = (F === 'P') ? '#1a1d22' : o.lo;
         rr(g, w*(0.5-wingW), wingY, w*wingW*2, h*0.026, h*0.006); g.fill();
-        g.fillStyle = 'rgba(210,222,236,.12)';
-        g.fillRect(w*(0.5-wingW), wingY, w*wingW*2, Math.max(1, h*0.006));
+        /* the REAR lifts its blade with `rgba(255,255,255,.16)`; the front was
+           using a dimmer, bluer 12% and came out visibly darker than the same
+           wing seen from behind. Same value both ends. */
+        g.fillStyle = 'rgba(255,255,255,.16)';
+        g.fillRect(w*(0.5-wingW), wingY, w*wingW*2, Math.max(1.5, h*0.009));
         for(const sx of [-1,1]){
           /* P's uprights hang from the blade and are darker still */
           g.fillStyle = (F === 'P') ? '#15171b' : o.body;
@@ -2485,7 +2665,7 @@ function paintFront(o){
     }
 
     /* stripes on the nose: over the roof and down the bonnet, glass clear */
-    const stripeOn = o.stripes && kind !== 'TYPE-Z';
+    const stripeOn = o.stripes && kind !== 'FORMULA';
 
     /* the greenhouse */
     g.fillStyle = o.lo;
@@ -2534,10 +2714,12 @@ function paintFront(o){
     g.closePath(); g.fill();
 
     if(stripeOn){
+      /* the same table the rear reads, so front and back match exactly */
+      const SC = stripeCols(kind);
       g.fillStyle = shade(o.body, 0.42);
-      for(const sx of [0.398, 0.517]){
-        g.fillRect(w*sx, roofT, w*0.085, h*0.030);
-        g.fillRect(w*sx, topY, w*0.085, botY - topY - h*0.05);
+      for(const sx of SC.xs){
+        g.fillRect(w*sx, roofT, w*SC.w, h*0.030);
+        g.fillRect(w*sx, topY, w*SC.w, botY - topY - h*0.05);
       }
     }
 
@@ -2630,7 +2812,11 @@ function paintFront(o){
     /* splitter and shadow, common to all three */
     g.fillStyle = '#1b1f26';
     g.fillRect(w*(0.5-wid*0.96), botY - h*0.05, w*wid*1.92, h*0.05);
-    if(B.rear) drawMarque(g, B.rear, w*0.5, topY + h*0.155, h*0.036);
+    /* ---- CLEAR OF THE LAMPS -------------------------------------------
+       At `topY + 0.155` the mark landed on the lamp line of every face — on
+       CREST it sat inside the unibrow. It goes ABOVE them, on the bonnet
+       between the screen and the light units, where there is bare metal. */
+    if(B.rear) drawMarque(g, B.rear, w*0.5, topY + h*0.038, h*0.034);
   };
 }
 
@@ -2727,16 +2913,6 @@ function paintCar(o){
     /* ---- STRIPES, if the car is wearing them --------------------------
        Paint, so they stop at the glass: one run over the roof, one down the
        deck, and the window left clear — the same rule the muscle car uses. */
-    if(o.stripes){
-      /* FATTER on a supercar — 0.055 on a body this wide read as pinstripes.
-         0.085 with a narrower gap is a proper pair of racing stripes. */
-      g.fillStyle = shade(o.body, 0.42);
-      const rT = h*o.cabinTop, dT = h*o.bodyTop;
-      for(const sx of [0.398, 0.517]){
-        g.fillRect(w*sx, rT, w*0.085, h*0.030);
-        g.fillRect(w*sx, dT, w*0.085, cy - dT - h*0.08);
-      }
-    }
 
     /* the shoulder crease that runs across every one of them */
     g.strokeStyle = 'rgba(255,255,255,.16)'; g.lineWidth = Math.max(1, h*0.006);
@@ -2755,6 +2931,7 @@ function paintCar(o){
       const wid = 0.42 + (B ? B.wide : 0.03);
       /* shared by the dome shell AND the screen, so they cannot drift apart */
       const springX = 0.5 - wid + 0.02;
+      let cabinPath = null;
       const springY = h*o.bodyTop + h*0.02;
       const apex    = h*o.cabinTop + h*0.015;
       const cg = g.createLinearGradient(0, h*o.cabinTop, 0, h*o.bodyTop+4);
@@ -2789,6 +2966,18 @@ function paintCar(o){
         g.lineTo(w*(1-springX), springY + h*0.03);
         g.lineTo(w*springX, springY + h*0.03);
         g.closePath(); g.fill();
+        /* the DOME sets the clip path too — it did not, so CREST fell back to
+           a plain rect and its stripe overhung the arc by seven pixels */
+        cabinPath = function(){
+          g.beginPath();
+          g.moveTo(w*springX, springY);
+          g.bezierCurveTo(w*(springX+ctl), apex,
+                          w*(1-springX-ctl), apex,
+                          w*(1-springX), springY);
+          g.lineTo(w*(1-springX), springY + h*0.03);
+          g.lineTo(w*springX, springY + h*0.03);
+          g.closePath();
+        };
       } else {
         /* ---- THE SAME GREENHOUSE AS THE FRONT --------------------------------
            The rear cabin was a rounded BOX; the front is a shouldered curve
@@ -2810,7 +2999,41 @@ function paintCar(o){
         g.quadraticCurveTo(w*(0.5+cw3*0.62), roofY, w*(1-spX), h*o.bodyTop + h*0.02);
         g.lineTo(w*(1-spX), h*o.bodyTop + h*0.06);
         g.closePath(); g.fill();
+        /* keep the shell's own path so the stripe can be clipped to it */
+        cabinPath = function(){
+          g.beginPath();
+          g.moveTo(w*spX, h*o.bodyTop + h*0.06);
+          g.lineTo(w*spX, h*o.bodyTop + h*0.02);
+          g.quadraticCurveTo(w*(0.5-cw3*0.62), roofY, w*(0.5-cw3*0.46), roofY);
+          g.lineTo(w*(0.5+cw3*0.46), roofY);
+          g.quadraticCurveTo(w*(0.5+cw3*0.62), roofY, w*(1-spX), h*o.bodyTop + h*0.02);
+          g.lineTo(w*(1-spX), h*o.bodyTop + h*0.06);
+          g.closePath();
+        };
       }
+      /* ---- THE ROOF RUN, TRIMMED BY THE GLASS ITSELF --------------------
+         Every attempt to compute where the roof ends and the screen begins was
+         off by a few pixels, because the roof is a curve and the glass is
+         inset from it by an amount that differs per body.
+
+         So: do not compute it. Paint the stripe over the WHOLE cabin here,
+         after the shell and BEFORE the glass — then the glass is drawn on top
+         and trims it to exactly the lip, pixel for pixel, whatever shape the
+         roof is. No constant to get wrong.
+         ---------------------------------------------------------------- */
+      if(o.stripes){
+        /* CLIPPED to the shell above and TRIMMED by the glass below, so both
+           ends land on the metal exactly — no constant either side. */
+        g.save();
+        if(cabinPath) cabinPath(); else g.rect(0, h*o.cabinTop, w, h);
+        g.clip();
+        const SC = stripeCols(o.bodyKey);
+        g.fillStyle = shade(o.body, 0.42);
+        for(const sx of SC.xs)
+          g.fillRect(w*sx, 0, w*SC.w, h);
+        g.restore();
+      }
+
       // rear glass
       const gg = g.createLinearGradient(0, h*o.cabinTop, 0, h*o.bodyTop);
       gg.addColorStop(0,'#4a5a6e'); gg.addColorStop(0.35,'#141a24'); gg.addColorStop(1,'#0b0e14');
@@ -2861,6 +3084,59 @@ function paintCar(o){
     }
     /* the wing, and each shape wears a different one */
     const wing = B ? B.wing : 'lip';
+    if(o.stripes){
+      /* FATTER on a supercar — 0.055 on a body this wide read as pinstripes.
+         0.085 with a narrower gap is a proper pair of racing stripes. */
+      /* ---- DRAWN LAST, SO NOTHING PAINTS OVER IT ------------------------
+         Measured: the deck run reached y=162 of 168 exactly as the arithmetic
+         said, then the TAIL LAMPS and bumper were drawn on top and cut the
+         visible stripe off at 146. Twenty-one pixels were COVERED, not
+         missing — which is why widening the numbers changed nothing.
+
+         The maths was right and the order was wrong. It goes after the lamps
+         and the badge now, the way the muscle car's already did.
+         The body runs from `bodyTop` down to `cy - h*0.035`, but the stripe
+         stopped at `cy - h*0.08` — short by 0.045h, which is a visible band of
+         bare paint under it. On STALLION and MATADOR that gap is what made the
+         stripes look like they had ridden up the car.
+
+         Both runs measure off the SAME numbers the body uses now, so they
+         cannot drift again: roof from `cabinTop` to `bodyTop`, deck from
+         `bodyTop` to the bottom of the body.
+         ------------------------------------------------------------------ */
+      g.fillStyle = shade(o.body, 0.42);
+      /* ---- FIND THE ROOF, DO NOT GUESS IT -------------------------------
+         Measured at the stripe's own x: the first solid pixel of the car is at
+         y=42 on STALLION and y=55 on MATADOR, while `cabinTop` is 32 and 40. The
+         cabin BOX starts well above the metal because the roof is a curve
+         inset from it — so every constant I tried (`cabinTop`, then
+         `cabinTop + 0.015`) put the stripe in the air above the car.
+
+         Rather than guess a third offset, the roof line is read off the shape
+         the greenhouse actually draws: the cabin spans `cabinTop` to
+         `bodyTop`, and the metal begins about a quarter of the way down that
+         span. That holds for both bodies and cannot float again.
+         ------------------------------------------------------------------ */
+      /* ---- THE ROOF RUN ONLY ---------------------------------------------
+         `dT` and `bT` below are the BODY stripe and are not touched by any of
+         this — that run has been right since it reached the bumper.
+
+         `rT` is the roof. The cabin BOX starts at `cabinTop` but the drawn
+         roof is a curve inset from it, so the metal begins about a third of
+         the way down the cabin span. Measured: at `cabinTop` the stripe sat
+         8px above the car on STALLION and 13px above on MATADOR.
+         ------------------------------------------------------------------ */
+      const cabH = h*(o.bodyTop - o.cabinTop);
+      const rT = h*o.cabinTop + cabH*0.32, dT = h*o.bodyTop, bT = cy - h*0.035;
+      const SC = stripeCols(o.bodyKey);
+      for(const sx of SC.xs){
+        /* the roof run is NOT here — it is drawn between the cabin shell and
+           the glass so the window trims it */
+        /* the deck: from the boot lid all the way to the bumper */
+        g.fillRect(w*sx, dT, w*SC.w, bT - dT);
+      }
+    }
+
     if(o.spoiler && wing === 'high'){
       /* a proper aerofoil on stanchions, clear of the deck */
       g.fillStyle=o.lo;
@@ -2906,11 +3182,11 @@ function paintCar(o){
        P  ONE full-width light bar across the whole tail, twin pipes together
           low in the middle  (GT3 RS)
        -------------------------------------------------------------------- */
-    const kind = B ? B.rear : 'L';
+    const kind = B ? B.rear : 'MATADOR';
     const ty = cy - h*0.34, th = h*0.11;
     const lamp1 = o.lamp2 || '#ff6a5a', lamp0 = o.lamp || '#c8102e';
 
-    if(kind === 'Z'){
+    if(kind === 'FORMULA'){
       /* ---- A FORMULA TAIL, second pass -------------------------------------
          The first one had the wing floating above a cone. From the reference,
          what actually reads: the tyres are ENORMOUS and nearly touch the wing
@@ -2990,11 +3266,11 @@ function paintCar(o){
                            w*0.5 + sx*w*0.105, cyT - TH2*0.36);
         g.stroke();
       }
-      drawMarque(g, 'Z', w*0.5, wgY + h*0.038, h*0.030);
+      drawMarque(g, 'FORMULA', w*0.5, wgY + h*0.038, h*0.030);
       return;
     }
 
-    if(kind === 'P'){
+    if(kind === 'CREST'){
       /* the bar */
       g.fillStyle = 'rgba(20,16,18,.85)';
       rr(g, w*0.10, ty - h*0.012, w*0.80, th*1.10, th*0.5); g.fill();
@@ -3047,11 +3323,11 @@ function paintCar(o){
       }
     }
 
-    /* The marque, small, high on the panel. TYPE-P wears a full-width light
+    /* The marque, small, high on the panel. CREST wears a full-width light
        bar rather than separate lamps, so its badge sits ABOVE the bar on the
        engine lid — the others have a panel between their lamps to sit on. */
     if(B && B.rear){
-      const badgeY = B.rear === 'P' ? ty - h*0.085 : ty - h*0.045;
+      const badgeY = B.rear === 'CREST' ? ty - h*0.085 : ty - h*0.045;
       drawMarque(g, B.rear, w*0.5, badgeY, h*0.030);
     }
 
@@ -3060,20 +3336,20 @@ function paintCar(o){
     g.fillStyle = 'rgba(10,10,12,.92)';
     rr(g, w*0.10, dy, w*0.80, dh, w*0.02); g.fill();
     g.strokeStyle = 'rgba(255,255,255,.10)'; g.lineWidth = 1;
-    const fins = kind === 'L' ? 7 : 5;
+    const fins = kind === 'MATADOR' ? 7 : 5;
     for(let i2=1;i2<fins;i2++){
       const fx = w*0.10 + (w*0.80)*(i2/fins);
       g.beginPath(); g.moveTo(fx, dy+1); g.lineTo(fx, dy+dh-1); g.stroke();
     }
     /* the pipes sit where each car puts them */
     g.fillStyle = '#1a1c20';
-    if(kind === 'F'){
+    if(kind === 'STALLION'){
       for(const px of [w*0.40, w*0.60]){
         g.beginPath(); g.arc(px, cy - h*0.145, h*0.026, 0, 6.2832); g.fill();
         g.strokeStyle = 'rgba(200,206,216,.55)'; g.lineWidth = 1;
         g.beginPath(); g.arc(px, cy - h*0.145, h*0.026, 0, 6.2832); g.stroke();
       }
-    } else if(kind === 'L'){
+    } else if(kind === 'MATADOR'){
       for(const px of [w*0.435, w*0.565]){
         rr(g, px - w*0.045, cy - h*0.215, w*0.09, h*0.045, 2); g.fill();
         g.strokeStyle = 'rgba(196,170,110,.6)'; g.lineWidth = 1; g.stroke();
@@ -3147,11 +3423,11 @@ let optPaint = 'WHITE', optEasy = true, optMirror = 'FULL';   /* no cops unless 
 /* the cars a RIVAL may be given: the three you start with, and nothing else.
    An unlock you had to win a tournament for should not be sitting on the grid
    opposite you. */
-const RIVAL_BODIES = ['TYPE-F','TYPE-L','TYPE-P'];
+const RIVAL_BODIES = ['STALLION','MATADOR','CREST'];
 const RIVAL_SP = {};
 let TRAFFIC_SP = {}, FRONT_SP = {};
 function buildSprites(){
-  const shape = BODY[optBody] || BODY['TYPE-L'];
+  const shape = BODY[optBody] || BODY['MATADOR'];
   /* a `rig` body is a road car and uses the traffic painter, at that shape's
      own sprite size; everything else is a supercar and uses paintCar */
   const pt = PAINT[optPaint] || PAINT.WHITE;
@@ -3163,7 +3439,7 @@ function buildSprites(){
                                           stripes:optStripes && stripesAllowed() }, pt)));
   } else {
     SP.player = sprite(220,168, paintCar(Object.assign({
-      cabin:true, spoiler:true, shape,
+      cabin:true, spoiler:true, shape, bodyKey:optBody,
       bodyTop:shape.bodyTop, cabinTop:shape.cabinTop,
       stripes:optStripes && stripesAllowed(),
       lamp:'#d61b3c', lamp2:'#ff7a86'
@@ -3173,13 +3449,13 @@ function buildSprites(){
      used to be a tinted saloon, which is why the grid never looked like a
      field of equals. Built once per colour and cached. */
   /* one sprite per body AND paint, so a rival's shape and colour are both its
-     own — keyed 'TYPE-L|CYAN' and cached, which is 36 small canvases */
+     own — keyed 'MATADOR|CYAN' and cached, which is 36 small canvases */
   /* and the cache only needs the bodies a rival can actually be given */
   for(const bk of RIVAL_BODIES){
     const rs = BODY[bk];
     for(const k of PAINT_KEYS){
       RIVAL_SP[bk+'|'+k] = sprite(220,168, paintCar(Object.assign({
-        cabin:true, spoiler:true, shape:rs,
+        cabin:true, spoiler:true, shape:rs, bodyKey:bk,
         bodyTop:rs.bodyTop, cabinTop:rs.cabinTop,
         lamp:'#d61b3c', lamp2:'#ff7a86'
       }, PAINT[k])));
@@ -3530,9 +3806,9 @@ function reset(){
   dist=0; score=0; combo=0; comboTime=0; heat=1; heatT=0; runTopMph=0;
   clock = CLOCK_START; nextCP = 1; cpGantries = []; lastBeep = -1; wreckWait = 0;
   /* if you are driving one, the force matches you; otherwise the night decides */
-  barOn = false; wonCruiser = false;
+  barOn = false; wonCruiser = false; wonTraffic = false;
   if(hornBtn) hornBtn.classList.remove('on');
-  copLivery = (optBody === 'TYPE-C')
+  copLivery = (optBody === 'CRUISER')
     ? (optPaint === 'BLACK' ? 'BLACK' : 'WHITE')
     : (Math.random() < 0.5 ? 'BLACK' : 'WHITE');
   /* dayClock deliberately NOT reset: the sky keeps its own time across runs */
@@ -3680,7 +3956,7 @@ function setBrake(on){
    passes 60mph.
    ------------------------------------------------------------------------- */
 function zeroSixty(key){
-  const B = BODY[key] || BODY['TYPE-L'];
+  const B = BODY[key] || BODY['MATADOR'];
   /* the REAL numbers: speed is in MAX_SPD units where MAX_SPD is 200mph, and
      the driving code adds `2850 * gearFactor() * pull` per second. My first
      attempt invented a 0.62 constant and produced 0.3s for everything. */
@@ -3727,7 +4003,7 @@ const GEARS = [
   { g:6, ratio:1.00, from:0.75, to:1.00, pull:0.96 }
 ];
 const REDLINE = 12000;
-/* TYPE-Z is a V12: it spins to fifteen and sings a fifth higher than anything
+/* FORMULA is a V12: it spins to fifteen and sings a fifth higher than anything
    with a road-car engine in it. */
 function redline(){ return (BODY[optBody] && BODY[optBody].redline) || REDLINE; }
 function enginePitch(){ return (BODY[optBody] && BODY[optBody].pitch) || 1; }
@@ -3829,7 +4105,7 @@ function syncBoxClass(){
   document.body.classList.toggle('manual', !!optManual);
   /* one manual UI or the other, never both: the gate for a road car, paddles
      for the formula car */
-  const paddleCar = optBody === 'TYPE-Z';
+  const paddleCar = optBody === 'FORMULA';
   const sh = document.getElementById('shifter');
   const pd = document.getElementById('paddles');
   if(sh) sh.hidden = !optManual ||  paddleCar;
@@ -4233,8 +4509,8 @@ function buildField(){
      them is a matter of driving better, and the rubber band keeps it close
      enough to stay a race.
 
-     The mix is real too: a TYPE-L rival leaps off the line and runs out of
-     legs; a TYPE-F reels you back in on a long straight.
+     The mix is real too: a MATADOR rival leaps off the line and runs out of
+     legs; a STALLION reels you back in on a long straight.
      -------------------------------------------------------------------------- */
   const pool = PAINT_KEYS.filter(k => k !== optPaint);
   for(let i=pool.length-1;i>0;i--){
@@ -4243,9 +4519,9 @@ function buildField(){
   }
   /* Dealt round-robin then shuffled, so the three types are always evenly
      represented. Drawing each independently clustered badly — one grid came
-     out seven TYPE-F from eleven. */
+     out seven STALLION from eleven. */
   /* only the three starting cars — `Object.keys(BODY)` now includes the three
-     unlockables, and a grid handing you a TYPE-Z you have not won is absurd */
+     unlockables, and a grid handing you a FORMULA you have not won is absurd */
   const kinds = RIVAL_BODIES;
   const deck = [];
   for(let i=0;i<racers.length;i++) deck.push(kinds[i % kinds.length]);
@@ -4385,9 +4661,10 @@ function stepRacers(dt){
         /* gold unlocks the formula car, silver the tuner, bronze the muscle
            car — so a tournament is worth finishing even when the win is gone */
         if(AR && AR.save){
-          if(st === 1) AR.save.merge('highway-opts', { typeZ:true });
-          if(st <= 2)  AR.save.merge('highway-opts', { typeT:true });
-          if(st <= 3)  AR.save.merge('highway-opts', { typeM:true });
+          /* the save keys name the CARS, not a TYPE that no longer exists */
+          if(st === 1) AR.save.merge('highway-opts', { formula:true });
+          if(st <= 2)  AR.save.merge('highway-opts', { tuner:true });
+          if(st <= 3)  AR.save.merge('highway-opts', { muscle:true });
         }
         setTimeout(() => showTrophy(st), 700);
       } else {
@@ -4413,8 +4690,8 @@ function ordinal(n){
    interceptor has.
    ------------------------------------------------------------------------- */
 let barOn = false;
-let wonCruiser = false;
-function inCruiser(){ return optBody === 'TYPE-C'; }
+let wonCruiser = false, wonTraffic = false;
+function inCruiser(){ return optBody === 'CRUISER'; }
 
 function setHorn(on){
   if(inCruiser()){
@@ -4568,7 +4845,7 @@ function drawMarque(g, kind, cx, cy, r, tint){
      each is now a distinct outline in a distinct metal with one heavy device
      inside it.
      ---------------------------------------------------------------------- */
-  if(kind === 'F'){
+  if(kind === 'STALLION'){
     /* WIDE YELLOW OVAL, black bar, three red stripes — racing colours */
     g.fillStyle = '#0e1014';
     g.beginPath(); g.ellipse(0,0,10,6.6,0,0,6.2832); g.fill();
@@ -4580,7 +4857,7 @@ function drawMarque(g, kind, cx, cy, r, tint){
     g.fillRect(-4.0,-4.6,1.9,3.2);
     g.fillRect(-0.9,-4.6,1.9,3.2);
     g.fillRect( 2.2,-4.6,1.9,3.2);
-  } else if(kind === 'L'){
+  } else if(kind === 'MATADOR'){
     /* TALL BLACK HEXAGON with a gold rim and a single heavy chevron */
     g.fillStyle = '#c2a86a';
     g.beginPath();
@@ -4602,7 +4879,7 @@ function drawMarque(g, kind, cx, cy, r, tint){
      above the ones I later wrote. `else if` takes the FIRST match, so the real
      designs never ran and editing them showed nothing. The stale pair is gone.
      ---------------------------------------------------------------------- */
-  } else if(kind === 'C'){
+  } else if(kind === 'CRUISER'){
     /* ---- A SHERIFF'S STAR -------------------------------------------------
        Seven points with balled tips, on a dark disc — the shape a highway
        patrol badge is, and unmistakable at eight pixels because nothing else
@@ -4625,7 +4902,7 @@ function drawMarque(g, kind, cx, cy, r, tint){
     }
     g.fillStyle = 'rgba(10,14,22,.85)';
     g.beginPath(); g.arc(0,0,3.0,0,6.2832); g.fill();
-  } else if(kind === 'X'){
+  } else if(kind === 'GENERIC'){
     /* ---- AN ORDINARY CAR'S BADGE ------------------------------------------
        Every civilian vehicle carries one, and it must NOT look like a marque:
        a plain chrome oval with a bar across it, the shape a manufacturer's
@@ -4638,7 +4915,7 @@ function drawMarque(g, kind, cx, cy, r, tint){
     g.fillRect(-7.6,-1.0,15.2,2.0);
     g.fillStyle = 'rgba(255,255,255,.35)';
     g.beginPath(); g.ellipse(-1.8,-2.0,4.2,1.8,0,0,6.2832); g.fill();
-  } else if(kind === 'T'){
+  } else if(kind === 'TUNER'){
     /* ---- THE TUNER ------------------------------------------------------
        A disc, not a shield: a rising sun on a deep red ground, rays running
        out to the rim. Round because the car is a road car and its badge is a
@@ -4658,7 +4935,7 @@ function drawMarque(g, kind, cx, cy, r, tint){
     }
     g.fillStyle = '#fff3d6';
     g.beginPath(); g.arc(0,0,3.2,0,6.2832); g.fill();
-  } else if(kind === 'M'){
+  } else if(kind === 'MUSCLE'){
     /* ---- THE MUSCLE CAR -------------------------------------------------
        A blunt chrome shield with a single star and two bars — the American
        idiom, and about as far from the tuner's disc as a badge can get. */
@@ -4685,7 +4962,7 @@ function drawMarque(g, kind, cx, cy, r, tint){
       k ? g.lineTo(x,y) : g.moveTo(x,y);
     }
     g.closePath(); g.fill();
-  } else if(kind === 'Z'){
+  } else if(kind === 'FORMULA'){
     /* ---- A GOLD LIGHTNING BOLT --------------------------------------------
        No shield, no diamond, no plate. The mark IS the bolt — a single struck
        shape, which is the only thing that survives at eight pixels on a nose.
@@ -4740,7 +5017,7 @@ function drawWheel(){
      it made the wheel unfamiliar every time you changed car — the badge is
      what should tell you which one you are in. */
   /* the formula yoke is not a ring, so it must not be drawn on one */
-  const TH = (MK === 'Z') ? 13 : 9.5;
+  const TH = (MK === 'FORMULA') ? 13 : 9.5;
   /* ---- the rim ----------------------------------------------------------
      A flat-bottomed sports wheel: circular through the top and sides, cut off
      square along the bottom, with the corners squared off where the leather
@@ -4750,19 +5027,23 @@ function drawWheel(){
   /* ---- THE WHEEL FOLLOWS THE CLASS --------------------------------------
      Three classes, not "road cars and supercars":
 
-       FORMULA     TYPE-Z              a yoke, no rim at the top
-       SUPERCAR    TYPE-F, L, P        a flat-bottomed rim
-       PRODUCTION  TYPE-T, M, C        a plain circular rim
+       FORMULA     FORMULA              a yoke, no rim at the top
+       SUPERCAR    STALLION, L, P        a flat-bottomed rim
+       PRODUCTION  TUNER, M, C        a plain circular rim
 
      The cruiser is a production car with a light bar on it, so it takes the
      production wheel — it was getting the supercar's flat bottom. Pushing the
      flat almost to the rim radius leaves a ring, and the bottom bar and its arm
      are skipped with it. */
-  const roundRim = (MK === 'T' || MK === 'M' || MK === 'C');
+  /* ---- WHO GETS THE ROUND WHEEL ---------------------------------------
+     The production cars and ALL the ordinary traffic: a plain circular rim
+     with whatever badge that vehicle carries on the boss. Only the supercars
+     keep the flat bottom and only the formula car has a yoke. */
+  const roundRim = (MK === 'TUNER' || MK === 'MUSCLE' || MK === 'CRUISER' || MK === 'GENERIC');
   const flatY = roundRim ? R*0.995 : R*0.62;
   const aFlat = Math.asin(flatY/R);
   function rimPath(){
-    if(MK === 'Z'){
+    if(MK === 'FORMULA'){
       /* ---- A FORMULA WHEEL ----------------------------------------------
          From the reference: not a ring at all. A wide rectangular yoke with
          the whole top cut away, deep thumb cut-outs, and a screen in the
@@ -4806,7 +5087,7 @@ function drawWheel(){
   /* the weave, painted into the top third and the bottom bar */
   g.save();
   g.beginPath();
-  if(MK === 'Z'){
+  if(MK === 'FORMULA'){
     /* the carbon weave was clipped to a circular ARC of the rim, which drew a
        ghost ring above the yoke on the one wheel that is not round. It clips
        to the yoke's own path instead. */
@@ -4856,7 +5137,7 @@ function drawWheel(){
      it was left floating in the gap */
   /* the guard has to wrap the DRAW, not the style line before it — an if with
      no braces takes only the next statement, so the tick still drew */
-  if(MK !== 'Z'){
+  if(MK !== 'FORMULA'){
     g.strokeStyle = '#e8ecf2'; g.lineWidth = 2.4;
     g.beginPath(); g.moveTo(0, -R-TH/2+0.5); g.lineTo(0, -R+TH/2-0.5); g.stroke();
   }
@@ -4918,7 +5199,7 @@ function drawWheel(){
   g.fillStyle = boss;
   g.beginPath(); g.arc(0,0,bR,0,6.2832); g.fill();
   g.strokeStyle = 'rgba(255,255,255,.10)'; g.lineWidth = 1;
-  if(MK !== 'Z'){ g.beginPath(); g.arc(0,0,bR-0.5,0,6.2832); g.stroke(); }
+  if(MK !== 'FORMULA'){ g.beginPath(); g.arc(0,0,bR-0.5,0,6.2832); g.stroke(); }
 
   /* THE CAR'S OWN BADGE. A hard-coded horse lived here, drawn after the
      marque call, so every car wore the same emblem however the marque table
@@ -5342,8 +5623,15 @@ function step(dt){
      race — the tournament rewards winning, and this rewards lasting. All three
      conditions matter: without the clock there is no pressure, and without
      pursuit there is nothing to survive. */
-  if(mode !== 'race' && timedRun && !optEasy && dist >= 20 && !unlocked('typeC')){
-    if(AR && AR.save) AR.save.merge('highway-opts', { typeC:true });
+  /* a hundred miles on TEST DRIVE, whatever the settings, opens the traffic */
+  if(mode !== 'race' && dist >= 100 && !unlocked('traffic')){
+    if(AR && AR.save) AR.save.merge('highway-opts', { traffic:true });
+    wonTraffic = true;
+    snd.checkpoint();
+    flashWarn('TRAFFIC UNLOCKED');
+  }
+  if(mode !== 'race' && timedRun && !optEasy && dist >= 20 && !unlocked('cruiser')){
+    if(AR && AR.save) AR.save.merge('highway-opts', { cruiser:true });
     /* flagged now, SHOWN when the run ends — a reward screen mid-run would be
        taking the wheel away from you at 190mph */
     wonCruiser = true;
@@ -6532,7 +6820,7 @@ function emitBucket(n){
     } else if(it.kind==='g'){
       /* a rival: your car, in its own paint, with its number on the boot */
       const r = it.o;
-      const box = drawSprite(RIVAL_SP[(r.body||'TYPE-L')+'|'+r.paint] || SP.player,
+      const box = drawSprite(RIVAL_SP[(r.body||'MATADOR')+'|'+r.paint] || SP.player,
                              r.x, r.z, r.w, r.wreck>0?0.85:1);
       if(box){
         if(box.w > 26){
@@ -6764,7 +7052,7 @@ function drawPlayer(){
      Two heads alternating on the same phase the pursuit sirens use, and a wash
      thrown forward onto the road — the same treatment an NPC cruiser gets, so
      it reads as the same machine. */
-  if(barOn && optBody === 'TYPE-C'){
+  if(barOn && optBody === 'CRUISER'){
     const blue = Math.sin(sirenPhase) > 0;
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
@@ -7576,7 +7864,7 @@ function garageCard(){
    telling. Everything else takes the full dozen.
    ------------------------------------------------------------------------- */
 function paintChoices(){
-  return optBody === 'TYPE-C' ? ['WHITE','BLACK'] : PAINT_KEYS;
+  return optBody === 'CRUISER' ? ['WHITE','BLACK'] : PAINT_KEYS;
 }
 function paintSwatches(){
   return '<div class="swatches">' + paintChoices().map(k =>
@@ -7671,9 +7959,24 @@ function showGarage(){
   drawGarageCar();
 }
 function cycleBody(d){
-  /* TYPE-Z is not in the list until it has been won */
-  const LOCK = { 'TYPE-Z':'typeZ', 'TYPE-T':'typeT', 'TYPE-M':'typeM', 'TYPE-C':'typeC' };
-  const ks = Object.keys(BODY).filter(k => !LOCK[k] || unlocked(LOCK[k]));
+  /* FORMULA is not in the list until it has been won */
+  const LOCK = { 'FORMULA':'typeZ', 'TUNER':'tuner', 'MUSCLE':'muscle', 'CRUISER':'cruiser',
+                 'COUPE':'traffic','SALOON':'traffic','CAB':'traffic',
+                 'PICKUP':'traffic','VAN':'traffic','LORRY':'traffic' };
+  /* ---- DEBUG OVERRIDES ---------------------------------------------------
+     These open a car in the garage WITHOUT writing the unlock flag, so the
+     reward screens can still be earned properly afterwards. That is the whole
+     point of them: testing the cars must not consume the moment of winning
+     them. `unlocked()` is untouched — only this gate is widened.
+     ---------------------------------------------------------------------- */
+  const openBy = k => {
+    const need = LOCK[k];
+    if(!need) return true;
+    if(unlocked(need)) return true;
+    if(need === 'traffic') return !!dbgTraffic;
+    return !!dbgRacers;
+  };
+  const ks = Object.keys(BODY).filter(openBy);
   const i = (ks.indexOf(optBody) + d + ks.length) % ks.length;
   optBody = ks[i];
   /* a car with a restricted palette cannot keep a colour it does not offer */
@@ -7931,6 +8234,33 @@ function showTitle(){
     });
 }
 
+/* ---- THE DEBUG MENU -------------------------------------------------------
+   Two switches that widen the garage gate WITHOUT writing an unlock flag. A car
+   opened here is driveable immediately and still locked as far as the save is
+   concerned, so the reward screens can be earned properly afterwards \u2014 testing
+   a car must not consume the moment of winning it.
+
+   They are deliberately not saved. A debug switch that survives a reload is a
+   debug switch you forget you left on.
+   -------------------------------------------------------------------------- */
+function showDebug(){
+  document.body.classList.add('titling');
+  const state = k => k ? 'ON' : 'OFF';
+  openVeil(
+    '<div class="eyebrow">HIGHWAY</div><h1>Debug</h1>' +
+    '<div class="tip">OPENS CARS FOR TESTING WITHOUT MARKING THEM UNLOCKED</div>' +
+    '<div class="tmenu">' +
+      '<button class="go ghost" data-act="dr">UNLOCK ALL RACERS \u00b7 <b>' +
+        state(dbgRacers) + '</b></button>' +
+      '<button class="go ghost" data-act="dt">UNLOCK ALL TRAFFIC \u00b7 <b>' +
+        state(dbgTraffic) + '</b></button>' +
+      '<button class="go" data-act="back">BACK</button>' +
+    '</div>',
+    { dr:   () => { dbgRacers  = !dbgRacers;  showDebug(); },
+      dt:   () => { dbgTraffic = !dbgTraffic; showDebug(); },
+      back: () => showOptions() });
+}
+
 function showOptions(){
   /* ---- THE SAME ROWS AS THE PAUSE MENU -----------------------------------
      This used to be a signpost saying the settings were somewhere else, which
@@ -7945,9 +8275,10 @@ function showOptions(){
     '<div class="ark-opts"></div>' +
     '<div class="tmenu">' +
       '<button class="go ghost" data-act="ctrl">CONTROLS</button>' +
+      '<button class="go ghost" data-act="debug">DEBUG</button>' +
       '<button class="go" data-act="back">BACK</button>' +
     '</div>',
-    { ctrl: () => showControls(), back: () => showTitle() });
+    { ctrl: () => showControls(), debug: () => showDebug(), back: () => showTitle() });
   if(AR && AR.options && AR.options.paint) AR.options.paint();
 }
 
@@ -8153,7 +8484,7 @@ function showUnlock(key){
       '<div class="gc"><span>REDLINE</span><b>' + ((B.redline||12000)/1000) + 'K</b></div>' +
       '<div class="gc"><span>0\u201360 MPH</span><b>' + zeroSixty(key).toFixed(1) + 's</b></div>' +
     '</div>' +
-    (key === 'TYPE-C'
+    (key === 'CRUISER'
       ? '<div class="gnote">20 MILES \u00B7 ON THE CLOCK \u00B7 UNDER PURSUIT</div>'
       : '') +
     '<div class="gstack">' +
@@ -8181,7 +8512,7 @@ function showTrophy(st){
       '<div class="gc"><span>PLACE</span><b>P' + st + '</b></div>' +
     '</div>' +
     (st === 1
-      ? '<div class="gnote">TYPE-Z UNLOCKED \u00b7 FORMULA \u00b7 NO COMPROMISE</div>'
+      ? '<div class="gnote">FORMULA UNLOCKED \u00b7 FORMULA \u00b7 NO COMPROMISE</div>'
       : '<div class="tip">A GOLD UNLOCKS THE FOURTH CAR</div>') +
     '<div class="gstack">' +
       (st <= 3 ? '<button class="go" data-act="unlock">SEE YOUR NEW CAR</button>' : '') +
@@ -8190,7 +8521,7 @@ function showTrophy(st){
     '</div>',
     { again: () => { document.body.classList.remove('trophying');
                      tourReset(); showGarage(); },
-      unlock: () => showUnlock(st === 1 ? 'TYPE-Z' : st === 2 ? 'TYPE-T' : 'TYPE-M'),
+      unlock: () => showUnlock(st === 1 ? 'FORMULA' : st === 2 ? 'TUNER' : 'MUSCLE'),
       menu:  () => { document.body.classList.remove('trophying');
                      tourOn = false; showTitle(); } });
 }
