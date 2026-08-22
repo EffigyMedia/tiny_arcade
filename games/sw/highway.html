@@ -1075,65 +1075,60 @@ var snd = {
      ---------------------------------------------------------------------- */
   menuBed: function(step, t){
     if (!AR) return;
-    /* ---- AN ACTUAL TUNE ---------------------------------------------------
-       The last one was a groove with two stray notes on it and no melody \u2014 a
-       backing track waiting for something that never arrived. This has a
-       MELODY: sixteen bars of it, phrased, that rises through the progression
-       and answers itself.
+    /* ---- 140 BPM ELECTRO -------------------------------------------------
+       The last one put a melody note on every eighth for eight bars \u2014 96 notes
+       with barely a rest \u2014 which is a flute solo, not a track. That is the
+       "phonetic and chaotic" part: constant pitch change with nothing to hold
+       onto.
 
-       A minor, 128BPM, i \u2013 VI \u2013 III \u2013 VII, which is the four chords every
-       driving game has used since 1986 because they go somewhere and come
-       back. The tune sits on top in a square lead, one note per eighth, with
-       rests where a singer would breathe.
+       Electro is the opposite discipline. The parts are FEW and they REPEAT:
+
+         - four on the floor, and that is the whole drum argument
+         - a two-note bass hook that does not change for four bars
+         - one arp figure, four notes, looping unchanged \u2014 the ear locks on
+         - a chord every four bars, and nothing else moves
+
+       Sixteen steps at 140. Roughly a third the note count of the last one,
+       and every note is somewhere you already expect it.
        -------------------------------------------------------------------- */
     var s = step % 16, bar = Math.floor(step/16) % 8;
 
-    var ROOTS = [55.00, 43.65, 32.70, 49.00,   /* Am  F   C   G  */
-                 55.00, 43.65, 32.70, 49.00];
+    /* Am \u2013 Am \u2013 F \u2013 G, four bars each half so it breathes */
+    var ROOTS = [55.00, 55.00, 43.65, 49.00, 55.00, 55.00, 43.65, 49.00];
     var root  = ROOTS[bar];
 
-    /* ---- the melody: -1 is a rest, numbers are semitones off A ---------- */
-    var LINE = [
-      [ 12, -1, 15, -1, 19, -1, 15, -1, 12, -1, -1, -1, 10, -1, 12, -1 ],
-      [  8, -1, 12, -1, 17, -1, 12, -1,  8, -1, -1, -1,  5, -1,  8, -1 ],
-      [  7, -1, 12, -1, 16, -1, 19, -1, 16, -1, 12, -1,  7, -1, -1, -1 ],
-      [ 14, -1, 12, -1, 10, -1, 12, -1, 14, -1, 17, -1, 19, -1, 21, -1 ],
-      [ 24, -1, 19, -1, 15, -1, 19, -1, 24, -1, -1, -1, 22, -1, 19, -1 ],
-      [ 20, -1, 17, -1, 12, -1, 17, -1, 20, -1, -1, -1, 17, -1, 12, -1 ],
-      [ 19, -1, 16, -1, 12, -1, 16, -1, 19, -1, 24, -1, 19, -1, 16, -1 ],
-      [ 14, -1, 17, -1, 19, -1, 17, -1, 14, -1, 12, -1, 10, -1, -1, -1 ]
-    ][bar];
-    var n = LINE[s];
-    if (n >= 0){
-      var f = 55.00 * Math.pow(2, n/12) * 2;
-      AR.sfx.tone({ t:t, freq:f, dur:0.26, type:'square', gain:0.090,
-                    bus:'music', cutoff:2800, q:2, verb:0.30 });
-      /* an octave under it at a third the level gives the lead a body */
-      AR.sfx.tone({ t:t, freq:f/2, dur:0.24, type:'square', gain:0.030,
-                    bus:'music', cutoff:1500, q:2 });
+    /* ---- four on the floor ---------------------------------------------- */
+    if (s % 4 === 0) AR.sfx.drum('kick', t, s === 0 ? 0.80 : 0.66);
+    if (s === 4 || s === 12) AR.sfx.drum('snare', t, 0.46);
+    /* offbeat hats only \u2014 the space between them is what makes it move */
+    if (s % 4 === 2) AR.sfx.drum('hat', t, 0.26);
+    if (bar % 4 === 3 && s === 14) AR.sfx.drum('open', t, 0.24);
+
+    /* ---- the bass hook: two notes, unchanged for four bars --------------- */
+    if (s === 0 || s === 6){
+      AR.sfx.tone({ t:t, freq: root*0.5, dur: s === 0 ? 0.34 : 0.18,
+                    type:'square', gain:0.155, bus:'music', cutoff:230, q:3 });
+    }
+    if (s === 10){
+      AR.sfx.tone({ t:t, freq: root*0.5*Math.pow(2,7/12), dur:0.16,
+                    type:'square', gain:0.115, bus:'music', cutoff:280, q:3 });
     }
 
-    /* ---- the kit: a straight backbeat, out of the way of the tune ------- */
-    if (s === 0 || s === 6 || s === 8 || s === 14)
-      AR.sfx.drum('kick', t, s === 0 ? 0.78 : 0.54);
-    if (s === 4 || s === 12) AR.sfx.drum('snare', t, 0.50);
-    if (s % 2 === 0) AR.sfx.drum('hat', t, s % 4 ? 0.14 : 0.22);
-    if (bar % 4 === 3 && s === 14) AR.sfx.drum('open', t, 0.26);
+    /* ---- ONE arp figure, looping ---------------------------------------- */
+    var ARP = [0, 7, 12, 7];
+    if (s % 4 === 0){
+      var n = ARP[(s/4) | 0];
+      AR.sfx.tone({ t:t, freq: root * Math.pow(2, n/12) * 4,
+                    dur:0.16, type:'square', gain:0.055,
+                    bus:'music', cutoff:2400, q:2, verb:0.28 });
+    }
 
-    /* ---- bass: root on the beat, fifth on the and-of-two --------------- */
-    if (s === 0 || s === 8)
-      AR.sfx.tone({ t:t, freq:root*0.5, dur:0.44, type:'square',
-                    gain:0.150, bus:'music', cutoff:250, q:3 });
-    if (s === 6 || s === 14)
-      AR.sfx.tone({ t:t, freq:root*0.5*Math.pow(2,7/12), dur:0.20,
-                    type:'square', gain:0.100, bus:'music', cutoff:300, q:3 });
-
-    /* ---- chords, held, under everything -------------------------------- */
-    if (s === 0){
-      [0, 7, 12].forEach(function(iv, k){
-        AR.sfx.tone({ t:t + k*0.010, freq: root * Math.pow(2, iv/12),
-                      dur:1.75, type:'sawtooth', gain:0.042 - k*0.008,
-                      bus:'music', cutoff:820 + k*260, attack:0.06, verb:0.35 });
+    /* ---- a pad, once every four bars ------------------------------------ */
+    if (s === 0 && bar % 4 === 0){
+      [0, 7, 15].forEach(function(iv, k){
+        AR.sfx.tone({ t:t + k*0.015, freq: root * Math.pow(2, iv/12),
+                      dur:3.4, type:'sawtooth', gain:0.038 - k*0.007,
+                      bus:'music', cutoff:760 + k*220, attack:0.35, verb:0.45 });
       });
     }
   },
@@ -3917,7 +3912,7 @@ function wreck(reason){
       r:rnd(2,7), c: Math.random()<0.5 ? '#ff8a3d' : '#ffe0a0'});
   }
   /* a game over belongs to the menu, so the menu's music takes over */
-  if(AR && AR.music){ AR.music.stop(); AR.music.start(128, 16, snd.menuBed); }
+  if(AR && AR.music){ AR.music.stop(); AR.music.start(140, 16, snd.menuBed); }
   setTimeout(()=>showEnd(reason), 700);
 }
 
@@ -4699,7 +4694,7 @@ function stepRacers(dt){
       best: bestScore, bestMi: +bestDist.toFixed(1), runs: runs,
       label: 'BEST ' + bestDist.toFixed(1) + ' MI'
     });
-    if(AR && AR.music){ AR.music.stop(); AR.music.start(128, 16, snd.menuBed); }
+    if(AR && AR.music){ AR.music.stop(); AR.music.start(140, 16, snd.menuBed); }
     snd.checkpoint();
     if(tourOn){
       tourScore(place);
@@ -5595,7 +5590,7 @@ function step(dt){
       label: 'BEST ' + bestDist.toFixed(1) + ' MI'
     });
     snd.dead();
-    if(AR && AR.music){ AR.music.stop(); AR.music.start(128, 16, snd.menuBed); }
+    if(AR && AR.music){ AR.music.stop(); AR.music.start(140, 16, snd.menuBed); }
     setTimeout(() => showEnd('OUT OF TIME'), 500);
     return;
   }
@@ -6072,6 +6067,16 @@ function step(dt){
     }
     if(smashed) continue;
 
+    /* ---- A WRECKED CRUISER CANNOT HIT YOU -----------------------------
+       This test never checked `k.wreck`. A cop you had already put into the
+       barrier stayed in the array spinning out for 1.2s — and every frame of
+       that it was still a solid body at your lane and your z, so it went on
+       damaging you. That is the ghost: not an invisible cop, a DEAD one you
+       are still colliding with.
+
+       The loop above it guards on `k.wreck > 0` for the AI; the collision
+       never did. It does now. */
+    if(k.wreck > 0) continue;
     if(iframe<=0 && Math.abs(dz) < (k.len+380)/2 && Math.abs(k.x-playerX) < (k.w+0.26)/2){
       /* PIT: catch a cruiser on the side, alongside rather than nose to tail,
          while you are actually moving into it and carrying speed, and it goes
@@ -6144,7 +6149,13 @@ function step(dt){
         /* a near miss is its own reward — no nitrous for bravado */
         nos = Math.min(100, nos+25); dmg = Math.max(0, dmg-25);
         snd.threaded();
-        fx.push({txt:'THREADED THE GAP  +1500', x:W/2, y:H*0.6, vy:-60, age:0, life:1.3});
+        /* ---- NO SCORE IN THIS GAME ---------------------------------------
+           These labels advertised points that do not exist — there is no score
+           variable anywhere in the file, and nothing accumulates. Highway is
+           scored in MILES and in where you finish; a floating "+1500" promises
+           a number the player will never see again. The event still gets its
+           shout, without the fiction. */
+        fx.push({txt:'THREADED THE GAP', x:W/2, y:H*0.6, vy:-60, age:0, life:1.3});
       } else {
         hurt(28,'roadblock');
         spd *= 0.3;
@@ -6224,7 +6235,7 @@ function wreckCop(k, how){
   /* the crate: a proper repair and a proper slug of nitrous, which is what
      makes it worth crossing the road for */
   nos = Math.min(100, nos + 25); dmg = Math.max(0, dmg - 25);
-  fx.push({txt:'CRUISER DOWN +1200', x:W/2, y:H*0.58, vy:-55, age:0, life:1.2});
+  fx.push({txt:'CRUISER DOWN', x:W/2, y:H*0.58, vy:-55, age:0, life:1.2});
   burst(k, '#ff9a5a');
 }
 function burst(o,color){
@@ -7984,7 +7995,7 @@ function showGarage(){
   /* the garage is reachable from the end card, so it has to tear down too —
      but it keeps the menu music rather than restarting it */
   if(state !== 'garage'){ endRun(); state = 'garage';
-    if(AR && AR.music) AR.music.start(128, 16, snd.menuBed); }
+    if(AR && AR.music) AR.music.start(140, 16, snd.menuBed); }
   state = 'garage';
   openVeil(
     '<div class="eyebrow">CHOOSE YOUR CAR</div>' +
@@ -8255,11 +8266,13 @@ function drawTitleArt(){
   const img = SP.player;
   if(img){
     const bob = Math.sin(T*2.4)*2.2;
-    /* At 93% the car sat entirely behind the button panel — the same mistake
-       Aegis's city made. It rides at 70%, on the road, above the panel, and
-       smaller so the perspective still reads. */
-    const cw = w*0.26, ch = cw * img.height/img.width;
-    const cxp = w*0.5, cyp = h*0.70 + bob;
+    /* ---- FURTHER UP THE ROAD ------------------------------------------
+       70% still crowded the top button. It sits at 60% now and is smaller with
+       it — 0.19 rather than 0.26 — because a car further away is a car that
+       LOOKS further away. Moving it up without shrinking it would just read as
+       a car floating above the road. */
+    const cw = w*0.19, ch = cw * img.height/img.width;
+    const cxp = w*0.5, cyp = h*0.60 + bob;
     /* what it is standing on */
     g.fillStyle = 'rgba(0,0,0,.45)';
     g.beginPath(); g.ellipse(cxp, cyp-2, cw*0.42, ch*0.07, 0, 0, 6.2832); g.fill();
@@ -8318,7 +8331,7 @@ function armMenuAudio(){
   audioArmed = true;
   const go = () => {
     if(state !== 'title') return;
-    if(AR && AR.music) AR.music.start(128, 16, snd.menuBed);
+    if(AR && AR.music) AR.music.start(140, 16, snd.menuBed);
   };
   addEventListener('pointerdown', go, { once:true });
   addEventListener('keydown',     go, { once:true });
@@ -8330,7 +8343,7 @@ function showTitle(){
   document.body.classList.add('titling');
   titleT = 0;
   requestAnimationFrame(drawTitleArt);
-  if(AR && AR.music) AR.music.start(128, 16, snd.menuBed);
+  if(AR && AR.music) AR.music.start(140, 16, snd.menuBed);
   openVeil(
     '<h1>Highway</h1>' +
     '<div class="tmenu">' +
