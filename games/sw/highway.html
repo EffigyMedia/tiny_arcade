@@ -571,6 +571,22 @@ h1 u{text-decoration:none;display:block;font-size:.34em;letter-spacing:.26em;col
 @media (orientation:landscape) and (pointer:coarse){
   body.lock-portrait #rotate{display:grid}
 }
+
+/* the title art sits behind the veil, and only for the title */
+#titleArt{position:absolute;inset:0;z-index:29;display:none;width:100%;height:100%}
+body.titling #titleArt{display:block}
+/* with art behind it the veil only needs to darken the lower half for the
+   buttons, not cover the picture */
+body.titling #veil{
+  background:linear-gradient(180deg,
+    rgba(8,5,14,0) 0%, rgba(8,5,14,0) 40%,
+    rgba(8,5,14,.55) 58%, rgba(8,5,14,.90) 78%, rgba(8,5,14,.96) 100%);
+  align-items:end;padding-bottom:34px}
+body.titling #veil h1{display:none}
+/* a bezel line, not a credit: small, dim, and out of the way at the very
+   bottom where a cabinet actually carries it */
+.legal{margin-top:14px;font-size:8px;letter-spacing:.14em;
+  color:rgba(255,255,255,.26);text-align:center}
 </style>
 </head>
 <body>
@@ -614,7 +630,8 @@ h1 u{text-decoration:none;display:block;font-size:.34em;letter-spacing:.26em;col
     <div id="gate"></div>
     <div id="knob" data-gear="1"><b>1</b></div>
   </div>
-  <div id="veil"><div class="vw" id="veilBody"></div></div>
+  <canvas id="titleArt"></canvas>
+<div id="veil"><div class="vw" id="veilBody"></div></div>
 </div></div>
 
 <script>
@@ -874,6 +891,26 @@ var snd = {
       vo.a.place(clamp(lateral * (0.9 + closeness*1.9), -1, 1), 0.07);
       vo.a.set(hz, 0.058 * fall * fall * snd.tScale, 300 + rr*900, 0.07);
     }
+  },
+
+  /* ---- the menu has its own music -------------------------------------
+     The driving bed carried straight over the title because nothing stopped
+     it, which made a game over feel like the run was still going. This is
+     slower, wider and in no hurry — a car park at night rather than a road.
+     ---------------------------------------------------------------------- */
+  menuBed: function(step, t){
+    if(!AR) return;
+    const S = [0, 3, 7, 10, 12, 10, 7, 3];
+    const root = 55;
+    if(step % 2 === 0)
+      AR.sfx.tone({ t, freq: root, dur: 0.9, type:'triangle', gain: 0.045,
+                    attack: 0.05, cutoff: 300, bus:'music' });
+    AR.sfx.tone({ t, freq: root * Math.pow(2, S[step % 8]/12) * 4,
+                  dur: 0.55, type:'sine', gain: 0.030, attack: 0.03,
+                  cutoff: 1600, verb: 0.5, bus:'music' });
+    if(step % 8 === 4)
+      AR.sfx.noise({ t, freq: 2400, dur: 0.12, gain: 0.014,
+                     filter:'highpass', bus:'music' });
   },
 
   /* a bright two-note rise — unmistakable over the engine */
@@ -2255,6 +2292,8 @@ function wreck(reason){
       vx:rnd(-320,320), vy:rnd(-460,-60), life:rnd(.5,1.3), age:0,
       r:rnd(2,7), c: Math.random()<0.5 ? '#ff8a3d' : '#ffe0a0'});
   }
+  /* a game over belongs to the menu, so the menu's music takes over */
+  if(AR && AR.music){ AR.music.stop(); AR.music.start(96, 8, snd.menuBed); }
   setTimeout(()=>showEnd(reason), 700);
 }
 
@@ -2495,6 +2534,7 @@ function autoGear(dt){
   } else autoDownT = 0;
 }
 
+let brakeLamp = 0;
 let horning = false, hornCool = 0, bustT = 0, behindT = 2, slowFor = 0, audioTick = 0, bendT = 0, skySmooth = 0, pushK = 0;
 
 /* ---- rubber on the road --------------------------------------------------
@@ -3564,7 +3604,11 @@ function step(dt){
      +-150 units every frame forever — invisible on a rounded mph readout, but
      it meant the car was genuinely decelerating half the time and the screech
      never stopped. */
+  const spdWas = spd;
   spd += clamp(top - spd, -rate*dt, rate*dt);
+  /* your own brake light, on the same hysteresis every other car uses */
+  if((spdWas - spd) / Math.max(dt, 1/240) > 900) brakeLamp = 0.30;
+  else if(brakeLamp > 0) brakeLamp -= dt;
   /* coming to rest with the clock out is the end of the run */
   /* ---- OUT OF TIME ---------------------------------------------------
      This called `gameOver()`, which does not exist — the end-of-run screen
@@ -3580,6 +3624,7 @@ function step(dt){
       label: 'BEST ' + bestDist.toFixed(1) + ' MI'
     });
     snd.dead();
+    if(AR && AR.music){ AR.music.stop(); AR.music.start(96, 8, snd.menuBed); }
     setTimeout(() => showEnd('OUT OF TIME'), 500);
     return;
   }
@@ -4639,8 +4684,17 @@ function drawSprite(img, worldX, worldZ, worldW, alpha){
   if(w < 1.2 || w > W*3.4) return null;
   const h = w * img.height/img.width;
   if(p.y - h > H || p.y < horizon - h) return null;
-  /* a car standing on a slice the road never painted is behind a hill */
-  if(hiddenBehindHill(worldZ)) return null;
+  /* ---- NO OCCLUSION TEST HERE ANY MORE -------------------------------
+     `hiddenBehindHill` asked whether `roadY[idx]` had been filled — but
+     sprites are emitted DURING the road pass now, so for any car the slices
+     NEARER than it have not been painted yet and its lookup landed on an
+     undefined entry. Every car reported itself hidden and the road went
+     empty: 23 cars in range, 0 drawn.
+
+     The bucket order already IS the occlusion. A car only draws when its
+     slice is painted, and a painted slice is by definition visible. The
+     leftover test could only ever take away things that were correct.
+     ------------------------------------------------------------------ */
 
   const brow = crestY(worldZ);
   if(brow !== null && p.y < brow - H*0.012) return null;
@@ -4959,13 +5013,18 @@ function drawPlayer(){
      does not brighten with speed, it brightens when you brake. Off by day
      while coasting, dim by night, and bright the instant the pedal goes down
      — the same rule every other car on the road follows. */
+  /* `brake` is the RAW pedal flag and it is not what the car obeys — braking
+     is only real when it is actually shedding speed, and the lamp was reading
+     a variable that is true the whole time a finger rests on the pedal. It
+     now follows the same deceleration the tyres do. */
   const litNow = lampsOn();
-  const glow = brake ? 0.85 : (litNow > 0.01 ? 0.30 * litNow : 0);
+  const hard = brakeLamp > 0;
+  const glow = hard ? 0.90 : (litNow > 0.30 ? 0.28 * litNow : 0);
   if(glow > 0.01){
   ctx.globalCompositeOperation='lighter';
   for(const ox of [-0.24,0.24]){
     const g = ctx.createRadialGradient(p.x+ox*w, p.y-h*0.34, 0, p.x+ox*w, p.y-h*0.34, w*0.30);
-    g.addColorStop(0,'rgba(255,'+(brake?70:50)+',85,'+glow+')');
+    g.addColorStop(0,'rgba(255,'+(hard?70:40)+',85,'+glow+')');
     g.addColorStop(1,'rgba(255,60,80,0)');
     ctx.fillStyle=g;
     ctx.beginPath(); ctx.arc(p.x+ox*w, p.y-h*0.34, w*0.30, 0, 6.2832); ctx.fill();
@@ -5712,6 +5771,11 @@ function drawGarageCar(){
   g2.drawImage(img, (300-bw)/2, 176-bh, bw, bh);
 }
 function showGarage(){
+  document.body.classList.remove('titling');
+  /* the garage is reachable from the end card, so it has to tear down too —
+     but it keeps the menu music rather than restarting it */
+  if(state !== 'garage'){ endRun(); state = 'garage';
+    if(AR && AR.music) AR.music.start(96, 8, snd.menuBed); }
   state = 'garage';
   openVeil(
     '<div class="eyebrow">CHOOSE YOUR CAR</div>' +
@@ -5723,7 +5787,13 @@ function showGarage(){
         (optManual ? 'MANUAL' : 'AUTO') + '</b></button>' +
       '<button class="go ghost" data-act="next">\u203A</button>' +
     '</div>' +
+    /* the run's SHAPE belongs with the car, not on the title card: both are
+       choices about the drive you are about to take */
     '<div class="gstack">' +
+      '<button class="go ghost" data-act="mode">MODE \u00B7 <b>' +
+        (mode === 'race' ? 'RACE' : 'ENDLESS') + '</b></button>' +
+      '<button class="go ghost" data-act="chase">HOT PURSUIT \u00B7 <b>' +
+        (optEasy ? 'OFF' : 'ON') + '</b></button>' +
       '<button class="go" data-act="drive">DRIVE</button>' +
       '<button class="go ghost" data-act="back">BACK</button>' +
     '</div>',
@@ -5733,6 +5803,10 @@ function showGarage(){
       box:  () => { optManual = !optManual; syncBoxClass();
                     if(AR && AR.save) AR.save.merge('highway-opts', { manual:optManual });
                     showGarage(); },
+      mode:  () => { mode = (mode === 'race' ? 'endless' : 'race'); showGarage(); },
+      chase: () => { optEasy = !optEasy;
+                     if(AR && AR.save) AR.save.merge('highway-opts', { easy:optEasy });
+                     showGarage(); },
       drive: start,
       back: showTitle
     });
@@ -5747,24 +5821,237 @@ function cycleBody(d){
   showGarage();
 }
 
+/* ---- a menu means the run is OVER ----------------------------------------
+   Reaching the title through the garage left `state` on 'wrecked' with the
+   whole scene still loaded, so QUIT flashed a frame of road on the way out.
+   Any menu that is not the pause menu ends the run properly first.
+   -------------------------------------------------------------------------- */
+function endRun(){
+  state = 'title';
+  spd = 0; fx.length = 0; shake = 0;
+  traffic.length = 0; cops.length = 0; blocks.length = 0;
+  racers.length = 0; crates.length = 0; skids.length = 0;
+  if(typeof cpGantries !== 'undefined') cpGantries.length = 0;
+  if(AR && AR.music) AR.music.stop();
+}
+
+
+/* ===========================================================================
+   THE TITLE CARD
+
+   Not a menu over a paused game: a made picture. Sun on the horizon, the city
+   in silhouette, the road running out to meet it, your own car on it, and the
+   name drawn rather than typed.
+
+   The LOGO is the point. A font — any font — says "UI". Letters built as
+   paths, raked forward, cut across the middle by a horizon line, chrome above
+   and hot amber below, is what an arcade cabinet's marquee looks like.
+   =========================================================================== */
+let titleCv = null, titleT = 0;
+
+/* the alphabet and the shell treatment are shared — see Arcade.wordmark */
+function drawLogo(g, cx, cy, size){
+  AR.wordmark(g, 'HIGHWAY', cx, cy, size, {
+    maxW: titleCv.clientWidth * 0.88,
+    cool: ['#f6f8ff','#9fb2d8','#e9eefc'],
+    hot:  ['#ffd27a','#ff8a2b','#c93c1f']
+  });
+}
+
+function drawTitleArt(){
+  if(!titleCv) titleCv = document.getElementById('titleArt');
+  if(!titleCv) return;
+  if(!titleT) titleT = performance.now();
+  const T = (performance.now() - titleT) / 1000;
+  const g = titleCv.getContext('2d');
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  const w = titleCv.clientWidth, h = titleCv.clientHeight;
+  if(titleCv.width !== w*dpr){ titleCv.width = w*dpr; titleCv.height = h*dpr; }
+  g.setTransform(dpr,0,0,dpr,0,0);
+  const hz = h * 0.52;
+
+  /* ---- sky ---------------------------------------------------------------
+     Six stops, not four: the band right above the horizon is where all the
+     colour is, so it gets the resolution. */
+  const sky = g.createLinearGradient(0,0,0,hz);
+  sky.addColorStop(0,   '#120820');
+  sky.addColorStop(0.32,'#2e0f3e');
+  sky.addColorStop(0.58,'#63204c');
+  sky.addColorStop(0.78,'#a83550');
+  sky.addColorStop(0.92,'#dd5a41');
+  sky.addColorStop(1,   '#f5934a');
+  g.fillStyle = sky; g.fillRect(0,0,w,hz);
+
+  /* stars, fading out as they near the light, twinkling on their own clocks */
+  for(let i=0;i<90;i++){
+    const sx = (i*97.7) % w, sy = (i*47.3) % (hz*0.78);
+    const tw = 0.55 + 0.45*Math.sin(T*1.6 + i);
+    g.fillStyle = 'rgba(255,240,255,' + (0.55*(1 - sy/(hz*0.9))*tw) + ')';
+    g.fillRect(sx, sy, 1.4, 1.4);
+  }
+
+  /* thin clouds drifting across the light, lit from beneath */
+  for(let i=0;i<5;i++){
+    const cy = hz*0.42 + i*hz*0.10;
+    const cx = ((T*(6 + i*3) + i*160) % (w + 260)) - 130;
+    const cw = 90 + i*34, ch = 5 + i;
+    const cg = g.createLinearGradient(0, cy-ch, 0, cy+ch);
+    cg.addColorStop(0,'rgba(255,150,120,.05)');
+    cg.addColorStop(0.6,'rgba(255,130,110,.16)');
+    cg.addColorStop(1,'rgba(120,40,80,.10)');
+    g.fillStyle = cg;
+    g.beginPath(); g.ellipse(cx, cy, cw, ch, 0, 0, 6.2832); g.fill();
+  }
+
+  /* ---- the sun ----------------------------------------------------------- */
+  const sr = w * 0.27, sxc = w*0.5, syc = hz - sr*0.14;
+  const sun = g.createLinearGradient(0, syc-sr, 0, syc+sr);
+  sun.addColorStop(0,'#fff2a8'); sun.addColorStop(0.42,'#ffb047');
+  sun.addColorStop(0.75,'#ff5f52'); sun.addColorStop(1,'#ff2f70');
+  g.save();
+  g.beginPath(); g.arc(sxc, syc, sr, 0, 6.2832); g.clip();
+  g.fillStyle = sun; g.fillRect(sxc-sr, syc-sr, sr*2, sr*2);
+  /* the bands CREEP downward, which is what makes it feel like it is setting */
+  g.fillStyle = 'rgba(18,6,26,.88)';
+  for(let i=0;i<10;i++){
+    const yy = syc + sr*0.06 + i*(sr*0.108) + ((T*7) % (sr*0.108));
+    g.fillRect(sxc-sr, yy, sr*2, sr*0.018 + i*sr*0.010);
+  }
+  g.restore();
+  /* its own haze */
+  g.save();
+  g.globalCompositeOperation = 'lighter';
+  const halo = g.createRadialGradient(sxc,syc,sr*0.5,sxc,syc,sr*2.1);
+  halo.addColorStop(0,'rgba(255,140,90,.22)'); halo.addColorStop(1,'rgba(255,110,80,0)');
+  g.fillStyle = halo; g.fillRect(0,0,w,hz+40);
+  g.restore();
+
+  /* ---- the city, two ranks deep ------------------------------------------ */
+  for(const rank of [{d:0.55, c:'#2a1330', y:0}, {d:1, c:'#140a1c', y:0}]){
+    let bx = -20, bi = rank.d*7;
+    g.fillStyle = rank.c;
+    while(bx < w+20){
+      const bw = (12 + ((bi*29) % 26)) * (0.7 + rank.d*0.5);
+      const centre = 1 - Math.abs((bx+bw/2)/w - 0.5)*2;
+      const bh = (14 + ((bi*47) % 52)) * (0.45 + centre*0.9) * (0.6 + rank.d*0.6);
+      g.fillRect(bx, hz-bh, bw, bh);
+      if(rank.d === 1){
+        for(let wy = hz-bh+4; wy < hz-3; wy += 6)
+          for(let wx = bx+3; wx < bx+bw-3; wx += 5)
+            if(((wx*7 + wy*11 + bi*17) % 100)/100 < 0.20 + centre*0.30){
+              g.fillStyle = 'rgba(255,206,140,.7)';
+              g.fillRect(wx, wy, 2, 3);
+              g.fillStyle = rank.c;
+            }
+      }
+      bx += bw + 4 + ((bi*13) % 8); bi++;
+    }
+  }
+
+  /* ---- the grid, RUNNING toward you --------------------------------------- */
+  g.fillStyle = '#0b0512'; g.fillRect(0, hz, w, h-hz);
+  g.strokeStyle = 'rgba(255,90,190,.40)'; g.lineWidth = 1;
+  const scroll = (T*0.30) % 1;
+  for(let i=0;i<18;i++){
+    const t = ((i/18) + scroll) % 1;
+    const yy = hz + (h-hz) * t*t;
+    g.globalAlpha = Math.min(1, t*3);
+    g.beginPath(); g.moveTo(0, yy); g.lineTo(w, yy); g.stroke();
+  }
+  g.globalAlpha = 1;
+  for(let i=-10;i<=10;i++){
+    g.beginPath();
+    g.moveTo(w/2 + i*(w*0.028), hz);
+    g.lineTo(w/2 + i*(w*0.58), h);
+    g.stroke();
+  }
+
+  /* ---- the road ----------------------------------------------------------- */
+  g.fillStyle = '#171225';
+  g.beginPath();
+  g.moveTo(w*0.5 - w*0.042, hz); g.lineTo(w*0.5 + w*0.042, hz);
+  g.lineTo(w*0.5 + w*0.66, h);   g.lineTo(w*0.5 - w*0.66, h);
+  g.closePath(); g.fill();
+  /* rumble strips down both edges */
+  for(const side of [-1, 1]){
+    g.strokeStyle = 'rgba(226,226,232,.5)'; g.lineWidth = 1.5;
+    g.beginPath();
+    g.moveTo(w*0.5 + side*w*0.040, hz);
+    g.lineTo(w*0.5 + side*w*0.63, h);
+    g.stroke();
+  }
+  /* the centre line, dashes rushing at you and thickening as they arrive */
+  g.strokeStyle = 'rgba(255,206,120,.85)';
+  for(let i=0;i<9;i++){
+    const t0 = (((i/9) + scroll*1.6) % 1), t1 = t0 + 0.05;
+    if(t1 > 1) continue;
+    const y0 = hz + (h-hz)*t0*t0, y1 = hz + (h-hz)*t1*t1;
+    g.lineWidth = 1 + t0*8;
+    g.globalAlpha = Math.min(1, t0*4);
+    g.beginPath(); g.moveTo(w*0.5, y0); g.lineTo(w*0.5, y1); g.stroke();
+  }
+  g.globalAlpha = 1;
+
+  /* ---- the car ------------------------------------------------------------ */
+  const img = SP.player;
+  if(img){
+    const bob = Math.sin(T*2.4)*2.2;
+    /* At 93% the car sat entirely behind the button panel — the same mistake
+       Aegis's city made. It rides at 70%, on the road, above the panel, and
+       smaller so the perspective still reads. */
+    const cw = w*0.26, ch = cw * img.height/img.width;
+    const cxp = w*0.5, cyp = h*0.70 + bob;
+    /* what it is standing on */
+    g.fillStyle = 'rgba(0,0,0,.45)';
+    g.beginPath(); g.ellipse(cxp, cyp-2, cw*0.42, ch*0.07, 0, 0, 6.2832); g.fill();
+    g.drawImage(img, cxp - cw/2, cyp - ch, cw, ch);
+    /* tail lamps, breathing */
+    g.save();
+    g.globalCompositeOperation = 'lighter';
+    const pulse = 0.55 + 0.25*Math.sin(T*2.0);
+    for(const ox of [-0.082, 0.082]){
+      const gl = g.createRadialGradient(cxp+ox*w, cyp-ch*0.34, 0,
+                                        cxp+ox*w, cyp-ch*0.34, cw*0.26);
+      gl.addColorStop(0,'rgba(255,58,84,'+pulse+')');
+      gl.addColorStop(1,'rgba(255,58,84,0)');
+      g.fillStyle = gl;
+      g.beginPath(); g.arc(cxp+ox*w, cyp-ch*0.34, cw*0.26, 0, 6.2832); g.fill();
+    }
+    g.restore();
+  }
+
+  /* ---- air over the lot --------------------------------------------------- */
+  const wash = g.createRadialGradient(sxc, hz, 0, sxc, hz, w*0.85);
+  wash.addColorStop(0,'rgba(255,130,80,.20)'); wash.addColorStop(1,'rgba(255,130,80,0)');
+  g.fillStyle = wash; g.fillRect(0,0,w,h);
+  g.fillStyle = 'rgba(0,0,0,.16)';
+  for(let y=0;y<h;y+=3) g.fillRect(0,y,w,1);
+
+  drawLogo(g, w*0.5, h*0.235, Math.min(w*0.155, 74));
+
+  if(document.body.classList.contains('titling'))
+    requestAnimationFrame(drawTitleArt);
+}
+
 function showTitle(){
+  endRun();
+  document.body.classList.add('titling');
+  titleT = 0;
+  requestAnimationFrame(drawTitleArt);
+  if(AR && AR.music) AR.music.start(96, 8, snd.menuBed);
   openVeil(
     '<h1>Highway</h1>' +
     '<div class="tmenu">' +
       '<button class="go" data-act="play">PLAY</button>' +
-      '<button class="go ghost" data-act="mode">MODE \u00B7 <b>' +
-        (mode === 'race' ? 'RACE' : 'ENDLESS') + '</b></button>' +
-      /* Hot pursuit lives HERE, not in the pause menu — it changes what the
-         run is, so letting it be flipped mid-run would let a player switch the
-         cops off the moment one appeared. */
-      '<button class="go ghost" data-act="chase">HOT PURSUIT \u00B7 <b>' +
-        (optEasy ? 'OFF' : 'ON') + '</b></button>' +
+      /* MODE and HOT PURSUIT moved to the garage: they are choices about the
+         drive you are about to take, so they belong beside the car. */
       '<button class="go ghost" data-act="opts">OPTIONS</button>' +
       '<button class="go ghost" data-act="quit">QUIT</button>' +
-    '</div>',
+    '</div>' +
+    '<div class="legal">\u00A9 2026 EFFIGY MEDIA</div>',
     {
       play: showGarage,
-      mode: () => { mode = (mode === 'race' ? 'endless' : 'race'); showTitle(); },
+
       chase: () => { optEasy = !optEasy; showTitle(); },
       opts: () => showOptions(),
       quit: () => { if(AR && AR.home) AR.home(); }
@@ -5772,14 +6059,23 @@ function showTitle(){
 }
 
 function showOptions(){
+  /* ---- THE SAME ROWS AS THE PAUSE MENU -----------------------------------
+     This used to be a signpost saying the settings were somewhere else, which
+     is the worst kind of menu. `.ark-opts` is the shell's own container: it
+     paints the identical controls here, backed by the same storage and the
+     same callback, so there is one set of settings reachable from two places
+     rather than two sets that can disagree.
+     ---------------------------------------------------------------------- */
+  document.body.classList.add('titling');
   openVeil(
     '<div class="eyebrow">HIGHWAY</div><h1>Options</h1>' +
+    '<div class="ark-opts"></div>' +
     '<div class="tmenu">' +
       '<button class="go ghost" data-act="ctrl">CONTROLS</button>' +
       '<button class="go" data-act="back">BACK</button>' +
-    '</div>' +
-    '<div class="tip">Paint, control side and cop traffic are in the pause menu.</div>',
+    '</div>',
     { ctrl: () => showControls(), back: () => showTitle() });
+  if(AR && AR.options && AR.options.paint) AR.options.paint();
 }
 
 function showControls(){
