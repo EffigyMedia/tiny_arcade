@@ -14,9 +14,9 @@
    folder its `cat` names — pack.sh fails the build if they disagree.
 
    cat:     which shelf it lives on.
-            'golden'   \u2014 clean-room takes on the 1970s\u201380s cabinets
-            'second'   \u2014 the 1990s floor: fighters, shmups, light-gun
-            'original' \u2014 ours outright, descended from nothing
+            'ge'   \u2014 clean-room takes on the 1970s\u201380s cabinets
+            'sw'   \u2014 the 1990s floor: fighters, shmups, light-gun
+            'em' \u2014 ours outright, descended from nothing
 
    hook: write it like cabinet glass, not like a store listing. One or two
          short sentences, concrete, and no two cards built the same way —
@@ -25,9 +25,9 @@
    ===================================================================== */
 window.TINY_ARCADE = [
   {
-    file:  'games/golden/ribbit.html',
+    file:  'games/ge/ribbit.html',
     id:    'ribbit',
-    cat:   'golden',
+    cat:   'ge',
     name:  'Ribbit',
     accent:'#5bd66c',
     genre: 'ARCADE \u00B7 LANE CROSSER',
@@ -35,9 +35,9 @@ window.TINY_ARCADE = [
     attract:'drain'
   },
   {
-    file:  'games/golden/swarm.html',
+    file:  'games/ge/swarm.html',
     id:    'swarm',
-    cat:   'golden',
+    cat:   'ge',
     name:  'Swarm',
     accent:'#b06cff',
     genre: 'ARCADE \u00B7 DIVE SHOOTER',
@@ -45,9 +45,9 @@ window.TINY_ARCADE = [
     attract:'fold'
   },
   {
-    file:  'games/golden/popshot.html',
+    file:  'games/ge/popshot.html',
     id:    'popshot',
-    cat:   'golden',
+    cat:   'ge',
     name:  'Popshot',
     accent:'#ff9ecd',
     genre: 'PUZZLE \u00B7 AIM AND MATCH',
@@ -55,9 +55,9 @@ window.TINY_ARCADE = [
     attract:'soap'
   },
   {
-    file:  'games/golden/phalanx.html',
+    file:  'games/ge/phalanx.html',
     id:    'phalanx',
-    cat:   'golden',
+    cat:   'ge',
     name:  'Phalanx',
     accent:'#c3ff4a',
     genre: 'ARCADE \u00B7 RANKED SHOOTER',
@@ -65,9 +65,9 @@ window.TINY_ARCADE = [
     attract:'ranks'
   },
   {
-    file:  'games/golden/ricochet.html',
+    file:  'games/ge/ricochet.html',
     id:    'ricochet',
-    cat:   'golden',
+    cat:   'ge',
     name:  'Ricochet',
     accent:'#00e5ff',
     genre: 'ARCADE \u00B7 PADDLE',
@@ -75,9 +75,9 @@ window.TINY_ARCADE = [
     attract:'scope'
   },
   {
-    file:  'games/golden/blocks.html',
+    file:  'games/ge/blocks.html',
     id:    'blocks',
-    cat:   'golden',
+    cat:   'ge',
     name:  'Soviet Blocks',
     accent:'#c8102e',
     genre: 'PUZZLE \u00B7 FALLING',
@@ -85,9 +85,9 @@ window.TINY_ARCADE = [
     attract:'blocks'
   },
   {
-    file:  'games/golden/ziggurat.html',
+    file:  'games/ge/ziggurat.html',
     id:    'ziggurat',
-    cat:   'golden',
+    cat:   'ge',
     name:  'Ziggurat',
     accent:'#ffb347',
     genre: 'ARCADE \u00B7 ISOMETRIC HOPPER',
@@ -95,9 +95,9 @@ window.TINY_ARCADE = [
     attract:'fold2'
   },
   {
-    file:  'games/golden/vector.html',
+    file:  'games/ge/vector.html',
     id:    'vector',
-    cat:   'golden',
+    cat:   'ge',
     name:  'Vector',
     accent:'#9fb4ff',
     genre: 'ARCADE \u00B7 INERTIA SHOOTER',
@@ -105,9 +105,9 @@ window.TINY_ARCADE = [
     attract:'ice'
   },
   {
-    file:  'games/golden/aegis.html',
+    file:  'games/ge/aegis.html',
     id:    'aegis',
-    cat:   'golden',
+    cat:   'ge',
     name:  'Aegis',
     accent:'#ff3b5c',
     genre: 'ARCADE \u00B7 POINT DEFENCE',
@@ -115,9 +115,9 @@ window.TINY_ARCADE = [
     attract:'radar'
   },
   {
-    file:  'games/golden/burrow.html',
+    file:  'games/ge/burrow.html',
     id:    'burrow',
-    cat:   'golden',
+    cat:   'ge',
     name:  'Burrow',
     accent:'#e0a458',
     genre: 'ARCADE \u00B7 DIG AND POP',
@@ -125,9 +125,9 @@ window.TINY_ARCADE = [
     attract:'strata'
   },
   {
-    file:  'games/golden/coil.html',
+    file:  'games/ge/coil.html',
     id:    'coil',
-    cat:   'golden',
+    cat:   'ge',
     name:  'Coil',
     accent:'#7cf5a0',
     genre: 'ARCADE \u00B7 SNAKE',
@@ -135,9 +135,9 @@ window.TINY_ARCADE = [
     attract:'fibre'
   },
   {
-    file:  'games/golden/feather.html',
+    file:  'games/ge/feather.html',
     id:    'feather',
-    cat:   'golden',
+    cat:   'ge',
     name:  'Feather',
     accent:'#cfd8e3',
     genre: 'ARCADE \u00B7 LANDER',
@@ -145,9 +145,9 @@ window.TINY_ARCADE = [
     attract:'profile'
   },
   {
-    file:  'games/golden/girder.html',
+    file:  'games/ge/girder.html',
     id:    'girder',
-    cat:   'golden',
+    cat:   'ge',
     name:  'Girder',
     accent:'#ff6b2c',
     genre: 'ARCADE \u00B7 CLIMB AND DODGE',
@@ -155,9 +155,9 @@ window.TINY_ARCADE = [
     attract:'scaffold'
   },
   {
-    file:  'games/golden/penboy.html',
+    file:  'games/ge/penboy.html',
     id:    'penboy',
-    cat:   'golden',
+    cat:   'ge',
     name:  'Penboy',
     accent:'#ffd23c',
     genre: 'ARCADE \u00B7 MAZE CHASE',
@@ -165,9 +165,9 @@ window.TINY_ARCADE = [
     attract:'maze'
   },
   {
-    file:  'games/original/deep.html',
+    file:  'games/em/deep.html',
     id:    'deep',
-    cat:   'original',
+    cat:   'em',
     name:  'Deep',
     accent:'#4de0c8',
     genre: 'ARCADE \u00B7 ONE THUMB',
@@ -175,9 +175,9 @@ window.TINY_ARCADE = [
     attract:'dive'
   },
   {
-    file:  'games/original/derelict.html',
+    file:  'games/em/derelict.html',
     id:    'derelict',
-    cat:   'original',
+    cat:   'em',
     name:  'Derelict',
     accent:'#7fd8ff',
     genre: 'ROGUELIKE \u00B7 TURN-BASED',
@@ -185,19 +185,9 @@ window.TINY_ARCADE = [
     attract:'grid'
   },
   {
-    file:  'games/original/highway0.html',
-    id:    'highway0',
-    cat:   'original',
-    name:  'Highway0',
-    accent:'#ff8a3d',
-    genre: 'DRIVING \u00B7 ENDLESS',
-    hook:  'Dead straight, foot down, county behind you.',
-    attract:'road'
-  },
-  {
-    file:  'games/second/highway.html',
+    file:  'games/sw/highway.html',
     id:    'highway',
-    cat:   'second',
+    cat:   'sw',
     name:  'Highway',
     accent:'#ff8a3d',
     genre: 'DRIVING \u00B7 ENDLESS \u00B7 RACE',

@@ -565,11 +565,11 @@ document.getElementById('tick').innerHTML = '<i></i><span>INSERT COIN</span><i><
 
 /* ---------- build the row of cabinets ---------- */
 var SHELVES = [
-  { id:'golden',   name:'GOLDEN ERA',  accent:'#ffd23c',
+  { id:'ge',   name:'GOLDEN ERA',  accent:'#ffd23c',
     blurb:'Remakes of the classic cabinets, rebuilt for a phone.' },
-  { id:'second',   name:'SECOND WAVE', accent:'#ff2d95',
+  { id:'sw',   name:'SECOND WAVE', accent:'#ff2d95',
     blurb:'The nineties. Fighters, shooters, brawlers.' },
-  { id:'original', name:'EFFIGY ORIGINALS', accent:'#00e5ff',
+  { id:'em', name:'EFFIGY ORIGINALS', accent:'#00e5ff',
     blurb:'Our own games. Not remakes of anything.' }
 ];
 
@@ -637,7 +637,7 @@ on('sortBtn', 'click', function(){
   UI.tap();
   sortIdx = (sortIdx + 1) % SORTS.length;
   try { localStorage.setItem('tinyarcade.sort.v1', SORTS[sortIdx].key); } catch(e){}
-  var cur = (location.hash || '').replace('#','') || 'golden';
+  var cur = (location.hash || '').replace('#','') || 'ge';
   applySort(cur);
 });
 
@@ -728,7 +728,7 @@ GAMES.forEach(function(g, i){
     var nowOn = toggleFav(g.id);
     star.classList.toggle('on', nowOn);
     nowOn ? UI.fav() : UI.unfav();
-    applySort(g.cat || 'original');   /* starring re-orders immediately */
+    applySort(g.cat || 'em');   /* starring re-orders immediately */
   });
 
   a.addEventListener('click', function(ev){
@@ -743,7 +743,7 @@ GAMES.forEach(function(g, i){
   rack.appendChild(a);
   var sc = { cv:a.querySelector('canvas'), kind:g.attract, accent:g.accent, t:Math.random()*40, off:true };
   screens.push(sc);
-  cabs.push({ el:a, cat:g.cat || 'original', screen:sc, game:g });
+  cabs.push({ el:a, cat:g.cat || 'em', screen:sc, game:g });
 });
 
 rack.insertAdjacentHTML('afterend',
@@ -2203,7 +2203,17 @@ onScroll();
   (function(){
     var done = 0, total = files.length;
     ct.textContent = '0 / ' + total;
-    caches.open('tiny-arcade-core-v17').then(function(cache){
+    /* ---- ONE PLACE FOR THE CACHE NAME --------------------------------
+       This was hardcoded here AND in sw.js, and the two had to agree. When
+       the game folders were renamed I bumped neither, so the worker kept
+       serving a cached index.html and games.js that still pointed at
+       games/golden/... while the server only had games/ge/ — eighteen files,
+       one per cabinet, all 404.
+
+       `CACHE_NAME` is written by pack.sh from the value in sw.js, so the two
+       can no longer drift.
+       ---------------------------------------------------------------- */
+    caches.open(CACHE_NAME).then(function(cache){
       var queue = files.slice();
       /* four at a time: quick on a good line, and it does not stampede */
       function next(){

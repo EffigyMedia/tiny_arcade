@@ -21,8 +21,8 @@
    points at a file that no longer exists — which is a site of 404s that looks
    like a broken deploy rather than a stale cache. Changing the names makes
    every client throw its cache away on the next visit. */
-const CORE    = 'tiny-arcade-core-v17';
-const RUNTIME = 'tiny-arcade-runtime-v17';
+const CORE    = 'tiny-arcade-core-v19';
+const RUNTIME = 'tiny-arcade-runtime-v19';
 const KEEP    = [CORE, RUNTIME];
 
 /* The shell. Enough to open the arcade with no signal at all. */
@@ -48,24 +48,23 @@ const CORE_FILES = [
    so it cannot drift out of step with the catalogue.
    --------------------------------------------------------------------------- */
 const ALL_FILES = [
-  "./games/golden/aegis.html",
-  "./games/golden/blocks.html",
-  "./games/golden/burrow.html",
-  "./games/golden/coil.html",
-  "./games/golden/feather.html",
-  "./games/golden/girder.html",
-  "./games/golden/penboy.html",
-  "./games/golden/phalanx.html",
-  "./games/golden/popshot.html",
-  "./games/golden/ribbit.html",
-  "./games/golden/ricochet.html",
-  "./games/golden/swarm.html",
-  "./games/golden/vector.html",
-  "./games/golden/ziggurat.html",
-  "./games/original/deep.html",
-  "./games/original/derelict.html",
-  "./games/original/highway0.html",
-  "./games/second/highway.html",
+  "./games/em/deep.html",
+  "./games/em/derelict.html",
+  "./games/ge/aegis.html",
+  "./games/ge/blocks.html",
+  "./games/ge/burrow.html",
+  "./games/ge/coil.html",
+  "./games/ge/feather.html",
+  "./games/ge/girder.html",
+  "./games/ge/penboy.html",
+  "./games/ge/phalanx.html",
+  "./games/ge/popshot.html",
+  "./games/ge/ribbit.html",
+  "./games/ge/ricochet.html",
+  "./games/ge/swarm.html",
+  "./games/ge/vector.html",
+  "./games/ge/ziggurat.html",
+  "./games/sw/highway.html",
   "./fonts/LICENSES.md",
   "./fonts/anton-400.woff2",
   "./fonts/archivo-var.woff2",
