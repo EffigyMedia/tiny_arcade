@@ -78,6 +78,16 @@ h1 em{display:block;font-family:"Space Mono",monospace;font-size:9.5px;font-styl
 @media (orientation:landscape) and (pointer:coarse){
   body.lock-portrait #rotate{display:grid}
 }
+
+#titleArt{position:absolute;inset:0;z-index:29;display:none;width:100%;height:100%}
+body.titling #titleArt{display:block}
+body.titling #veil{
+  background:linear-gradient(180deg, rgba(4,8,12,0) 0%, rgba(4,8,12,0) 62%,
+    rgba(4,8,12,.60) 74%, rgba(4,8,12,.94) 87%, rgba(4,8,12,.97) 100%);
+  align-items:end;padding-bottom:34px}
+body.titling #veil h1{display:none}
+.legal{margin-top:14px;font-size:8px;letter-spacing:.14em;
+  color:rgba(255,255,255,.24);text-align:center}
 </style>
 </head>
 <body>
@@ -90,6 +100,7 @@ h1 em{display:block;font-family:"Space Mono",monospace;font-size:9.5px;font-styl
   <div id="bar"><div id="barIn"></div></div>
   <div id="wrap"><canvas id="road"></canvas></div>
 </div>
+<canvas id="titleArt"></canvas>
 <div id="veil"><div id="veilBody"></div></div>
 <script>
 (function(){
@@ -554,7 +565,8 @@ function frame(now){
 
 /* ---- state ------------------------------------------------------------- */
 function start(){
-  runs++; reset(); state='play'; veil.classList.add('hidden'); fitTight();
+  runs++; reset(); state='play'; document.body.classList.remove('titling');
+  veil.classList.add('hidden'); fitTight();
   if(AR && AR.music){ AR.music.stop(); AR.music.start(112, 4, snd.tick); }
 }
 function gameOver(){
@@ -571,7 +583,305 @@ function openVeil(html, acts){
   veilBody.querySelectorAll('[data-act]').forEach(b =>
     b.addEventListener('click', ()=>{ const fn=acts&&acts[b.dataset.act]; if(fn) fn(); }));
 }
+
+/* ===========================================================================
+   TITLE: TWO WAYS TO DIE
+
+   "The road kills you if you touch anything. The water, if you touch nothing."
+   That is a card with two halves, stacked, and the frog between them \u2014 the
+   road below in tarmac and headlights, the river above in black water and
+   drifting logs, and the bank in between where you get one breath.
+
+   The one at the top is the last thing you see either way.
+   =========================================================================== */
+let titleCv = null, titleT = 0;
+
+function drawTitleArt(){
+  if(!titleCv) titleCv = document.getElementById('titleArt');
+  if(!titleCv) return;
+  if(!titleT) titleT = performance.now();
+  const T = (performance.now() - titleT) / 1000;
+  const g = titleCv.getContext('2d');
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  const w = titleCv.clientWidth, h = titleCv.clientHeight;
+  if(titleCv.width !== w*dpr){ titleCv.width = w*dpr; titleCv.height = h*dpr; }
+  g.setTransform(dpr,0,0,dpr,0,0);
+
+  /* ===========================================================================
+     GROUND LEVEL
+
+     The wide diagram of the whole board was a screenshot, not a poster. This is
+     a CLOSE-UP: down at the tarmac, level with a frog. All you see of the
+     traffic is TYRES going past \u2014 huge, blurred, close enough to touch \u2014 and
+     the frog underneath them, holding still.
+
+     Nothing here explains the game. It puts you where the frog is.
+     ======================================================================== */
+  /* The road was at 73.5%, which put the tyres and the frog behind the button
+     panel. The surface sits at 48% so the whole scene plays out in the clear
+     middle of the frame. */
+  /* The road sat at 43% and the frog at 76%, leaving a third of the frame as
+     empty tarmac between them. The traffic drops to just above his head, which
+     is what makes it feel like it is going past HIM. */
+  const GY = h*0.615;
+
+  /* night above the road */
+  const sky = g.createLinearGradient(0,0,0,GY);
+  sky.addColorStop(0,'#070c14'); sky.addColorStop(0.7,'#0d1520'); sky.addColorStop(1,'#141c26');
+  g.fillStyle = sky; g.fillRect(0,0,w,GY);
+  /* a sodium glow along the horizon, from lamps we never see */
+  g.save(); g.globalCompositeOperation='lighter';
+  const hz = g.createLinearGradient(0,GY-h*0.30,0,GY);
+  hz.addColorStop(0,'rgba(255,170,80,0)'); hz.addColorStop(1,'rgba(255,170,80,.13)');
+  g.fillStyle = hz; g.fillRect(0,GY-h*0.30,w,h*0.30);
+  g.restore();
+
+  /* the tarmac, lit hard from one side */
+  const road = g.createLinearGradient(0,GY,0,h);
+  road.addColorStop(0,'#2b2d31'); road.addColorStop(0.35,'#1d1f22'); road.addColorStop(1,'#0e0f11');
+  g.fillStyle = road; g.fillRect(0,GY,w,h-GY);
+  /* grain */
+  for(let i=0;i<180;i++){
+    const x=(i*97.3)%w, y=GY+((i*i*7)%Math.round(h-GY));
+    g.fillStyle='rgba(255,255,255,'+(0.02+((i%5)/90))+')';
+    g.fillRect(x,y,2,1.5);
+  }
+
+  /* ---- CARS GOING PAST, CLOSE AND FAST -----------------------------------
+     Behind him and near enough that they are only WHEELS and a body-coloured
+     smear \u2014 no detail survives at this range and this speed, which is exactly
+     the point. Four of them on staggered clocks so the road is never empty.
+     ------------------------------------------------------------------------ */
+  /* Four cars on a 2.4-screen span meant long empty stretches — most stills
+     caught no traffic at all. Seven, on a tighter span, so there is ALWAYS
+     something going past behind him. */
+  const CARS = [
+    { y: GY - h*0.055, s: 1.05, sp: 1.55, c:'#8d3a3a', t: 0.00 },
+    { y: GY - h*0.078, s: 0.88, sp: 1.34, c:'#4a3c5c', t: 0.55 },
+    { y: GY - h*0.096, s: 0.76, sp: 1.15, c:'#37556e', t: 1.05 },
+    { y: GY - h*0.062, s: 0.98, sp: 1.46, c:'#7a6a3a', t: 1.55 },
+    { y: GY - h*0.110, s: 0.64, sp: 0.94, c:'#4d6b52', t: 2.05 },
+    { y: GY - h*0.070, s: 0.92, sp: 1.40, c:'#6a3a52', t: 2.55 },
+    { y: GY - h*0.086, s: 0.80, sp: 1.22, c:'#3a5a6a', t: 3.05 }
+  ];
+  for(const c of CARS){
+    const span = w*1.55;
+    const x = (((T + c.t) * c.sp * w * 0.80) % span) - w*0.7;
+    const bh = h*0.075*c.s, bw = w*0.62*c.s;
+    /* the body: a horizontal smear, no edges */
+    g.save();
+    const sm = g.createLinearGradient(x - bw, 0, x + bw*0.25, 0);
+    sm.addColorStop(0,'rgba(0,0,0,0)');
+    sm.addColorStop(0.45, c.c);
+    sm.addColorStop(1, c.c);
+    g.fillStyle = sm;
+    g.globalAlpha = 0.95;
+    g.fillRect(x - bw, c.y - bh, bw*1.25, bh);
+    /* the lamp on the leading corner, which is what you actually see coming */
+    g.save(); g.globalCompositeOperation='lighter';
+    const lg2 = g.createRadialGradient(x, c.y - bh*0.45, 0, x, c.y - bh*0.45, bh*2.1);
+    lg2.addColorStop(0,'rgba(255,246,214,.42)');
+    lg2.addColorStop(1,'rgba(255,238,190,0)');
+    g.fillStyle = lg2;
+    g.beginPath(); g.arc(x, c.y - bh*0.45, bh*2.1, 0, 6.2832); g.fill();
+    g.restore();
+
+    /* a bright line along the top where the sky catches it */
+    g.fillStyle = 'rgba(220,235,250,.16)';
+    g.fillRect(x - bw, c.y - bh, bw*1.25, Math.max(1.5, bh*0.10));
+    g.restore();
+    /* the wheels, which is all you really see */
+    for(const wo of [0.16, 0.78]){
+      const wx = x - bw*wo, r = bh*0.52;
+      g.fillStyle = '#0a0b0d';
+      g.beginPath(); g.arc(wx, c.y, r, 0, 6.2832); g.fill();
+      g.save();
+      g.beginPath(); g.arc(wx, c.y, r, 0, 6.2832); g.clip();
+      g.translate(wx, c.y); g.rotate(T*c.sp*7.5);
+      g.strokeStyle = 'rgba(160,172,184,.20)';
+      g.lineWidth = Math.max(1.2, r*0.13);
+      for(let k=0;k<8;k++){
+        const a = k/8*6.2832;
+        g.beginPath();
+        g.moveTo(Math.cos(a)*r*0.34, Math.sin(a)*r*0.34);
+        g.lineTo(Math.cos(a)*r*1.02, Math.sin(a)*r*1.02);
+        g.stroke();
+      }
+      const rim = g.createRadialGradient(-r*0.2,-r*0.2,0,0,0,r*0.44);
+      rim.addColorStop(0,'#c6cfd8'); rim.addColorStop(1,'#3a424b');
+      g.fillStyle = rim;
+      g.beginPath(); g.arc(0,0,r*0.42,0,6.2832); g.fill();
+      g.restore();
+      /* shadow under it */
+      g.save(); g.globalCompositeOperation='multiply';
+      const sh = g.createRadialGradient(wx, c.y+r*0.7, 0, wx, c.y+r*0.7, r*1.9);
+      sh.addColorStop(0,'rgba(0,0,0,.7)'); sh.addColorStop(1,'rgba(0,0,0,0)');
+      g.fillStyle = sh; g.fillRect(wx-r*2, c.y-r, r*4, r*2.4);
+      g.restore();
+    }
+  }
+
+  /* ---- THE BULLFROG, right up against the glass -------------------------- */
+  const S = Math.min(w*0.150, 70);              /* he is enormous */
+  /* At 0.94 only the top of his skull cleared the bottom edge. His FACE has to
+     be visible — eyes, mouth and throat — and the buttons may cover the rest.
+     0.76 puts the whole head in frame with the sac reaching down behind PLAY. */
+  /* 0.815 dropped everything but his eyes below PLAY. 0.755 keeps the whole
+     face — eyes, mouth, nostrils — above the panel with the sac behind it. */
+  const fx = w*0.44, fy = h*0.755;
+
+  /* the throat sac: swells, holds, and snaps back \u2014 not a sine */
+  const CYC = 3.1;
+  const ph = (T % CYC) / CYC;
+  const puff = ph < 0.34 ? Math.pow(ph/0.34, 0.6)
+             : ph < 0.55 ? 1
+             : Math.max(0, 1 - (ph-0.55)/0.14);
+
+  /* the STAGGERED blink: one eye, then the other a beat later */
+  const bc = (T % 4.7);
+  const lidL = (bc > 0.00 && bc < 0.15) ? 1 : 0;
+  const lidR = (bc > 0.09 && bc < 0.25) ? 1 : 0;
+
+  g.save();
+  g.translate(fx, fy);
+
+  /* throat, drawn first so the jaw sits over it */
+  g.fillStyle = '#63cf73';
+  g.beginPath();
+  g.ellipse(0, S*0.30, S*(0.62 + puff*0.44), S*(0.30 + puff*0.46), 0, 0, 6.2832);
+  g.fill();
+  g.fillStyle = 'rgba(140,230,150,'+(0.10 + puff*0.16)+')';
+  g.beginPath();
+  g.ellipse(-S*0.18, S*0.22, S*(0.26 + puff*0.20), S*(0.13 + puff*0.20), 0, 0, 6.2832);
+  g.fill();
+
+  /* the head */
+  /* ---- HE IS LIT BY THE TRAFFIC -----------------------------------------
+     He was darker than the road behind him, which is backwards: he is the
+     nearest thing to the headlights. The gradient runs SIDEWAYS now and its
+     hot side follows the nearest car, so the light rakes across his face as
+     each one goes by. */
+  const rake = Math.sin(T*1.55*0.80*3.1);
+  const hd = g.createLinearGradient(-S*1.3, 0, S*1.3, 0);
+  /* and lifted a stop overall — he is the closest thing to the headlights, so
+     he cannot be darker than the road he is sitting on */
+  hd.addColorStop(0,               rake > 0 ? '#2f8a3e' : '#a8f4b6');
+  hd.addColorStop(0.45,            '#5fd071');
+  hd.addColorStop(1,               rake > 0 ? '#b4f8c0' : '#2f8a3e');
+  g.fillStyle = hd;
+  g.beginPath(); g.ellipse(0, -S*0.10, S*1.28, S*0.86, 0, 0, 6.2832); g.fill();
+
+  /* the mouth line, wide and turned down */
+  g.strokeStyle = 'rgba(18,52,24,.75)'; g.lineWidth = Math.max(2, S*0.045);
+  g.beginPath();
+  g.moveTo(-S*1.14, S*0.10);
+  g.quadraticCurveTo(0, S*0.42, S*1.14, S*0.10);
+  g.stroke();
+
+  /* mottling */
+  g.fillStyle = 'rgba(22,66,28,.34)';
+  g.beginPath(); g.ellipse(-S*0.52,-S*0.30, S*0.26, S*0.15, 0.3, 0, 6.2832); g.fill();
+  g.beginPath(); g.ellipse( S*0.46,-S*0.18, S*0.22, S*0.13,-0.2, 0, 6.2832); g.fill();
+  g.beginPath(); g.ellipse( S*0.05,-S*0.44, S*0.18, S*0.10, 0.1, 0, 6.2832); g.fill();
+
+  /* the eyes, domed and high on the skull */
+  const EY = [-1, 1];
+  EY.forEach(function(sx, n){
+    const lid = n === 0 ? lidL : lidR;
+    const ex = sx*S*0.60, ey = -S*0.78;
+    /* the socket bulge */
+    g.fillStyle = '#9bf5a8';
+    g.beginPath(); g.arc(ex, ey, S*0.40, 0, 6.2832); g.fill();
+    if(lid){
+      g.fillStyle = '#3f9c4e';
+      g.beginPath(); g.arc(ex, ey, S*0.335, 0, 6.2832); g.fill();
+      g.strokeStyle = 'rgba(20,58,26,.8)'; g.lineWidth = Math.max(1.5, S*0.028);
+      g.beginPath(); g.moveTo(ex-S*0.30, ey); g.lineTo(ex+S*0.30, ey); g.stroke();
+    } else {
+      g.fillStyle = '#f8fff4';
+      g.beginPath(); g.arc(ex, ey, S*0.335, 0, 6.2832); g.fill();
+      g.fillStyle = '#d8b23a';
+      g.beginPath(); g.arc(ex, ey, S*0.235, 0, 6.2832); g.fill();
+      g.fillStyle = '#07130a';
+      g.beginPath(); g.ellipse(ex, ey, S*0.085, S*0.205, 0, 0, 6.2832); g.fill();
+      /* headlights caught in them */
+      g.fillStyle = 'rgba(255,248,218,.92)';
+      g.beginPath(); g.arc(ex + S*0.10, ey - S*0.13, S*0.055, 0, 6.2832); g.fill();
+      g.fillStyle = 'rgba(255,248,218,.45)';
+      g.beginPath(); g.arc(ex - S*0.13, ey + S*0.06, S*0.030, 0, 6.2832); g.fill();
+    }
+  });
+
+  /* the tympanum behind each eye \u2014 the disc that makes him a bullfrog */
+  EY.forEach(function(sx){
+    g.fillStyle = 'rgba(30,86,38,.85)';
+    g.beginPath(); g.arc(sx*S*1.00, -S*0.30, S*0.24, 0, 6.2832); g.fill();
+    g.strokeStyle = 'rgba(150,220,155,.28)'; g.lineWidth = Math.max(1, S*0.020);
+    g.beginPath(); g.arc(sx*S*1.00, -S*0.30, S*0.24, 0, 6.2832); g.stroke();
+  });
+
+  /* the headlight wash actually landing on him */
+  g.save();
+  g.globalCompositeOperation = 'lighter';
+  const lw2 = g.createLinearGradient(-S*1.4, 0, S*1.4, 0);
+  const hot = Math.max(0, rake);
+  lw2.addColorStop(0,'rgba(255,244,205,0)');
+  /* the wash was sitting over the whole head at up to 18%, which desaturated
+     him into a grey-green ghost. Half that, and only on the lit side. */
+  lw2.addColorStop(0.5,'rgba(255,240,196,'+(0.02 + hot*0.07)+')');
+  lw2.addColorStop(1,'rgba(255,244,205,0)');
+  g.fillStyle = lw2;
+  g.beginPath(); g.ellipse(0, -S*0.10, S*1.28, S*0.86, 0, 0, 6.2832); g.fill();
+  g.restore();
+
+  /* nostrils */
+  g.fillStyle = 'rgba(16,48,20,.8)';
+  g.beginPath(); g.arc(-S*0.16, -S*0.30, S*0.045, 0, 6.2832); g.fill();
+  g.beginPath(); g.arc( S*0.16, -S*0.30, S*0.045, 0, 6.2832); g.fill();
+
+  g.restore();
+
+  /* headlight wash sweeping over everything, in time with the nearest tyre */
+  const swx = ((((T + 0.85)*1.35*w*0.85) % (w*1.9)) - w*0.45);
+  g.save(); g.globalCompositeOperation='lighter';
+  const wash = g.createRadialGradient(swx, GY, 0, swx, GY, w*0.55);
+  wash.addColorStop(0,'rgba(255,238,190,.20)'); wash.addColorStop(1,'rgba(255,230,180,0)');
+  g.fillStyle = wash; g.fillRect(0,0,w,h);
+  g.restore();
+
+  g.fillStyle='rgba(0,0,0,.18)';
+  for(let y=0;y<h;y+=3) g.fillRect(0,y,w,1);
+
+  /* ---- the wordmark ------------------------------------------------------- */
+  const RG = {
+    R:[[[0,14],[0,0],[6,0],[9,3],[9,6],[6,9],[0,9]],[[4,9],[9,14]]],
+    I:[[[1.5,0],[1.5,14]]],
+    B:[[[0,0],[0,14]],[[0,0],[6,0],[9,2],[9,5],[6,7],[0,7]],[[0,7],[7,7],[9,9],[9,12],[7,14],[0,14]]],
+    T:[[[0,0],[9,0]],[[4,0],[4,14]]]
+  };
+  const RW = { R:11.0, I:4.6, B:11.0, T:10.0 };
+  AR.wordmark(g, 'RIBBIT', w*0.5, h*0.115, Math.min(w*0.145, 66), {
+    /* R-I-B-B-I-T, none of them on the same line — hopped into place */
+    glyphs: RG, widths: RW, gap: 0.36, maxW: w*0.88, rake: 0,
+    rise: [0, -2.2, 1.4, -1.6, 2.0, -0.8],
+    passes: ['pond','face','wet'],
+    paint: (gg, pass) => {
+      gg.lineCap = 'round'; gg.lineJoin = 'round';
+      if(pass === 'pond'){ gg.strokeStyle = 'rgba(8,22,12,.9)'; gg.lineWidth = 7.4; }
+      else if(pass === 'face'){ gg.strokeStyle = '#5bd66c'; gg.lineWidth = 4.6; }
+      else { gg.strokeStyle = 'rgba(190,255,190,.55)'; gg.lineWidth = 1.8;
+             gg.translate(0, -1.9); }
+    }
+  });
+
+  if(document.body.classList.contains('titling'))
+    requestAnimationFrame(drawTitleArt);
+}
+
 function showTitle(){
+  document.body.classList.add('titling');
+  titleT = 0;
+  requestAnimationFrame(drawTitleArt);
   state='title';
   openVeil('<h1>Ribbit</h1>' +
     '<div class="tmenu">' +
