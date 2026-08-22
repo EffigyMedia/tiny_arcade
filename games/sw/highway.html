@@ -567,7 +567,18 @@ h1 u{text-decoration:none;display:block;font-size:.34em;letter-spacing:.26em;col
 /* ONE ROW, always. Twelve fixed-width circles at any gap will wrap on a
    narrow phone, so they are sized as a FRACTION of the row instead: a grid of
    twelve equal columns that shrinks with the screen rather than spilling. */
-.swatches{display:grid;grid-template-columns:repeat(var(--sw,12),1fr);gap:4px;
+/* ---- A SWATCH IS A SWATCH -----------------------------------------------
+   `repeat(var(--sw), 1fr)` divided the row by the NUMBER of colours, so the
+   cruiser's two filled half the width each — two dinner plates where every
+   other car has a row of buttons.
+
+   The track width is fixed to a twelfth of the row instead, and the grid is
+   centred. Two swatches are then the same size as twelve, sitting in the
+   middle, and nothing has to know how many there are.
+   ------------------------------------------------------------------------ */
+.swatches{display:grid;
+  grid-template-columns:repeat(var(--sw,12), calc((100% - 11*4px)/12));
+  justify-content:center;gap:4px;
   align-items:center;margin:12px 0 4px}
 .sw{width:100%;aspect-ratio:1;border-radius:50%;
   border:2px solid rgba(255,255,255,.20);cursor:pointer;padding:0;
@@ -6896,7 +6907,8 @@ function emitBucket(n){
 function playerBrakes(box){
   if(!box || box.w < 10) return;
   const lit = lampsOn();
-  const on = brake ? 1 : (lit > 0.01 ? 0.34 * lit : 0);
+  /* the pedal, the same as the glow above it */
+  const on = braking ? 1 : (lit > 0.01 ? 0.34 * lit : 0);
   if(on <= 0.01) return;
   const left = box.x - box.w/2;
   const lw = box.w*0.265, lh = box.h*0.11;
@@ -6904,7 +6916,7 @@ function playerBrakes(box){
   ctx.save();
   ctx.globalCompositeOperation = 'lighter';
   for(const lx of [left + box.w*0.135, left + box.w*0.60]){
-    ctx.fillStyle = 'rgba(255,' + (brake?52:26) + ',' + (brake?64:38) + ',' + on + ')';
+    ctx.fillStyle = 'rgba(255,' + (braking?52:26) + ',' + (braking?64:38) + ',' + on + ')';
     ctx.fillRect(lx, ly, lw, lh);
     if(box.w > 40){
       const gl = ctx.createRadialGradient(lx+lw/2, ly+lh/2, 0, lx+lw/2, ly+lh/2, lw*1.5);
@@ -7114,12 +7126,17 @@ function drawPlayer(){
      does not brighten with speed, it brightens when you brake. Off by day
      while coasting, dim by night, and bright the instant the pedal goes down
      — the same rule every other car on the road follows. */
-  /* `brake` is the RAW pedal flag and it is not what the car obeys — braking
-     is only real when it is actually shedding speed, and the lamp was reading
-     a variable that is true the whole time a finger rests on the pedal. It
-     now follows the same deceleration the tyres do. */
+  /* ---- THE PEDAL, NOTHING ELSE ----------------------------------------
+     This used to read `brakeLamp`, which is set by DECELERATION above 900 — so
+     lifting off at speed lit them and a gentle brake did not. That is wrong in
+     both directions, and it is not how a car works: a brake light is a switch
+     on the pedal. Press it and they are on, at a standstill or at 200.
+
+     The NPCs keep the deceleration model, because for them it is an inference
+     about a car we do not have a pedal for. For YOU we have the pedal.
+     ------------------------------------------------------------------- */
   const litNow = lampsOn();
-  const hard = brakeLamp > 0;
+  const hard = braking;
   const glow = hard ? 0.90 : (litNow > 0.30 ? 0.28 * litNow : 0);
   if(glow > 0.01){
   ctx.globalCompositeOperation='lighter';
