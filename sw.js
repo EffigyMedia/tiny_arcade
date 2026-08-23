@@ -46,6 +46,7 @@ const CORE_FILES = [
   './index.html',
   './audio.js',
   './arcade.js',
+  './road.js',
   './games.js',
   './manifest.webmanifest',
   './icon.png',

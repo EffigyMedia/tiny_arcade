@@ -1,3 +1,516 @@
+# BRAKING IS A STAT — IT WAS NOT
+
+**Answering the question directly: no, the engine did not allow per-car
+braking.** `rate = braking ? 9000` was a flat constant for every vehicle in the
+game — a lorry stopped as hard as a formula car. On a straight road nobody
+notices; on a circuit, braking is half the lap.
+
+`brake` multiplies that rate now, defaulting to 1.0 so anything without the stat
+behaves exactly as before:
+
+    FORMULA   1.85        CRUISER   1.00        CAB      0.72
+    CREST     1.32        TUNER     1.02        PICKUP   0.68
+    STALLION  1.30        COUPE     0.88        VAN      0.62
+    MATADOR   1.28        MUSCLE    0.86        LORRY    0.40
+    ROADSTER  1.12        SALOON    0.80
+
+A formula car stops **4.6 times harder than a lorry** and 2.3 times harder than
+a saloon. That is the axis that separates a racing car from a road car most
+sharply, and it was the one the game did not have.
+
+# THE LEAGUES WERE BACKWARDS
+
+I had FORMULA as the smoothest league — fewest tight corners. The research says
+that is wrong, and your instinct was right.
+
+A grand prix circuit is not gentle; it has the widest RANGE. Silverstone's Copse
+is taken at 180mph and Monaco's Fairmont hairpin at 30, and both are formula
+corners. What separates the league is not an absence of hairpins but the
+presence of **both extremes**. Hairpins are also described as "a real test of a
+car's braking capabilities" — so they belong with the cars that can brake.
+
+    LEAGUE    STRAIGHT  TIGHT   HAIRPIN  PEAK k  CROSS  LAP
+    sports      56%      1.0%    0.0%     2.51     0    131k
+    gt          64%      3.7%    0.8%     4.50     0    194k
+    formula     75%      3.5%    1.5%     8.83     0    285k
+
+**Formula now has the most straight AND the sharpest corners** — peak curvature
+8.8 against sports' 2.5. A sports circuit is uniformly medium: no great sweeps,
+no true hairpins, and the least room to use power. GT sits between.
+
+The mechanism is a `spike`: a control point pulled hard IN, so the path folds
+back to reach it. Formula rolls one 30% of the time per point, GT 18%, sports
+8%.
+
+Crossings remain zero across all 120 sampled circuits.
+
+# THE TRACKS DROVE LIKE A MOTORWAY
+
+The shapes were closed, crossing-free and lobed — and measuring how they would
+actually DRIVE found the real problem:
+
+    before                        after
+    straight   95.5% of the lap   59%
+    tight       0.0%               4.5%
+    peak k      0.02               4.28
+    lap        982,000 units      154,000
+
+`size` is the RADIUS of the control circle, so 105,000 gave a lap of about
+660,000 units. A lap that long spreads 2\u03c0 of turning so thinly that every
+sample came out at **k = 0.02** — below the threshold at which anything counts
+as a corner at all. They looked like circuits on the map and drove like a
+straight road.
+
+Scaled to 15,500-24,000, which puts laps in the 150k-200k band and produces k
+values of 1 to 4 — the range Highway's cornering force was tuned against.
+
+    LEAGUE    STRAIGHT   TIGHT   PEAK k   LAP
+    sports      59%       4.5%    4.28    154k
+    gt          59%       3.5%    3.60    176k
+    formula     63%       1.2%    2.67    197k
+
+The leagues now differ in the right direction: a sports circuit has the tightest
+corners, a formula circuit the fastest and longest.
+
+**A shape can be right and the track still wrong.** Nine passes were spent on
+what the minimap looked like; not one of them asked what the numbers underneath
+would feel like through a steering wheel. The map is a picture of the road, not
+a test of it.
+
+## THE ORDER OF WORK FROM HERE
+
+    1  DONE   closed, no crossings, lobed, correctly scaled
+    2  next   verify by DRIVING — lap times, whether corners need braking
+    3  then   pit lane, fuel, tyres
+    4  later  bridges, once shapes are settled and crossings can be limited
+              to one or two per circuit rather than allowed freely
+
+# THE SLIVERS WERE A DUPLICATE FUNCTION
+
+    LEAGUE    CROSS   ASPECT
+    sports      0      1.09
+    sports      0      1.00
+    gt          0      1.07
+    gt          0      1.18
+    formula     0      1.02
+    formula     0      1.04
+
+**Zero crossings, aspect 1.00 to 1.18** — closed loops that fill their box.
+
+## WHY THEY WERE RIBBONS
+
+There were **two `buildMiniPath` functions** in the file. I wrote a new one that
+draws `path2` — the closed shape the road is read from — and left the old one
+below it, which re-integrated curvature and re-applied the ancient closing
+correction. The second definition wins in JavaScript, so the map had been
+drawing the stale path the whole time.
+
+That is why the measurement said aspect 1.05 while the picture showed a sliver:
+**they were describing different objects.** The number was right about the
+track; the picture was right about what was drawn. Deleting the duplicate made
+them agree.
+
+This is the third duplicate-definition bug this session — after the two
+`drawMarque` branches and the two `FRONT_SP.truck` assignments. The pattern is
+always the same: an edit that ADDS rather than REPLACES, and no error anywhere.
+
+## LOBES, NOT A BLOB
+
+Radii drawn independently gave a circle with a wobble. The reference shapes push
+OUT and pull IN, and that alternation is what makes a shape read as a circuit:
+
+    rad[i] = 1 + (i % 2 ? -1 : +1) * jitter * rnd(0.55, 1.0)
+                + rnd(-jitter*0.35, jitter*0.35)
+
+The deliberate alternation carries the shape; the jitter rides on top so no two
+tracks are the same.
+
+## BRIDGES — not now, but the door is open
+
+Several reference circuits cross themselves and use a bridge to do it. The
+generator currently guarantees NO crossings by sorting the control points by
+angle, which makes a star-shaped polygon.
+
+Allowing a crossing would mean: relax the sort for one pair of points, detect
+where the path intersects itself, mark those two road positions as a pair, and
+draw the upper one as a bridge deck over the lower. The detection already
+exists — `crossings()` finds them. It is the RENDERING that is a new system.
+
+# CLOSED FIRST, CURVATURE SECOND
+
+`buildCircuit` is rewritten. It no longer walks a sequence of segments hoping
+they come back — it builds a **closed shape** and reads the curvature off it.
+
+    points around a circle, angles jittered then SORTED   → star-shaped, so it
+                                                            cannot cross itself
+    radii jittered within a band                          → character, not a
+                                                            splinter
+    Catmull-Rom through them, closed                      → a smooth loop
+    walk it, measure the turn between headings            → the segments
+
+Closure is now a property of the source shape and cannot be violated by
+anything downstream. The minimap draws `path2` — the very points the road was
+read from — so the picture and the track are the same object.
+
+    LEAGUE    CROSS   GAP     ASPECT
+    sports      0     0.011    1.05
+    sports      0     0.007    1.11
+    gt          0     0.007    1.07
+    gt          0     0.012    1.07
+    formula     0     0.010    1.09
+    formula     0     0.009    1.02
+
+**Zero crossings on all nine.** The closing gap is 0.7-1.2% of the track's size,
+which is one sample step — the loop meets itself.
+
+## AND MY TEST WAS LYING AGAIN
+
+The first run of this reported gap 1.0 and aspect 12 and I nearly rewrote it a
+second time. The generator was fine: the harness measured the NORMALISED map
+coordinates instead of the raw path, so it was reading a number that had already
+been squashed into a unit box. Measuring `path2` directly gave 0.011 and 1.05.
+
+That is twice now that a bad harness has accused good code — and once that a bad
+harness excused bad code. The measurement needs checking as carefully as the
+thing it measures.
+
+## STILL WRONG: THE SHAPES ARE SLIVERS
+
+The rendered tracks are closed, clean and crossing-free, and they are all narrow
+vertical ribbons. The aspect ratio I measure says 1.05 — square — while the
+picture plainly shows a sliver, so one of the two is wrong again and I have not
+found which.
+
+Do not treat the shapes as finished. Closure and self-intersection are solved
+and measured; the PROPORTIONS are not.
+
+# THE CROSSINGS ARE REAL — AND THE GENERATOR IS WRONG
+
+You were right: the picture had crossings and the counter said zero. Two
+separate faults, and fixing them exposed a third that is the actual problem.
+
+## 1. The map drew a different track than the validator tested
+
+`buildMiniPath` still carried the old closing correction — it measured the
+leftover turn and spread it back over every step. Once closure became exact by
+construction that correction was BENDING the track away from the shape the
+validator had approved. Generator and map now use the same walk.
+
+## 2. The closing chord was never tested
+
+The map calls `closePath()`, which draws a straight line from the last point
+back to the first. The crossing loop stopped at `pts.length - S`, so **the one
+segment doing most of the crossing was the one segment nobody looked at.**
+Those thin straight lines slicing through the tracks were that chord.
+
+Included now — and with it honest, the count went from a flat 0 to 1-8.
+
+## 3. THE REAL FAULT: turning 360 degrees does not close a loop
+
+    LEAGUE    CROSS   CLOSING GAP (fraction of the track's own size)
+    sports      3      1.014
+    sports      1      1.347
+    gt          5      0.887
+    formula     8      1.002
+
+A gap of 1.0 means the finish is a full track-width from the start.
+
+The generator guarantees the total TURN is 2\u03c0. That is necessary and it is not
+sufficient: a spiral also turns through 360 degrees. Closing needs the sum of
+the position VECTORS to be zero, and sequential (curvature, length) segments
+have no way to enforce that — which is why the tracks look like loops without
+being loops.
+
+**This needs the other architecture.** Generate a closed shape FIRST — points
+around a circle, jittered, smoothed into a spline — and then READ the curvature
+off that path to produce the segments. Closure is then a property of the source
+shape and cannot be violated. It is a rewrite of `buildCircuit`, not a tuning
+pass, and it is the honest next step.
+
+**What I got wrong:** I reported "zero crossings on all nine" from a counter
+that was not testing the segment causing them, over a picture that plainly
+disagreed. The picture was the evidence and I trusted the number.
+
+# ONE SIGNATURE STRAIGHT, OR NONE
+
+Straights were drawn independently from a wide range, so EVERY track got a long
+one somewhere by accident and the corners bunched at the far end — the long
+diagonal with a mess on it.
+
+Rolled once, per track:
+
+    55%   this circuit HAS a signature straight — exactly one, at a random
+          corner, and every other straight is SHORT
+    45%   it does not — a flowing circuit with no dominant feature, every
+          straight in the middle of the range
+
+Then each remaining straight is tied to the corner it FEEDS: a tight turn gets
+a 30-35% longer approach, because that is the braking zone, and a fast sweeper
+needs no run-up.
+
+    LEAGUE    CNR  CROSS  ASPECT  TURNERR  LONGEST STRAIGHT SHARE
+    sports     8     0     1.52    0.025    0.33
+    sports     8     0     1.35    0.008    0.28
+    sports     9     0     1.89    0.003    0.23
+    gt         9     0     1.31    0.002    0.19
+    gt         9     0     1.06    0.001    0.25
+    gt         9     0     1.34    0.017    0.26
+    formula   13     0     1.19    0.042    0.13
+    formula   10     0     1.36    0.014    0.22
+    formula   10     0     1.69    0.004    0.23
+
+**Zero crossings on all nine**, and the longest straight now takes between 13%
+and 33% of the total straight distance instead of dominating every track. A
+0.13 circuit is thirteen corners with no real straight at all; a 0.33 has one
+you will use the slipstream down.
+
+**Where it is still short:** the shapes are closed, clean and varied in
+character, but several still run on a diagonal axis rather than filling their
+box. The angle SHARES are random, so a run of small shares points the track one
+way for a long time. Biasing the shares to alternate large and small — rather
+than drawing each independently — is the next thing.
+
+# CIRCUITS THAT ACTUALLY CLOSE
+
+    LEAGUE    CNR  CROSS  ASPECT  TURN ERR
+    sports     9     0     1.12    0.016
+    sports     8     0     1.49    0.000
+    sports     8     0     1.93    0.010
+    gt         9     0     1.09    0.009
+    gt         9     0     2.00    0.010
+    gt        10     0     1.52    0.011
+    formula   10     1     1.91    0.002
+    formula   11     1     1.49    0.001
+    formula   12     0     1.03    0.016
+
+Turn error **0.000 to 0.016** — every lap goes round exactly once. Crossings 0
+or 1. Aspect 1.03 to 2.0.
+
+## THE MATHS WAS IMPOSSIBLE, NOT UNLUCKY
+
+The first generator picked a curvature and a length independently. A corner of
+k=4 over 6,000 units turns `4 * 0.00028 * 6000` = **6.7 radians** — more than a
+full circle, in ONE corner. Ten corners turned through ten laps.
+
+No amount of rejection sampling was going to find a closing track in that space,
+and forcing closure by spreading the error over every corner just bent every
+turn away from what had been chosen. I tried both before working out that the
+numbers themselves made it unreachable.
+
+## THE FIX, IN TWO STEPS
+
+**Deal out the angle first.** A lap turns 2\u03c0, once. Each corner gets a share,
+counter-turns costing extra so they still balance.
+
+**Then length first, curvature second.** My first attempt derived the LENGTH
+from the angle — which needed a clamp to keep corners plausible, and the clamp
+threw the angle away again. Turned round:
+
+    len = a plausible corner length
+    k   = angle / (len * 0.00028)
+
+Nothing is clamped, so the sum is exact. If a `k` comes out implausible the
+whole CANDIDATE is discarded, which is what the search loop is for.
+
+## WHAT THE SEARCH IS STILL FOR
+
+Closure is now guaranteed by construction, so the 400 attempts are spent
+entirely on taste: not crossing itself, and not being a splinter. It keeps the
+best-scoring candidate even if none passes outright, so it always returns a
+track.
+
+**Still to improve:** the tracks are recognisably loops but they favour a long
+diagonal with detail bunched at one end. The straight lengths are drawn
+independently of the angles, so a run of small-share corners produces a long
+thin stretch. Tying straight length to the turn that follows it is the next
+thing to try.
+
+# THE CAR WORK IS SHARED NOW
+
+The extraction took HIGHWAY's copy of the engine, so ROADSTER, per-car grip and
+the rebalanced sports triangle were left behind entirely — they existed only in
+the old Raceway file I had just overwritten. **The refactor silently deleted a
+session's worth of work**, and the build did not care: 18 cabinets passed, both
+games ran.
+
+Recovered from a scratch copy and moved into `road.js`, where both games get it:
+
+    ROADSTER   176mph  grip 1.34  badge ROADSTER  rig roadster
+    TUNER      164mph  grip 1.00  badge TUNER     rig tuner
+    MUSCLE     188mph  grip 0.82  badge MUSCLE    rig muscle
+
+Verified in HIGHWAY, which never had any of it before.
+
+What moved: the roadster body (low cabin, twin humps), its winged marque, the
+`marque` override so a car can share a BODY without sharing an identity, the
+round-rim wheel list, per-car `cornerG()`, and the unlock key.
+
+**Two duplicate-declaration faults on the way in**, both from a text grab that
+overshot its end anchor — `BEND_STEP` and `isOpen` each declared twice, each
+stopping the parse. `node --check` caught both in seconds. Grabbing text by
+start-and-end string is fine; not verifying what came back is not.
+
+## What is still Raceway-only, correctly
+
+    buildCircuit / trackZ / lapOf     a finite road that wraps
+    buildMiniPath / drawMiniMap       the track map
+    the six seam callbacks            laps, HUD, reset
+
+363 lines. Everything else is shared.
+
+# ROAD.JS — ONE ENGINE, TWO GAMES
+
+Highway and Raceway were 96.5% identical: 9,100 lines the same, 332 different.
+Every fix had to be applied twice by hand, and they were already drifting.
+
+    before                          after
+    highway.html   9,131 lines      727 lines
+    raceway.html   9,399 lines    1,076 lines
+    (nothing shared)               road.js  8,486 lines
+
+**Highway passes almost nothing** — `ROAD({ id:'highway', title:'Highway' })`.
+It is the plain case, and every seam it leaves unset falls through to what it
+always did. Raceway supplies five callbacks and 300 lines of circuit code.
+
+## THE SEAMS
+
+    CFG.curvature   (z) => k        a circuit answers; a road falls through
+    CFG.grade       (z) => g
+    CFG.hudScore    (dist) => str   "4.6 MI" or "LAP 1/5"
+    CFG.onReset     ()              build a circuit, reset the lap counter
+    CFG.onStep      (dt)            count laps
+    CFG.afterDraw   (ctx)           the minimap
+
+Six one-line touchpoints in 8,486 lines. That is the whole interface.
+
+## THE HARD PART: A SEAM FIRES BEFORE THE ENGINE RETURNS
+
+`onReset` runs during setup. A fork that captured the RETURN value of `ROAD()`
+still held nothing when its first callback ran — `R.rint is not a function`.
+
+Two fixes, both about ordering:
+
+  - the engine writes its surface onto the CONFIG object (`CFG.api`) on its
+    first line, so a fork can reach it from the very first seam
+  - the helpers are exposed as WRAPPERS, not direct references. `rnd` and
+    `rint` are `const` arrows and are in their temporal dead zone at the top of
+    the factory; a wrapper is only called later, by which time they exist
+
+Raceway reads the surface through a `Proxy` that forwards to `CFG.api`, so it
+never has to care when the engine filled it in.
+
+## AND THE BUILD HAD TO LEARN
+
+`pack.sh` checked each cabinet's HTML for PLAY, OPTIONS and a controls page.
+Those strings now live in the shared engine, so it reported a game with no menu
+at all. It reads the file AND every same-origin script it includes now — which
+is what the browser does.
+
+Verified: highway `0.1 MI`, raceway `LAP 1/5`, both clean, 18 cabinets pass.
+
+# STANDALONE BUILDS — SHARED SOURCE, SINGLE-FILE RELEASE
+
+You were right that shipping a shared `road.js` is just one more file. But it
+does not even have to be that: `pack.sh --standalone <id>` emits ONE
+self-contained HTML with every `<script src>` folded in.
+
+    ./pack.sh --standalone raceway
+      standalone: raceway  (2 shared scripts inlined, 498K)
+
+Verified by serving that single file **alone in an empty directory**: no errors,
+canvas up, drives, HUD reads LAP 1/5. Nothing else on disk.
+
+So the answer to the concern is: develop against shared modules, release a
+single file. One source tree, two kinds of artifact, and no reason to keep the
+duplicate copy of 8,000 lines that Raceway is today.
+
+**Two faults, both found by testing the artifact rather than the source:**
+
+  - a blanket regex also rewrote the string `"<script src="` that appears
+    INSIDE arcade.js, corrupting the code it had just inlined. The rewrite is
+    bounded to the head now, before the first inline script.
+  - arcade.js and audio.js both contain the literal text `</script>` in
+    comments. Inlined verbatim that closes the block early and the rest of the
+    file parses as HTML — the game loaded and would not run. Split as `<\/`,
+    which is valid JS and invisible to the HTML parser.
+
+Neither would have shown up anywhere except in the built file.
+
+# THE MINIMAP — YES, AND IT IS ALMOST FREE
+
+A circuit is already a list of (curvature, length). Walk it, turning by `k` as
+you go, and you have the shape of the track as a closed polyline — the same
+outline a Crash Team Racing track-select shows. Nothing new has to be stored.
+
+Two details make it work:
+
+  - **it has to CLOSE.** Random curvature does not return to its start, so the
+    total turn is measured and the closing error is spread evenly over every
+    step of a second walk. The loop then joins itself.
+  - **it is normalised into a unit box**, so a 282k formula circuit and a 161k
+    park circuit draw at the same size on screen.
+
+Built once per circuit and cached. Drawing it each frame is a polyline and one
+blip per car:
+
+    casing      dark, fat, round-joined
+    surface     pale yellow on top of it — the reference's exact idiom
+    start line  red, across the ribbon at index 0
+    rivals      white dots at `miniAt(r.z)`
+    you         a green dot drawn last, so you are never hidden
+
+Six generated circuits are in `tracks.png` — real loops, 9 to 12 corners,
+161k to 282k long, and each league visibly different in character.
+
+**Where it falls short:** several tracks have long thin spikes and cross
+themselves more than a real circuit would. The generator alternates straight
+and turn without ever asking whether the shape it is drawing is a good one.
+Rejecting layouts that self-intersect too often, or that have an extreme aspect
+ratio, would fix it — and the minimap is exactly the tool for judging that,
+because now the generator can SEE what it made.
+
+# RACEWAY — THE CIRCUIT
+
+Until this pass Raceway was a byte-for-byte copy of Highway with a different
+title and save keys. It now has the one system that makes it a different game.
+
+## A finite road that wraps
+
+Highway's road is INFINITE: `pushCurve` adds segments ahead and old ones are
+shifted off behind. A circuit is the same generator with one difference — it is
+finite and it repeats. Build N segments once, then answer "what is the curvature
+at z" with `z % trackLength`.
+
+Everything downstream is untouched, because nothing else asks how long the road
+is. `curvatureAt`, `gradeAt`, the bend integration and the skyline parallax all
+just want a number for a given z.
+
+    buildCircuit(league)   a straight then a turn, N times, plus a pit straight
+    trackZ(z)              ((z % L) + L) % L
+    lapOf(z)               Math.floor(z / L)
+
+Generated and verified: **RACEWAY 4376, 172,839 units, 12 corners** — and while
+driving, `pos` climbs without bound while `trackZ(pos)` stays inside the track
+length. The wrap works.
+
+## Three leagues, three shapes of track
+
+    formula   10-14 turns   longest straights   30% tight   fastest corners
+    gt         9-13 turns   medium              42% tight
+    sports     8-12 turns   shortest            55% tight   most technical
+
+The sports circuit is deliberately the twistiest — that is where ROADSTER's grip
+earns its keep and where MUSCLE's top speed is worth least.
+
+## NOT YET VERIFIED: lap counting
+
+The counter is written and moved out of the race-only branch so it runs in every
+mode, but **I could not prove it increments.** My probe cannot assign to the
+module-scoped `pos`, so "jump forward one lap" did nothing and the test showed
+lap 0 throughout — which is a broken TEST, not necessarily a broken feature.
+
+Treat lap counting as unproven until it is driven.
+
 # RACEWAY — THE FORK
 
 Forked from Highway. Same car, same road engine, a CIRCUIT instead of a
