@@ -738,7 +738,14 @@ const MAX_SPD = 15333;   /* 200 mph at the top of fourth */
    limiter — a bottle of nitrous cannot make fourth gear turn faster than it
    turns. What it does is get you THROUGH the gears, so it is pure acceleration
    now, and the top speed is the same with it or without. */
-const NOS_SPD = MAX_SPD;
+/* ---- NOTHING WENT OVER 200 ----------------------------------------------
+   `NOS_SPD = MAX_SPD` capped every car at the reference speed, so a car whose
+   `vmax` is 1.09 could reach 218 on paper and never did. The cap is gone and
+   `carTop` — that car's own ceiling — is what governs.
+
+   Nitrous does NOT raise it. It multiplies the acceleration rate, so you get
+   through the rev bands faster and arrive at the same top speed sooner.
+   ------------------------------------------------------------------------ */
 const OFF_SPD = 4200;
 
 let W=360, H=640, dpr=1, horizon=0;
@@ -1183,18 +1190,28 @@ var snd = {
          - the last one is a longer, higher tone — you can hear which beep
            was the final one without looking at the clock
        -------------------------------------------------------------------- */
-    const up = (6 - secondsLeft);
-    const f  = 720 + up*130;
-    AR.sfx.tone({ freq: f, dur: 0.16, type:'square',
-                  gain: 0.30, cutoff: 3400, q:1.5 });
-    AR.sfx.tone({ freq: f/2, dur: 0.13, type:'triangle',
-                  gain: 0.16, cutoff: 1400 });
-    if(secondsLeft <= 1){
-      AR.sfx.tone({ t: AR.audio.now()+0.13, freq: 1320, dur: 0.55,
-                    type:'square', gain: 0.26, cutoff: 3600, verb:0.35 });
-      AR.sfx.tone({ t: AR.audio.now()+0.13, freq: 660, dur: 0.50,
-                    type:'triangle', gain: 0.14, cutoff: 1600 });
+    /* ---- ONE PITCH, RISING URGENCY --------------------------------------
+       A pitch that climbs each second reads as a fanfare. A countdown holds
+       ONE note and gets more insistent — that is what makes it ominous rather
+       than celebratory. Same 880Hz every time; what changes is how hard it is
+       struck, how long it rings, and how much low weight sits under it.
+       ------------------------------------------------------------------ */
+    if(secondsLeft <= 0){
+      /* ZERO: not a pip. The note bends DOWN and dies — the sound of the thing
+         you were counting toward arriving. */
+      AR.sfx.tone({ freq: 880, to: 196, dur: 0.90, type:'square',
+                    gain: 0.30, cutoff: 2600, verb:0.45 });
+      AR.sfx.tone({ t: AR.audio.now()+0.02, freq: 440, to: 98, dur: 0.95,
+                    type:'triangle', gain: 0.20, cutoff: 1200 });
+      AR.sfx.noise({ t: AR.audio.now()+0.04, freq: 900, to: 120, dur: 0.70,
+                     gain: 0.10, filter:'lowpass' });
+      return;
     }
+    const urg = (6 - secondsLeft) / 5;          /* 0.2 at five, 1.0 at one */
+    AR.sfx.tone({ freq: 880, dur: 0.13 + urg*0.10, type:'square',
+                  gain: 0.22 + urg*0.16, cutoff: 3200, q:1.5 });
+    AR.sfx.tone({ freq: 440, dur: 0.11 + urg*0.09, type:'triangle',
+                  gain: 0.10 + urg*0.14, cutoff: 1300 });
   },
 
   bed: function(step, t){
@@ -4294,6 +4311,7 @@ function autoGear(dt){
 }
 
 let brakeLamp = 0;
+let slipT = 0;
 let horning = false, hornCool = 0, bustT = 0, behindT = 2, slowFor = 0, audioTick = 0, bendT = 0, skySmooth = 0, pushK = 0;
 
 /* ---- rubber on the road --------------------------------------------------
@@ -5634,12 +5652,61 @@ function step(dt){
   const gearCap = (optManual && gear >= 1 && gear <= gearTable().length)
                 ? carTop * gearTable()[gear-1].to
                 : carTop;
+  /* ---- SLIPSTREAM --------------------------------------------------------
+     Sitting in the wake of the car ahead should be worth something. It is the
+     one overtaking mechanic a road game gets for free: you must choose between
+     the clean air of an empty lane and the tow you only get by tucking in
+     behind something.
+
+     The rules are deliberately tight, so it rewards commitment rather than
+     just being near traffic:
+
+       - directly behind, same lane, within 3,600 units — about three car
+         lengths at speed
+       - only above 55% of top: there is no meaningful wake at 40mph
+       - it FADES with distance, strongest right on the bumper
+       - a bigger vehicle punches a bigger hole, so a lorry tows harder than
+         a coupe
+
+     Worth up to 9% on top speed, which is enough to complete a pass you could
+     not otherwise make and not enough to be a free ride.
+     ---------------------------------------------------------------------- */
+  let tow = 0;
+  if(spd > MAX_SPD * 0.55){
+    /* `pz` is not declared until much further down this function, so the tow
+       computes its own — it is the same expression, and taking the value early
+       is cheaper than moving three hundred lines */
+    const myZ = pos + PLAYER_Z;
+    const all = traffic.concat(racers || []);
+    for(const c of all){
+      if(c.wreck > 0) continue;
+      const gap = c.z - myZ;
+      if(gap < 200 || gap > 3600) continue;              /* must be AHEAD */
+      if(Math.abs((c.x || 0) - playerX) > 0.34) continue; /* and in line */
+      const near = 1 - (gap - 200) / 3400;
+      const size = (c.type === 'truck') ? 1.35
+                 : (c.type === 'van' || c.type === 'pickup') ? 1.12 : 1;
+      tow = Math.max(tow, near * size);
+    }
+  }
+  slipT = tow;                        /* the HUD and the wind read this */
+  const slip = 1 + Math.min(0.09, tow * 0.09);
+
   const top = braking ? BRAKE_SPD
             : overRun ? MAX_SPD * bodyStat('vmax')
             : !onGas  ? 0
             : (offRoad ? OFF_SPD
-               : nosOn  ? NOS_SPD
-               : Math.min(carTop, gearCap));
+               /* ---- NITROUS IS POWER, NOT A HIGHER CEILING ---------------
+                  I had it raising top speed, which is wrong: more oxygen means
+                  more power in the gear you are in, so you climb the rev bands
+                  faster and reach the SAME ceiling sooner. What sets top speed
+                  is aero drag, and a bottle does nothing about that.
+
+                  So NOS is out of this expression entirely — it lives in the
+                  acceleration rate below, at 2.6x. The car's own `vmax` is the
+                  only thing that decides how fast it will ultimately go. */
+               : nosOn  ? carTop
+               : Math.min(carTop * slip, gearCap * slip));
   const rate = braking ? 9000
              : overRun ? 5200         /* aero drag above the limiter is brutal */
              : !onGas ? 420           /* neutral: it rolls, it does not stop */
@@ -5730,7 +5797,8 @@ function step(dt){
     clock -= dt;
     /* the last five seconds each get a beep */
     const whole = Math.ceil(clock);
-    if(clock > 0 && whole <= 5 && whole !== lastBeep){ lastBeep = whole; snd.tick(whole); }
+    /* zero gets its own beep, so the run does not simply stop in silence */
+    if(whole <= 5 && whole !== lastBeep && whole >= 0){ lastBeep = whole; snd.tick(whole); }
     if(clock < 0) clock = 0;
   }
   /* a gantry every CP_MILES, placed a little way ahead as you approach */
@@ -5847,7 +5915,10 @@ function step(dt){
   /* a gear that cannot pull makes the engine labour, which you hear */
   bogT = (optManual && onGas && gearFactor() < 0.4) ? Math.min(1, bogT + dt*3)
                                                     : Math.max(0, bogT - dt*3);
-  spd = clamp(spd, 0, NOS_SPD);
+  /* the hard ceiling is the fastest thing any car can do on the bottle, not a
+     flat 200 — this was the last reference to the constant I removed, and it
+     threw every frame, which pinned the car at 31mph */
+  spd = clamp(spd, 0, MAX_SPD * 1.30);
   if(offRoad){
     shake = Math.max(shake, 0.22);
     targetX = clamp(targetX, -1.18, 1.18);
@@ -6312,7 +6383,9 @@ function step(dt){
   if(audioTick === 0)
     snd.traffic(traffic.concat(cops.filter(function(k){ return k.wreck<=0; }))
                        .concat(racers));
-  snd.drive(revFrac * MAX_SPD, MAX_SPD, offRoad, nosOn, near,
+  /* dirty air is quieter and rougher than clean air — the wind drops as the
+     car ahead takes the blast off you */
+  snd.drive(revFrac * MAX_SPD, MAX_SPD * (1 - (slipT||0)*0.22), offRoad, nosOn, near,
             Math.max(decel, pScrub * 0.9));
 
   /* ---- stopping with the law behind you --------------------------------
@@ -6827,9 +6900,19 @@ function drawRoad(){
         ctx.beginPath();
         ctx.arc(hx, hy+hh*0.6, Math.max(2, sc*0.22), 0, 6.2832);
         ctx.fill();
-        /* the pool on the tarmac below it */
+        /* ---- THE INTERMITTENT HAZE ---------------------------------------
+           The pool's HEIGHT was `(y1 - y2) * 5.5` — 5.5 times the thickness of
+           the road slice it sits on. Slice thickness changes with distance and
+           with every hill, so the pool grew and shrank frame to frame and
+           bloomed into a wash across the screen: the intermittent haze.
+
+           A pool of light on tarmac is an ellipse whose size follows the LAMP,
+           not the geometry it happens to be drawn on. Both axes come from `sc`
+           now, so it is the same shape at every distance and simply gets
+           smaller as it recedes.
+           ---------------------------------------------------------------- */
         const rw = Math.max(6, sc * 2.6);
-        const rh = Math.max(2, (y1 - y2) * 5.5);
+        const rh = Math.max(2, sc * 0.55);
         const g2 = ctx.createRadialGradient(hx, y1, 0, hx, y1, rw);
         g2.addColorStop(0,   'rgba(226,240,255,' + (0.26 * lamp * fade) + ')');
         g2.addColorStop(0.5, 'rgba(168,204,255,' + (0.10 * lamp * fade) + ')');
@@ -7220,7 +7303,7 @@ function drawPlayer(){
      driving is untouched.
      -------------------------------------------------------------------------- */
   const rush = clamp((spd - MAX_SPD*0.88) / (MAX_SPD*0.12), 0, 1);
-  const warp = clamp((spd - MAX_SPD) / (NOS_SPD - MAX_SPD), 0, 1);
+  const warp = clamp((spd - MAX_SPD) / (MAX_SPD * 0.30), 0, 1);
   if(rush > 0.01){
     const now2 = performance.now();
     ctx.save();
@@ -7329,10 +7412,13 @@ function drawPlayer(){
 }
 
 function drawSpeedLines(){
-  const v = clamp((spd - MAX_SPD*0.55)/(NOS_SPD - MAX_SPD*0.55), 0, 1);
+  const v = clamp((spd - MAX_SPD*0.55)/(MAX_SPD*1.20 - MAX_SPD*0.55), 0, 1);
   if(v <= 0.02 || reduceMotion) return;
   const n = 36;
-  ctx.strokeStyle = 'rgba(255,220,190,'+(0.03+0.13*v)+')';
+  /* the tow shows in the air itself — the wake streaks harder when you are in
+     it, which is the only cue you get without taking your eyes off the road */
+  const towBoost = 1 + (slipT || 0) * 1.6;
+  ctx.strokeStyle = 'rgba(255,220,190,'+((0.03+0.13*v)*towBoost)+')';
   ctx.lineWidth = 1.2;
   ctx.beginPath();
   /* ---- THE SHEEN --------------------------------------------------------
@@ -7785,9 +7871,16 @@ function drawDials(){
   const rpm = engineRpm();
   face(g, 30, 30, 26, rpm / redline(), (rpm/1000).toFixed(1), 'x1000',
        0.86, '#5ff0d8', '#ff3b5c', undefined, gearLabel());
-  const mph = spd / MAX_SPD;
+  /* ---- THE DIAL HAS TO REACH ------------------------------------------
+     The needle was `spd / MAX_SPD`, so 200mph was full deflection and
+     anything faster simply pegged — which is the other half of why nothing
+     ever appeared to go above 200. The face reads to 260 now, so FORMULA's
+     218 sits where it belongs and a bottle takes it past that.
+     ------------------------------------------------------------------- */
+  const DIAL_TOP = 260;
+  const mph = clamp((spd / MAX_SPD * 200) / DIAL_TOP, 0, 1);
   face(g, 85, 30, 26, mph, Math.round(spd/MAX_SPD*200), 'MPH',
-       0.94, '#ffd98a', '#ff3b5c', dist);
+       200/DIAL_TOP, '#ffd98a', '#ff3b5c', dist);
 }
 function gearLabel(){
   /* Just the number. The D prefix was noise — you know which box you chose,
@@ -8145,8 +8238,7 @@ function showGarage(){
   document.body.classList.remove('titling');
   /* the garage is reachable from the end card, so it has to tear down too —
      but it keeps the menu music rather than restarting it */
-  if(state !== 'garage'){ endRun(); state = 'garage';
-    menuMusic(); }
+  if(state !== 'garage'){ endRun(true); state = 'garage'; menuMusic(); }
   state = 'garage';
   openVeil(
     '<div class="eyebrow">CHOOSE YOUR CAR</div>' +
@@ -8247,7 +8339,16 @@ function cycleBody(d){
    whole scene still loaded, so QUIT flashed a frame of road on the way out.
    Any menu that is not the pause menu ends the run properly first.
    -------------------------------------------------------------------------- */
-function endRun(){
+/* ---- LEAVING A RUN, WITHOUT TOUCHING THE MUSIC -------------------------
+   `endRun()` stops the music and clears `menuBedOn`, so any menu that calls it
+   is guaranteed to restart the bed a moment later — which is the hiccup, and
+   why fixing `showTitle`/`showGarage` alone did not help: they were not the
+   ones stopping it.
+
+   `endRun(keepMusic)` leaves the bed alone when we are only moving from one
+   MENU to another. The run still tears down; the music simply does not care.
+   ---------------------------------------------------------------------- */
+function endRun(keepMusic){
   state = 'title';
   spd = 0; fx.length = 0; shake = 0;
   traffic.length = 0; cops.length = 0; blocks.length = 0;
@@ -8257,8 +8358,10 @@ function endRun(){
      loops are held voices and they keep sounding until something tells them
      to stop. Leaving a run has to silence both. */
   snd.quiet();
-  if(AR && AR.music) AR.music.stop();
-  menuBedOn = false;
+  if(!keepMusic){
+    if(AR && AR.music) AR.music.stop();
+    menuBedOn = false;
+  }
 }
 
 
@@ -8529,7 +8632,7 @@ function armMenuAudio(){
 }
 
 function showTitle(){
-  endRun();
+  endRun(true);
   armMenuAudio();
   document.body.classList.add('titling');
   titleT = 0;
