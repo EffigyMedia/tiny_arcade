@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#120a24">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<title>Highway</title>
+<title>Raceway</title>
   <meta name="arcade-home" content="../../index.html#sw">
   <meta name="arcade-title" content="Highway">
 <meta name="arcade-accent" content="#ff8a3d">
@@ -830,14 +830,14 @@ function tourStanding(){
   return ahead + 1;
 }
 function unlocked(key){
-  const sv = (AR && AR.save) ? AR.save.get('highway-opts') : null;
+  const sv = (AR && AR.save) ? AR.save.get('raceway-opts') : null;
   return !!(sv && sv[key]);
 }
 function zUnlocked(){ return unlocked('formula'); }
 let clock = CLOCK_START, nextCP = 0, cpGantries = [], lastBeep = -1, wreckWait = 0;
 let traffic, cops, blocks, crates, fx, shake, hitFlash, sirenPhase, lastKmh, iframe;
 let bestScore=0, bestDist=0, runs=0;
-const SV = AR && AR.save ? AR.save.get('highway') : null;
+const SV = AR && AR.save ? AR.save.get('raceway') : null;
 if(SV){ bestScore = SV.best || 0; bestDist = SV.bestMi || SV.bestKm || 0; }
 let acc, last;
 
@@ -1446,7 +1446,20 @@ function updateViewShift(){
    The force itself is curvature x speed^2, which is real: a corner taken flat
    at 90 pulls a quarter of what it does at 180.
    -------------------------------------------------------------------------- */
-const CORNER_G = 0.42, CORNER_LAG = 1.8;
+/* ---- GRIP IS A PER-CAR STAT NOW ----------------------------------------
+   On a straight road this was a global feel dial, because a corner you can
+   take flat is a corner nobody has to think about. On a circuit it is the
+   third axis — top speed, acceleration, and how hard you can lean on a bend.
+
+   `CORNER_G` is the force a bend exerts on YOU, so a HIGHER number is a car
+   that gets pushed wide more easily. Grip is therefore its inverse: a grippy
+   car has a low `CORNER_G`.
+   ------------------------------------------------------------------------ */
+const CORNER_G_BASE = 0.42, CORNER_LAG = 1.8;
+function cornerG(){
+  const g = (BODY[optBody] && BODY[optBody].grip) || 1;
+  return CORNER_G_BASE / g;
+}
 
 const BEND_STEP = 300;
 let bendCache = [], slopeCache = [], hillCache = [], gradCache = [];
@@ -1723,12 +1736,37 @@ const BODY = {
          TUNER       172      3.2
          COUPE       160      6.0      <- ordinary traffic
      -------------------------------------------------------------------- */
+  /* ---- THE SPORTS LEAGUE: A TRIANGLE, NOT A LADDER -----------------------
+     Three cars, each best at exactly one thing and worst at another, so no
+     one of them is the right answer on every circuit:
+
+       TUNER     BEST acceleration   worst top speed    average grip
+       MUSCLE    average             BEST top speed     worst grip
+       ROADSTER  worst acceleration  average top        BEST GRIP
+
+     Each is best at exactly one thing and WORST at exactly one other. My first
+     pass made ROADSTER middling at both straight-line stats and best at grip,
+     which is not a trade — it is simply the best car. It has to give something
+     up, and for a small light underpowered thing the honest thing to give up
+     is the launch.
+
+     ROADSTER is the one the fork needed. It is small, light and
+     underpowered — it loses every straight and it can carry speed through a
+     corner neither of the others can touch. On a twisty procgen circuit it
+     wins; on a fast one it is nowhere. That is the whole point of a league.
+     -------------------------------------------------------------------- */
+  'ROADSTER': { rig:'roadster', gears:5, wide:0.005, arch:0.88,
+                horn:1.04, redline:9500, pitch:0.96, rear:'ROADSTER',
+                pull:0.72, vmax:0.88, grip:1.34,
+                note:'ROADSTER \u00B7 LIGHT \u00B7 CARRIES SPEED THROUGH ANYTHING' },
   'TUNER': { rig:'tuner',  gears:5, wide:0.030, arch:0.95,
               horn:0.86, redline:10000, pitch:0.78, rear:'TUNER',
-              pull:1.18, vmax:0.86, note:'TUNED \u00B7 FIVE SPEED \u00B7 QUICK, THEN DONE' },
+              pull:1.18, vmax:0.82, grip:1.00,
+              note:'TUNED \u00B7 FIVE SPEED \u00B7 QUICK, THEN DONE' },
   'MUSCLE': { rig:'muscle', gears:4, wide:0.050, arch:1.05,
               horn:0.72, redline:10000, pitch:0.66, rear:'MUSCLE',
-              pull:0.78, vmax:0.92, note:'MUSCLE \u00B7 FOUR SPEED \u00B7 LONG LEGS' },
+              pull:0.92, vmax:0.94, grip:0.82,
+              note:'MUSCLE \u00B7 FOUR SPEED \u00B7 LONG LEGS' },
   /* ---- THE CRUISER -------------------------------------------------------
      Earned by surviving, not by winning: 20 miles on TEST DRIVE with the clock
      AND hot pursuit on. It is an interceptor — a heavy saloon with a big engine
@@ -2096,7 +2134,8 @@ function paintRigFront(kind, o){
       }
     }
     /* and on the nose */
-    if(kind !== 'tuner' && kind !== 'muscle' && kind !== 'cop')
+    if(P.marque) drawMarque(g, P.marque, w*0.5, pDeck + h*0.026, h*0.030);
+    else if(kind !== 'tuner' && kind !== 'muscle' && kind !== 'cop')
       drawMarque(g, 'GENERIC', w*0.5, pDeck + h*0.026, h*0.030);
     /* ---- CLEAR OF THE SCOOP ---------------------------------------------
        The muscle car's bonnet scoop runs `pDeck - 0.010` to `pDeck + 0.045`,
@@ -2457,7 +2496,10 @@ function paintRig(kind, o){
 
     /* the marque, on the boot lid between the lamps — the tuner and the
        muscle car have their own, everything else gets the generic one */
-    if(!isTuner && !isMuscle && kind !== 'cop')
+    /* a ROADSTER wears its own wings; the ordinary coupe keeps the oval */
+    const ownMark = (o.marque) || null;
+    if(ownMark) drawMarque(g, ownMark, w*0.5, deckY + h*0.088, h*0.034);
+    else if(!isTuner && !isMuscle && kind !== 'cop')
       drawMarque(g, 'GENERIC', w*0.5, deckY + h*0.088, h*0.034);
     if(isTuner || isMuscle)
       /* lower: it was riding on the shut line rather than sitting on the
@@ -3597,7 +3639,7 @@ function buildSprites(){
       : pt;
     SP.player = sprite(rz[0], rz[1],
       paintRig(shape.rig, Object.assign({ lamp:'#d61b3c', lamp2:'#ff7a86',
-                                          player:true,
+                                          player:true, marque:shape.rear,
                                           stripes:optStripes && stripesAllowed() }, rigPaint)));
   } else {
     SP.player = sprite(220,168, paintCar(Object.assign({
@@ -4045,7 +4087,7 @@ function wreck(reason){
   snd.dead();
   bestScore=Math.max(bestScore, Math.round(dist*10)/10);
   bestDist=Math.max(bestDist,dist);
-  if(AR && AR.save) AR.save.merge('highway', {
+  if(AR && AR.save) AR.save.merge('raceway', {
     best: bestScore, bestMi: +bestDist.toFixed(1), runs: runs,
     label: 'BEST ' + bestDist.toFixed(1) + ' MI'
   });
@@ -4861,7 +4903,7 @@ function stepRacers(dt){
     state = 'wrecked';
     bestScore = Math.max(bestScore, Math.round(dist*10)/10);
     bestDist  = Math.max(bestDist, dist);
-    if(AR && AR.save) AR.save.merge('highway', {
+    if(AR && AR.save) AR.save.merge('raceway', {
       best: bestScore, bestMi: +bestDist.toFixed(1), runs: runs,
       label: 'BEST ' + bestDist.toFixed(1) + ' MI'
     });
@@ -4885,9 +4927,9 @@ function stepRacers(dt){
            car — so a tournament is worth finishing even when the win is gone */
         if(AR && AR.save){
           /* the save keys name the CARS, not a TYPE that no longer exists */
-          if(st === 1) AR.save.merge('highway-opts', { formula:true });
-          if(st <= 2)  AR.save.merge('highway-opts', { tuner:true });
-          if(st <= 3)  AR.save.merge('highway-opts', { muscle:true });
+          if(st === 1) AR.save.merge('raceway-opts', { formula:true });
+          if(st <= 2)  AR.save.merge('raceway-opts', { tuner:true });
+          if(st <= 3)  AR.save.merge('raceway-opts', { muscle:true });
         }
         setTimeout(() => showTrophy(st), 700);
       } else {
@@ -5138,6 +5180,32 @@ function drawMarque(g, kind, cx, cy, r, tint){
     g.fillRect(-7.6,-1.0,15.2,2.0);
     g.fillStyle = 'rgba(255,255,255,.35)';
     g.beginPath(); g.ellipse(-1.8,-2.0,4.2,1.8,0,0,6.2832); g.fill();
+  } else if(kind === 'ROADSTER'){
+    /* ---- THE ROADSTER'S MARK --------------------------------------------
+       A pair of wings around a small disc — the oldest badge idiom there is,
+       and the right one for the lightest car in the league. Silver on a dark
+       ground, so it reads as chrome rather than as a colour. */
+    g.fillStyle = '#0f1116';
+    g.beginPath(); g.ellipse(0,0,10.2,6.4,0,0,6.2832); g.fill();
+    g.fillStyle = '#cfd6de';
+    for(const sx of [-1,1]){
+      g.beginPath();
+      g.moveTo(sx*2.6, -1.8);
+      g.lineTo(sx*9.4, -3.4);
+      g.lineTo(sx*9.4, -0.6);
+      g.lineTo(sx*2.6,  1.0);
+      g.closePath(); g.fill();
+      g.beginPath();
+      g.moveTo(sx*2.6, 1.4);
+      g.lineTo(sx*7.8, 1.0);
+      g.lineTo(sx*7.8, 3.2);
+      g.lineTo(sx*2.6, 3.0);
+      g.closePath(); g.fill();
+    }
+    g.fillStyle = '#e8eef5';
+    g.beginPath(); g.arc(0,0,3.0,0,6.2832); g.fill();
+    g.fillStyle = '#b0202c';
+    g.beginPath(); g.arc(0,0,1.5,0,6.2832); g.fill();
   } else if(kind === 'TUNER'){
     /* ---- THE TUNER ------------------------------------------------------
        A disc, not a shield: a rising sun on a deep red ground, rays running
@@ -5262,7 +5330,10 @@ function drawWheel(){
      The production cars and ALL the ordinary traffic: a plain circular rim
      with whatever badge that vehicle carries on the boss. Only the supercars
      keep the flat bottom and only the formula car has a yoke. */
-  const roundRim = (MK === 'TUNER' || MK === 'MUSCLE' || MK === 'CRUISER' || MK === 'GENERIC');
+  /* ROADSTER is a production car and was missing from this list, so it got
+     the supercar's flat bottom */
+  const roundRim = (MK === 'TUNER' || MK === 'MUSCLE' || MK === 'CRUISER'
+                 || MK === 'GENERIC' || MK === 'ROADSTER');
   const flatY = roundRim ? R*0.995 : R*0.62;
   const aFlat = Math.asin(flatY/R);
   function rimPath(){
@@ -5819,7 +5890,7 @@ function step(dt){
     state = 'wrecked';
     bestScore = Math.max(bestScore, Math.round(dist*10)/10);
     bestDist  = Math.max(bestDist, dist);
-    if(AR && AR.save) AR.save.merge('highway', {
+    if(AR && AR.save) AR.save.merge('raceway', {
       best: bestScore, bestMi: +bestDist.toFixed(1), runs: runs,
       label: 'BEST ' + bestDist.toFixed(1) + ' MI'
     });
@@ -5903,13 +5974,13 @@ function step(dt){
      pursuit there is nothing to survive. */
   /* a hundred miles on TEST DRIVE, whatever the settings, opens the traffic */
   if(mode !== 'race' && dist >= 100 && !unlocked('traffic')){
-    if(AR && AR.save) AR.save.merge('highway-opts', { traffic:true });
+    if(AR && AR.save) AR.save.merge('raceway-opts', { traffic:true });
     wonTraffic = true;
     snd.checkpoint();
     flashWarn('TRAFFIC UNLOCKED');
   }
   if(mode !== 'race' && timedRun && !optEasy && dist >= 20 && !unlocked('cruiser')){
-    if(AR && AR.save) AR.save.merge('highway-opts', { cruiser:true });
+    if(AR && AR.save) AR.save.merge('raceway-opts', { cruiser:true });
     /* flagged now, SHOWN when the run ends — a reward screen mid-run would be
        taking the wheel away from you at 190mph */
     wonCruiser = true;
@@ -5948,7 +6019,7 @@ function step(dt){
        carries you to the OUTSIDE of that — which is left. Adding it pushed the
        car around the corner with the road, so a bend helped you instead of
        costing you, and the car appeared to steer itself into the turn. */
-    targetX = clamp(targetX - pushK * v * v * dt * CORNER_G, -1.30, 1.30);
+    targetX = clamp(targetX - pushK * v * v * dt * cornerG(), -1.30, 1.30);
   }
   stepWheel(dt);
   /* ---- the bottle refills itself -----------------------------------------
@@ -8218,7 +8289,7 @@ function openVeil(html, go){
          black for the cruiser must not turn every other car black */
       if(paintChoices().length === PAINT_KEYS.length){
         freePaint = optPaint;
-        if(AR && AR.save) AR.save.merge('highway-opts', { paint:optPaint });
+        if(AR && AR.save) AR.save.merge('raceway-opts', { paint:optPaint });
       }
       buildSprites();
       showGarage();
@@ -8360,12 +8431,12 @@ function showGarage(){
       prev: () => cycleBody(-1),
       next: () => cycleBody(1),
       box:  () => { optManual = !optManual; syncBoxClass();
-                    if(AR && AR.save) AR.save.merge('highway-opts', { manual:optManual });
+                    if(AR && AR.save) AR.save.merge('raceway-opts', { manual:optManual });
                     showGarage(); },
       /* three states in one control: TEST DRIVE, SINGLE RACE, TOURNAMENT */
       stripes: () => { if(stripesAllowed()) optStripes = !optStripes;
                        buildSprites();
-                       if(AR && AR.save) AR.save.merge('highway-opts', { stripes:optStripes });
+                       if(AR && AR.save) AR.save.merge('raceway-opts', { stripes:optStripes });
                        showGarage(); },
       mode:  () => {
         if(mode !== 'race'){ mode = 'race'; tourOn = false; }
@@ -8374,10 +8445,10 @@ function showGarage(){
         showGarage();
       },
       timed: () => { timedRun = !timedRun;
-                     if(AR && AR.save) AR.save.merge('highway-opts', { timed:timedRun });
+                     if(AR && AR.save) AR.save.merge('raceway-opts', { timed:timedRun });
                      showGarage(); },
       chase: () => { optEasy = !optEasy;
-                     if(AR && AR.save) AR.save.merge('highway-opts', { easy:optEasy });
+                     if(AR && AR.save) AR.save.merge('raceway-opts', { easy:optEasy });
                      showGarage(); },
       drive: start,
       back: showTitle
@@ -8386,7 +8457,7 @@ function showGarage(){
 }
 function cycleBody(d){
   /* FORMULA is not in the list until it has been won */
-  const LOCK = { 'FORMULA':'typeZ', 'TUNER':'tuner', 'MUSCLE':'muscle', 'CRUISER':'cruiser',
+  const LOCK = { 'FORMULA':'typeZ', 'TUNER':'tuner', 'MUSCLE':'muscle', 'CRUISER':'cruiser', 'ROADSTER':'roadster',
                  'COUPE':'traffic','SALOON':'traffic','CAB':'traffic',
                  'PICKUP':'traffic','VAN':'traffic','LORRY':'traffic' };
   /* ---- DEBUG OVERRIDES ---------------------------------------------------
@@ -8409,7 +8480,7 @@ function cycleBody(d){
   syncPaintForBody();
   buildSprites();
   syncBoxClass();
-  if(AR && AR.save) AR.save.merge('highway-opts', { body:optBody });
+  if(AR && AR.save) AR.save.merge('raceway-opts', { body:optBody });
   showGarage();
 }
 
@@ -8718,7 +8789,7 @@ function showTitle(){
   requestAnimationFrame(drawTitleArt);
   menuMusic();
   openVeil(
-    '<h1>Highway</h1>' +
+    '<h1>Raceway</h1>' +
     '<div class="tmenu">' +
       '<button class="go" data-act="play">PLAY</button>' +
       /* MODE and HOT PURSUIT moved to the garage: they are choices about the
@@ -9075,7 +9146,7 @@ if (AR && AR.options) AR.options.define([
        the box mid-run is reasonable, changing your CAR is not */
     optManual = (val === 'MANUAL');
     syncBoxClass();
-    if(AR && AR.save) AR.save.merge('highway-opts', { manual:optManual });
+    if(AR && AR.save) AR.save.merge('raceway-opts', { manual:optManual });
     if(optManual){ knobRail = 0; knobY = TOP_Y; placeKnob(); }
     else autoGear();
   }
@@ -9101,7 +9172,7 @@ if (AR && AR.options) AR.options.define([
 /* the garage choices are saved separately from the in-run options, since they
    no longer live in that menu */
 (function(){
-  const g0 = AR && AR.save ? AR.save.get('highway-opts') : null;
+  const g0 = AR && AR.save ? AR.save.get('raceway-opts') : null;
   if(g0){
     if(g0.body && BODY[g0.body]) optBody = g0.body;
     if(g0.paint && PAINT[g0.paint]){ optPaint = g0.paint; freePaint = g0.paint; }
