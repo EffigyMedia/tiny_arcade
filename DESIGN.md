@@ -1,3 +1,512 @@
+# THE FRONT LIGHT BAR
+
+The tail drew one for any `force` body and the nose drew none, so the super
+cruiser had a bar you could only see in a mirror.
+
+Same proportions as the rear, exactly:
+
+    housing   0.24 to 0.76 across, 0.045 tall
+    lenses    0.235 wide each, inset 0.005
+    stanchions at 0.285 and 0.695, 0.020 wide
+
+Only the Y differs, because the two painters build their cabins differently:
+the tail works from `cabinTop` and the nose from its own `roofT`. The bar sits
+on that roof at `roofT - 0.030h`.
+
+**The colours mirror.** Seen head-on the car's own left carries the red and its
+right the blue — the reverse of the view from behind, which is what you would
+actually see walking round the car.
+
+Verified by cropping the REAL fleet sheet rather than a probe, after last pass's
+lesson about tests that reimplement what they are testing.
+
+# WHERE DEVELOPMENT STANDS
+
+## HIGHWAY — essentially complete
+
+    six cars from the start   three SPORTS, three SUPER
+    gold in SUPER             unlocks FORMULA
+    gold in SPORTS            unlocks five IRIDESCENT paints
+    rivals                    run the class YOU chose
+    CRUISER                   20 timed miles under pursuit
+    SUPERCRUISER              the same, at a 180mph AVERAGE
+    speed traps               parked cruisers, anything over 80mph engages them
+    super cruisers            sustained 150+ with heat; count scales with heat
+    stats                     top speed, 0-60, grip, braking, horsepower, MASS
+    launch                    rev in neutral, drop it, power-to-weight decides
+    NOS                       fast classes only
+    slipstream, mirror, brake lights, countdown, music — all done
+
+## RACEWAY — the circuit works, the corners do not
+
+    DONE      closed loops, zero crossings, three leagues, lap counting,
+              the minimap, and everything shared from road.js
+    OPEN      **corners are too fast to matter.** A formula car never drops
+              below 182mph and braking is 1-3% of a lap against a target of
+              ~15%. The tight radius exists but only across a few hundred
+              units, so at 218mph the car is through the apex before the
+              brakes do anything.
+
+              The fix is geometric: a hairpin needs its tight radius SUSTAINED
+              over several thousand units, which means control points clustered
+              in a genuine arc rather than one apex between two squeezed
+              neighbours. Attempts so far either did nothing or produced cusps
+              and crossings.
+
+    THEN      qualifying, sector times, pit lane, fuel, tyres, environments,
+              flags, weather — in that order
+    QUEUED    bridges, once shapes are settled
+
+## AND ONE MORE MEASUREMENT LESSON
+
+The super cruiser's wheel was still round in the sheet after I reported it
+fixed. `MK` is the MARQUE, and the super cruiser wears the CRUISER's — so
+testing `MK !== 'SUPERCRUISER'` could never exclude it. The BODY key is what
+identifies the car.
+
+**My probe reported flat-bottom because it REIMPLEMENTED the check rather than
+calling it.** A test that rewrites the logic it is testing will agree with
+itself no matter what the game does. The fleet sheet, which draws the real
+thing, was the only honest witness.
+
+# THE LIGHT BAR, MEASURED ON BOTH AXES
+
+Sampling the built sprites for the rows and columns where the strong blue and
+strong red pixels actually are:
+
+    VERTICAL
+      CRUISER        rows 18-22 of 164     mid 0.122
+      SUPERCRUISER   rows 49-53 of 168     mid 0.304
+
+    HORIZONTAL (both cars agree to three decimals)
+      blue head      centre 0.370 of sprite width
+      red head       centre 0.625
+      each head      0.235 wide
+
+Both bars are drawn from the same 0.24-0.76 span, which is why the X figures
+match even though the Y figures are a third of a car-height apart.
+
+Against the car's CENTRE, the heads are at **-0.130 and +0.125** — not the
+±0.20 the glow was using, which put each one about seventy thousandths of a
+car-width outboard of the lens it was meant to be lighting. They were also
+**0.17 wide against a real 0.235**, so each glow was narrower than the lamp
+under it.
+
+    was    bx = p.x ± 0.200w    head 0.170w    by = p.y - 0.90h
+    now    bx = p.x - 0.130w or + 0.125w
+           head 0.235w
+           by = p.y - h*(1 - barY)
+
+**Three rounds of adjusting by eye, then one probe.** Every time I have guessed
+at a coordinate this session it has taken several passes; every time I have read
+the pixels it has taken one. The measurement is the cheap part.
+
+# THE LIGHT BAR, MEASURED
+
+`h*0.90` was one number for every force car. Sampling the built sprites for the
+rows where the strong blue and strong red pixels actually are:
+
+    CRUISER        rows 18-22 of 164    mid 0.122
+    SUPERCRUISER   rows 49-53 of 168    mid 0.304
+
+Nearly a third of a car-height apart. The estimate happened to land on the
+cruiser's bar and floated well above the super cruiser's.
+
+`barY` is that measured fraction, stored on the BODY record. The sprite is drawn
+from `p.y - h` to `p.y`, so the head goes at `p.y - h*(1 - barY)`. Any future
+force car declares its own, and nothing is guessed.
+
+**Two rounds of adjusting by eye got nowhere.** Reading the pixels took one probe.
+
+# NOS IS NOT FOR EVERYONE
+
+Every driveable body had a bottle, including the LORRY and the CAB.
+
+    NOS      FORMULA, the three SUPER, the three SPORTS, SUPERCRUISER
+    no NOS   CRUISER, COUPE, SALOON, CAB, PICKUP, VAN, LORRY
+
+Gated at all three entry points — the touch button, the keyboard, and the pad —
+because any one of them left open is the whole rule undone. `body.nonos` also
+hides the button and the gauge, so a car without a bottle does not show one.
+
+# THE SUPER CRUISER'S WHEEL
+
+It is a MATADOR underneath, so it keeps the supercar's flat-bottomed rim rather
+than the patrol car's round one.
+
+    FORMULA        flat-bottom      CRUISER    round
+    MATADOR        flat-bottom      ROADSTER   round
+    SUPERCRUISER   flat-bottom      LORRY      round
+
+# THE SUPER CRUISER GETS ITS LIGHTS
+
+Three separate things were hardcoded to the word `CRUISER`, so a second police
+car had a livery and no way to use it:
+
+    inCruiser()          the horn-latch, the siren, the traffic scatter
+    the player light draw the two heads and the wash on the road
+    paintCar             never drew a BAR at all — only `paintRig('cop')` did
+
+All three read a `force` flag on the BODY record now. Declaring a car as force
+gets it the whole machinery: latching horn, siren at 1.25, traffic scattering at
+90%, the alternating heads, the coloured wash, the two-paint palette, and a bar
+on its roof.
+
+    CAR            force   bar UI   paints
+    CRUISER        yes     yes      WHITE/BLACK
+    SUPERCRUISER   yes     yes      WHITE/BLACK
+    MATADOR        no      no       all twelve
+    ROADSTER       no      no       all twelve
+
+**And the bar sat above the roof, not on it** — the same trap the stripes fell
+into months ago. The cabin BOX starts at `cabinTop`, but the drawn roof is a
+curve inset from it, so anything placed at `cabinTop` floats. A third of the way
+down the cabin span is where the metal actually is.
+
+I had also written a whole second `playerBar()` function before noticing the
+game already draws one; the only thing wrong with it was the body name in its
+condition. Reading before writing would have saved the detour.
+
+# THE SUPER CRUISER IS A REAL CAR NOW
+
+It was only a sprite — no stats at all — so nothing in the game could ask how
+fast it was and it could not appear on a fleet sheet. It has a `BODY` record
+like everything else, and its picture is built FROM that record, so the two can
+never drift apart.
+
+    CAR            TOP   HP   MASS   P/W    GRIP  BRAKE  BOX   0-60
+    SUPERCRUISER   184   690   1770   1.30   1.38  1.44   6sp   3.1s
+    MATADOR        194   690   1580   1.46   1.38  1.28   6sp   2.9s
+    CRUISER        190   370   1810   0.68   0.92  1.00   5sp   4.0s
+
+**Against the MATADOR it is taken from:** the same engine, the same gearbox, the
+same grip — and **190kg of equipment**. Cage, radio, lights, ram bar. That mass
+is the entire difference and it does the whole job:
+
+    top speed   −10mph      it cannot outrun what it chases
+    0-60        +0.2s        it cannot out-launch it either
+    braking     +12%         because that is what a pursuit car gets
+
+So it can stay with a supercar and it cannot beat one, which is exactly what a
+police interceptor should be. Note it is a far more serious car than the
+ordinary CRUISER: nearly twice the power-to-weight and a whole second quicker to
+sixty.
+
+**`npc:true`** keeps it out of the garage — 14 selectable bodies, 1 NPC — while
+still giving it stats and a place on the fleet sheet. That flag is now the
+general mechanism for a car that exists in the world but is not yours.
+
+The fleet render is fifteen vehicles: rear, front and wheel.
+
+# MASS — WHAT HORSEPOWER PUSHES AGAINST
+
+Horsepower had nothing to work against, so I was using `pull` as a stand-in for
+weight. That was wrong twice over: `pull` is torque, and a lorry with 420hp was
+being held back by a number that means something else entirely.
+
+Mass is kilograms and it does one job: divide the power.
+
+    CAR        HP    MASS kg   P/W    LAUNCH
+    FORMULA   1000      740    4.50   SMOKE
+    STALLION   710     1520    1.56   SMOKE
+    MATADOR    690     1580    1.46   SMOKE
+    MUSCLE     480     1720    0.93   SMOKE
+    TUNER      320     1290    0.83   SMOKE
+    ROADSTER   240     1010    0.79   SMOKE
+    COUPE      210     1340    0.52   SMOKE
+    SALOON     160     1480    0.36
+    PICKUP     220     2150    0.34
+    CAB        130     1620    0.27
+    VAN        140     2400    0.19
+    LORRY      420   14,000    0.10   bogs
+
+A formula car is a fifth of a saloon and a twentieth of a lorry. The lorry has
+the second-highest horsepower in the game and cannot move itself off the line —
+**for a physical reason now, not because a torque figure was standing in for
+one.** ROADSTER's 1,010kg is what lets 240hp launch as hard as MUSCLE's 480.
+
+# THE FLEET — FOURTEEN CARS
+
+`fleetSheet()` lives in the shared engine, so either game can render it. Rear,
+front and wheel for all fourteen, including ROADSTER, which was missing from
+the last sheet.
+
+# RACEWAY GETS ALL OF IT
+
+Verified at runtime inside Raceway, not assumed:
+
+    FORMULA   hp 1000  mass   740  p/w 4.50  grip 1.95  brake 1.85
+    ROADSTER  hp  240  mass  1010  p/w 0.79  grip 1.34  brake 1.12
+    LORRY     hp  420  mass 14000  p/w 0.10  grip 0.42  brake 0.40
+
+    shared functions reachable: mass, ptw, hp, fleetSheet, cops, heat
+    and it still drives: HUD reads LAP 1/5
+
+Everything from the last several passes — grip, braking, horsepower, mass, the
+launch, speed traps, super cruisers, the class system — is in `road.js`, so it
+arrived in Raceway without a line being written there.
+
+# TWO CLASSES FROM THE START
+
+    fresh save        MATADOR ROADSTER TUNER MUSCLE CREST STALLION — 12 paints
+    after both golds  + FORMULA, and 17 paints
+
+Six cars immediately: three SPORTS and three SUPER. The tournament is a choice
+of ladder now rather than a slow drip of cars.
+
+    gold in SUPER   → FORMULA, a novelty you were never meant to be given
+    gold in SPORTS  → five IRIDESCENT paints — ORACLE, PRISM, ABALONE,
+                      SCARAB, EMBER. Each is a body colour with a DIFFERENT
+                      hue in the highlight, which is what makes a flip-paint
+                      read as flip.
+
+**Rivals run your class.** Take a sports car and the grid is sports cars; take
+a supercar and it is supercars. That is what makes the sports league a league
+rather than a handicap.
+
+**The super cruiser is earned harder than the cruiser.** Same twenty timed
+miles under pursuit, but at a **180mph average** — not a peak, an average, so it
+cannot be done by sprinting and coasting.
+
+# THE BUG THAT WAS EATING EVERY FRAME
+
+    ReferenceError: lane is not defined
+        at scatter (road.js:4552)
+        at step (road.js:5486)
+
+`scatter` fell back to a variable `lane` that does not exist in this engine —
+the player's lateral position is `playerX`. **Every frame a cop was on the road,
+`step()` threw at that line and everything after it was skipped**: the trap
+watch, the super-cruiser watch, the clock.
+
+It had been throwing since sirens were given to NPC cruisers, and I spent three
+passes reading the wrong lines looking for it. A stack trace found it in
+seconds. Speed traps and super cruisers now run with zero errors.
+
+## And two more that only a stack trace would have found
+
+**`SUPERCRUISER` in the LOCK table** made the garage try to build a body that
+does not exist in `BODY`.
+
+**Rig-bodied rivals through `paintCar`.** Rivals were always supercars, so they
+were built with `paintCar`, which needs `bodyTop` and `cabinTop`. A sports grid
+sends ROADSTER, TUNER and MUSCLE through the same line — `rig` bodies with no
+such fields — and the gradient got NaN and **the game did not boot at all**.
+They go through `paintRig` now, the painter their NPC versions already use.
+
+# SPEED TRAPS, SUPER CRUISERS, AND A COAST-DOWN
+
+## The race hands you back to the AI — and the audio finally stops
+
+Crossing the line left YOU steering through traffic while the end card was up:
+you could still crash after winning. `coasting` now takes the car, centres it
+and bleeds the speed off.
+
+**That also fixed the latching audio, and explains why my earlier fix did not.**
+`snd.quiet()` ran ONCE on the finish — and then `snd.drive()` was called sixty
+times a second afterwards and set every voice straight back. Silencing something
+that is being continuously refreshed needs the REFRESH to stop, not a louder
+silence. `coasting` gates the call.
+
+## Traps replace the heat spawn
+
+Cops appeared out of nowhere when heat rose. Now a TRAP is a cruiser parked on
+the verge with its engine off, and anything passing above **80mph** sets it
+moving — you, or a rogue tuner, or a rival. It does not care who you are, only
+how fast you went past. Heat only decides how thickly they are laid: 2 to 4 on
+the road at once.
+
+## The SUPER CRUISER
+
+A MATADOR in force colours, with the CRUISER's marque, built from the same shape
+record a driveable MATADOR uses. Sent only when a car is genuinely running:
+**sustained above 150mph for four seconds with heat already on you.** Heat
+decides how many, up to four. Never parked at a roadside — a speed trap is for
+catching ordinary traffic and these are not for that.
+
+## STILL BROKEN — do not treat this as done
+
+**Traps spawn and park correctly** (verified: 1-2 on the road at a time). I did
+NOT get one to trigger in testing, and **no super cruiser ever deployed.**
+
+There is a `lane is not defined` throwing somewhere in the frame loop. I chased
+it through three candidates — renamed a shadowed `lane` in `spawnSuper`, then
+replaced an out-of-scope `LANES` — and it survived both, which means it predates
+this work and I have been fixing the wrong lines. It is almost certainly what is
+swallowing the trap trigger and the super spawn, since both run in that loop.
+
+The next step is to find where that throw actually is, not to tune the trap
+distances again.
+
+# HAIRPINS AS SUSTAINED ARCS — AND WHY IT IS STILL NOT ENOUGH
+
+A hairpin is now four or five control points held at the SAME short radius
+across a narrow band of angle, so the spline threads a constant tight turn
+rather than spiking at one point. Length comes for free because the points are
+spread along the arc.
+
+    LEAGUE    CAR        LAP    SLOW CNR  BRAKE%  CROSS  TIGHTEST RADIUS
+    sports    ROADSTER    38s    153mph    3.0      0        555
+    gt        MATADOR      51s   162mph    3.1      0.04     243
+    formula   FORMULA      72s   182mph    1.8      0        243
+
+Better than the sharp-point version and **crossings are back to zero**. Still
+nowhere near the target: braking should be ~15% of a lap and a formula car
+should be seeing 60-80mph in a hairpin, not 182.
+
+## MEASURING THE ACTUAL RADII FOUND THE REAL FAULT
+
+Fitting a circle through every three consecutive path samples:
+
+    tightest radius      38 units
+    5th percentile      906
+    median           49,373
+    track size      219,188
+
+**A radius of 38 on a 219,000-unit track is not a corner, it is a CUSP** — a
+spike where the spline overshoots and doubles back on itself. That is where
+"peak curvature 14" was coming from, and it explains everything:
+
+  - it is invisible: at 218mph a cusp is crossed in six thousandths of a second
+  - it cannot be braked for: the brakes remove almost nothing in that window
+  - it is what produced the crossings, because an overshoot IS a crossing
+
+Widening the arc band from 0.30-0.44 to 0.55-0.72 removed the cusps — tightest
+radius now 243-555 — and the crossings with them.
+
+## WHAT IS ACTUALLY NEEDED
+
+The median radius is 49,000 and the corners are 243. There is nothing in
+between, and a driveable circuit is mostly the in-between: a hairpin wants
+about 3,000-6,000, a sweeper 20,000+.
+
+The polar construction cannot produce that band. Radius-from-centre is not
+radius-of-curvature: pulling a control point inward while keeping its angular
+position makes an arc of a LARGE circle centred on the origin, so the local
+curvature stays gentle until the fold becomes so extreme it cusps. There is no
+middle setting.
+
+**A hairpin has to be built in Cartesian space** — an explicit small circle of
+the radius you want, spliced into the loop — not by moving a polar control
+point. That is the next change, and it is a change of construction rather than
+of numbers.
+
+# HAIRPINS BY CLUSTERING — AND MY SIMULATION WAS LYING
+
+## The clustering works, geometrically
+
+A hairpin is not one point pulled deep — that overshoots and crosses. It is
+THREE points close together in ANGLE at a short radius: the spline has to turn
+hard to thread them, and the radius it achieves is set by how far apart they
+are. Clustering is the geometry; depth is not.
+
+Peak curvature went from **5-13 to 8.7-14.6** with the same jitter. The
+mechanism is right.
+
+## But the simulation had been lying for four passes
+
+Every report said the slowest corner was **62, 63, 63 mph** across three
+leagues and three cars with different grip. I called that "a ceiling from the
+spline smoothing" and wrote a whole analysis on it.
+
+It was the STARTING SPEED. My driver began each lap at `MAX * 0.30` = 60mph and
+accelerated, so `minV` never fell below where it started. It was measuring the
+grid, not a corner.
+
+Measuring a warm SECOND lap tells the truth, and the truth is worse:
+
+    LEAGUE    CAR        LAP    SLOW CNR   TOP     BRAKE%  FLAT%  CROSS
+    sports    ROADSTER    38s    154mph    176mph   2.9     69%    0
+    gt        MATADOR      47s   168mph    194mph   2.1     85%    0.04
+    formula   FORMULA      67s   192mph    218mph   1.2     89%    0.16
+
+**A formula car never drops below 192mph.** The corners exist and are sharp —
+peak k of 14 — but they are too SHORT to matter. At 218mph the car crosses a
+600-unit sample in 0.036 seconds; the brakes remove almost nothing in that time,
+so it simply carries straight through the apex.
+
+## THE ACTUAL PROBLEM: CORNERS NEED LENGTH, NOT SHARPNESS
+
+A tight radius sustained over 200 units is a kink. Sustained over 6,000 it is a
+corner you must brake for. The clustering makes a sharp POINT; what a hairpin
+needs is a sustained ARC.
+
+The next change is to hold the tight radius across several samples — more
+control points around the apex at a constant short radius, rather than one
+apex between two squeezed neighbours.
+
+**Crossings held at 0 to 0.16** after backing the squeeze off from 0.16-0.30
+(which caused 2-7 crossings a lap) to 0.42-0.60.
+
+# LAPS NOW LAST — AND A LIMIT FOUND
+
+Simulated with the real car stats: a driver who brakes for corners and
+accelerates on straights, using the same curvature-vs-speed rule the game uses.
+
+    LEAGUE    CAR        LAP     SLOW CNR  TOP     BRAKE%  FLAT%  CROSS
+    sports    ROADSTER    47s     62mph    176mph   2.7     44%     0
+    gt        MATADOR      69s    63mph    194mph   2.2     73%     0
+    formula   FORMULA     101s    63mph    218mph   0.9     83%    0.24
+
+**Lap times are right now**: 47 to 101 seconds, against 14-20 before. The
+tracks were the right shape and a quarter of the size they needed.
+
+Scaling `size` alone would have made every corner a sweep — that was the
+95%-straight failure from two passes ago — so the control-point COUNT scales
+with it. More corners over a longer lap keeps each corner as sharp as it was.
+
+## THE LIMIT: SMOOTHING BOUNDS THE MINIMUM RADIUS
+
+Braking is 0.9-2.7% of a lap. Real racing is nearer 15%. And look at the
+slowest corner: **62, 63, 63** — identical across three leagues and three cars
+with different grip. That is not a coincidence, it is a ceiling.
+
+A Catmull-Rom through control points 15,000 units apart cannot have a radius
+much below about 5,000, no matter how hard a point is pulled in. The spline
+smooths the fold away. So every league bottoms out at the same corner speed and
+no car ever has to stand on the brakes.
+
+**I tried deepening the spike from 1.55 to 2.60 and it made things worse:**
+braking fell to 0.8% and formula circuits crossed themselves 12 times a lap.
+Folding a point harder does not tighten the radius, it just makes the path
+overshoot.
+
+The fix is geometric, not a tuning value: a hairpin needs its control points
+CLUSTERED CLOSE TOGETHER, not one point pulled far in. Three points a short
+distance apart make a genuine tight radius; one point pulled deep makes a
+crossing. That is the next piece of work, and it is a change to how control
+points are placed rather than to how far they move.
+
+# I SHIPPED A ZIP WITHOUT road.js
+
+Both driving games booted to black with `ROAD is not defined`. `road.js` 404'd:
+the extraction created it as a shared engine and **it was never added to
+`ROOT_FILES`**, the hardcoded list of what gets copied into the build.
+
+Every check passed. The HTML was fine, the syntax gate was fine, the catalogue
+matched, 18 cabinets met the standard — because all of them look at the SOURCE
+tree, where the file exists. Only the artefact was broken.
+
+## THE INCLUDE CHECK
+
+Every `<script src>` in every shipped cabinet must resolve to a file that is
+actually in the build:
+
+    refusing to pack: a cabinet includes a file that is missing
+        games/sw/highway.html needs ../../road.js — not in the build
+        games/sw/raceway.html needs ../../road.js — not in the build
+
+Proved both ways — dropped from the list, the build refuses; restored, it packs
+and prints `every included script is present`.
+
+Verified in the shipped zip: `road.js` present, highway `0.1 MI`, raceway
+`LAP 1/5`, no errors. Cache bumped to v23.
+
+**A hardcoded list of files is exactly the thing that goes stale**, and this is
+the second time this week a green build shipped something broken — the first
+was a syntax error. Both are now gates. The pattern to watch: every check I had
+was reading the source, and nothing was reading the output.
+
 # THE DAMAGE ROLL IS IN THE LOG
 
     Bone Knife → MITE L2 −4 (9) + 5 (ATK) = 14 vs (3) + 3 (DEF) = 6
@@ -1016,6 +1525,24 @@ machine it descends from on the right.
 | Vector | Asteroids | | | |
 
 **Deep**, **Derelict** and **Highway** are ours outright and descend from nothing.
+**Raceway** descends from Highway.
+
+### Not built yet
+
+Same rules apply: our name, our palette, our sound. The right-hand column is
+what it descends from, not what it is called.
+
+| Ours | After | Cat | The hard part |
+|---|---|---|---|
+| — | Battlezone | ge | first-person WIREFRAME 3D with hidden-line removal. Nothing in the arcade projects like this. |
+| — | Scorched Earth | sw | terrain that deforms AND collapses under itself; the between-round shop is the whole meta-game |
+| — | Doom | sw | the raycaster is the easy half — the level format and the enemy AI are the work |
+
+Names still to be chosen. Two of the three need 3D projection that nothing
+currently shares, and they need DIFFERENT kinds: Battlezone is wireframe line
+work, Doom is textured columns and sprite billboards. Worth building whichever
+comes first in a way the other can borrow, the way `road.js` now serves both
+driving games.
 
 ### Accent register
 

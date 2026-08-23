@@ -678,6 +678,24 @@ var snd = {
       snd.siren.set(undefined, 0, undefined, 0.15);
     }
   },
+  /* ---- THE LAUNCH ------------------------------------------------------
+     Tyres letting go for a moment: a bark of noise that falls in pitch as they
+     find grip, with the engine's own note flaring under it. Scales with the
+     kick so a gentle drop chirps and a hard one screams.
+     ------------------------------------------------------------------- */
+  launch: function(k){
+    if(!AR) return;
+    const t = AR.audio.now();
+    const g = Math.min(1, k);
+    AR.sfx.noise({ t, freq: 1800 + g*900, to: 420, dur: 0.16 + g*0.34,
+                   gain: 0.10 + g*0.26, filter:'bandpass', q:1.6 });
+    AR.sfx.tone({ t, freq: 150 + g*90, to: 70, dur: 0.20 + g*0.26,
+                  type:'sawtooth', gain: 0.10 + g*0.16, cutoff: 900 });
+    if(g > 0.45)
+      AR.sfx.noise({ t: t+0.05, freq: 900, to: 260, dur: 0.30,
+                     gain: 0.10 * g, filter:'lowpass' });
+  },
+
   quiet: function(){
     if (!snd.eng) return;
     snd.eng.set(60, 0.01, 300, 0.4);
@@ -1053,10 +1071,10 @@ const BODY = {
                  drive away from the thing you had chosen to drive. The slowest
                  of the three is 188 now: they still differ, but the floor is
                  above anything else on the road. */
-              grip:1.34, brake:1.30, pull:0.84, vmax:1.03, note:'SLOWER OFF THE LINE \u00B7 HIGHEST TOP END' },
+              mass:1520, hp:710, grip:1.34, brake:1.30, pull:0.84, vmax:1.03, note:'SLOWER OFF THE LINE \u00B7 HIGHEST TOP END' },
   'MATADOR': { bodyTop:0.52, cabinTop:0.24, cabW:0.44, cabOff:0.00, roofR:0.02,
               hip:0.105, wing:'high',  nose:0.16, spoiler:true, rear:'MATADOR', wide:0.045, arch:1.30, horn:1.06,
-              grip:1.38, brake:1.28, pull:1.24, vmax:0.97, note:'FASTEST OFF THE LINE \u00B7 LOWEST TOP END' },
+              mass:1580, hp:690, grip:1.38, brake:1.28, pull:1.24, vmax:0.97, note:'FASTEST OFF THE LINE \u00B7 LOWEST TOP END' },
   /* ---- THE PRIZE ---------------------------------------------------------
      A Formula car: highest acceleration AND highest top end, which breaks the
      trade every other car obeys. That is the point of a prize — it is not
@@ -1064,7 +1082,7 @@ const BODY = {
   'FORMULA': { bodyTop:0.52, cabinTop:0.30, cabW:0.30, cabOff:0, roofR:0.02,
               hip:0.135, wing:'high', nose:0.10, spoiler:true,
               wide:0.145, arch:1.45, horn:1.42, rear:'FORMULA', redline:15000, pitch:1.55,
-              grip:1.95, brake:1.85, pull:1.34, vmax:1.09, note:'FORMULA · NO COMPROMISE' },
+              mass:740, hp:1000, grip:1.95, brake:1.85, pull:1.34, vmax:1.09, note:'FORMULA · NO COMPROMISE' },
   /* ---- THE TWO CONSOLATION CARS ----------------------------------------
      A silver unlocks TUNER, a bronze unlocks MUSCLE. Both are ROAD cars and
      both are slower than any supercar — they are a reward for a good
@@ -1111,15 +1129,15 @@ const BODY = {
      -------------------------------------------------------------------- */
   'ROADSTER': { rig:'roadster', gears:5, wide:0.005, arch:0.88,
                 horn:1.04, redline:9500, pitch:0.96, rear:'ROADSTER',
-                brake:1.12, pull:0.72, vmax:0.88, grip:1.34,
+                brake:1.12, pull:0.72, vmax:0.88, mass:1010, hp:240, grip:1.34,
                 note:'ROADSTER \u00B7 LIGHT \u00B7 CARRIES SPEED THROUGH ANYTHING' },
   'TUNER': { rig:'tuner',  gears:5, wide:0.030, arch:0.95,
               horn:0.86, redline:10000, pitch:0.78, rear:'TUNER',
-              brake:1.02, pull:1.18, vmax:0.82, grip:1.00,
+              brake:1.02, pull:1.18, vmax:0.82, mass:1290, hp:320, grip:1.00,
               note:'TUNED \u00B7 FIVE SPEED \u00B7 QUICK, THEN DONE' },
   'MUSCLE': { rig:'muscle', gears:4, wide:0.050, arch:1.05,
               horn:0.72, redline:10000, pitch:0.66, rear:'MUSCLE',
-              brake:0.86, pull:0.92, vmax:0.94, grip:0.82,
+              brake:0.86, pull:0.92, vmax:0.94, mass:1720, hp:480, grip:0.82,
               note:'MUSCLE \u00B7 FOUR SPEED \u00B7 LONG LEGS' },
   /* ---- THE CRUISER -------------------------------------------------------
      Earned by surviving, not by winning: 20 miles on TEST DRIVE with the clock
@@ -1127,9 +1145,30 @@ const BODY = {
      — so it is quick in a straight line and slow to get going, sits between the
      road cars and the supercars, and keeps its light bar whoever is driving.
      Five speeds, an 11k band, and a low burbling note. */
-  'CRUISER': { rig:'cop', gears:5, wide:0.045, arch:1.00,
+  /* ---- THE SUPER CRUISER --------------------------------------------------
+     A MATADOR the force has taken and equipped. It was only a sprite — no
+     stats at all — which meant nothing in the game could ask how fast it was,
+     and it could not appear on a fleet sheet.
+
+     Against the MATADOR it comes from: the same engine and gearbox, the same
+     grip, better brakes because that is what a pursuit car gets, and **190kg
+     of equipment** — cage, radio, lights, ram bar. That mass is the whole
+     difference. It costs 4mph of top end and a tenth off the launch, which is
+     exactly right: it can stay with a supercar, and it cannot beat one.
+
+     `npc:true` keeps it out of the garage — it is not yours.
+     ---------------------------------------------------------------------- */
+  'SUPERCRUISER': { npc:true, force:true, barY:0.304,
+              bodyTop:0.52, cabinTop:0.24, cabW:0.52, cabOff:0, roofR:0.10,
+              wide:0.030, arch:1.00, gears:6, redline:12000, pitch:1.02,
+              horn:1.02, rear:'CRUISER', spoiler:'low',
+              mass:1770, hp:690, grip:1.38, brake:1.44,
+              pull:1.18, vmax:0.92,
+              note:'INTERCEPTOR \u00B7 A MATADOR WITH A CAGE IN IT' },
+
+  'CRUISER': { force:true, barY:0.122, rig:'cop', gears:5, wide:0.045, arch:1.00,
               horn:0.80, redline:11000, pitch:0.72, rear:'CRUISER',
-              grip:0.92, brake:1.00, pull:0.92, vmax:0.95, note:'INTERCEPTOR \u00B7 HEAVY, AND FAST' },
+              mass:1810, hp:370, grip:0.92, brake:1.00, pull:0.92, vmax:0.95, note:'INTERCEPTOR \u00B7 HEAVY, AND FAST' },
   /* ---- THE TRAFFIC, DRIVEABLE ---------------------------------------------
      A hundred miles in TEST DRIVE, on any settings, unlocks the lot. They are
      not racers and the numbers say so: nothing here beats MUSCLE's 184mph or
@@ -1139,19 +1178,19 @@ const BODY = {
      pitch, same rev band — so a lorry sounds like a lorry whoever is in it.
      ------------------------------------------------------------------------ */
   'COUPE': { rig:'coupe',  gears:4, wide:0.010, arch:0.90, horn:1.02,
-               redline:9000, pitch:1.05, rear:'GENERIC', grip:0.86, brake:0.88, pull:0.62, vmax:0.80,
+               redline:9000, pitch:1.05, rear:'GENERIC', mass:1340, hp:210, grip:0.86, brake:0.88, pull:0.62, vmax:0.80,
                note:'COUPE \u00B7 THE QUICKEST THING THAT IS NOT A RACER' },
   'SALOON': { rig:'sedan',  gears:4, wide:0.020, arch:0.92, horn:0.96,
-               redline:8500, pitch:0.92, rear:'GENERIC', grip:0.78, brake:0.80, pull:0.54, vmax:0.74,
+               redline:8500, pitch:0.92, rear:'GENERIC', mass:1480, hp:160, grip:0.78, brake:0.80, pull:0.54, vmax:0.74,
                note:'SALOON \u00B7 ENTIRELY UNREMARKABLE' },
   'CAB': { rig:'taxi',   gears:4, wide:0.020, arch:0.92, horn:0.90,
-               redline:7500, pitch:0.80, rear:'GENERIC', grip:0.70, brake:0.72, pull:0.46, vmax:0.66,
+               redline:7500, pitch:0.80, rear:'GENERIC', mass:1620, hp:130, grip:0.70, brake:0.72, pull:0.46, vmax:0.66,
                note:'CAB \u00B7 THREE HUNDRED THOUSAND MILES' },
   'PICKUP': { rig:'pickup', gears:4, wide:0.045, arch:1.05, horn:0.84,
-               redline:7000, pitch:0.70, rear:'GENERIC', grip:0.64, brake:0.68, pull:0.44, vmax:0.68,
+               redline:7000, pitch:0.70, rear:'GENERIC', mass:2150, hp:220, grip:0.64, brake:0.68, pull:0.44, vmax:0.68,
                note:'PICKUP \u00B7 CARRIES THINGS, SLOWLY' },
   'VAN': { rig:'van',    gears:4, wide:0.060, arch:1.00, horn:0.78,
-               redline:6500, pitch:0.58, rear:'GENERIC', grip:0.58, brake:0.62, pull:0.36, vmax:0.60,
+               redline:6500, pitch:0.58, rear:'GENERIC', mass:2400, hp:140, grip:0.58, brake:0.62, pull:0.36, vmax:0.60,
                note:'VAN \u00B7 A BOX WITH A STEERING WHEEL' },
     /* ---- FOUR SPEEDS, AND A LORRY DOES 80 ---------------------------------
      Every ordinary traffic car is a four-speed — only the tuner, the muscle
@@ -1159,12 +1198,67 @@ const BODY = {
      `vmax` is a fraction of 200, so 0.40.
      -------------------------------------------------------------------- */
   'LORRY': { rig:'truck',  gears:4, wide:0.120, arch:1.10, horn:0.52,
-               redline:5000, pitch:0.42, rear:'GENERIC', grip:0.42, brake:0.40, pull:0.24, vmax:0.40,
+               redline:5000, pitch:0.42, rear:'GENERIC', mass:14000, hp:420, grip:0.42, brake:0.40, pull:0.24, vmax:0.40,
                note:'LORRY \u00B7 NOTHING GETS OUT OF ITS WAY TWICE' },
   'CREST': { bodyTop:0.40, cabinTop:0.10, cabW:0.48, cabOff:0, roofR:0.30,
               hip:0.085, wing:'ducktail', nose:0.24, spoiler:true, rear:'CREST', wide:0.010, arch:1.15, dome:true, horn:0.94,
-              grip:1.42, brake:1.32, pull:1.02, vmax:1.00, note:'BALANCED' }
+              mass:1450, hp:640, grip:1.42, brake:1.32, pull:1.02, vmax:1.00, note:'BALANCED' }
 };
+/* ---- HORSEPOWER --------------------------------------------------------
+   `pull` is torque: how hard the car leaves a corner. HORSEPOWER is what a
+   revving engine has STORED when the clutch comes up — and it is a different
+   number. A muscle car has more of it than a tuner and less use for it; a
+   formula car has enough to spin the wheels at any speed.
+
+   It only does one thing: it decides whether dropping a revving engine into
+   gear peels away or just bogs down.
+   ------------------------------------------------------------------------ */
+/* ---- MASS -----------------------------------------------------------------
+   Horsepower had nothing to work against, so I was using `pull` as a stand-in
+   for weight — which is wrong twice over: `pull` is torque, and a lorry with
+   420hp was being held back by a number that means something else.
+
+   Mass is in kilograms and it does one job: divide the power. Power-to-weight
+   is what actually decides whether a revving engine launches a car or bogs it
+   down, and the spread here is real — a formula car is a fifth of a saloon and
+   a twentieth of a lorry.
+   -------------------------------------------------------------------------- */
+/* ---- NOS IS NOT FOR EVERYONE -------------------------------------------
+   Every driveable body had a bottle, including the LORRY and the CAB. Nitrous
+   belongs to the cars built to go fast: the three SPORTS, the three SUPER, the
+   FORMULA car, and the SUPER CRUISER — which is a supercar the force took.
+   Traffic bodies are ordinary vehicles and have none.
+   ---------------------------------------------------------------------- */
+function hasNos(){
+  const B = BODY[optBody];
+  if(!B) return false;
+  if(B.nos !== undefined) return !!B.nos;
+  return SPORTS_BODIES.indexOf(optBody) >= 0
+      || SUPER_BODIES.indexOf(optBody) >= 0
+      || optBody === 'FORMULA'
+      || !!B.force && optBody === 'SUPERCRUISER';
+}
+
+function bodyMass(){
+  const B = BODY[optBody];
+  return (B && B.mass) || 1400;
+}
+
+/* power-to-weight, normalised so a fast road car sits near 1.0 */
+function powerToWeight(){
+  return (bodyHp() / bodyMass()) / 0.30;
+}
+
+function bodyHp(){
+  const B = BODY[optBody];
+  if(!B) return 400;
+  if(B.hp) return B.hp;
+  /* the derived fallback compressed everything into 448-1040, which put a
+     LORRY at 448hp and a cab at 603. Every car declares its own instead; this
+     is only a floor for anything that forgets to. */
+  return 180;
+}
+
 /* `brake` defaults to 1 so any body without the stat behaves exactly as before */
 function bodyStat(k){ return (BODY[optBody] || BODY['MATADOR'])[k]; }
 let optBody = 'MATADOR';
@@ -2238,6 +2332,32 @@ function paintFront(o){
       g.fill();
     }
 
+    /* ---- THE LIGHT BAR, SEEN HEAD ON ------------------------------------
+       The tail draws one for any `force` body and the nose drew none, so the
+       super cruiser had a bar you could only see in a mirror.
+
+       Same proportions as the rear, exactly — 0.24 to 0.76 across, 0.045 tall,
+       two lenses 0.235 wide inset 0.005 — so the two ends are the same object.
+       Only the Y differs, because the front's roof line is `roofT` rather than
+       a fraction of `cabinTop`, and the two painters build their cabins
+       differently. The bar sits ON that roof.
+
+       The colours mirror: seen from the front, the car's own left carries the
+       red and its right the blue, which is the reverse of the view from
+       behind.
+       ------------------------------------------------------------------- */
+    if(B.force){
+      const bY = roofT - h*0.030;
+      g.fillStyle = '#1b1e24';
+      rr(g, w*0.24, bY, w*0.52, h*0.045, 2); g.fill();
+      g.fillStyle = '#ff2b4a';
+      rr(g, w*0.255, bY + h*0.005, w*0.235, h*0.034, 2); g.fill();
+      g.fillStyle = '#2f6bff';
+      rr(g, w*0.51, bY + h*0.005, w*0.235, h*0.034, 2); g.fill();
+      g.fillStyle = '#2b3038';
+      for(const sx of [0.285, 0.695]) g.fillRect(w*sx, bY + h*0.040, w*0.020, h*0.020);
+    }
+
     /* the body, shouldered like its own tail */
     const bg2 = g.createLinearGradient(w*(0.5-wid), 0, w*(0.5+wid), 0);
     bg2.addColorStop(0, o.lo); bg2.addColorStop(0.28, o.body);
@@ -2453,6 +2573,27 @@ function paintCar(o){
     /* ---- STRIPES, if the car is wearing them --------------------------
        Paint, so they stop at the glass: one run over the roof, one down the
        deck, and the window left clear — the same rule the muscle car uses. */
+
+    /* ---- A FORCE CAR CARRIES ITS BAR ----------------------------------
+       `paintRig('cop')` draws one; `paintCar` never did, so the SUPER CRUISER
+       had lights and a wash floating above a bare roof. Same span, height and
+       housing as the cruiser's, so the two read as one force. */
+    if(o.force){
+      /* the cabin BOX starts at `cabinTop` but the drawn roof is a curve inset
+         from it — the same trap the stripes fell into. A third of the way down
+         the cabin span is where the metal actually is, so the bar SITS on it. */
+      const cabH = h*(o.bodyTop - o.cabinTop);
+      const bY = h*o.cabinTop + cabH*0.30 - h*0.040;
+      g.fillStyle = '#1b1e24';
+      rr(g, w*0.24, bY, w*0.52, h*0.045, 2); g.fill();
+      g.fillStyle = '#2f6bff';
+      rr(g, w*0.255, bY + h*0.005, w*0.235, h*0.034, 2); g.fill();
+      g.fillStyle = '#ff2b4a';
+      rr(g, w*0.51, bY + h*0.005, w*0.235, h*0.034, 2); g.fill();
+      /* the two stanchions it sits on */
+      g.fillStyle = '#2b3038';
+      for(const sx of [0.285, 0.695]) g.fillRect(w*sx, bY + h*0.040, w*0.020, h*0.020);
+    }
 
     /* the shoulder crease that runs across every one of them */
     g.strokeStyle = 'rgba(255,255,255,.16)'; g.lineWidth = Math.max(1, h*0.006);
@@ -2939,6 +3080,21 @@ const PAINT = {
   TEAL:   { body:'#149b86', hi:'#6ce8d2', lo:'#0a4f45' },
   SILVER: { body:'#9aa3ae', hi:'#e2e8f0', lo:'#4b535e' }
 };
+/* ---- IRIDESCENT ---------------------------------------------------------
+   Won by taking gold in the SPORTS tournament. Five paints that shift between
+   two hues rather than sitting on one — the highlight is a different colour
+   from the body, which is what makes a flip-paint read as flip.
+   ------------------------------------------------------------------------ */
+const IRIDESCENT = {
+  ORACLE:  { body:'#7a4fd6', hi:'#4fd6c4', lo:'#3a1f6e' },
+  PRISM:   { body:'#d64f9e', hi:'#f0c04a', lo:'#6e1f4a' },
+  ABALONE: { body:'#3f8fd6', hi:'#b56ff0', lo:'#1d3f6e' },
+  SCARAB:  { body:'#3fb86a', hi:'#d6d24f', lo:'#1a5c33' },
+  EMBER:   { body:'#e0632c', hi:'#c44fd6', lo:'#6e2a12' }
+};
+Object.assign(PAINT, IRIDESCENT);
+const IRIDESCENT_KEYS = Object.keys(IRIDESCENT);
+const BASE_PAINT_KEYS = Object.keys(PAINT).filter(k => IRIDESCENT_KEYS.indexOf(k) < 0);
 const PAINT_KEYS = Object.keys(PAINT);
 
 /* ---- what ordinary cars are painted --------------------------------------
@@ -2966,7 +3122,19 @@ let optPaint = 'WHITE', optEasy = true, optMirror = 'FULL';   /* no cops unless 
 /* the cars a RIVAL may be given: the three you start with, and nothing else.
    An unlock you had to win a tournament for should not be sitting on the grid
    opposite you. */
-const RIVAL_BODIES = ['STALLION','MATADOR','CREST'];
+/* ---- CLASSES --------------------------------------------------------------
+   A race is run in the class of the car YOU chose. Take a sports car and the
+   grid is sports cars; take a supercar and it is supercars. That is what makes
+   the sports league a league rather than a handicap.
+   -------------------------------------------------------------------------- */
+const SPORTS_BODIES = ['ROADSTER','TUNER','MUSCLE'];
+const SUPER_BODIES  = ['STALLION','MATADOR','CREST'];
+function classOf(k){ return SPORTS_BODIES.indexOf(k) >= 0 ? 'sports' : 'super'; }
+function rivalBodies(){
+  return classOf(optBody) === 'sports' ? SPORTS_BODIES : SUPER_BODIES;
+}
+/* kept for the sprite pre-build, which needs every body a rival might use */
+const RIVAL_BODIES = SPORTS_BODIES.concat(SUPER_BODIES);
 const RIVAL_SP = {};
 let TRAFFIC_SP = {}, FRONT_SP = {};
 function buildSprites(){
@@ -3003,7 +3171,7 @@ function buildSprites(){
                                           stripes:optStripes && stripesAllowed() }, rigPaint)));
   } else {
     SP.player = sprite(220,168, paintCar(Object.assign({
-      cabin:true, spoiler:true, shape, bodyKey:optBody,
+      cabin:true, spoiler:true, shape, bodyKey:optBody, force:!!shape.force,
       bodyTop:shape.bodyTop, cabinTop:shape.cabinTop,
       stripes:optStripes && stripesAllowed(),
       lamp:'#d61b3c', lamp2:'#ff7a86'
@@ -3018,11 +3186,25 @@ function buildSprites(){
   for(const bk of RIVAL_BODIES){
     const rs = BODY[bk];
     for(const k of PAINT_KEYS){
-      RIVAL_SP[bk+'|'+k] = sprite(220,168, paintCar(Object.assign({
-        cabin:true, spoiler:true, shape:rs, bodyKey:bk,
-        bodyTop:rs.bodyTop, cabinTop:rs.cabinTop,
-        lamp:'#d61b3c', lamp2:'#ff7a86'
-      }, PAINT[k])));
+      /* ---- A SPORTS CAR IS NOT A SUPERCAR SHAPE ------------------------
+         This built every rival through `paintCar`, which wants `bodyTop` and
+         `cabinTop`. That was safe while rivals were only supercars. Now that
+         a sports grid is possible, ROADSTER, TUNER and MUSCLE come through
+         here — and they are `rig` bodies with no such fields, so the gradient
+         got NaN and the whole game failed to boot.
+
+         A rig body goes through `paintRig`, the same painter its NPC version
+         uses. */
+      RIVAL_SP[bk+'|'+k] = rs.rig
+        ? sprite(220,168, paintRig(rs.rig, Object.assign({
+            player:true, marque:rs.rear,
+            lamp:'#d61b3c', lamp2:'#ff7a86'
+          }, PAINT[k])))
+        : sprite(220,168, paintCar(Object.assign({
+            cabin:true, spoiler:true, shape:rs, bodyKey:bk,
+            bodyTop:rs.bodyTop, cabinTop:rs.cabinTop,
+            lamp:'#d61b3c', lamp2:'#ff7a86'
+          }, PAINT[k])));
     }
   }
   /* A pickup: tall cab, open bed, and it sits high on its springs. */
@@ -3034,6 +3216,26 @@ function buildSprites(){
   SP.coupe = sprite(206,150, paintRig('coupe', { body:'#2f6b5e', hi:'#469084', lo:'#193b34', lamp:'#c8102e' }));
   SP.truck = sprite(230,250, paintRig('truck', { body:'#8a8477', hi:'#a8a293', lo:'#4e4a41', lamp:'#b8371f', lamp2:'#ffb066' }));
   SP.cop = sprite(206,168, paintRig('cop', { body:'#eceff4', hi:'#ffffff', lo:'#9aa3b0', lamp:'#c8102e' }));
+  /* ---- THE SUPER CRUISER ------------------------------------------------
+     A MATADOR in force colours. Built through `paintCar` with the same shape
+     record a driveable MATADOR uses, so it is unmistakably the same car — and
+     given the CRUISER's marque, because it is one of theirs.
+
+     My first attempt hand-assembled the options object and left out fields
+     `paintCar` needs; it threw a non-finite gradient and took the whole game
+     down with it. Copying the shape record wholesale is both shorter and
+     correct. */
+  {
+    /* built from its OWN record now that it has one, so its stats and its
+       picture can never drift apart */
+    const SC = BODY['SUPERCRUISER'];
+    SP.superCop = sprite(220,168, paintCar(Object.assign({}, SC, {
+      body:'#eceff4', hi:'#ffffff', lo:'#9aa3b0',
+      lamp:'#d61b3c', lamp2:'#ff7a86',
+      cabin:true, spoiler:true, shape:SC,
+      bodyKey:'SUPERCRUISER', marque:'CRUISER', stripes:false, force:true
+    })));
+  }
   /* ---- one sprite per body type PER COLOUR -----------------------------
      Ten paints across five civilian shapes is fifty small canvases, built once
      at boot. Cheap, and it turns a road of identical grey saloons into
@@ -3298,6 +3500,103 @@ function spawnWave(z){
   }
 }
 
+/* ===========================================================================
+   SPEED TRAPS AND SUPER CRUISERS
+
+   Heat used to summon cops out of nowhere. Now there are two kinds and both
+   have a reason to be there:
+
+   A TRAP is a cruiser parked on the verge with its engine off. Anything that
+   passes it above the limit sets it moving — you, a rogue tuner, a rival. It
+   does not care who you are, only how fast you went past.
+
+   A SUPER CRUISER is what gets sent when a car is genuinely running: sustained
+   above 150 with heat already on you. It is a MATADOR in force colours and it
+   can stay with a supercar. Heat decides how many. They are never parked at
+   the roadside, because a speed trap is for catching ordinary traffic and
+   these are not for that.
+   =========================================================================== */
+const SPEED_LIMIT = 80 / 200;          /* as a fraction of MAX_SPD */
+
+function spawnTrap(){
+  /* parked on the verge, engine off, facing the traffic */
+  const side = Math.random() < 0.5 ? -1 : 1;
+  cops.push({
+    /* far enough ahead to be a surprise, near enough that the watch sees it
+       before it is culled */
+    z: pos + rnd(26000, 52000),
+    x: side * 1.16,                    /* on the grass, clear of the road */
+    spd: 0, wreck:0, ang:0, grace:0, cool:0, side,
+    w:0.27, len:400, phase: Math.random()*6.28,
+    trap: true, armed: true
+  });
+}
+
+/* a trap watches everything that goes past, not just you */
+function trapWatch(dt){
+  for(const k of cops){
+    if(!k.trap || !k.armed || k.wreck > 0) continue;
+    /* the player */
+    const dz = Math.abs(k.z - (pos + PLAYER_Z));
+    /* a wider window: at 200mph the car covers 2,600 units in a tenth of a
+       second and the check simply missed it */
+    if(dz < 7000 && spd > MAX_SPD * SPEED_LIMIT){
+      k.armed = false; k.trap = false; k.grace = 0.35;
+      k.spd = spd * 0.55;
+      snd.warnCop();
+      flashWarn('SPEED TRAP');
+      heat = Math.min(5, heat + 1);
+      continue;
+    }
+    /* and anything else on the road — a rogue tuner gets pulled too */
+    for(const c of traffic){
+      if(!c.rogue) continue;
+      if(Math.abs(k.z - c.z) > 2200) continue;
+      if((c.spd || c.cruise || 0) > MAX_SPD * SPEED_LIMIT){
+        k.armed = false; k.trap = false; k.grace = 0.6;
+        k.spd = (c.spd || c.cruise) * 0.6;
+        k.tz = c.z; k.tx = c.x; k.onPlayer = false;
+        break;
+      }
+    }
+  }
+}
+
+/* ---- the super cruiser -------------------------------------------------
+   Sent only when you have been genuinely running: above 150 for several
+   seconds with heat already on you. */
+let fastFor = 0;
+function superWatch(dt){
+  const fast = spd > MAX_SPD * (150/200);
+  fastFor = fast ? fastFor + dt : 0;
+  if(!optEasy && heat >= 1 && fastFor > 4){
+    const want = Math.min(4, Math.ceil(heat / 1.5));
+    const have = cops.filter(k => k.superc && k.wreck <= 0).length;
+    if(have < want){
+      spawnSuper();
+      fastFor = 2.2;                   /* stagger them, do not dump four at once */
+    }
+  }
+}
+
+function spawnSuper(){
+  /* `lane` is the PLAYER's lane, a module variable — shadowing it here threw
+     every time a super cruiser was due, which is why none ever appeared */
+  /* the other spawners use the literal; LANES is not in scope here and
+     referencing it threw every time a super cruiser was due */
+  const ln = rint(0, 3);
+  cops.push({
+    z: pos - rnd(9000, 16000),         /* comes up from behind */
+    x: LANE_X[ln],
+    spd: spd * 1.04 + 1200,
+    wreck:0, ang:0, grace:0.8, cool:0, side:1,
+    w:0.265, len:390, phase: Math.random()*6.28,
+    superc: true
+  });
+  snd.warnCop();
+  flashWarn('INTERCEPTOR');
+}
+
 function spawnCop(){
   const z = pos - rnd(3200,4200);
   let lane = rint(0,3), tries = 0;
@@ -3385,7 +3684,7 @@ function reset(){
   dist=0; score=0; combo=0; comboTime=0; heat=1; heatT=0; runTopMph=0;
   clock = CLOCK_START; nextCP = 1; cpGantries = []; lastBeep = -1; wreckWait = 0;
   /* if you are driving one, the force matches you; otherwise the night decides */
-  barOn = false; wonCruiser = false; wonTraffic = false;
+  barOn = false; wonCruiser = false; wonTraffic = false; coasting = false; runSeconds = 0;
   if(hornBtn) hornBtn.classList.remove('on');
   copLivery = (optBody === 'CRUISER')
     ? (optPaint === 'BLACK' ? 'BLACK' : 'WHITE')
@@ -3497,7 +3796,7 @@ if (AR && AR.gesture) AR.gesture.onDrag(g => {
 
 cv.addEventListener('contextmenu',e=>e.preventDefault());
 
-nitroBtn.addEventListener('pointerdown',e=>{e.preventDefault(); if(nos>8){ nosOn=true; snd.nitro(); }});
+nitroBtn.addEventListener('pointerdown',e=>{e.preventDefault(); if(hasNos() && nos>8){ nosOn=true; snd.nitro(); }});
 nitroBtn.addEventListener('pointerup',()=>nosOn=false);
 nitroBtn.addEventListener('pointerleave',()=>nosOn=false);
 nitroBtn.addEventListener('pointercancel',()=>nosOn=false);
@@ -3600,7 +3899,7 @@ function enginePitch(){ return (BODY[optBody] && BODY[optBody].pitch) || 1; }
 /* Engine speed, from road speed and whatever ratio is selected. In neutral it
    falls back to an idle that lifts when you blip the throttle — the engine is
    not connected to anything, so the road cannot tell it what to do. */
-let idleRev = 900;
+let idleRev = 900, wasNeutral = false, launchKick = 0;
 /* Revs are road speed measured against THIS GEAR'S ceiling, so every gear
    sweeps the same needle from idle to the redline and hits 12k at the top of
    its band — which is what tells you to shift. In fourth at 20mph the needle
@@ -3631,15 +3930,45 @@ function engineRpm(){
     const want = (gas || nosOn) ? redline() + 250 : IDLE;
     /* free-revving climbs much faster than under load */
     idleRev += (want - idleRev) * (want > idleRev ? 0.22 : 0.045);
+    /* remember we were in neutral, so the moment a gear lands knows to look
+       for a launch */
+    wasNeutral = true;
     if((gas || nosOn) && idleRev > redline()*0.985){
       /* the limiter cutting in and out */
       idleRev = redline() - Math.abs(Math.sin(performance.now()/38)) * 620;
     }
     return idleRev;
   }
-  /* landing in a gear CATCHES the needle: whatever the engine was doing, the
-     road now decides, and the jump to the new band is the shift you feel */
-  idleRev = gearRpm(gear, spd);
+  /* ---- DROPPING IT INTO GEAR ------------------------------------------
+     Landing in a gear catches the needle: whatever the engine was doing, the
+     road now decides. But if it was REVVING when you dropped it, that stored
+     energy has to go somewhere — and in a car with the power for it, it goes
+     into the road.
+
+     `launchFrom` is how far above the gear's own band the engine was. Scaled
+     by horsepower and by how low the gear is, it becomes a shove; if the car
+     has not got the power, nothing happens and it simply bogs.
+     ------------------------------------------------------------------- */
+  const landed = gearRpm(gear, spd);
+  if(wasNeutral && idleRev > landed * 1.25){
+    const over = Math.min(1, (idleRev - landed) / Math.max(1, redline() * 0.75));
+    /* power against MASS, which is what actually decides this. `pull` was a
+       stand-in until mass existed; it is not one any more. */
+    const hp   = powerToWeight();
+    const low  = gear <= 2 ? 1 : gear === 3 ? 0.55 : 0.22;
+    const kick = over * hp * low;
+    if(kick > 0.10){
+      launchKick = kick;
+      spd = Math.min(MAX_SPD * bodyStat('vmax'), spd + kick * 2600);
+      snd.launch(kick);
+      if(kick > 0.45){
+        skids.push({ z: pos + PLAYER_Z, x: playerX, life: 1.0, w: 0.30 });
+        shake = Math.max(shake, kick * 0.55);
+      }
+    }
+  }
+  wasNeutral = false;
+  idleRev = landed;
   return idleRev;
 }
 
@@ -3692,6 +4021,8 @@ let optManual = false, gear = 1, bogT = 0;
 /* keeps the body class, the shifter and the dial height agreeing with the
    gearbox setting — called on change AND once at startup */
 function syncBoxClass(){
+  /* a car with no bottle shows no bottle */
+  document.body.classList.toggle('nonos', !hasNos());
   document.body.classList.toggle('manual', !!optManual);
   /* one manual UI or the other, never both: the gate for a road car, paddles
      for the formula car */
@@ -3778,7 +4109,7 @@ function autoGear(dt){
 }
 
 let brakeLamp = 0;
-let slipT = 0;
+let slipT = 0, coasting = false, runSeconds = 0;
 let horning = false, hornCool = 0, bustT = 0, behindT = 2, slowFor = 0, audioTick = 0, bendT = 0, skySmooth = 0, pushK = 0;
 
 /* ---- rubber on the road --------------------------------------------------
@@ -4124,7 +4455,7 @@ function buildField(){
      out seven STALLION from eleven. */
   /* only the three starting cars — `Object.keys(BODY)` now includes the three
      unlockables, and a grid handing you a FORMULA you have not won is absurd */
-  const kinds = RIVAL_BODIES;
+  const kinds = rivalBodies();
   const deck = [];
   for(let i=0;i<racers.length;i++) deck.push(kinds[i % kinds.length]);
   for(let i=deck.length-1;i>0;i--){
@@ -4261,6 +4592,19 @@ function stepRacers(dt){
        time left — so finishing a race did nothing at all. A finish is not a
        crash and must not go through the crash path. */
     finished = true;
+    /* ---- THE DRIVER IS DONE ---------------------------------------------
+       Crossing the line used to leave YOU steering through traffic while the
+       end card was up — you could still crash after winning. The car is handed
+       to the AI: it lifts, holds its lane, and coasts down.
+
+       `coasting` also stops `snd.drive()` re-opening the engine voices. That
+       is why the audio latched: `snd.quiet()` ran ONCE on the finish and then
+       drive() was called sixty times a second afterwards and set them all
+       straight back. Silencing something that is being continuously refreshed
+       needs the refresh to stop, not a louder silence.
+       ------------------------------------------------------------------ */
+    coasting = true;
+    setGas(false); setBrake(false); nosOn = false;
     state = 'wrecked';
     bestScore = Math.max(bestScore, Math.round(dist*10)/10);
     bestDist  = Math.max(bestDist, dist);
@@ -4288,7 +4632,12 @@ function stepRacers(dt){
            car — so a tournament is worth finishing even when the win is gone */
         if(AR && AR.save){
           /* the save keys name the CARS, not a TYPE that no longer exists */
-          if(st === 1) AR.save.merge((GAME_ID + '-opts'), { formula:true });
+          /* gold pays out by CLASS: the supercar ladder hands you the
+             open-wheeler, the sports ladder hands you the paint */
+          if(st === 1 && classOf(optBody) === 'super')
+            AR.save.merge((GAME_ID + '-opts'), { formula:true });
+          if(st === 1 && classOf(optBody) === 'sports')
+            AR.save.merge((GAME_ID + '-opts'), { iridescent:true });
           if(st <= 2)  AR.save.merge((GAME_ID + '-opts'), { tuner:true });
           if(st <= 3)  AR.save.merge((GAME_ID + '-opts'), { muscle:true });
         }
@@ -4317,7 +4666,16 @@ function ordinal(n){
    ------------------------------------------------------------------------- */
 let barOn = false;
 let wonCruiser = false, wonTraffic = false;
-function inCruiser(){ return optBody === 'CRUISER'; }
+/* ---- ANY FORCE CAR, NOT JUST THE CRUISER ------------------------------
+   This named one body, so the SUPER CRUISER had lights on its sprite and no
+   way to switch them on: no latch, no siren, no wash, no scatter. `force` is
+   a flag on the BODY record, so a new police car gets the whole machinery by
+   declaring itself one.
+   ---------------------------------------------------------------------- */
+function inCruiser(){
+  const B = BODY[optBody];
+  return !!(B && (B.force || optBody === 'CRUISER'));
+}
 
 function setHorn(on){
   if(inCruiser()){
@@ -4353,7 +4711,16 @@ function scatter(chance, fromZ, fromLane){
   if(hornCool > 0) return;
   hornCool = 0.55;
   const oz = (fromZ === undefined) ? pos : fromZ;
-  const ol = (fromLane === undefined) ? lane : fromLane;
+  /* ---- THE BUG THAT SWALLOWED THE SPEED TRAPS ------------------------
+     `lane` does not exist in this engine — the player's lateral position is
+     `playerX`. Every frame a cop was on the road, `scatter` threw here, and
+     because it is called from `step()` everything AFTER it in the frame was
+     skipped: the trap watch, the super-cruiser watch, the clock.
+
+     It has been throwing since sirens were given to NPC cruisers, and it took
+     a stack trace to find — three passes of reading the wrong lines did not.
+     ------------------------------------------------------------------ */
+  const ol = (fromLane === undefined) ? playerX : fromLane;
   const odds = (chance === undefined) ? 0.40 : chance;
   for(const c of traffic){
     const ahead = c.z - oz;
@@ -4691,8 +5058,16 @@ function drawWheel(){
      The production cars and ALL the ordinary traffic: a plain circular rim
      with whatever badge that vehicle carries on the boss. Only the supercars
      keep the flat bottom and only the formula car has a yoke. */
+  /* SUPERCRUISER is a MATADOR underneath — it keeps the supercar's
+     flat-bottomed rim, not the patrol car's round one */
   const roundRim = (MK === 'TUNER' || MK === 'MUSCLE' || MK === 'CRUISER'
-                 || MK === 'GENERIC' || MK === 'ROADSTER');
+                 || MK === 'GENERIC' || MK === 'ROADSTER')
+                 /* MK is the MARQUE, and the super cruiser wears the CRUISER's
+                    — so testing MK could never exclude it. The BODY key is the
+                    thing that identifies the car. My probe tested a REWRITE of
+                    this line rather than calling it, so it reported
+                    flat-bottom while the sheet drew round. */
+                 && optBody !== 'SUPERCRUISER';
   const flatY = roundRim ? R*0.995 : R*0.62;
   const aFlat = Math.asin(flatY/R);
   function rimPath(){
@@ -5067,7 +5442,7 @@ window.addEventListener('keyup', e=>{
 window.addEventListener('keydown',e=>{
   if(['ArrowLeft','ArrowRight',' ','Shift'].includes(e.key)) e.preventDefault();
   keys[e.key]=true;
-  if((e.key===' '||e.key==='Shift')&&nos>8){ nosOn=true; setGas(true); }
+  if((e.key===' '||e.key==='Shift') && hasNos() && nos>8){ nosOn=true; setGas(true); }
   if(e.key==='Enter'&&state!=='driving'){ const b=veilBody.querySelector('.go'); if(b) b.click(); }
 });
 window.addEventListener('keyup',e=>{
@@ -5104,7 +5479,7 @@ function step(dt){
 
   // right trigger / A holds the nitrous down
   if(AR && AR.pad && (AR.pad.down('rt') || AR.pad.down('a'))){
-    if(nos > 8 && !nosOn){ nosOn = true; snd.nitro(); }
+    if(hasNos() && nos > 8 && !nosOn){ nosOn = true; snd.nitro(); }
   } else if(padNos){ nosOn = false; }
   padNos = AR && AR.pad ? (AR.pad.down('rt') || AR.pad.down('a')) : false;
   /* The car reaches its mark faster and the cap on lateral speed is higher, so
@@ -5287,7 +5662,7 @@ function step(dt){
   /* and every NPC cruiser does exactly the same from where IT is */
   for(const k of cops){
     if(k.wreck > 0) continue;
-    if(k.z > pos - 400) scatter(0.90, k.z, k.lane);
+    if(k.z > pos - 400) scatter(0.90, k.z, k.x);
   }
 
   /* serving a wreck penalty: the world stops, the clock does not */
@@ -5299,7 +5674,17 @@ function step(dt){
     return;
   }
 
+  if(state === 'driving') runSeconds += dt;
   if(CFG.onStep) CFG.onStep(dt);
+
+  /* ---- THE AI BRINGS IT HOME -----------------------------------------
+     Not a full driver — it does not need to be. It centres the car, keeps it
+     off the barriers and lets the speed bleed away, which is exactly what a
+     driver does on a slowing-down lap. */
+  if(coasting && state === 'driving'){
+    targetX += (0 - targetX) * Math.min(1, dt * 1.6);
+    spd = Math.max(0, spd - 2600 * dt);
+  }
 
   /* ---- the clock ------------------------------------------------------ */
   if(!finished && clockRuns()){
@@ -5347,6 +5732,18 @@ function step(dt){
     wonTraffic = true;
     snd.checkpoint();
     flashWarn('TRAFFIC UNLOCKED');
+  }
+  /* ---- THE SUPER CRUISER IS EARNED HARDER ------------------------------
+     The cruiser asks for 20 miles on the clock under pursuit. The SUPER
+     cruiser asks for the same twenty miles at a **180mph average** — not a
+     peak, an average, so it cannot be done by sprinting and coasting.
+     ------------------------------------------------------------------- */
+  if(mode !== 'race' && timedRun && !optEasy && dist >= 20 && !unlocked('supercruiser')){
+    const avg = dist / Math.max(0.0001, (runSeconds / 3600));
+    if(avg >= 180){
+      if(AR && AR.save) AR.save.merge((GAME_ID + '-opts'), { supercruiser:true });
+      wonCruiser = true; snd.checkpoint(); flashWarn('INTERCEPTOR UNLOCKED');
+    }
   }
   if(mode !== 'race' && timedRun && !optEasy && dist >= 20 && !unlocked('cruiser')){
     if(AR && AR.save) AR.save.merge((GAME_ID + '-opts'), { cruiser:true });
@@ -5463,10 +5860,18 @@ function step(dt){
     crates.push({ z: pos + 30000, x: side * rnd(0.86, 1.02), got:false });
     nextCrateT = rnd(20, 34);
   }
-  if(!optEasy && nextCopT<=0 && cops.length < Math.min(3, 1+Math.floor(heat/2))){
-    spawnCop();
-    nextCopT = Math.max(2.5, rnd(7,13) - heat*0.7);
+  /* ---- TRAPS REPLACE THE HEAT SPAWN ------------------------------------
+     Cops used to appear out of nowhere the moment heat rose. They are parked
+     on the verge now and they catch whoever goes past too fast. The road
+     always has a few; heat only decides how thickly they are laid.
+     ------------------------------------------------------------------- */
+  if(!optEasy && nextCopT <= 0){
+    const parked = cops.filter(k => k.trap).length;
+    if(parked < Math.min(4, 2 + Math.floor(heat/2))) spawnTrap();
+    nextCopT = Math.max(3.0, rnd(9, 16) - heat*0.8);
   }
+  trapWatch(dt);
+  superWatch(dt);
   /* A roadblock across a bend is a wall you cannot see until you are in it,
      so they only go up on a stretch that is straight where it stands AND
      still straight a little further on. */
@@ -5894,7 +6299,9 @@ function step(dt){
                        .concat(racers));
   /* dirty air is quieter and rougher than clean air — the wind drops as the
      car ahead takes the blast off you */
-  snd.drive(revFrac * MAX_SPD, MAX_SPD * (1 - (slipT||0)*0.22), offRoad, nosOn, near,
+  /* once the run is over the car makes no noise — see `coasting` */
+  if(coasting){ snd.quiet(); }
+  else snd.drive(revFrac * MAX_SPD, MAX_SPD * (1 - (slipT||0)*0.22), offRoad, nosOn, near,
             Math.max(decel, pScrub * 0.9));
 
   /* ---- stopping with the law behind you --------------------------------
@@ -6649,7 +7056,10 @@ function emitBucket(n){
          the road, seen from in front or behind. */
       tailLights(box, it.o.braking);
     } else if(it.kind==='k'){
-      const box = drawSprite(SP.cop, it.o.x, it.o.z, it.o.w, it.o.wreck>0?0.85:1);
+      /* a SUPER CRUISER is a MATADOR in force colours — same two paints the
+         driveable cruiser gets, so the fleet reads as one force */
+      const spr = it.o.superc ? (SP.superCop || SP.cop) : SP.cop;
+      const box = drawSprite(spr, it.o.x, it.o.z, it.o.w, it.o.wreck>0?0.85:1);
       drawCopLights(box, sirenPhase + it.o.phase);
       /* backing up: white reverse lamps, low and inboard on the tail */
       if(it.o.spd < -60 && it.o.wreck <= 0) drawReverse(box);
@@ -6860,19 +7270,51 @@ function drawPlayer(){
      Two heads alternating on the same phase the pursuit sirens use, and a wash
      thrown forward onto the road — the same treatment an NPC cruiser gets, so
      it reads as the same machine. */
-  if(barOn && optBody === 'CRUISER'){
+  /* ---- ANY FORCE CAR ---------------------------------------------------
+     Hardcoded to CRUISER, so the SUPER CRUISER had lights drawn on its sprite
+     and nothing lit them. `force` on the BODY record is the single truth. */
+  if(barOn && inCruiser()){
     const blue = Math.sin(sirenPhase) > 0;
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
     for(const side of [-1, 1]){
-      /* on the roof, not floating over it — 0.98 put it clear of the car */
-      const bx = p.x + side*w*0.20, by = p.y - h*0.90;
+      /* ---- MEASURED, NOT ESTIMATED --------------------------------------
+         `h*0.90` was one number for every force car, which put the heads on
+         the cruiser's bar and a third of a car-height above the super
+         cruiser's. The two sprites simply do not carry their bars in the same
+         place.
+
+         Sampled from the built sprites — the rows where the strong blue and
+         strong red pixels actually are:
+
+             CRUISER        rows 18-22 of 164   mid 0.122
+             SUPERCRUISER   rows 49-53 of 168   mid 0.304
+
+         `barY` is that fraction, stored on the BODY record, and the sprite is
+         drawn from `p.y - h` to `p.y`, so the head goes at
+         `p.y - h*(1 - barY)`. Any future force car declares its own. */
+      /* ---- THE X AXIS, MEASURED TOO -------------------------------------
+         Sampling the bar row of both sprites for blue and red pixels:
+
+             blue head    centre 0.370 of sprite width
+             red head     centre 0.625
+             each head    0.235 wide
+
+         Both cars agree to three decimals, because both bars are drawn from
+         the same 0.24-0.76 span. Against the car's CENTRE that is -0.130 and
+         +0.125 — not the ±0.20 the glow was using, which put each head about
+         seventy thousandths of a car-width outboard of the lens it was meant
+         to be lighting. The heads were also 0.17 wide against a real 0.235.
+         ------------------------------------------------------------------ */
+      const barY = (BODY[optBody] && BODY[optBody].barY) || 0.122;
+      const bx = p.x + (side < 0 ? -0.130 : 0.125) * w;
+      const by = p.y - h*(1 - barY) - h*0.015;
       const lit = (side < 0) === blue;
       const col = side < 0 ? '90,140,255' : '255,70,80';
       /* the unlit head still reads as a LAMP: 0.22 was indistinguishable from
          nothing being there */
       ctx.fillStyle = 'rgba(' + col + ',' + (lit ? 0.95 : 0.45) + ')';
-      ctx.fillRect(bx - w*0.085, by, w*0.17, h*0.045);
+      ctx.fillRect(bx - w*0.1175, by, w*0.235, h*0.045);
       if(lit){
         const gl = ctx.createRadialGradient(bx, by, 0, bx, by, w*0.55);
         gl.addColorStop(0, 'rgba(' + col + ',.45)');
@@ -7124,7 +7566,16 @@ function drawMirrorFull(mx, my, mw, mh){
      A real mirror is mounted above your eyeline and looks slightly DOWN. 1.55x
      lifts it enough to see over what is following you rather than up at it.
      -------------------------------------------------------------------- */
-  const CAM_H_M = CAM_H * 1.55;
+  /* ---- ONE MIRROR, THE SAME IN EVERY CAR -------------------------------
+     A mirror is glass on a bracket, not a property of the chassis. Sitting it
+     at a per-car height meant a formula car's mirror looked along the tarmac
+     while a lorry's looked down from a cab — and in a pane this small the low
+     ones showed nothing but the road surface with a lorry filling it.
+
+     Fixed at 2.15x the driving eye for every vehicle, which is high enough to
+     see OVER whatever is following you rather than at its bumper.
+     ------------------------------------------------------------------- */
+  const CAM_H_M = CAM_H * 2.15;
   /* the same camera constants as the forward view, remapped to this glass */
   function rproj(worldX, worldZ){
     const dz = pos - worldZ;           /* BEHIND is positive here */
@@ -7658,7 +8109,7 @@ function openVeil(html, go){
       optPaint = b.dataset.act.slice(6);
       /* only an UNRESTRICTED car's choice becomes the remembered one — picking
          black for the cruiser must not turn every other car black */
-      if(paintChoices().length === PAINT_KEYS.length){
+      if(paintChoices().length >= BASE_PAINT_KEYS.length){
         freePaint = optPaint;
         if(AR && AR.save) AR.save.merge((GAME_ID + '-opts'), { paint:optPaint });
       }
@@ -7718,9 +8169,11 @@ function garageCard(){
    telling. Everything else takes the full dozen.
    ------------------------------------------------------------------------- */
 function paintChoices(){
-  if(optBody === 'CRUISER') return ['WHITE','BLACK'];
+  /* the two force cars share one palette — the super cruiser is one of theirs */
+  if(optBody === 'CRUISER' || optBody === 'SUPERCRUISER') return ['WHITE','BLACK'];
   if(optBody === 'CAB')     return ['GOLD'];        /* a cab is yellow */
-  return PAINT_KEYS;
+  /* the iridescent set only appears once the sports ladder has been won */
+  return unlocked('iridescent') ? PAINT_KEYS : BASE_PAINT_KEYS;
 }
 
 /* ---- A RESTRICTED CAR MUST NOT EAT YOUR COLOUR --------------------------
@@ -7732,7 +8185,7 @@ function paintChoices(){
 let freePaint = 'WHITE';
 function syncPaintForBody(){
   const allowed = paintChoices();
-  if(allowed.length === PAINT_KEYS.length) optPaint = freePaint;
+  if(allowed.length >= BASE_PAINT_KEYS.length) optPaint = freePaint;
   else if(allowed.indexOf(optPaint) < 0)   optPaint = allowed[0];
 }
 function paintSwatches(){
@@ -7828,7 +8281,17 @@ function showGarage(){
 }
 function cycleBody(d){
   /* FORMULA is not in the list until it has been won */
-  const LOCK = { 'FORMULA':'typeZ', 'TUNER':'tuner', 'MUSCLE':'muscle', 'CRUISER':'cruiser', 'ROADSTER':'roadster',
+  /* ---- SIX CARS FROM THE START -----------------------------------------
+     Both classes are yours immediately: three SPORTS and three SUPER. The
+     tournament is a choice of ladder now rather than a slow drip of cars.
+
+       gold in SUPER  → FORMULA, a novelty you were never meant to be given
+       gold in SPORTS → the iridescent paints
+     ------------------------------------------------------------------- */
+  /* SUPERCRUISER is an NPC vehicle, not a garage car — listing it here made
+     the garage try to build a body that does not exist in BODY and the whole
+     screen threw on a non-finite gradient */
+  const LOCK = { 'FORMULA':'formula', 'CRUISER':'cruiser',
                  'COUPE':'traffic','SALOON':'traffic','CAB':'traffic',
                  'PICKUP':'traffic','VAN':'traffic','LORRY':'traffic' };
   /* ---- DEBUG OVERRIDES ---------------------------------------------------
@@ -7844,7 +8307,8 @@ function cycleBody(d){
     if(need === 'traffic') return !!dbgTraffic;
     return !!dbgRacers;
   };
-  const ks = Object.keys(BODY).filter(openBy);
+  /* an NPC body has stats and a sprite but is not a car you can pick */
+  const ks = Object.keys(BODY).filter(k => !BODY[k].npc).filter(openBy);
   const i = (ks.indexOf(optBody) + d + ks.length) % ks.length;
   optBody = ks[i];
   syncPaintForBody();
@@ -8581,6 +9045,78 @@ requestAnimationFrame(frameLoop);
   API.segAt = segAt; API.rr = rr; API.rnd = rnd; API.rint = rint;
   API.flashWarn = flashWarn; API.snd = snd;
   API.horizon = function(){ return horizon; };
+  API.hp = function(){ return bodyHp(); };
+  API.setBody = function(k){ optBody = k; buildSprites(); };
+  API.launchKick = function(){ return launchKick; };
+  API.cops = function(){ return cops; };
+  API.heat = function(v){ if(v!==undefined) heat=v; return heat; };
+  API.setSpd = function(v){ spd = v; };
+  API.coasting = function(){ return coasting; };
+  API.superSprite = function(){ return !!SP.superCop; };
+  API.mass = function(){ return bodyMass(); };
+  API.ptw = function(){ return powerToWeight(); };
+  API.zeroSixty = function(k){ return zeroSixty(k); };
+  API.inCruiser = function(){ return inCruiser(); };
+  API.paintChoices = function(){ return paintChoices(); };
+  API.setBar = function(v){ barOn = v; };
+  API.playerSprite = function(){ return SP.player; };
+  API.hasNos = function(){ return hasNos(); };
+  API.roundRim = function(){
+    const MK = (BODY[optBody]||{}).rear || "GENERIC";
+    return (MK==="TUNER"||MK==="MUSCLE"||MK==="CRUISER"||MK==="GENERIC"||MK==="ROADSTER")
+        && optBody !== "SUPERCRUISER"; };
+  API.fleetSheet = function(){
+    /* one render of every vehicle: rear, front and wheel */
+    const CARS=["FORMULA","STALLION","CREST","MATADOR","CRUISER","SUPERCRUISER","MUSCLE",
+                "TUNER","ROADSTER","COUPE","SALOON","PICKUP","CAB","VAN","LORRY"];
+    const CW=152, PER=7, rows=Math.ceil(CARS.length/PER);
+    const REAR=190, FRONT=190, WH=176;
+    const c=document.createElement("canvas");
+    c.width=CW*PER; c.height=(REAR+FRONT)*rows+WH*rows+70;
+    const g=c.getContext("2d"); g.fillStyle="#15121a"; g.fillRect(0,0,c.width,c.height);
+    const lab=(t,x,y)=>{g.font="11px monospace";g.fillStyle="#ffb37a";g.textAlign="center";g.fillText(t,x,y);};
+    const hd=(t,y)=>{g.font="bold 12px monospace";g.fillStyle="#8fa6c8";g.textAlign="left";g.fillText(t,12,y);};
+    const CABP={body:"#f2b32c",hi:"#ffd45e",lo:"#8f6408"};
+    const TRL={body:"#8a8477",hi:"#a8a293",lo:"#4e4a41"};
+    const sizeFor=r=>r==="muscle"?[210,158]:r==="cop"?[200,164]:r==="van"?[200,196]
+                    :r==="pickup"?[206,176]:r==="truck"?[230,250]:[206,150];
+    const keep=optBody, keepP=optPaint, keepS=optStripes;
+    optStripes=false;
+    let y=24;
+    hd("REAR",y-6);
+    CARS.forEach(function(bt,i){
+      const rw=Math.floor(i/PER), cl=i%PER, B=BODY[bt];
+      const base = bt==="CAB"?CABP : bt==="LORRY"?TRL : PAINT.WHITE;
+      const pa=Object.assign({lamp:"#d61b3c",lamp2:"#ff7a86",player:true,marque:B.rear},base);
+      let im;
+      if(B.rig){const sz=sizeFor(B.rig); im=sprite(sz[0],sz[1],paintRig(B.rig,pa));}
+      else {optBody=bt;optPaint="WHITE";buildSprites();im=SP.player;}
+      const yy=y+rw*REAR,bw=CW-28,bh=bw*im.height/im.width;
+      g.drawImage(im,cl*CW+14,yy+140-bh,bw,bh); lab(bt,cl*CW+CW/2,yy+160);
+    });
+    y+=REAR*rows+20;
+    hd("FRONT",y-6);
+    CARS.forEach(function(bt,i){
+      const rw=Math.floor(i/PER), cl=i%PER, B=BODY[bt];
+      const base = bt==="CAB"?CABP : PAINT.WHITE;
+      const pa=Object.assign({lamp:"#d61b3c",lamp2:"#ff7a86",player:true,marque:B.rear},base);
+      let im;
+      if(B.rig){const sz=sizeFor(B.rig); im=sprite(sz[0],sz[1],paintRigFront(B.rig,pa));}
+      else im=sprite(230,215,paintFront(Object.assign({bodyType:bt},pa)));
+      const yy=y+rw*FRONT,bw=CW-28,bh=bw*im.height/im.width;
+      g.drawImage(im,cl*CW+14,yy+140-bh,bw,bh); lab(bt,cl*CW+CW/2,yy+160);
+    });
+    y+=FRONT*rows+20;
+    hd("STEERING WHEELS",y-6);
+    CARS.forEach(function(bt,i){
+      const rw=Math.floor(i/PER), cl=i%PER;
+      optBody=bt; buildSprites(); steerTurn=0; drawWheel();
+      const yy=y+rw*WH, sz=CW-46;
+      g.drawImage(wheelCv,cl*CW+23,yy+4,sz,sz); lab(bt,cl*CW+CW/2,yy+sz+22);
+    });
+    optBody=keep; optPaint=keepP; optStripes=keepS; buildSprites();
+    return c.toDataURL("image/png");
+  };
   return API;
 
 };
