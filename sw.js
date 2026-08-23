@@ -24,14 +24,20 @@
 /* v20: v19 shipped with an EMPTY asset list. Any device that installed it is
    holding a worker that caches no cabinets, and it will keep serving that
    worker until the name changes. */
-const CORE    = 'tiny-arcade-core-v21';
+const CORE    = 'tiny-arcade-core-v22';
 /* ---- ONE VERSION, NOT TWO ----------------------------------------------
    CORE went to v20 and RUNTIME stayed at v19, so a device kept a runtime cache
    from the broken build alongside a fresh core. They are bumped together from
    here: two names, one version number, so a stale half can never survive an
    update.
    ---------------------------------------------------------------------- */
-const RUNTIME = 'tiny-arcade-runtime-v21';
+const RUNTIME = 'tiny-arcade-runtime-v22';
+/* ---- HARD EVICTION -----------------------------------------------------
+   A half-updated cache is worse than no cache: a device holding the previous
+   game HTML beside the current shared scripts gets a black screen, because the
+   two no longer agree. Any cache whose name is not in KEEP is deleted on
+   activate, so a version bump can never leave a mixture behind.
+   ------------------------------------------------------------------------ */
 const KEEP    = [CORE, RUNTIME];
 
 /* The shell. Enough to open the arcade with no signal at all. */

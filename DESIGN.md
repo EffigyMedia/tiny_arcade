@@ -4,6 +4,82 @@ Forked from Highway. Same car, same road engine, a CIRCUIT instead of a
 highway. Registered as cabinet 18, own save namespace (`raceway-opts`), loads
 clean.
 
+# I SHIPPED TWO BLACK SCREENS
+
+Highway and Raceway both opened to nothing. The cause was not the cache and not
+the device: **I packed and presented a zip while both files had a syntax
+error.** The unclosed brace from the roadster work was in the build, and every
+check in `pack.sh` passed over it — the catalogue matched, the cache listed 46
+files, all 18 cabinets met the minimum standard. None of those checks asks
+whether the browser can READ the file.
+
+## THE SYNTAX GATE
+
+Every game's inline script is now extracted and run through `node --check`
+before anything is packed. A cabinet that does not parse stops the build:
+
+    refusing to pack: a cabinet does not parse
+        games/sw/raceway.html  /tmp/_syn0.js:8484 | })(); |  ^
+
+Proved both ways — fault reintroduced, build refuses; fault removed, build
+passes with `every cabinet parses`.
+
+This is the check that should have existed from the first day. It costs a
+second, and it is the difference between a bad build and a bad release. I had
+even been running `node --check` by hand earlier in the session to find this
+exact class of error, and did not think to put it in the pipeline.
+
+## THE ROADSTER KEEPS ITS ROOF
+
+I removed the roof to distinguish it, and that was wrong for a reason I should
+have seen before drawing it: **an open cockpit needs a driver in it.** A car
+with an empty hole where a person should be does not read as a convertible, it
+reads as a car with a missing polygon — which is exactly how it looked.
+
+Reverted. The difference moved to proportion instead:
+
+    roofline   0.30 against the coupe's 0.22 — much lower
+    cabin      0.38 wide against 0.44 — shorter, set back
+    deck       twin speedster humps behind the cabin
+    wing       none at all
+
+A roadster with the top up is still not a coupe, and nobody has to be drawn
+sitting in it.
+
+**Still the weakest of the three at a glance.** TUNER has a wing and MUSCLE has
+stripes and quad lamps — both readable in a tenth of a second. ROADSTER reads as
+"the low one with no wing", which works side by side and is thin at speed in a
+mirror. If it needs more, the humps are the place to push: they are the one
+shape no other body has.
+
+## A ROADSTER HAS NO ROOF
+
+ROADSTER and TUNER were both the coupe shell with different furniture, so from
+behind they were the same car with a wing added. The thing that actually makes a
+roadster a roadster is that **the greenhouse is not there**:
+
+    rear    an open cockpit well, two headrest fairings, a low roll hoop
+    front   a short raked windscreen with the fairings peeking over it
+
+That is a silhouette you can name at a glance from either end, and it cost one
+branch: skip the cabin, draw the hoop. Carried into Highway too, so ROADSTER can
+join it as a second SPORTS-class car.
+
+**It broke the file twice.** Opening an `else` around the greenhouse meant
+closing it in two painters, and my first two anchors matched the wrong
+`closePath` — the game would not parse at all. Checking with `node --check` on
+the extracted script is faster than loading the page to find out.
+
+## THE FORMULA CLASS — one body, three cars
+
+Formula cars are not visually distinct from one another, and pretending
+otherwise would be wrong as well as expensive. Three entries share the open
+wheeler body and differ in **stats, name and livery colour** — which is exactly
+how the real thing works.
+
+That also resolves the naming conflict: the class is FORMULA, and none of the
+cars in it is.
+
 ## THE THREE CLASSES — naming
 
 Recommendation, same word in code and on screen so there is no translation
