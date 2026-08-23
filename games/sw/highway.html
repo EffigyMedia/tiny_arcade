@@ -6077,12 +6077,25 @@ function step(dt){
        The loop above it guards on `k.wreck > 0` for the AI; the collision
        never did. It does now. */
     if(k.wreck > 0) continue;
-    if(iframe<=0 && Math.abs(dz) < (k.len+380)/2 && Math.abs(k.x-playerX) < (k.w+0.26)/2){
+    /* ---- COLLIDE AGAINST THE PLAYER, NOT THE TARGET --------------------
+       `dz` here is the AI's number: `k.z - tz`, the distance to whatever that
+       cruiser is CHASING. That was fine when the only target was you — but
+       once cops could chase rogues and rivals, a cop sitting 3,800 units away
+       hunting a tuner had a small `dz` against ITS target and passed this
+       test, so it hit you from off screen.
+
+       That is the random damage with nobody around: a real collision, with a
+       car that is nowhere near you, measured against the wrong thing.
+
+       Measured: one hit logged at nearestCop 3793.
+       ------------------------------------------------------------------ */
+    const pdz = k.z - pz;
+    if(iframe<=0 && Math.abs(pdz) < (k.len+380)/2 && Math.abs(k.x-playerX) < (k.w+0.26)/2){
       /* PIT: catch a cruiser on the side, alongside rather than nose to tail,
          while you are actually moving into it and carrying speed, and it goes
          around. Hitting one square-on is still just a crash — the manoeuvre has
          to be deliberate, which means the lateral component is what decides it. */
-      const sideOn   = Math.abs(dz) < (k.len + 380) / 2 * 0.55;   // overlapping, not rear-ended
+      const sideOn   = Math.abs(pdz) < (k.len + 380) / 2 * 0.55;  // overlapping, not rear-ended
       const closing  = (playerX - k.x) * (targetX - playerX) < 0; // steering into it
       const fast     = spd > MAX_SPD * 0.62;
       if(sideOn && closing && fast){
