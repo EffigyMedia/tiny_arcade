@@ -1,3 +1,811 @@
+# REAR ONLY — WHICH IS WHAT THE DESIGN ALWAYS WANTED
+
+    LEAGUE   CAR        LAP    SLOWEST CORNER   BRAKING   CROSSINGS
+    cup      ROADSTER    63s       99mph          7.0%       0
+    gt       MATADOR      73s     102mph         10.1%       0
+    gp       FORMULA      97s      96mph          9.3%       0.05
+
+Every car on a circuit is going the same way, so every car you can see is
+showing you its back. The angled views were solving a problem the design did
+not have to have.
+
+**Corner sweep is capped at 90 degrees.** Past that a pseudo-3D road has left
+the frame and a rival is side-on, which needs art the game does not have. Capped,
+the circuits become road courses of fast sweepers and right-angle corners — most
+of Silverstone, none of Monaco — and the rear sprite is always correct.
+
+## Sweep and radius are independent levers
+
+Capping the sweep took GP's slowest corner from 123 to 147mph, because its
+hairpins were the tightest and lost the most arc. **A capped corner is still
+slow if its RADIUS is small**, so GP's radius came down from 3,800 to 2,300 and
+it gained a fourth hairpin. Only one of the two levers is constrained by the
+renderer.
+
+## And that exposed a rename I had missed
+
+Tightening GP's hairpins changed *nothing* — the numbers came back identical to
+three decimal places. The spec branch still read `league === 'formula'`, so
+asking for `'gp'` fell silently through to the CUP spec. **GP had been running
+CUP's circuits since the rename**, and every measurement of "gp" I have reported
+since was actually a cup track.
+
+A rename that leaves one comparison behind is invisible: no error, no warning,
+just a different branch quietly taken. The only reason it surfaced is that a
+change which should have moved a number did not.
+
+## The profile painters stay, unbuilt
+
+`paintProfile` and `paintQuarter` are no longer generated, and are kept
+deliberately: a KART RACER needs them, because a rival mid-drift is side-on by
+definition. Dead until then.
+
+# HOW BIG IS THE ART, ACTUALLY
+
+The concern about my drawing was fair, so I measured rather than argued.
+
+    AHEAD     WIDTH ON A 390px SCREEN     VIEW
+     1200        137px                    rear
+     2500         66px                    rear
+     5000         33px                    quarter
+     9000         18px                    quarter
+    16000         10px                    quarter
+
+**The angled views are drawn at 10 to 33 pixels.** I have been judging them at
+210. At 33px a three-quarter is a coloured wedge with a dark window, which is
+what it needs to be; at 10px it is four pixels of red.
+
+The REAR view is the only one that ever gets large — 137px at the distance you
+actually race someone — and that is precisely the art that already works.
+
+## What this does and does not excuse
+
+It does not make the three-quarter good. It does mean the budget for it is
+**silhouette and colour**, not craft: the right outline, the window in the right
+place, the near end darker than the far end. Detail is invisible before it is
+drawn.
+
+## The honest read on the art
+
+Front and rear worked for reasons that do not transfer:
+
+  - they are SYMMETRIC. Draw half, mirror it, and errors cancel. Symmetry
+    itself reads as "car".
+  - they were built over many sessions with correction on every part — the
+    marques, the lamps, the arches, the stripes, the light bar. Dozens of
+    rounds of being told what was wrong.
+
+A profile has no symmetry. Every proportion is a free choice, and the side of a
+car is the view people know best — a wrong wheelbase is obvious to everyone.
+
+**The front and rear are good because they were art-directed, not because I can
+draw.** The same will be true of anything else that has to look right, and the
+side view will take more rounds, not fewer, because there is no symmetry to
+lean on.
+
+Where that leaves the options:
+
+    1  keep iterating with tight feedback — works, and it is slow
+    2  spend the effort where it shows: the 137px rear, not the 33px flank
+    3  cap corners at 90 degrees so the angled views are barely needed
+    4  you author the silhouettes, I do the shading, the palette wiring and
+       the integration — which is the division of labour that has actually
+       been working
+
+# THE ANGLED VIEWS, PROPERLY DRAWN
+
+The first pass was bad and the criticism was exact: **the three-quarter was the
+profile painter with `squash:0.45`**, which makes a narrow side view, not a
+three-quarter. And the profile itself was a slab with two circles.
+
+## A three-quarter is TWO FACES
+
+Not a compressed anything. It shows the TAIL and one FLANK at the same time,
+meeting at the corner of the car — and that corner, with a highlight down it, is
+the entire reason the view reads as three-dimensional.
+
+    tail face     nearly square on, the left third, both lamps, rear glass
+    flank         recedes right toward a vanishing point, narrowing
+    the crease    a bright line where they meet
+    far wheel     smaller and higher than the near one, which is perspective
+
+`paintQuarter` is its own painter now.
+
+**And my first attempt at it was a doorstop** — I ran the glass from the tail
+all the way to the nose in one dark wedge. A cabin sits in the MIDDLE of a
+flank: metal ahead of it, metal behind it, a roof that drops at both ends, and a
+pillar between the side windows.
+
+## The profile is a real side view
+
+    a wedge, nose low, tail cut off square
+    wheel arches PUNCHED OUT of the body with destination-out
+    raked screen and a fastback tail, with a B-pillar
+    sill shadow, door shut line, a wing mirror
+    tail lamp left, head lamp right, because the car points right
+
+The arches are the part that matters: cutting them out of the body rather than
+drawing wheels on top is what stops it looking like a brick with circles.
+
+## Still not right
+
+The profile reads as a saloon rather than as whichever car it is supposed to
+be — every body shares one silhouette, so a MUSCLE and a ROADSTER look
+identical from the side. The rear sprites have per-body shapes; the angled ones
+do not. That is the next thing, and it is the same `BODY` record driving it.
+
+# BILLBOARD ANGLES — built, and honestly half-tuned
+
+Your idea, and it is the right one: OutRun, Pole Position and SNES Mario Kart
+all did exactly this. A car ahead in a corner is showing you its FLANK, and how
+much depends on how far the road has turned between your z and theirs.
+
+Three views now exist per body per paint — REAR, THREE-QUARTER, PROFILE — drawn
+by one painter with a `squash` parameter, because a three-quarter IS a profile
+seen at an angle. One sprite serves both hands: a left-hander is a right-hander
+mirrored, so `drawSprite` takes a `flip`.
+
+    yaw = the road's heading change between here and there
+        = integral of curvature x CURVE_K over that stretch
+
+## Two calibration failures worth recording
+
+**First constant: 0.055.** Read off the screen-pixel slope cache. Measured yaw
+never exceeded 0.06 radians over 30,000 units, so **every car stayed on REAR
+and the whole system was dead code.** A feature that never triggers is worse
+than no feature, because it looks finished.
+
+**Then, integrating the real curvature: saturated at the clamp.** 21,000 units
+ahead is 3.5% of a lap, and a circuit turns 360 degrees over one — so the angle
+ran past 109 degrees and everything became PROFILE. Clamped to a right angle,
+because past 90 degrees the road has left the frame and you cannot see the car
+anyway.
+
+## Where it stands
+
+    +5s   3000 ahead   +25 deg   quarter
+    +10s  3000 ahead   -90 deg   profile
+    views chosen: quarter 1, profile 34
+
+**It works and it is not balanced.** Cars flip to full profile far too eagerly —
+the thresholds (0.16 and 0.52 radians) were chosen before I knew the real
+distribution, and the answer is more views rather than different cut points:
+eight angles instead of three would make it smooth rather than snapping.
+
+That is the next pass, and it is cheap: the painter already takes an angle
+parameter, so eight sprites is a loop bound rather than new artwork.
+
+## Why this matters beyond Raceway
+
+It is the same system a kart racer needs to show a rival mid-drift, and it is
+the only way any pseudo-3D racer has ever handled the problem. The road still
+cannot bend past 90 degrees on screen — that limit is unchanged — but the CARS
+can now look right through a corner the road only hints at.
+
+# THE ROAD WAS DRAWN STRAIGHT ON EVERY CIRCUIT
+
+Asking "what does a hairpin look like?" was the right question, because the
+answer turned out to be **it looks like a motorway**.
+
+`rebuildBend()` integrates the visual bend over a span measured from
+`curveSegs` — the ENDLESS road's segment list, which a circuit never fills. On
+Raceway the span was one step, the bend cache held a single entry, and the road
+rendered dead straight.
+
+The map was right, the physics was right, the car was being shoved sideways by a
+curvature the picture never showed. `CFG.roadSpan()` supplies a lap and a half.
+
+**Fixed, but NOT yet verified in view** — my probe for jumping the car to a
+specific point on the lap does not move it, so the screenshots still show the
+start line. The bug and the fix are both certain; the picture is not.
+
+# THE HARD LIMIT YOU ARE ASKING ABOUT
+
+## A pseudo-3D road cannot draw a hairpin
+
+The camera faces forward, always. Curvature is drawn by offsetting each slice
+sideways in SCREEN pixels as it recedes — that is the whole trick, and it works
+beautifully up to about a 90-degree turn.
+
+Past that the road runs off the side of the frame and there is nothing to draw,
+because a road that has turned 180 degrees is BEHIND the camera. There is no
+sideways view to render it into.
+
+    what a car ahead does in a hairpin today
+      it slides toward the edge of the screen, gets smaller, and vanishes
+      off the side. It does not turn to face you, because the renderer has
+      no notion of a car's heading relative to the camera.
+
+Three ways out, and they are genuinely different games:
+
+    1  CAP THE CORNERS at about 90 degrees. Cheapest by far. The circuits
+       become road courses with fast sweepers and no true hairpins — which
+       is most of Silverstone and none of Monaco.
+    2  ROTATE THE CAMERA with the car. That is real 3D, not pseudo-3D, and
+       it is a different renderer: every sprite needs a heading, the road
+       needs to be a mesh, and the whole `road.js` projection goes.
+    3  CUT AWAY at the apex — an overhead or chase shot for the corner, then
+       back. Cheap and it reads, but it takes control away at the exact
+       moment control matters.
+
+**Option 1 is what I would ship.** The generator already produces the corner
+band; capping the sweep is one clamp. Options 2 and 3 are the same size as the
+rest of Raceway put together.
+
+## Crossovers, tunnels and overpasses need a second ribbon
+
+`drawRoad` walks ONE ribbon indexed by z, far to near. A crossing means a
+DIFFERENT part of the lap is visible in the same frame at a different place on
+screen — the renderer has no way to express that, because a screen position is
+derived from a single z.
+
+To do it properly the road becomes a list of visible SEGMENTS rather than a
+range of z, each projected independently and depth-sorted. That is a rewrite of
+the thing everything else sits on.
+
+**A tunnel is much cheaper and worth doing first:** it is a z-range with a roof
+and a light change, and it needs no second ribbon at all. An overpass seen from
+underneath is the same trick. Only a genuine crossing — where you can see the
+road you will be on in two minutes — needs the rewrite.
+
+## What I would do, in order
+
+    1  verify the bend fix actually bends the road in view
+    2  cap corner sweep at 90 degrees so the renderer is never asked for
+       something it cannot draw
+    3  tunnels, as a z-range effect
+    4  curate the seeded tracks
+    5  leave true crossings and overpasses until there is a reason to
+       rewrite the projection — they are the most expensive item on the
+       whole list and the least visible while driving
+
+# COURSE LENGTH: THE NUMBERS ARE FINE, MY WRITE-UP WAS NOT
+
+    LEAGUE   LAP     5-LAP RACE   FUEL LASTS   TYRES LAST (was)
+    cup      62s      5.2 min      3.5 laps      14.2 laps
+    gt       74.5s    6.2 min      2.9 laps      11.8 laps
+    gp       90.2s    7.5 min      2.4 laps       9.8 laps
+
+**Laps of 62-90 seconds are right** — an F1 lap is 70-110, a GT lap 90-120. A
+five-lap race is 5-7.5 minutes, which is an arcade race. Courses do not need to
+be longer.
+
+"3.5 laps in 88 seconds" was me writing "the tank lasts 3.5 laps" ambiguously.
+Sorry.
+
+**But the same measurement caught a real error.** I claimed tyres lasted "about
+two and a half laps". Measured properly they lasted **10 to 14** — longer than
+any race, so tyres were decoration and only fuel decided anything. The claim
+came from a ratio I never checked against a real lap time. Wear is now 1.90,
+putting a MEDIUM at roughly three laps.
+
+# AUTHORED VS PROCEDURAL: YOU ARE RIGHT, AND THERE IS A THIRD OPTION
+
+Everything built in the last two passes — **sector bests, the live delta,
+qualifying, lap records** — is about improving on a track you KNOW. A lap record
+on a circuit you will never see again is meaningless. Procedural generation was
+quietly undermining the features built on top of it.
+
+But hand-authoring a few dozen circuits is a lot of work to produce something
+the generator already makes well.
+
+## SEED THE GENERATOR AND CURATE ITS OUTPUT
+
+The generator is now **deterministic**: `buildCircuit(league, seed)` is a pure
+map from a number to a track. Verified — seed 12345 twice gives 819,720 units
+and 28 corners both times; a different seed gives a different track.
+
+That turns it from a runtime feature into an AUTHORING TOOL. Run it offline
+thousands of times, keep the good ones, ship the seeds. A curation pass over 120
+seeds:
+
+    tried 120, passed 118 (zero crossings, aspect under 1.45)
+      seed  1000    22 corners  719k  aspect 1.18
+      seed  8919    25 corners  704k  aspect 1.05
+      seed 24757    26 corners  762k  aspect 1.01
+
+**A track becomes a number.** Fixed, repeatable, nameable, learnable — and the
+authoring cost is choosing from a list rather than drawing anything.
+
+## What that gets us that neither pure option does
+
+    authored          every track good, but weeks of work and a fixed count
+    procedural        infinite, but no track is worth learning
+    seeded + curated  every track good, learnable, named — and adding twenty
+                      more is an afternoon of looking at minimaps
+
+The next step is a curation run of a few thousand, judged on crossings, aspect,
+corner mix and lap time, then a `TRACKS` table of the survivors with names. The
+generator stays; it just stops running while you play.
+
+# 2. SECTORS AND THE DELTA
+
+A lap time tells you how you did after it is over. A DELTA tells you how you are
+doing NOW, which is the whole hook of a time trial: "+0.31" against your best is
+a reason to take the next corner differently.
+
+The lap is cut in three by DISTANCE — real circuits place sector lines by feel,
+but by distance is honest and needs no authoring. Each sector keeps the best it
+has ever been, and the HUD shows the live delta against it.
+
+    LAP 1/5   FUEL 83%   M 93%   S2 +0.41
+
+Colouring follows the convention every timing screen uses, because it is read at
+a glance and nobody has to be taught it: PURPLE for the best that sector has
+ever been, GREEN for better than your own best, YELLOW for worse.
+
+Verified over a full lap: sector bests recorded at **24.68 and 17.62**, and the
+index advances S1 → S2 → S3 in order.
+
+**A guard worth noting:** a sector only records if it lasted more than half a
+second. Without it, a lap that starts mid-sector writes a fragment as a record
+and the delta is nonsense for the rest of the session.
+
+# AND IT EXPOSED A BALANCE BUG
+
+The sector run showed **fuel empty in 54 seconds** — less than ONE lap of a
+64-88 second circuit, when a race is five.
+
+`0.55` was tuned before the corner fix tripled lap times, and nothing had
+re-measured it since. Both consumables are now set against the lap times the
+game actually has:
+
+                     BEFORE            AFTER
+    fuel burn        empty in 54s      59% left after 88s (~3.5 laps)
+    tyre wear        untouched         90% left after 88s (~2.5 laps)
+
+One stop is the natural plan; a SOFT forces two; a HARD makes one stop
+comfortable at the cost of pace. **That is the choice the compounds exist to
+offer, and it did not exist an hour ago** — fuel ran out before strategy could
+matter.
+
+I tuned tyres twice: 1.15 wore them out in a single lap, which is the same
+mistake in the other direction.
+
+# 1. QUALIFYING
+
+The title screen shows a grid. The game did not have one — you were dropped
+into a race in whatever position the field happened to leave you. Now a flying
+lap decides where you start.
+
+    A SINGLE RESULT
+      your time    1:08.412
+      pole         1:06.496
+      last         1:11.922
+      grid         P6 of 12
+
+      #8   1:06.496
+      #3   1:06.497        — a thousandth apart, which is what qualifying is
+      #9   1:06.873
+      #4   1:07.515
+
+    GRID SLOT over 200 identical laps
+      P1   1     P4   30    P7   35
+      P2   2     P5   45    P8   23
+      P3  18     P6   40    P9    6
+
+Centred on P5-P6, with pole rare and reachable. A lap 4% quicker moves you most
+of the way up the sheet, which is the pressure a qualifying session is for.
+
+## The rivals do not drive
+
+Their times are drawn around yours, biased slightly slower (-3.8% to +5.2%), so
+a clean lap is rewarded and a scruffy one punished. Simulating eleven cars for a
+minute would cost a minute of real time and give less control over the spread.
+
+**This is a deliberate fake and it should stay one.** The alternative is a
+loading screen.
+
+## Two seams added to the engine
+
+    CFG.garageButtons()      extra buttons in the pre-run panel
+    CFG.garageActions(start) their handlers, given the engine's own start()
+
+Highway passes neither and is unchanged. Raceway adds QUALIFY above DRIVE,
+because it comes first, and the button reports the grid it won: `QUALIFY · P6`.
+
+Qualifying ends itself: the first completed lap IS the session, so the lap
+counter calls `finishQualifying()` and stops the run.
+
+# CUP · GT · GP
+
+`formula` is `gp`, and the entry rung is **CUP**.
+
+    CUP   Roadster, Tuner, Muscle
+    GT    Stallion, Matador, Crest
+    GP    the open-wheelers
+
+One-make cup racing — Porsche Cup, Clio Cup — is exactly what a three-car
+single-class series IS, so the name is the real term rather than a label. And
+all three are short, real, and read as a ladder: CUP · GT · GP.
+
+"SPORTS" was a category description. CUP is a series.
+
+# THE HORIZON BELONGS TO THE BIOME
+
+Biomes changed the ground and the weather and left the skyline alone, so a
+DESERT still showed a city of lit towers. What stands on the horizon is the
+strongest single signal of where you are, and it was the one thing that never
+changed.
+
+    CITY       towers, lit windows            — the original
+    DESERT     mesas: wide, flat-topped, far apart
+    MOUNTAIN   peaks: tall overlapping triangles
+    TUNDRA     the same peaks, on pale slate ground
+    FOREST     a treeline: narrow conifers with trunks
+
+One plan structure carries all of them, because a silhouette is a silhouette —
+only the shape generator differs. Lit windows are a city idea and are suppressed
+everywhere else. `buildSkyline()` is re-run whenever the biome changes, so
+Highway's cycle rebuilds the horizon as it crosses.
+
+# RACEWAY'S TITLE IS THE GRID
+
+Not a road to a sunset and not a map. **The start grid**, seen from behind the
+last row: two staggered columns on the painted boxes, the gantry overhead
+running its five reds to green, packed grandstands either side, floodlight
+pylons blooming above.
+
+It is the one image that is unmistakably a circuit racer and could not be
+mistaken for Highway — there is no horizon to drive toward, only the moment
+before it starts.
+
+The two faults from the first draft were both about the panel: the grid ran
+under PLAY (rows now stop at 0.70 of the ground), and the gantry sat among the
+cars rather than over them (moved in front of row one and widened).
+
+# THE CORNERS WORK
+
+    LEAGUE    CAR        LAP     SLOWEST CORNER   BRAKING   CROSSINGS
+    sports    ROADSTER    64s        99mph          6.9%       0
+    gt        MATADOR      75s      102mph         10.1%       0.05
+    formula   FORMULA      88s      123mph          7.7%       0.10
+
+Against where this started: **180mph corners and 1-3% braking**. Lap times of
+64-88 seconds are what a real circuit runs, braking is in the 7-10% band, and
+crossings stayed at zero.
+
+## THE SCALE CONSTANT WAS THE LEVER
+
+`k = turn / (len * K)`. At Highway's `0.00028` a corner tight enough to slow a
+formula car had a radius of 320 units — crossed in 0.07 seconds, far too short
+to brake for, so the car was flung off rather than slowed. Radius and duration
+could not both be satisfied.
+
+A SMALLER K makes a given radius bite harder, so the corner can be physically
+large enough to last:
+
+    K           R=4000     k      cap      time in corner
+    0.00028      —        0.9    218mph    0.9s    not a corner
+    0.000030     —        8.3    110mph    1.49s
+    0.000022     —       11.4     94mph    1.74s
+    0.000040     —        6.3    128mph    1.30s   ← shipped
+
+`CURVE_K` is Raceway's own. Highway is untouched.
+
+## AND CUSPS WERE THE REAL SLOWEST POINT
+
+At 0.000022 the corners came out at **31mph** — a car park, not a hairpin. The
+minimum radius was 265 where the hairpins asked for 3,800, which means leftover
+spline cusps were the slowest point on every lap and the designed corners never
+governed anything.
+
+A cusp is one sample wide and invisible at speed. Curvature is clamped to the
+tightest hairpin the league ASKED for, so the slowest point on a lap is now a
+corner somebody designed.
+
+    before clamp   min radius 265    slowest 31mph
+    after clamp    hairpin governs   slowest 99-123mph
+
+## WHAT THIS COST, AND WHAT IS LEFT
+
+Nothing was lost: crossings 0, lap times went from 68s to 88s (better), and the
+minimap is unaffected because `circuitShape` integrates with the same constant
+the segments are built from — they cancel.
+
+Still open:
+
+    biome ART            a desert still shows city towers
+    traffic queueing     written last pass, still unverified
+    qualifying, sectors, start gantry, pit art, flags
+    tyre grip -> cornerG defined, not connected
+
+# THE CORNER PROBLEM, DIAGNOSED
+
+## The minimap is NOT fake
+
+First thing checked. The curvature the engine asks for matches the circuit's own
+segments **421 of 421 samples**, and the path closes to exactly -1.000 laps. The
+map draws the road the car drives.
+
+## The governing equation
+
+    k = 1 / (R * 0.00028)
+
+**Curvature depends on the radius and NOTHING else** — not on how finely the arc
+is sampled, not on how long it lasts. That single line explains why every
+attempt for the last several passes failed: stretching, clustering, squeezing
+and resampling all changed the SAMPLING and left the radius alone.
+
+Solving it for the speed cap gives the band the generator had never produced:
+
+    RADIUS      k      FORMULA    ROADSTER
+     3000     1.19      218mph     176mph     not a corner at all
+      900     3.97      159        106
+      420     8.50      109         73
+      320    11.16       95         63
+
+I had been asking for 2,600. A hairpin is about 320.
+
+## Two real bugs found and fixed on the way
+
+**Hairpins are now explicit circles.** For each one, the span of path points is
+replaced by points on a circle of the radius we want, tangent at both ends —
+Cartesian geometry rather than a polar nudge. Verified: minimum radius is now
+215-594 against the 340/430/520 asked for, where it used to be 49,000 or a cusp.
+
+**The segment builder had a 400-unit floor.** `segLen = max(400, dist)` — and
+`k = turn/(len*0.00028)`, so clamping the length UP crushes k DOWN. A hairpin's
+points sit 59 units apart; the floor called that 400 and turned a curvature of
+10.6 into 1.56, which is a motorway sweeper. **Every geometric fix I made was
+correct and then thrown away on that line.** It is 12 now.
+
+## AND IT STILL DOES NOT WORK — here is why
+
+    R=340   arc 1068 units   at 200mph that is 0.07 SECONDS
+    R=520   arc 1634 units   at 200mph that is 0.11 seconds
+    R=1200  arc 3770 units   at 200mph that is 0.25 seconds
+
+A correctly tight hairpin is crossed in **seven hundredths of a second**. No car
+can brake for it, so the speed never falls — the car is simply flung off the
+outside, which is a fail state, not a corner.
+
+The radius is right and the duration is impossible, and the two cannot both be
+satisfied at this scale. **The world scale and the speed scale are mismatched by
+roughly ten times.** A 200mph car covers a 500,000-unit lap in 33 seconds, so
+every corner on it is milliseconds long.
+
+## THE FIX IS A SCALE CHANGE, NOT ANOTHER GEOMETRY PASS
+
+Three candidates, and I have not chosen between them:
+
+  1. **Change `0.00028` for circuits.** It converts radius to curvature. A
+     larger constant makes a given radius bite harder, so a hairpin can be
+     physically bigger and still slow the car. Cheapest, and it only affects
+     Raceway if it is passed through a seam.
+  2. **Slow the cars in world units** — same mph on the dial, fewer units per
+     second. Changes every distance in the game.
+  3. **Make the tracks ten times larger** and keep the corner radii where they
+     are. Laps become minutes, which may be right for a circuit anyway.
+
+Option 1 is the one to try first: it is one number, it is testable in a pass,
+and it leaves Highway untouched.
+
+# FOUR MORE FIXES
+
+## Traffic queues behind YOU
+
+The car-ahead loop only ever looked at other TRAFFIC, so a car came up behind a
+slow or stopped player and drove straight through them. You are a car on the
+road like any other: same 5,000-unit look-ahead, same lane test, same
+`gap < 420 ? 0 : spd + gap*0.35` rule.
+
+**Written and shipped, NOT verified.** My probe could not reach the traffic
+array to seed a controlled case, and I ran out of room to add the accessor. It
+is a nine-line change mirroring a loop directly above it, but treat it as
+unproven until you drive up to a queue.
+
+## The car slides in the wet
+
+Lateral position converged on the target however wet the road was — rain and
+snow changed the cornering force and nothing about the STEERING.
+
+    slick = 1 - wetGrip()
+    carry = min(0.86, slick x (snow ? 2.6 : 1.5))
+    slideX = slideX x carry + steerInput
+    playerX += slideX
+
+Dry, `slideX` is discarded every frame and the handling is exactly what it was.
+Wet, some lateral velocity survives into the next frame; **in snow, most of it
+does** — which is why snow is a curve and not a dimmer version of rain. Hitting
+a barrier zeroes it, because a wall does not care how slippery the road is.
+
+## The gate shows the gears the car HAS
+
+Three rails and six slots for every car, so a LORRY and a MUSCLE car — both
+four-speeds — were shown a pattern with gears they do not have.
+
+    MATADOR   6   (three rails, six slots)   the original
+    TUNER     5   gears5                      two and a half rails
+    ROADSTER  5   gears5
+    MUSCLE    4   gears4                      two rails, four slots
+    LORRY     4   gears4
+
+Verified: the body class follows the body. The plate narrows with the gate, so a
+four-speed is a smaller object, not a six-speed with bits hidden.
+
+## Raceway is not a highway any more
+
+`CFG.circuitOnly` removes civilian traffic, police, speed traps, roadblocks and
+crates. Verified 0 cops after four seconds at full throttle.
+
+# STILL OPEN
+
+    the minimap may be fake      unproven that the curvature the car feels is
+                                 the curvature the map draws — the first thing
+                                 to check now the highway furniture is gone
+    biome ART                    a desert still shows city towers
+    corner speeds                the blocker, unchanged
+    traffic queueing             written, unverified
+
+# THE HAZE WAS DRAWN OVER THE VERGE
+
+Four passes on this, and the answer was one line moved.
+
+    drawWorld();
+    drawRoad();
+    drawHaze();     <-- painted a lighter film across everything it overlapped
+
+`drawHaze()` ran AFTER `drawRoad()`. Wherever the haze band and the verge
+overlapped, a translucent strip was laid on top of grass that was already the
+right colour. That is the seam under the skyline.
+
+**Haze is atmosphere BEHIND the road, not a film over it.** Moved above
+`drawWorld()`, so it sits on the sky and the distant ground and the road and
+verge draw over it — which is what distance actually does.
+
+## FOUR WRONG DIAGNOSES, IN ORDER
+
+    1  the base fill was purple-blue      changed it to green. Band remained.
+    2  the base ignored the biome         made it biome-aware. Band remained.
+    3  the base was a flat colour         made it a gradient. Band became a WALL.
+    4  the road stopped short             DRAW 95 -> 150. Genuinely a bug, and
+                                          it did shrink the band — but it was
+                                          not this bug.
+    ✓  the haze was drawn on top          moved it before the road.
+
+Every one of the first four was about what was UNDERNEATH. The problem was
+always what was on TOP. I had even found and thinned this exact draw two passes
+earlier — dropped its alpha from 0.50 to 0.16 — and called it fixed, when
+lowering the alpha of a film only gives you a fainter film.
+
+**"It draws a haze OVER the verge where they overlap" was the whole answer**,
+and it took being told twice.
+
+# THE GROUND BAND: THE ROAD WAS STOPPING SHORT
+
+Three passes blamed the COLOUR of the ground base. The screenshot proved it was
+never a colour problem.
+
+`DRAW = 95` segments. The road and its verge simply **ran out before the
+horizon**, and the base fill showed through the gap as a band under the
+skyline. Whatever colour that fill took, a band was going to be there.
+
+**Making it a gradient made it worse, and that is what proved it** — the ramp
+made the gap obvious instead of hiding it, which is the most useful failure of
+the three. `DRAW = 150` now, and the road reaches the skyline.
+
+    attempt 1   purple-blue → green          wrong colour, band remained
+    attempt 2   green → biome colour          wrong colour, band remained
+    attempt 3   flat → gradient               band became a WALL
+    actual      DRAW 95 → 150                 the road reaches the horizon
+
+I spent three passes tuning the paint on a hole.
+
+# RACEWAY WAS RUNNING HIGHWAY'S WORLD
+
+You were right: it had civilian traffic, police, speed traps, roadblocks and
+repair crates on a closed circuit. A track with a lorry on it is not a race, and
+it is why the game still felt like the highway with a map in the corner.
+
+`CFG.circuitOnly` turns all of it off — spawners, waves, crates, cop logic, the
+trap and super-cruiser watches. Verified: **0 cops in Raceway** after four
+seconds at full throttle, where Highway had its usual complement.
+
+# STILL WRONG — reported, not fixed
+
+    the minimap             may be drawing a track the drive does not follow;
+                            I have not proved the curvature the car feels is
+                            the curvature the map shows
+    gearbox UI              4- and 5-speed cars use the 6-speed gate
+    biome ART               grass and weather change; the SKYLINE does not —
+                            a desert still shows city towers
+    lateral grip in the wet the car still stops dead sideways; it should keep
+                            sliding, more in snow than rain
+    traffic behind you      cars drive THROUGH a slow player instead of
+                            slowing and queueing
+    corner speeds           the outstanding blocker, unchanged
+
+# COURSE GENERATION: PARTIAL PROGRESS, NOT A FIX
+
+The measured fault was DURATION, not sharpness: a tight radius that exists for
+400 units is crossed in six hundredths of a second, so the brakes never do
+anything.
+
+The path is now resampled — every sample whose local turn is in the top 20% for
+that track gets three more inserted along its own arc, which stretches the
+corner without changing its radius.
+
+    BEFORE                        AFTER
+    sports   brake 2.9%  155mph   brake 4.1%  155mph
+    gt       brake 2.1%  162mph   brake 3.8%  171mph
+    formula  brake 1.2%  182mph   brake 2.4%  192mph
+
+**Braking roughly doubled. Corner speeds did not fall at all.** So the stretch
+is doing something real — more of the lap is spent slowing down — but not the
+thing that matters: a formula car still never drops below 192mph against a
+target nearer 60-80.
+
+And it cost something. Lap length went from ~200k to 600k-1,290k units, because
+inserting samples adds road. The lap TIMES are unchanged (46-78s) only because
+the added road is corner road taken slowly — but the geometry is now much
+larger than the minimap assumes.
+
+## WHAT I THINK IS ACTUALLY WRONG
+
+Stretching a corner makes it longer at the SAME radius. The car arrives at
+218mph, and a corner it can take at 192 does not slow it below 192 however long
+it is. **The radius has to come down, not the duration** — duration only decides
+how long you sit at the cornering limit once you are there.
+
+Which means the real target is the one measured two passes ago: the generator
+produces radii of either ~250 units (a cusp) or ~49,000 (a sweeper) and almost
+nothing between. A corner that caps a formula car at 70mph needs a radius near
+3,000-6,000 sustained, and the polar construction has never produced that band.
+
+**This needs the hairpin built in Cartesian space** — an explicit circle of the
+radius you want, spliced into the loop — which is the change I identified
+earlier and have still not made. Everything since has been attempts to reach
+that band by adjusting the polar construction, and none of them has.
+
+# RACEWAY'S TITLE, REDONE AS A SIBLING
+
+The overhead map was legible and cold — an information graphic, not a title.
+It is Highway's dusk now: the same sky ramp, the same banded sun, the same grid
+running toward you, the same warm wordmark. What changed is the ROAD.
+
+    Highway    a straight running dead to the horizon, city towers behind it
+    Raceway    a kerbed circuit sweeping into a corner, GRANDSTANDS behind it,
+               a start gantry over the track with five reds counting down
+
+Same world, different promise. That is what a sibling title should do, and it
+is why the green wordmark went back to chrome — a different palette said
+"different game" when the point is "same game, different discipline".
+
+**Three passes to make it legible, and each fault was a measurement I had not
+taken:**
+
+    the road ran off frame        bend 0.16 → 0.055
+    the near half sat behind PLAY y0 h*0.98 → h*0.76, gantry t 0.30 → 0.50
+    the tarmac was invisible      #1d1a24 on a #1a0b26 ground. Only the centre
+                                  dashes read. Tarmac has to be LIGHTER than
+                                  the land it crosses — #2f2b3a now, with the
+                                  kerbs in red and white rather than a dark
+                                  plum that vanished the same way.
+
+# THE HAZE WAS HALF OPAQUE
+
+Not a colour mismatch and not the streetlights — `drawHaze` was painting a
+grey-blue gradient at **0.50 alpha over a band 13% of screen height**, and it
+runs AFTER the road. So a translucent sheet sat across the far verge, the base
+of the skyline and the first stretch of tarmac, every frame.
+
+That is the ghosting: the verge was not showing through anything, something was
+being drawn on top of IT.
+
+    was    a = 0.50   d = 13% of H   full strength at the horizon line
+    now    a = 0.16   d =  7% of H   faded at the line, peaking just below it
+
+Real distance haze is barely there. 0.16 over 7% reads as depth; 0.50 over 13%
+reads as fog on the lens. Fading the top stop also stops it drawing a hard edge
+along the horizon.
+
+**Two earlier attempts at this missed because I was looking for the wrong kind
+of fault.** I checked the ground colour twice — first the purple-blue base, then
+the biome mismatch — and both were real bugs, but neither was THIS one. A veil
+drawn over the scene and a wrong colour underneath it look identical in a
+screenshot; the difference is only visible in the draw order.
+
 # THE GROUND UNDER THE SKYLINE, AGAIN
 
 I fixed this once by changing the base fill from purple-blue to green. Biomes
@@ -1683,8 +2491,35 @@ what it descends from, not what it is called.
 | — | Battlezone | ge | first-person WIREFRAME 3D with hidden-line removal. Nothing in the arcade projects like this. |
 | — | Scorched Earth | sw | terrain that deforms AND collapses under itself; the between-round shop is the whole meta-game |
 | — | Doom | sw | the raycaster is the easy half — the level format and the enemy AI are the work |
+| — | Mario Kart | sw | **karts on a circuit is the easy half.** The weapons, the rubber-banding and the item balance are the game, and none of it exists anywhere in the arcade. |
 
-Names still to be chosen. Two of the three need 3D projection that nothing
+### The kart racer, specifically
+
+It is the ONE on this list that already has its engine. `road.js` gives it the
+road, the projection, the cars, the traffic AI, laps, the minimap and the
+circuit generator; Raceway has already proved a fork costs about 1,400 lines.
+What it does not have is the part that makes a kart racer a kart racer:
+
+    ITEMS         a box on the road, a roll against your position, and a
+                  weapon that fires forward, drops behind, or is used on
+                  yourself. Nothing in the arcade has an inventory.
+    RUBBER-BAND   last place gets the good items and a speed bump; the leader
+                  gets a banana. This is the design, not a cheat — without it
+                  a kart racer is a slower Raceway.
+    DRIFT-BOOST   hold a slide through a corner, release for a shove. It is
+                  the skill floor AND ceiling of the genre, and Highway's
+                  cornering already pushes the car wide, which is half of it.
+    HAZARDS       shells to dodge, oil to slide on, things ON the road that
+                  are not other cars.
+
+**Karts are not cars.** Lighter, slower, no gearbox, and they turn far harder
+than anything in the current fleet — the `CURVE_K` work in Raceway is the
+groundwork for a vehicle that corners at 40mph rather than 120.
+
+Track shape matters differently too: a kart circuit wants shortcuts, jumps and
+alternate lines, which the closed-spline generator has no concept of.
+
+Names still to be chosen. Two of the four need 3D projection that nothing
 currently shares, and they need DIFFERENT kinds: Battlezone is wireframe line
 work, Doom is textured columns and sprite billboards. Worth building whichever
 comes first in a way the other can borrow, the way `road.js` now serves both

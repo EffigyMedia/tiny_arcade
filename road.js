@@ -69,7 +69,8 @@ const SEG = 200;             // segment length
 const RUMBLE = 3;            // segments per stripe
 const ROAD = 1900;           // half-width of road
 const LANES = 4;
-const DRAW = 95;             // segments drawn
+const DRAW = 150;   /* was 95 — the road stopped short of the horizon and
+                       the ground base showed as a band under the skyline */             // segments drawn
 const CAM_H = 1050;
 const FOV = 100;
 const CAM_D = 1/Math.tan((FOV/2)*Math.PI/180);
@@ -921,7 +922,20 @@ function rebuildBend(){
   signs = signs.filter(sg => sg.z > pos - 4000);
   bendCache = []; slopeCache = []; hillCache = []; gradCache = [];
   let dx = 0, x = 0, dy = 0, y = 0;
-  const span = Math.max(totalLen(curveSegs), totalLen(hillSegs)) + BEND_STEP;
+  /* ---- THE ROAD WAS DRAWN STRAIGHT ON EVERY CIRCUIT --------------------
+     `span` is how far ahead the bend is integrated, and it was measured from
+     `curveSegs` — the ENDLESS road's segment list, which a circuit never
+     fills. So on Raceway the span was one step, the bend cache held a single
+     entry, and the road rendered dead straight.
+
+     The map was right, the physics was right, the car was being pushed
+     sideways by a curvature the picture never showed. A hairpin looked like a
+     motorway.
+
+     A fork supplies its own length, and the integration runs over it.
+     ------------------------------------------------------------------- */
+  const span = (CFG.roadSpan ? CFG.roadSpan()
+              : Math.max(totalLen(curveSegs), totalLen(hillSegs))) + BEND_STEP;
   for(let z = bendZ0; z < bendZ0 + span; z += BEND_STEP){
     bendCache.push(x);  slopeCache.push(dx);
     hillCache.push(y);  gradCache.push(dy);
@@ -931,6 +945,293 @@ function rebuildBend(){
     y  += dy;
   }
 }
+/* ===========================================================================
+   BILLBOARD ANGLES
+
+   A car ahead of you in a corner is not showing you its back — it is showing
+   you its flank, and by how much depends on how far the road has turned
+   between your position and theirs.
+
+   That number is already cached. `slopeCache` holds the heading at every z, so
+   the relative angle is a subtraction:
+
+       yaw = slope(theirZ) - slope(myZ)
+
+   Pick a sprite from it, the way every arcade racer since Pole Position has:
+   rear when they are pointing away, three-quarter as they turn in, full
+   profile through the apex. The road cannot bend past 90 degrees on screen,
+   but the CARS can look right the whole way, and the same system is what a
+   kart racer needs to show a rival mid-drift.
+   =========================================================================== */
+/* ---- THE SIDE VIEW ------------------------------------------------------
+   A car from the flank is a different drawing, not a squashed rear: a long
+   low body, a cabin set back, two wheels under the arches, and the lights at
+   the ends rather than across the tail.
+
+   `squash` is how much of the length is foreshortened — 1.0 is dead side-on,
+   0.45 is the three-quarter view. One painter serves both, because a
+   three-quarter IS a profile seen at an angle plus a sliver of the back.
+   -------------------------------------------------------------------------- */
+/* ---- NOT BUILT, AND KEPT ON PURPOSE -------------------------------------
+   `paintProfile` and `paintQuarter` are no longer generated: on a circuit
+   every car faces the way you do, so a rear sprite is the only view needed.
+   They are kept because a KART RACER does need them — a rival mid-drift is
+   side-on to you by definition, and that game is on the planned list.
+
+   Dead until then, deliberately.
+   -------------------------------------------------------------------------- */
+function paintProfile(o){
+  return function(g, w, h){
+    const P = o;
+    const x0 = w*0.045, L = w*0.91;
+    const bot  = h*0.845;
+    const sill = h*0.615;          /* the line the doors sit on */
+    const belt = h*0.520;          /* where glass meets metal */
+    const roof = h*0.320;
+
+    g.fillStyle = 'rgba(0,0,0,.42)';
+    g.beginPath(); g.ellipse(w*0.5, bot+h*0.020, L*0.50, h*0.038, 0, 0, 6.2832); g.fill();
+
+    /* ---- wheels, with arches cut around them ------------------------------ */
+    const wr = h*0.125, wy = bot - wr*0.72;
+    const wheels = [x0 + L*0.215, x0 + L*0.795];
+    for(const wx of wheels){
+      g.fillStyle = '#0b0d11';
+      g.beginPath(); g.arc(wx, wy, wr, 0, 6.2832); g.fill();
+      g.fillStyle = '#c9d2dd';
+      g.beginPath(); g.arc(wx, wy, wr*0.50, 0, 6.2832); g.fill();
+      g.fillStyle = '#7b838f';
+      g.beginPath(); g.arc(wx, wy, wr*0.20, 0, 6.2832); g.fill();
+    }
+
+    /* ---- the body: a wedge, nose low, tail cut off ----------------------- */
+    const bg = g.createLinearGradient(0, belt, 0, bot);
+    bg.addColorStop(0, P.hi); bg.addColorStop(0.38, P.body);
+    bg.addColorStop(0.80, P.body); bg.addColorStop(1, P.lo);
+    g.fillStyle = bg;
+    g.beginPath();
+    g.moveTo(x0 + L*0.995, sill - h*0.045);            /* nose top */
+    g.quadraticCurveTo(x0 + L*1.005, sill + h*0.030, x0 + L*0.965, sill + h*0.055);
+    g.lineTo(x0 + L*0.885, sill + h*0.070);            /* along the sill */
+    g.lineTo(x0 + L*0.700, sill + h*0.082);
+    g.lineTo(x0 + L*0.300, sill + h*0.082);
+    g.lineTo(x0 + L*0.110, sill + h*0.070);
+    g.quadraticCurveTo(x0 - L*0.005, sill + h*0.040, x0 + L*0.005, sill - h*0.055);
+    g.lineTo(x0 + L*0.030, belt + h*0.008);            /* the tail face */
+    g.lineTo(x0 + L*0.300, belt - h*0.006);            /* deck to the cabin */
+    g.lineTo(x0 + L*0.760, belt + h*0.004);
+    g.quadraticCurveTo(x0 + L*0.930, belt + h*0.020, x0 + L*0.995, sill - h*0.045);
+    g.closePath(); g.fill();
+
+    /* the arches, punched out of it */
+    g.save();
+    g.globalCompositeOperation = 'destination-out';
+    for(const wx of wheels){
+      g.beginPath(); g.arc(wx, wy, wr*1.14, Math.PI, 0); g.fill();
+    }
+    g.restore();
+
+    /* ---- the greenhouse: raked screen, fastback tail ---------------------- */
+    g.fillStyle = P.lo;
+    g.beginPath();
+    g.moveTo(x0 + L*0.300, belt);
+    g.lineTo(x0 + L*0.400, roof + h*0.010);
+    g.lineTo(x0 + L*0.605, roof);
+    g.quadraticCurveTo(x0 + L*0.715, roof + h*0.030, x0 + L*0.762, belt);
+    g.closePath(); g.fill();
+    const gg = g.createLinearGradient(0, roof, 0, belt);
+    gg.addColorStop(0, '#4a5f78'); gg.addColorStop(0.5, '#18222e'); gg.addColorStop(1, '#0d131b');
+    g.fillStyle = gg;
+    g.beginPath();
+    g.moveTo(x0 + L*0.325, belt - h*0.008);
+    g.lineTo(x0 + L*0.415, roof + h*0.026);
+    g.lineTo(x0 + L*0.596, roof + h*0.018);
+    g.quadraticCurveTo(x0 + L*0.695, roof + h*0.044, x0 + L*0.738, belt - h*0.008);
+    g.closePath(); g.fill();
+    /* the B-pillar */
+    g.fillStyle = P.lo;
+    g.fillRect(x0 + L*0.470, roof + h*0.020, L*0.020, belt - roof - h*0.026);
+
+    /* ---- detail: sill shadow, door line, mirror -------------------------- */
+    g.fillStyle = 'rgba(0,0,0,.30)';
+    g.fillRect(x0 + L*0.115, sill + h*0.056, L*0.775, h*0.020);
+    g.strokeStyle = 'rgba(0,0,0,.26)';
+    g.lineWidth = Math.max(1, h*0.008);
+    g.beginPath();
+    g.moveTo(x0 + L*0.480, belt + h*0.004);
+    g.lineTo(x0 + L*0.470, sill + h*0.068);
+    g.stroke();
+    g.fillStyle = P.lo;
+    g.beginPath();
+    g.ellipse(x0 + L*0.700, belt + h*0.014, L*0.024, h*0.020, 0, 0, 6.2832); g.fill();
+
+    /* the shoulder highlight that makes it read as metal */
+    g.strokeStyle = 'rgba(255,255,255,.20)';
+    g.lineWidth = Math.max(1, h*0.011);
+    g.beginPath();
+    g.moveTo(x0 + L*0.055, belt + h*0.030);
+    g.lineTo(x0 + L*0.930, belt + h*0.040);
+    g.stroke();
+
+    /* lights: tail LEFT, head RIGHT, because the car points right */
+    g.fillStyle = P.lamp || '#d61b3c';
+    rr(g, x0 + L*0.012, belt + h*0.026, L*0.034, h*0.042, 2); g.fill();
+    g.fillStyle = '#fff6dd';
+    rr(g, x0 + L*0.952, sill - h*0.030, L*0.036, h*0.034, 2); g.fill();
+  };
+}
+
+/* ---- THE THREE-QUARTER IS A DIFFERENT DRAWING -----------------------------
+   Not a narrow profile. A three-quarter shows the TAIL and one FLANK at the
+   same time: the back face compressed toward you, and the side receding away
+   from its edge to a vanishing point. Two faces meeting at the corner of the
+   car, which is the whole reason the view reads as three-dimensional.
+   -------------------------------------------------------------------------- */
+function paintQuarter(o){
+  return function(g, w, h){
+    const P = o;
+    const bot = h*0.845, belt = h*0.520, roof = h*0.330, sill = h*0.615;
+    /* the tail face occupies the left third; the flank recedes to the right */
+    const tx = w*0.055, tw = w*0.300;          /* tail face */
+    const vx = w*0.965;                        /* the far end of the flank */
+
+    g.fillStyle = 'rgba(0,0,0,.42)';
+    g.beginPath(); g.ellipse(w*0.48, bot+h*0.020, w*0.46, h*0.038, 0, 0, 6.2832); g.fill();
+
+    /* the near wheel, under the tail */
+    const wr = h*0.120;
+    g.fillStyle = '#0b0d11';
+    g.beginPath(); g.arc(tx + tw*0.62, bot - wr*0.72, wr, 0, 6.2832); g.fill();
+    g.fillStyle = '#c9d2dd';
+    g.beginPath(); g.arc(tx + tw*0.62, bot - wr*0.72, wr*0.48, 0, 6.2832); g.fill();
+    /* the far wheel, smaller and higher — perspective */
+    const wr2 = wr*0.72;
+    g.fillStyle = '#0b0d11';
+    g.beginPath(); g.arc(vx - w*0.075, bot - wr2*1.35, wr2, 0, 6.2832); g.fill();
+    g.fillStyle = '#9aa4b1';
+    g.beginPath(); g.arc(vx - w*0.075, bot - wr2*1.35, wr2*0.44, 0, 6.2832); g.fill();
+
+    /* ---- the FLANK, receding ------------------------------------------- */
+    const fg = g.createLinearGradient(tx+tw, 0, vx, 0);
+    fg.addColorStop(0, P.body); fg.addColorStop(1, P.lo);
+    g.fillStyle = fg;
+    g.beginPath();
+    g.moveTo(tx + tw, belt - h*0.010);
+    g.lineTo(vx, belt + h*0.030);                    /* the far top edge */
+    g.lineTo(vx, sill + h*0.046);
+    g.lineTo(tx + tw, sill + h*0.078);
+    g.closePath(); g.fill();
+    /* ---- ITS GREENHOUSE, WHICH IS NOT THE WHOLE FLANK -------------------
+       My first attempt ran the glass from the tail all the way to the nose in
+       one dark wedge, which is why it read as a doorstop rather than a car.
+       A cabin sits in the MIDDLE of the flank: metal ahead of it, metal
+       behind it, and a roof that comes down at both ends.
+       ------------------------------------------------------------------ */
+    const cA = tx + tw*1.02, cB = vx - w*0.285;      /* where the cabin lives */
+    const rY = roof + h*0.055;
+    g.fillStyle = P.lo;
+    g.beginPath();
+    g.moveTo(cA, belt + h*0.004);
+    g.lineTo(cA + (cB-cA)*0.22, rY);
+    g.lineTo(cB - (cB-cA)*0.16, rY + h*0.026);
+    g.lineTo(cB, belt + h*0.030);
+    g.closePath(); g.fill();
+    const qg = g.createLinearGradient(cA, 0, cB, 0);
+    qg.addColorStop(0, '#2b3b4e'); qg.addColorStop(1, '#101822');
+    g.fillStyle = qg;
+    g.beginPath();
+    g.moveTo(cA + (cB-cA)*0.04, belt - h*0.002);
+    g.lineTo(cA + (cB-cA)*0.25, rY + h*0.016);
+    g.lineTo(cB - (cB-cA)*0.19, rY + h*0.038);
+    g.lineTo(cB - (cB-cA)*0.05, belt + h*0.024);
+    g.closePath(); g.fill();
+    /* the pillar between the two side windows */
+    g.fillStyle = P.lo;
+    g.fillRect(cA + (cB-cA)*0.48, rY + h*0.020, (cB-cA)*0.045, belt - rY + h*0.002);
+
+    /* ---- the TAIL face, nearly square on ------------------------------- */
+    const bg = g.createLinearGradient(tx, 0, tx+tw, 0);
+    bg.addColorStop(0, P.lo); bg.addColorStop(0.45, P.body); bg.addColorStop(1, P.hi);
+    g.fillStyle = bg;
+    g.beginPath();
+    g.moveTo(tx, belt + h*0.010);
+    g.lineTo(tx + tw, belt - h*0.010);
+    g.lineTo(tx + tw, sill + h*0.078);
+    g.lineTo(tx, sill + h*0.066);
+    g.closePath(); g.fill();
+    /* the rear glass on the tail face */
+    g.fillStyle = P.lo;
+    g.beginPath();
+    g.moveTo(tx + tw*0.10, belt + h*0.006);
+    g.lineTo(tx + tw*0.26, roof + h*0.022);
+    g.lineTo(tx + tw*0.94, roof + h*0.030);
+    g.lineTo(tx + tw*0.98, belt - h*0.010);
+    g.closePath(); g.fill();
+    g.fillStyle = '#141c26';
+    g.beginPath();
+    g.moveTo(tx + tw*0.16, belt);
+    g.lineTo(tx + tw*0.30, roof + h*0.040);
+    g.lineTo(tx + tw*0.90, roof + h*0.046);
+    g.lineTo(tx + tw*0.92, belt - h*0.006);
+    g.closePath(); g.fill();
+
+    /* the corner crease where the two faces meet — this is what sells it */
+    g.strokeStyle = 'rgba(255,255,255,.26)';
+    g.lineWidth = Math.max(1, h*0.010);
+    g.beginPath();
+    g.moveTo(tx + tw, belt - h*0.010);
+    g.lineTo(tx + tw, sill + h*0.078);
+    g.stroke();
+
+    /* tail lights on the tail face, one head lamp glimpsed at the far end */
+    g.fillStyle = P.lamp || '#d61b3c';
+    rr(g, tx + tw*0.10, belt + h*0.040, tw*0.34, h*0.040, 2); g.fill();
+    rr(g, tx + tw*0.56, belt + h*0.036, tw*0.34, h*0.040, 2); g.fill();
+    g.fillStyle = 'rgba(255,246,221,.85)';
+    rr(g, vx - w*0.035, belt + h*0.062, w*0.030, h*0.026, 2); g.fill();
+  };
+}
+
+function yawTo(z){
+  /* ---- MEASURED, NOT GUESSED -------------------------------------------
+     My first constant was 0.055 and the yaw never exceeded 0.06 over 30,000
+     units of road — so every car stayed on the REAR sprite and the whole
+     system was dead code.
+
+     The honest number comes from the geometry rather than the screen cache:
+     the road's heading changes by `k * K * dz`, which is the same integral
+     the shape walker uses. Integrating the real curvature between here and
+     there gives radians directly.
+     ------------------------------------------------------------------- */
+  const K = (CFG.curveK ? CFG.curveK() : 0.00028);
+  const step = 900;
+  const a = Math.min(pos, z), b = Math.max(pos, z);
+  let ang = 0;
+  for(let q = a; q < b; q += step) ang += curvatureAt(q) * K * step;
+  /* ---- ONLY WHAT YOU CAN SEE -------------------------------------------
+     Integrating all the way to a car 21,000 units up the road saturated at
+     the clamp, because that is 3.5% of a lap and a circuit turns 360 degrees
+     over one. But you cannot SEE a car through a corner — by the time the
+     road has turned 90 degrees it has left the frame.
+
+     The angle that matters is the one accumulated over the DRAWN road, so it
+     is clamped to a right angle and the far cars simply sit at profile, which
+     is what they would look like anyway.
+     ------------------------------------------------------------------- */
+  const HALF_PI = Math.PI * 0.5;
+  return Math.max(-HALF_PI, Math.min(HALF_PI, z < pos ? -ang : ang));
+}
+
+/* which of the angled sprites to draw, and whether to mirror it */
+function billboard(z){
+  const y = yawTo(z);
+  const a = Math.abs(y);
+  const flip = y < 0;
+  if(a < 0.16) return { view:'rear',    flip:false };
+  if(a < 0.52) return { view:'quarter', flip:flip };
+  return              { view:'profile', flip:flip };
+}
+
 function lookup(arr, z){
   if(!arr.length) return 0;
   const f = (z - bendZ0) / BEND_STEP;
@@ -3331,22 +3632,77 @@ let skyline = null;
    to have a cycle rather than a fade. */
 let skylineLit = null;
 function buildSkyline(){
+  /* ---- THE HORIZON BELONGS TO THE BIOME --------------------------------
+     Biomes changed the ground and the weather and left the skyline alone, so
+     a DESERT still showed a city of lit towers. What stands on the horizon is
+     the strongest single signal of where you are, and it was the one thing
+     that never changed.
+
+     The same plan structure carries all of them — a silhouette is a silhouette
+     — so only the SHAPE generator differs. Lit windows are a city idea and are
+     suppressed everywhere else.
+     ------------------------------------------------------------------- */
   const w = 1024, h = 220;
+  const B = bio();
   const plan = [];
   let x = 0;
   while(x < w){
-    const bw = rint(18,54), bh = rint(30,180);
-    const wins = [];
-    for(let k=0;k<bh/16;k++){
-      if(Math.random() < 0.42)
-        wins.push([x + rint(3, bw-6), h - bh + rint(4, bh-8)]);
+    let bw, bh, wins = [], kind = 'tower';
+
+    if(B.name === 'DESERT'){
+      /* mesas and buttes: wide, flat-topped, far apart */
+      kind = 'mesa';
+      bw = rint(70, 190); bh = rint(24, 74);
+      x += rint(10, 70);
+    } else if(B.name === 'MOUNTAIN' || B.name === 'TUNDRA'){
+      /* peaks: tall triangles, overlapping, snow-capped in tundra */
+      kind = 'peak';
+      bw = rint(90, 240); bh = rint(70, 200);
+      x -= rint(20, 70);
+    } else if(B.name === 'FOREST'){
+      /* a treeline: many narrow conifers of similar height */
+      kind = 'tree';
+      bw = rint(12, 30); bh = rint(38, 96);
+      x -= rint(2, 9);
+    } else {
+      bw = rint(18,54); bh = rint(30,180);
+      for(let k=0;k<bh/16;k++){
+        if(Math.random() < 0.42)
+          wins.push([x + rint(3, bw-6), h - bh + rint(4, bh-8)]);
+      }
     }
-    plan.push({ x, bw, bh, wins });
-    x += bw + rint(2,12);
+    plan.push({ x, bw, bh, wins, kind });
+    x += bw + (kind === 'tower' ? rint(2,12) : rint(1,6));
   }
   skyline = sprite(w,h,(g)=>{
     g.clearRect(0,0,w,h);
-    for(const b of plan){ g.fillStyle = '#150c22'; g.fillRect(b.x, h-b.bh, b.bw, b.bh); }
+    for(const b of plan){
+      g.fillStyle = '#150c22';
+      if(b.kind === 'peak'){
+        g.beginPath();
+        g.moveTo(b.x, h);
+        g.lineTo(b.x + b.bw*0.5, h - b.bh);
+        g.lineTo(b.x + b.bw, h);
+        g.closePath(); g.fill();
+      } else if(b.kind === 'tree'){
+        g.beginPath();
+        g.moveTo(b.x, h);
+        g.lineTo(b.x + b.bw*0.5, h - b.bh);
+        g.lineTo(b.x + b.bw, h);
+        g.closePath(); g.fill();
+        g.fillRect(b.x + b.bw*0.42, h - b.bh*0.12, b.bw*0.16, b.bh*0.12);
+      } else if(b.kind === 'mesa'){
+        /* flat on top, sloped at the shoulders */
+        g.beginPath();
+        g.moveTo(b.x, h);
+        g.lineTo(b.x + b.bw*0.14, h - b.bh);
+        g.lineTo(b.x + b.bw*0.86, h - b.bh);
+        g.lineTo(b.x + b.bw, h);
+        g.closePath(); g.fill();
+      } else {
+        g.fillRect(b.x, h-b.bh, b.bw, b.bh);
+      }
+    }
   });
   skylineLit = sprite(w,h,(g)=>{
     g.clearRect(0,0,w,h);
@@ -3697,7 +4053,8 @@ function reset(){
   traffic=[]; cops=[]; blocks=[]; crates=[]; fx=[];
   shake=0; hitFlash=0; sirenPhase=0; lastKmh=0; iframe=0;
   acc=0;
-  for(let z=9000; z<52000; z+=rnd(5200,8600)) spawnWave(z);
+  if(!CFG.circuitOnly)
+    for(let z=9000; z<52000; z+=rnd(5200,8600)) spawnWave(z);
   nextWaveZ = 52000;
   nextCopT = 9; nextBlockT = 30; nextCrateT = 16;
 }
@@ -4027,6 +4384,10 @@ let optManual = false, gear = 1, bogT = 0;
 function syncBoxClass(){
   /* a car with no bottle shows no bottle */
   document.body.classList.toggle('nonos', !hasNos());
+  /* the gate shows the gears the car HAS */
+  const gn = gearCount();
+  document.body.classList.toggle('gears4', gn <= 4);
+  document.body.classList.toggle('gears5', gn === 5);
   document.body.classList.toggle('manual', !!optManual);
   /* one manual UI or the other, never both: the gate for a road car, paddles
      for the formula car */
@@ -4113,7 +4474,7 @@ function autoGear(dt){
 }
 
 let brakeLamp = 0;
-let slipT = 0, coasting = false, runSeconds = 0;
+let slipT = 0, coasting = false, runSeconds = 0, slideX = 0;
 
 /* ===========================================================================
    WEATHER
@@ -4176,15 +4537,21 @@ let wet = 0, wetTarget = 0, wetNext = 0, snowy = 0, settle = 0;
    ---------------------------------------------------------------------- */
 let biomeNext = 0;
 function stepBiome(dt){
-  if(CFG.biome){ biome = CFG.biome(); return; }   /* a fork can pin it */
+  if(CFG.biome){
+    const b2 = CFG.biome();
+    if(b2 !== biome){ biome = b2; buildSkyline(); }
+    return;
+  }
   biomeNext -= dt;
   if(biomeNext <= 0){
     if(biomeNext < -1){                            /* first call: pick one */
       biome = BIOME_KEYS[(Math.random()*BIOME_KEYS.length)|0];
+      buildSkyline();
     } else {
       let k = biome;
       while(k === biome) k = BIOME_KEYS[(Math.random()*BIOME_KEYS.length)|0];
       biome = k;
+      buildSkyline();          /* the horizon is part of the place */
       flashWarn(bio().name);
     }
     biomeNext = rnd(70, 130);
@@ -5593,8 +5960,25 @@ function step(dt){
   padNos = AR && AR.pad ? (AR.pad.down('rt') || AR.pad.down('a')) : false;
   /* The car reaches its mark faster and the cap on lateral speed is higher, so
      a lane change lands when you ask for it rather than a beat later. */
-  const grip = 1 - Math.exp(-14*dt);
-  playerX += clamp((targetX-playerX)*grip, -4.2*dt, 4.2*dt);
+  /* ---- IT DOES NOT STOP SIDEWAYS ON ICE --------------------------------
+     Lateral position converged on the target however wet the road was, so
+     rain and snow changed the cornering force and nothing about the STEERING.
+     A car on a slick surface keeps going the way it was going — you fight the
+     slide rather than placing the car.
+
+     `slideX` carries lateral velocity forward. Dry, it is thrown away every
+     frame and the handling is exactly what it was. Wet, some of it survives;
+     in snow, most of it does — which is why snow is a curve and not a
+     dimmer version of rain.
+     ------------------------------------------------------------------- */
+  const slick = 1 - wetGrip();
+  const carry = Math.min(0.86, slick * (snowy > 0.5 ? 2.6 : 1.5));
+  const grip = (1 - Math.exp(-14*dt)) * (1 - carry*0.72);
+  const want2 = clamp((targetX-playerX)*grip, -4.2*dt, 4.2*dt);
+  slideX = slideX * carry + want2;
+  playerX += slideX;
+  /* a wall does not care how slippery it is */
+  if(playerX < -1.18 || playerX > 1.18) slideX = 0;
   playerX = clamp(playerX, -1.18, 1.18);
   camX = lerp(camX, playerX, 1-Math.exp(-14*dt));
   camX = clamp(camX, playerX-0.10, playerX+0.10);
@@ -5965,7 +6349,18 @@ function step(dt){
     if(heatT > 20 && heat < 5){ heatT=0; heat++; if(!optEasy) flashWarn('HEAT '+heat); }
   }
   nextCopT -= dt; nextBlockT -= dt; nextCrateT -= dt;
-  if(nextCrateT <= 0){
+  /* ---- A CIRCUIT IS NOT A HIGHWAY --------------------------------------
+     Raceway was running Highway's whole world — civilian traffic, police,
+     roadblocks, repair crates — on top of its circuit. A closed track with a
+     lorry on it is not a race, and it is why the game still felt like the
+     highway with a map drawn on the corner.
+
+     `CFG.circuitOnly` turns all of it off. What is left is the road, you, and
+     the rivals.
+     ------------------------------------------------------------------- */
+  const roadFurniture = !CFG.circuitOnly;
+
+  if(roadFurniture && nextCrateT <= 0){
     // parked on the shoulder, so taking one means leaving the road
     const side = Math.random() < 0.5 ? -1 : 1;
     crates.push({ z: pos + 30000, x: side * rnd(0.86, 1.02), got:false });
@@ -5976,13 +6371,12 @@ function step(dt){
      on the verge now and they catch whoever goes past too fast. The road
      always has a few; heat only decides how thickly they are laid.
      ------------------------------------------------------------------- */
-  if(!optEasy && nextCopT <= 0){
+  if(roadFurniture && !optEasy && nextCopT <= 0){
     const parked = cops.filter(k => k.trap).length;
     if(parked < Math.min(4, 2 + Math.floor(heat/2))) spawnTrap();
     nextCopT = Math.max(3.0, rnd(9, 16) - heat*0.8);
   }
-  trapWatch(dt);
-  superWatch(dt);
+  if(roadFurniture){ trapWatch(dt); superWatch(dt); }
   /* A roadblock across a bend is a wall you cannot see until you are in it,
      so they only go up on a stretch that is straight where it stands AND
      still straight a little further on. */
@@ -6003,7 +6397,7 @@ function step(dt){
      more than 40 times in a frame whatever happens. */
   let waveGuard = 0;
   while(nextWaveZ < pos + 62000 && waveGuard++ < 40){
-    spawnWave(nextWaveZ);
+    if(roadFurniture) spawnWave(nextWaveZ);
     /* 900 was less than three car lengths. Even at full heat the road has to
        stay driveable — the floor is 3200, about eight lengths. */
     nextWaveZ += Math.max(3200, rnd(4600,8200) - heat*140);
@@ -6044,6 +6438,20 @@ function step(dt){
       const gap = dz - (o.len + o.len)/2;
       if(gap > 2200) continue;
       want = Math.min(want, gap < 420 ? 0 : o.spd + gap * 0.35);
+    }
+
+    /* ---- AND BEHIND YOU ---------------------------------------------------
+       This loop only ever looked at other TRAFFIC, so a car came up behind a
+       slow or stopped player and drove straight through them. You are a car on
+       the road like any other: same rule, same distances.
+       ------------------------------------------------------------------- */
+    {
+      const dzP = (pos + PLAYER_Z) - c.z;
+      if(dzP > 0 && dzP < 5000 && Math.abs(playerX - c.x) < (0.26 + c.w)/2 + 0.03){
+        const gapP = dzP - (c.len + 380)/2;
+        if(gapP < 2200)
+          want = Math.min(want, gapP < 420 ? 0 : spd + gapP * 0.35);
+      }
     }
 
     const rate = want < c.spd ? 9000 : 2600;       // brakes beat the engine
@@ -6570,14 +6978,28 @@ function drawBody(b, kind){
 }
 
 /* the verge colour, darkened, whitened by settled snow, dimmed at night */
-function groundBase(){
+/* the haze colour as numbers, so the ground can be mixed toward it */
+function hazeRGB(){
+  const n = nightFall();
+  return [ Math.round(126 - n*54), Math.round(140 - n*58), Math.round(158 - n*62) ];
+}
+
+function groundBase(mix){
   const B = bio();
   const n = parseInt(B.grassLo.slice(1), 16);
   let r = (n>>16&255), g2 = (n>>8&255), b2 = (n&255);
   const t = settle * 0.85;
   r = Math.round(r + (238-r)*t); g2 = Math.round(g2 + (238-g2)*t); b2 = Math.round(b2 + (238-b2)*t);
   const dim = nightFall() > 0.5 ? 0.72 : 0.88;
-  return 'rgb(' + Math.round(r*dim) + ',' + Math.round(g2*dim) + ',' + Math.round(b2*dim) + ')';
+  r = Math.round(r*dim); g2 = Math.round(g2*dim); b2 = Math.round(b2*dim);
+  /* wash it toward the haze the same way distance does, so the gap between
+     the furthest drawn slice and the horizon is the colour that slice would
+     have been */
+  const hz = hazeRGB();
+  const t2 = (mix === undefined) ? 0.80 : mix;
+  return 'rgb(' + Math.round(r + (hz[0]-r)*t2) + ','
+                + Math.round(g2 + (hz[1]-g2)*t2) + ','
+                + Math.round(b2 + (hz[2]-b2)*t2) + ')';
 }
 
 function drawSky(){
@@ -7037,7 +7459,7 @@ function quad(ax,ay,bx,by,cx,cy,dx,dy){
    scales read as ghosts beside the solid ones. */
 
 
-function drawSprite(img, worldX, worldZ, worldW, alpha){
+function drawSprite(img, worldX, worldZ, worldW, alpha, flip){
   if(worldZ - pos < 430) return null;
   const p = proj(worldX*ROAD, worldZ);
   if(!p.ok) return null;
@@ -7063,7 +7485,17 @@ function drawSprite(img, worldX, worldZ, worldW, alpha){
     ctx.save();
     ctx.beginPath(); ctx.rect(0, brow, W, H - brow); ctx.clip();
     if(alpha!==undefined){ ctx.globalAlpha=alpha; }
+    if(flip){
+    /* a left-hand corner is a right-hand one seen from the other side — one
+       sprite serves both, mirrored */
+    ctx.save();
+    ctx.translate(p.x*2, 0);
+    ctx.scale(-1, 1);
     ctx.drawImage(img, p.x - w/2, p.y - h, w, h);
+    ctx.restore();
+  } else {
+    ctx.drawImage(img, p.x - w/2, p.y - h, w, h);
+  }
     ctx.globalAlpha=1;
     ctx.restore();
     return {x:p.x, y:p.y, w, h};
@@ -7158,6 +7590,15 @@ function emitBucket(n){
     } else if(it.kind==='g'){
       /* a rival: your car, in its own paint, with its number on the boot */
       const r = it.o;
+      /* ---- REAR ONLY, AND THAT IS THE DESIGN -------------------------
+         Everyone on a circuit is going the same way, so every car you can see
+         is showing you its back. A flank only becomes necessary if the road
+         turns far enough to put a rival side-on — and the corner cap below
+         means it never does.
+
+         Highway made into a circuit racer. That was the whole idea, and the
+         angled views were solving a problem the design did not have to have.
+         ------------------------------------------------------------- */
       const box = drawSprite(RIVAL_SP[(r.body||'MATADOR')+'|'+r.paint] || SP.player,
                              r.x, r.z, r.w, r.wreck>0?0.85:1);
       if(box){
@@ -7670,11 +8111,41 @@ function draw(){
      It is the same colour the verge uses, darkened a shade, so a gap in the
      geometry reads as more ground rather than as a different place.
      ------------------------------------------------------------------- */
-  ctx.fillStyle = groundBase();
+  /* ---- THE BASE IS THE FAR VERGE, NOT THE NEAR ONE ---------------------
+     Screenshot-confirmed: a bright saturated band under the skyline with the
+     pale hazed verge below it. `groundBase()` was the verge's colour AT YOUR
+     FEET, painted across the whole lower screen — and the road geometry does
+     not reach the horizon, so that near-colour showed in the gap.
+
+     Distance washes the verge toward the haze. The base has to be the FAR end
+     of that wash, which is what the gap is showing.
+     ------------------------------------------------------------------- */
+  /* ---- A GRADIENT, NOT A FILL -----------------------------------------
+     A flat colour can never match a gradient: whatever value it takes, there
+     is a seam where the drawn verge begins. The base ramps from the haze at
+     the horizon to the verge's own near colour further down, so the drawn
+     slices land ON it rather than against it.
+     ------------------------------------------------------------------- */
+  /* The gradient was worse: it made the gap OBVIOUS rather than hiding it,
+     which at least proved what the gap is. The road is drawn for DRAW
+     segments and simply stops before the horizon — the base is not the bug,
+     the missing road is. Until the geometry reaches the horizon this is the
+     verge's own colour, lightly hazed, which is the least visible option. */
+  ctx.fillStyle = groundBase(0.30);
   ctx.fillRect(0, horizon, W, H-horizon);
+  /* ---- HAZE IS ATMOSPHERE BEHIND THE ROAD, NOT A FILM OVER IT ----------
+     `drawHaze()` ran AFTER `drawRoad()`, so wherever the band and the verge
+     overlapped it painted a lighter film across the grass. That is the seam
+     under the skyline — not a wrong colour and not a gap, a translucent strip
+     drawn on top of geometry that was already correct.
+
+     Lowering its alpha only made a fainter film. Moving it BEFORE the road
+     removes it: the haze now sits on the sky and the distant ground, and the
+     road and verge are drawn over it, exactly as they would be in life.
+     ------------------------------------------------------------------- */
+  drawHaze();
   drawWorld();          /* buckets the sprites */
   drawRoad();           /* paints the road AND emits them, far to near */
-  drawHaze();
   drawPursuitWash();
   drawPlayer();
   drawRain();
@@ -8457,10 +8928,12 @@ function showGarage(){
           (timedRun ? 'ON' : 'OFF') + '</b></button>') +
       '<button class="go ghost" data-act="chase">HOT PURSUIT \u00B7 <b>' +
         (optEasy ? 'OFF' : 'ON') + '</b></button>' +
+      /* a fork can put its own buttons here — Raceway adds QUALIFY */
+      (CFG.garageButtons ? CFG.garageButtons() : '') +
       '<button class="go" data-act="drive">DRIVE</button>' +
       '<button class="go ghost" data-act="back">BACK</button>' +
     '</div>',
-    {
+    Object.assign({}, (CFG.garageActions ? CFG.garageActions(start) : {}), {
       prev: () => cycleBody(-1),
       next: () => cycleBody(1),
       box:  () => { optManual = !optManual; syncBoxClass();
@@ -8485,7 +8958,7 @@ function showGarage(){
                      showGarage(); },
       drive: start,
       back: showTitle
-    });
+    }));
   drawGarageCar();
 }
 function cycleBody(d){
@@ -9259,6 +9732,17 @@ requestAnimationFrame(frameLoop);
   Object.defineProperties(API, {
     pos:      { get: function(){ return pos; } },
     spd:      { get: function(){ return spd; } },
+    /* WHERE across the road, in lanes, and how bent. Read-only: the harness
+       in tools/drive-test.py needs to know whether it is on the track and
+       whether it is wrecking, and a test that cannot see those two numbers
+       cannot tell a clean lap from thirty seconds of scraping a wall. */
+    playerX:  { get: function(){ return playerX; } },
+    dmg:      { get: function(){ return dmg; } },
+    /* the cars in front. Read-only, and here for the same reason as the two
+       above: a test driver that cannot see traffic drives into it, and a
+       Highway run that spends thirty seconds wrecked proves nothing about
+       the engine. */
+    traffic:  { get: function(){ return traffic; } },
     state:    { get: function(){ return state; } },
     clock:    { get: function(){ return clock; } },
     racers:   { get: function(){ return racers; } },
@@ -9278,7 +9762,7 @@ requestAnimationFrame(frameLoop);
   API.redline = function(){ return redline(); };
   API.setWet = function(v){ wet = wetTarget = v; };
   API.hp = function(){ return bodyHp(); };
-  API.setBody = function(k){ optBody = k; buildSprites(); };
+  API.setBody = function(k){ optBody = k; buildSprites(); syncBoxClass(); };
   API.launchKick = function(){ return launchKick; };
   API.cops = function(){ return cops; };
   API.heat = function(v){ if(v!==undefined) heat=v; return heat; };
@@ -9291,6 +9775,17 @@ requestAnimationFrame(frameLoop);
   API.inCruiser = function(){ return inCruiser(); };
   API.paintChoices = function(){ return paintChoices(); };
   API.setBar = function(v){ barOn = v; };
+  API.spriteWidthAt = function(dz){
+    const pp = proj(0, pos + dz);
+    if(!pp.ok) return null;
+    const w2 = pp.scale*0.265*ROAD*W;
+    return (w2 < 1.2 || w2 > W*3.4) ? null : w2;
+  };
+  API.rivalSprite = function(k){ return RIVAL_SP[k]; };
+  API.yawTo = function(z){ return yawTo(z); };
+  API.billboard = function(z){ return billboard(z); };
+  API.jumpTo = function(z){ pos = z - PLAYER_Z; rebuildBend(); };
+  API.setMode = function(m){ mode = m; };
   API.playerSprite = function(){ return SP.player; };
   API.hasNos = function(){ return hasNos(); };
   API.roundRim = function(){

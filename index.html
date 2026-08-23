@@ -906,7 +906,13 @@ var fetchBtn = document.getElementById('fetchAll');
 var PREFETCHED = 'tinyarcade.prefetched.v1';
 
 function catalogue(){
+  /* road.js and assets.js were missing here, so FETCH ALL reported "the
+     whole arcade is on this device" while the 469KB engine both driving
+     games depend on was only ever cached by the install handler — whose
+     failures are silent and never retried. The button now fetches what the
+     claim describes. */
   var list = ['./', './index.html', './audio.js', './arcade.js', './games.js',
+              './road.js', './assets.js',
               './sw.js', './manifest.webmanifest', './icon.png', './icon-512.png',
               './effigy.png'];
   GAMES.forEach(function(g){ list.push('./' + g.file); });

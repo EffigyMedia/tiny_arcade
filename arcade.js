@@ -228,8 +228,22 @@ if ('serviceWorker' in navigator && location.protocol.slice(0,4) === 'http'){
       if (window.console && console.warn) console.warn('arcade: offline cache unavailable', err);
     });
 
+    /* ---- A FIRST VISIT IS NOT AN UPDATE ----------------------------------
+       `controllerchange` fires TWICE in a page's life: once when the very
+       first worker calls `clients.claim()`, and once when a new worker
+       replaces an old one. Only the second is an update. Reloading on the
+       first meant every cold visit refreshed itself about a second after
+       load — long enough to have tapped PLAY, so the garage opened and then
+       vanished under you. Found by the drive test, which lost its first
+       click to exactly this.
+
+       `hadController` is read BEFORE the reload can happen: if the page was
+       already controlled when it loaded, any change from here is a genuine
+       swap. */
+    var hadController = !!navigator.serviceWorker.controller;
     var reloading = false;
     navigator.serviceWorker.addEventListener('controllerchange', function(){
+      if (!hadController) { hadController = true; return; }
       if (reloading) return;
       reloading = true;
       window.location.reload();

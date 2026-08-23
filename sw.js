@@ -24,14 +24,14 @@
 /* v20: v19 shipped with an EMPTY asset list. Any device that installed it is
    holding a worker that caches no cabinets, and it will keep serving that
    worker until the name changes. */
-const CORE    = 'tiny-arcade-core-v23';
+const CORE    = 'tiny-arcade-core-v24';
 /* ---- ONE VERSION, NOT TWO ----------------------------------------------
    CORE went to v20 and RUNTIME stayed at v19, so a device kept a runtime cache
    from the broken build alongside a fresh core. They are bumped together from
    here: two names, one version number, so a stale half can never survive an
    update.
    ---------------------------------------------------------------------- */
-const RUNTIME = 'tiny-arcade-runtime-v23';
+const RUNTIME = 'tiny-arcade-runtime-v24';
 /* ---- HARD EVICTION -----------------------------------------------------
    A half-updated cache is worse than no cache: a device holding the previous
    game HTML beside the current shared scripts gets a black screen, because the
@@ -48,6 +48,11 @@ const CORE_FILES = [
   './arcade.js',
   './road.js',
   './games.js',
+  /* assets.js was in NO list at all — not here, not ALL_FILES, not its own
+     manifest — and it loads before the worker controls a first visit, so it
+     was the one file that never reached any cache. Offline it 404ed, the
+     loader saw an empty manifest and said READY anyway. */
+  './assets.js',
   './manifest.webmanifest',
   './icon.png',
   './icon-512.png',
@@ -126,47 +131,16 @@ self.addEventListener('install', event => {
 });
 
 /* ---------------------------------------------------------------------------
-   Filling the cache is driven by the PAGE, not by install.
-
-   It used to run inside the install handler, which meant it ran exactly once —
-   on a device that already had a worker registered no install ever fires, so
-   nothing downloaded, no progress arrived, and the launcher sat at 0/0 until it
-   timed out and then 404ed every game. Worse, the loop was started outside
-   `waitUntil`, so even on a real install the browser was free to kill the
-   worker halfway through.
-
-   The page now asks on every load. The worker reports progress, skips what it
-   already has, and answers 'precache-done' when the arcade is complete.
+   There is deliberately NO precache machinery in here any more. Filling the
+   cache is done by the PAGE (the loading panel in index.html writes straight
+   into CACHE_NAME with the Cache API — no worker, no handshake) and by the
+   FETCH ALL button (which messages `prefetch`, handled below). A third path
+   lived here — fillCache, answering a {type:'precache'} message — and NOTHING
+   SENT THAT MESSAGE: the sender was removed when the page took over, the
+   handler stayed, and its comment went on describing a protocol that no
+   longer existed. Dead code that documents itself as load-bearing is worse
+   than no code; it is gone.
    --------------------------------------------------------------------------- */
-let filling = null;
-async function fillCache(){
-  const cache = await caches.open(CORE);
-  const all = CORE_FILES.concat(ALL_FILES);
-  const total = all.length;
-  let done = 0;
-  const tell = async (type) => {
-    const cs = await self.clients.matchAll({ includeUncontrolled: true });
-    for(const c of cs) c.postMessage({ type, done, total });
-  };
-  for(const f of all){
-    const req = new Request(f, { cache: 'reload' });
-    /* skip what is already there so a warm start costs nothing */
-    const have = await cache.match(f);
-    if(!have){
-      try { await cache.add(req); } catch(e){}
-    }
-    done++;
-    if(done % 2 === 0 || done === total) await tell('precache');
-  }
-  await tell('precache-done');
-  return total;
-}
-
-self.addEventListener('message', event => {
-  if(!event.data || event.data.type !== 'precache') return;
-  if(!filling) filling = fillCache().finally(() => { filling = null; });
-  event.waitUntil(filling);
-});
 
 self.addEventListener('activate', event => {
   event.waitUntil((async () => {
@@ -220,6 +194,17 @@ async function networkFirst(request){
       return fresh;
     }
     if (cached) return cached;
+    /* ---- A DEAD LINK SHOULD LAND IN THE LOBBY -------------------------
+       A navigation that 404s with nothing cached is a stale link — an old
+       catalogue pointing at a renamed cabinet, or a host serving a deploy
+       that no longer has the file. The server's 404 page is a dead end on a
+       device that has the whole arcade sitting in its cache; the launcher is
+       not. Non-navigations still pass the 404 through, because a script tag
+       fed index.html would be a far stranger failure than a missing file. */
+    if (request.mode === 'navigate'){
+      const shell = await caches.match('./index.html');
+      if (shell) return shell;
+    }
     return fresh;                       /* nothing cached: pass it on as-is */
   } catch (err) {
     if (cached) return cached;
@@ -238,7 +223,13 @@ async function staleWhileRevalidate(request){
   const spin = fetch(request)
     .then(res => { if (res && (res.ok || res.type === 'opaque')) cache.put(request, res.clone()).catch(() => {}); return res; })
     .catch(() => null);
-  return hit || spin.then(r => r || caches.match(request)) || Response.error();
+  if (hit) return hit;
+  /* `hit || spin.then(...) || Response.error()` never reached the last arm —
+     a pending promise is truthy — so a miss with a dead network resolved to
+     NOTHING and respondWith(undefined) failed with a TypeError instead of a
+     clean error response */
+  const res = (await spin) || (await caches.match(request));
+  return res || Response.error();
 }
 
 self.addEventListener('fetch', event => {
