@@ -1055,19 +1055,44 @@ function playerDef(melee){
 /* the quality a carried weapon was found at */
 function slotQuality(id){ return (P.slotQ && P.slotQ[id]) || 'good'; }
 
+/* ---- THE DAMAGE ROLL IS RECORDED --------------------------------------
+   The to-hit arithmetic was already carried out of `resolve` so the log could
+   print it. The DAMAGE was not: `dice()` returned a single number and the
+   dice that produced it were gone. A player reading "-14" could not tell a
+   good roll on a poor weapon from a poor roll on a good one.
+
+   `lastRoll` captures the whole line — the raw dice, the quality multiplier,
+   the calibration, and any extras — so `reportPlayer` can show the working.
+   ---------------------------------------------------------------------- */
+let lastRoll = null;
 function weaponDice(w, m, blind){
   return () => {
     let n = w.n, d = w.d, shots = w.shots || 1;
     let total = 0;
-    for(let k=0;k<shots;k++) total += roll(n, d) + (w.bonus || 0);
+    const raws = [];
+    for(let k=0;k<shots;k++){
+      const one = roll(n, d) + (w.bonus || 0);
+      raws.push(one);
+      total += one;
+    }
+    lastRoll = { dice: (shots>1?shots+'\u00D7':'') + n + 'd' + d
+                       + (w.bonus ? (w.bonus>0?'+':'') + w.bonus : ''),
+                 raw: raws.slice(), rawTotal: total,
+                 quality: slotQuality(P.weapon), lvl: P.lvl, extra: 0 };
     /* quality scales the dice, so a Poor sabre is genuinely worse than a Good
        one and an Excellent knife can be worth keeping over it */
     total = Math.round(total * QUALITY[slotQuality(P.weapon)].mul);
+    if(lastRoll) lastRoll.afterQuality = total;
     /* Dice alone go flat while hostiles gain HP every deck, so the roll is
        multiplied by calibration. A sabre stays twice a knife at any level,
        which a flat per-level bonus would have quietly erased. */
     total *= P.lvl;
-    if(w.pry && m && m.type === 'warden') total += roll(1, 6);
+    if(lastRoll) lastRoll.afterLvl = total;
+    if(w.pry && m && m.type === 'warden'){
+      const pry = roll(1, 6);
+      lastRoll.extra += pry; lastRoll.pry = pry;
+      total += pry;
+    }
     if(m && m.type === 'warden' && !w.pierce && !w.pry) total = Math.round(total * 0.7);
     if(P.buff.dmg > 0) total = Math.round(total * 1.3);
     if(blind) total = Math.max(1, Math.round(total / 2));
@@ -1509,6 +1534,50 @@ function noteRun(k, v){
 }
 
 const ENDINGS = {"ninefold": {"t": "INCIDENT REPORT — KESTREL, CONTAINER 9", "b": "Filed by the undersigned, sole surviving party aboard.\nThe container is still aboard the Kestrel. The seal is still intact.\nRecommend the Kestrel is not boarded again and not salvaged.\nRecommend the consignor named on manifest 9 be traced.\nNothing on that manifest was carried by accident."}, "choir": {"t": "INCIDENT REPORT — KESTREL, HOLD 3", "b": "Filed by the undersigned, sole surviving party aboard.\nI did not count them as I worked. I counted them afterward, from\nwhat was left, and I am confident in the figure.\nThe Kestrel's inventory has been recovered and is attached.\nIt lists one. It has always listed one."}, "lamprey": {"t": "INCIDENT REPORT — KESTREL, CORRIDOR 2", "b": "Filed by the undersigned, sole surviving party aboard.\nIt does not hold a distance. It removes one.\nRating 0071 worked this out before I did and it cost him.\nHis name should be on this report and it is."}, "hollowlight": {"t": "INCIDENT REPORT — KESTREL, DECK 7", "b": "Filed by the undersigned, sole surviving party aboard.\nCarried light had no effect at any point. Light placed on the\ndeck and left burning had effect immediately.\nI cannot account for the difference and I am not going to try.\nStores issued 200 sticks to the party before mine. Twelve came back."}};
+
+/* ---- THE SHARD TEXT -------------------------------------------------------
+   `SHARD_TEXT` was referenced in two places and DEFINED IN NONE. Picking up a
+   shard threw `SHARD_TEXT is not defined` inside `stepInto`, which is inside
+   the walk loop — so `busy` was never cleared and the game stopped responding
+   to every tap. Quit and return and it was still stuck, because the flag
+   survives.
+
+   That is the hang: not the lamp, a SHARD. The lamp was simply the pickup
+   that happened to be near one.
+
+   Four voices, one per omega — recovered log fragments, read in the order you
+   find them.
+   -------------------------------------------------------------------------- */
+const SHARD_TEXT = {
+  ninefold: [
+    "Manifest 9 lists nine containers. I have counted eight, twice.",
+    "The eighth is warm. Nothing else on this deck is warm.",
+    "Rating 0044 signed for nine. His hand is steady on the first eight.",
+    "I have stopped counting them where they can hear me.",
+    "The ninth is not missing. It has not been unloaded yet."
+  ],
+  choir: [
+    "Someone is singing on the mess deck. The mess deck is sealed.",
+    "It is not singing. It is one voice doing the work of several.",
+    "I asked it to stop and it stopped. That was worse.",
+    "The inventory lists one. I have heard four.",
+    "It has learned my name from the tannoy and it uses it correctly."
+  ],
+  lamprey: [
+    "The corridor is nineteen metres. I have walked it for six minutes.",
+    "It does not make the distance longer. It takes the distance away.",
+    "Rating 0071 ran it. He is still running it.",
+    "If you can see the far door, do not look away from the far door.",
+    "It is not in the corridor. It IS the corridor."
+  ],
+  hollowlight: [
+    "The lamp on my helmet lights nothing. The stick on the deck lights everything.",
+    "Carried light is not light down here. It has to be put down.",
+    "Two hundred sticks issued. Twelve came back. Nobody asks about the rest.",
+    "I set one down at the junction and saw what the junction was.",
+    "Do not carry it. Leave it. Walk away from it and look back."
+  ]
+};
 
 function shardPool(){ return SHARD_TEXT[P.omega] || []; }
 
@@ -3113,10 +3182,36 @@ function reportPlayer(w, m, r){
      against an unknown defence, seeing 14+9=23 vs 11+13=24 is the difference
      between "bad luck" and "wrong weapon". */
   const tag = rollTag(r);
+
+  /* ---- SHOW THE DAMAGE WORKING TOO -------------------------------------
+     `rollTag` already prints the to-hit sum, because seeing 14+9=23 against
+     11+13=24 is the difference between "bad luck" and "wrong weapon". The
+     DAMAGE had no such line — a bare "−14" told you nothing about whether the
+     dice were kind or the weapon is wrong for this thing.
+
+     This prints the same working for damage: what was rolled, what quality
+     did to it, what calibration did to it, and the margin the to-hit sum
+     added. It is one extra log line and it makes every hit legible.
+     -------------------------------------------------------------------- */
+  const dmgTag = () => {
+    const L = lastRoll;
+    if(!L || !r.dmg || r.kind === 'miss') return '';
+    const bits = [];
+    bits.push(L.dice + ' \u2192 ' + (L.raw.length > 1 ? L.raw.join('+') + '=' : '') + L.rawTotal);
+    const qm = QUALITY[L.quality] ? QUALITY[L.quality].mul : 1;
+    if(qm !== 1) bits.push(L.quality.toUpperCase() + ' \u00D7' + qm + ' \u2192 ' + L.afterQuality);
+    if(L.lvl > 1) bits.push('CAL \u00D7' + L.lvl + ' \u2192 ' + L.afterLvl);
+    if(L.pry) bits.push('pry +' + L.pry);
+    const margin = r.dmg - (L.afterLvl || L.rawTotal);
+    if(margin > 0 && r.kind !== 'crit') bits.push('margin +' + margin);
+    if(r.kind === 'crit') bits.push('CRIT \u00D72+2');
+    return '\n     ' + bits.join('  \u00B7  ') + '  =  ' + r.dmg;
+  };
+
   if(r.kind === 'execute'){ say(w.name + ' \u2192 ' + label(m) + ' DESTROYED' + tag); killMob(m); return; }
-  if(r.kind === 'reflect'){ say(w.name + ' slips \u2014 it turns on you \u2212' + r.dmg + tag); return; }
+  if(r.kind === 'reflect'){ say(w.name + ' slips \u2014 it turns on you \u2212' + r.dmg + tag + dmgTag()); return; }
   if(r.kind === 'miss'){ say(w.name + ' \u2192 ' + label(m) + ' miss' + tag); return; }
-  say(w.name + ' \u2192 ' + label(m) + ' \u2212' + r.dmg + (r.kind === 'crit' ? ' CRITICAL' : '') + tag);
+  say(w.name + ' \u2192 ' + label(m) + ' \u2212' + r.dmg + (r.kind === 'crit' ? ' CRITICAL' : '') + tag + dmgTag());
 }
 
 function fire(m){
