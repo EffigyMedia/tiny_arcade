@@ -1,3 +1,102 @@
+# THE DAMAGE ROLL IS IN THE LOG
+
+    Bone Knife → MITE L2 −4 (9) + 5 (ATK) = 14 vs (3) + 3 (DEF) = 6
+         1d6 → 3  ·  margin +1  =  4
+    Bone Knife → MITE L2 −7 (17) + 5 (ATK) = 22 vs (14) + 3 (DEF) = 17
+         1d6 → 6  ·  margin +1  =  7
+    Bone Knife → MITE L2 miss (1) + 5 (ATK) = 6 vs (5) + 3 (DEF) = 8
+
+The to-hit sum was already printed — seeing 14 against 6 is the difference
+between "bad luck" and "wrong weapon". The DAMAGE had no such line: a bare
+"−4" told you nothing about whether the dice were kind or the weapon is wrong
+for this thing.
+
+`lastRoll` records the whole line as `weaponDice` rolls it, and the log shows
+every term that touched it:
+
+    the dice        1d6, or 3×2d8+1 for a shotgun
+    the raw roll    each shot listed when there is more than one
+    QUALITY         only when it is not 1.0
+    CAL             the calibration multiplier, only above level 1
+    pry             the warden bonus, when it applies
+    margin          what the to-hit sum added
+    CRIT            ×2+2 when it lands
+
+Terms that did nothing are omitted, so a level-one knife prints `1d6 → 3 = 3`
+and a good sabre at calibration four prints the whole chain.
+
+## DERELICT IS FIXED
+
+Confirmed: `SHARD_TEXT` written, every item type picks up cleanly, 90 moves of
+real play with no error and no freeze.
+
+# DERELICT: IT WAS THE SHARD, NOT THE LAMP
+
+The guard I added caught it. Walking onto every item type in turn, through the
+real `stepInto` path:
+
+    lamp  ok    stim  ok    mod   ok    tool  ok
+    cell  ok    ammo  ok    scrap ok    key   ok
+    shard: THREW — SHARD_TEXT is not defined
+
+**`SHARD_TEXT` was referenced in two places and defined in none.** Picking up a
+shard threw inside `stepInto`, which is inside the walk loop — so `busy` was
+never cleared and the game stopped answering every tap. Quit and come back and
+it was still stuck, because the flag survives the veil.
+
+That is the hang, and it explains why the lamp looked guilty: the lamp is
+simply a pickup that often sits near a shard, and I tested the lamp in
+isolation — where it always worked.
+
+The table is written: four voices, one per omega, five recovered log fragments
+each. Verified 5 lines returned for the run's omega, every pickup passes, and
+90 moves of real play produce no error and no freeze.
+
+**What actually found it** was not more reading. It was the guard printing the
+message, and then walking onto EVERY item type instead of the one I suspected.
+I had tested the lamp three times.
+
+# ONE ENGINE — CONFIRMED, AND IT FOUND A GAP
+
+Highway and Raceway share `road.js` completely. Neither game file contains a
+single `brake:` or `grip:` — both are in the engine, and Highway reads them at
+runtime:
+
+    HIGHWAY, live:  FORMULA brake 1.85 grip 1.95   LORRY brake 0.40 grip 0.42
+
+**Checking exposed that `grip` was set on three cars only.** The other eleven
+silently defaulted to 1.0, so a formula car and a lorry cornered identically —
+and the only reason nobody noticed is that Highway has no corners worth the
+name. Every car carries it now:
+
+    CAR        TOP   GRIP  BRAKE      CAR       TOP   GRIP  BRAKE
+    FORMULA    218   1.95  1.85       MUSCLE    188   0.82  0.86
+    STALLION   206   1.34  1.30       COUPE     160   0.86  0.88
+    CREST      200   1.42  1.32       SALOON    148   0.78  0.80
+    MATADOR    194   1.38  1.28       PICKUP    136   0.64  0.68
+    CRUISER    190   0.92  1.00       CAB       132   0.70  0.72
+    ROADSTER   176   1.34  1.12       VAN       120   0.58  0.62
+    TUNER      164   1.00  1.02       LORRY      80   0.42  0.40
+
+Grip and braking track each other, which is right — both come from tyre and
+downforce — with ROADSTER the deliberate exception: it grips like a supercar
+(1.34) and stops like the road car it is (1.12).
+
+# THE THREE LEAGUES, BUILT
+
+    LEAGUE    STRAIGHT  HAIRPIN  LAP     CHARACTER
+    sports     47-60%    0%      123-136k  no hairpins, no great sweeps,
+                                           relentlessly medium
+    gt         64-74%    0-2%    168-207k  a mix, with real corners
+    formula    73-75%    1-2%    235-336k  longest straights AND the
+                                           sharpest turns
+
+That is what the research described: a grand prix circuit is not gentle, it has
+the widest RANGE. Sports is the twisty one where ROADSTER's grip pays; formula
+is where FORMULA's 1.85 braking into a hairpin decides the lap.
+
+Zero crossings on every circuit generated.
+
 # BRAKING IS A STAT — IT WAS NOT
 
 **Answering the question directly: no, the engine did not allow per-car
