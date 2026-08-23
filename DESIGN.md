@@ -1,3 +1,149 @@
+# THE GROUND UNDER THE SKYLINE, AGAIN
+
+I fixed this once by changing the base fill from purple-blue to green. Biomes
+then made it wrong a second way: a **fixed** green under a DESERT's sand, under
+a TUNDRA's slate, and under settled snow.
+
+`groundBase()` derives it from the biome's own verge colour — darkened a shade,
+whitened by `settle`, dimmed at night. It cannot drift from the verge again
+because it is computed from the same value.
+
+**A constant that happened to match is not a fix**, it is the same bug waiting
+for the next feature. The first version was only ever right for one biome
+because there was only one.
+
+# RACEWAY HAS ITS OWN TITLE
+
+Highway's title is a sunset at the end of an endless road — the wrong promise
+for a circuit racer, and it was showing HIGHWAY over it as well.
+
+Two seams:
+
+    CFG.titleArt   gets the context and geometry, returns true if it drew the
+                   scene. Anything it does not draw falls through, so a fork
+                   can replace the whole picture or none of it.
+    CFG.logoCool   the wordmark palette. `AR.wordmark(g, 'HIGHWAY', ...)` was
+    CFG.logoHot    hardcoded; it reads `GAME_TITLE` now.
+
+Raceway's is a track seen from ABOVE — the minimap idiom the game already uses,
+drawn large and floodlit, with two cars running a lap and the pit straight in
+red. **It uses the real generator**, so the title is showing a circuit the game
+could actually deal you, and the name and corner count print underneath.
+
+Cold chrome and track green against Highway's warm chrome, so the two read as
+siblings rather than reskins.
+
+# BIOMES, SNOW, AND FUEL THAT KNOWS ABOUT REVS
+
+## BIOMES — shared, and they decide the weather
+
+One record per place. The ground, the skyline and the WEATHER ODDS all come
+from it, so a desert cannot snow and a tundra is rarely dry:
+
+    BIOME       RAIN   SNOW   CLEAR   verge
+    FOREST      42%     6%     52%    deep green
+    DESERT       4%     0%     96%    sand
+    MOUNTAIN    30%    34%     36%    grey-green
+    CITY        38%    10%     52%    concrete
+    TUNDRA      10%    62%     28%    pale slate
+
+**A circuit is somewhere; a highway goes somewhere.** Raceway pins one biome per
+course through a `CFG.biome` seam — verified across six runs: TUNDRA, CITY,
+TUNDRA, MOUNTAIN, DESERT, CITY, and each stayed put for the whole race. Highway
+cycles every 70-130 seconds and announces the change.
+
+## SNOW
+
+    falls    rounder, slower, drifting sideways — not a streak leaning with
+             the speed, because that is rain
+    settles  `settle` climbs while it snows and decays slowly after, whitening
+             the verge by up to 85% toward white
+    costs    grip -52% falling and -14% more from settled snow; braking -46%
+             and -12%. Worse than rain, and it KEEPS costing after it stops.
+
+The road wash goes white rather than dark, which is the difference between a
+wet road and a covered one.
+
+## FUEL IS THROTTLE x RPM
+
+It was a function of SPEED, which is wrong: an engine drinks by how hard it is
+working and how fast it is spinning, not by how far along the road it happens to
+be.
+
+    burn = 0.30 + throttle x revFrac^1.35 x 2.15
+
+A car held at the limiter in second now burns far more than the same car loafing
+at the same speed in sixth — which is the whole reason a driver short-shifts to
+save fuel. Measured at full throttle: 100 → 91 → 82 → 73 → 64.
+
+## THE SAME ORDERING TRAP, TWICE MORE
+
+`BIOME_KEYS` was attached to the API at the END of ROAD(), but `onReset` fires
+during setup — so a fork picking its biome got `undefined`. It is a function
+attached at the top now, with the other lazy helpers.
+
+That is the third time this session a seam has needed something the API had not
+filled in yet. **Anything a seam might touch belongs at the top of the factory,
+not the bottom.**
+
+# WEATHER (SHARED) AND THE PIT LANE
+
+## WEATHER — in road.js, so Highway gets it too
+
+Rain is not a circuit idea; a wet highway is as good a reason to lift as a wet
+corner. One number, `wet`, 0 to 1, and everything reads it:
+
+    grip      falls to 62% of dry — `cornerG` rises and the car runs wide
+    braking   falls to 68%, which is what actually catches people out
+    look      the road darkens and picks up a sheen; 90 streaks lean with speed
+
+It builds and clears over 35-80 seconds rather than switching, so a run HAS
+weather rather than a weather setting. `optWeather` selects dry, mixed or wet.
+
+**A grip change nobody can see is a bug report**, which is why the visuals went
+in at the same time as the physics rather than after.
+
+## FUEL, TYRES AND THE PIT LANE — Raceway
+
+    FUEL   burns with the THROTTLE, not with time, so a lap at full noise costs
+           more than a lap spent braking
+    TYRES  wear with LATERAL load, so corners eat them and straights do not
+    PIT    the last 9% of the lap. Under 60mph the crew works — fuel in at a
+           fixed rate, tyres back to new. The time lost is the price.
+
+Measured over 24 seconds at full throttle:
+
+    fuel 100 → 94 → 88 → 81 → 74 → 69 → 65
+    tyre 100 → 100 → 99 → 98 → 97 → 97 → 97
+    HUD  LAP 1/5   FUEL 65%   M 97%
+
+Fuel is the pressure on a short race and tyres on a long one, which is the
+split that makes compound choice a decision. Three compounds are defined —
+SOFT grips 1.10 and wears 1.70, HARD 0.92 and 0.62 — though the tyre grip is
+not yet wired into `cornerG`.
+
+## TWO FAILURES WORTH RECORDING
+
+**A `const` in the temporal dead zone.** `hudScore` is called during ROAD()'s
+setup, before the game file has finished executing, so `const COMPOUNDS` threw
+`COMPOUNDS is not defined` and took the whole game down. `var` hoists, which is
+what a value the engine may ask for during construction needs.
+
+**An edit that silently did nothing.** My anchor was `let R = {}`, which an
+earlier pass had already changed to a Proxy — so the definitions never landed
+while the CODE THAT USED THEM did. The game loaded, threw on the first frame,
+and reported fuel 100 forever. A replace that matches nothing should be an
+error, not a no-op; I check the grep count after every edit now for exactly
+this reason and skipped it here.
+
+## STILL TO DO
+
+    pole position lap     qualifying — the time-trial mode with a grid result
+    start/finish line     a visible gantry and lights
+    tyre grip → cornerG   defined but not yet connected
+    pit road ART          it is a speed zone with no visual yet
+    flags, environments, bridges
+
 # THE FRONT LIGHT BAR
 
 The tail drew one for any `force` body and the nose drew none, so the super

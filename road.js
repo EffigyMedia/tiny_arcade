@@ -38,6 +38,9 @@ window.ROAD = function(CFG){
   var API = {};
   CFG.api = API;
   API.rnd    = function(a,b){ return rnd(a,b); };
+  /* attached here, not at the end: `onReset` fires during setup and a fork
+     picking its biome needs the list before ROAD() returns */
+  API.BIOME_KEYS = function(){ return BIOME_KEYS; };
   API.rint   = function(a,b){ return rint(a,b); };
   API.rr     = function(g,x,y,w,h,r){ return rr(g,x,y,w,h,r); };
   API.segAt  = function(segs,z){ return segAt(segs,z); };
@@ -820,7 +823,7 @@ function updateViewShift(){
    ------------------------------------------------------------------------ */
 const CORNER_G_BASE = 0.42, CORNER_LAG = 1.8;
 function cornerG(){
-  const g = (BODY[optBody] && BODY[optBody].grip) || 1;
+  const g = ((BODY[optBody] && BODY[optBody].grip) || 1) * wetGrip();
   return CORNER_G_BASE / g;
 }
 
@@ -3118,6 +3121,7 @@ function trafficPaint(seed){
   const c = TRAFFIC_PAINT[Math.abs(seed|0) % TRAFFIC_PAINT.length];
   return { body:c.body, hi:c.hi, lo:c.lo, lamp:'#c8102e' };
 }
+let optWeather = 'mixed';
 let optPaint = 'WHITE', optEasy = true, optMirror = 'FULL';   /* no cops unless HOT PURSUIT is on */
 /* the cars a RIVAL may be given: the three you start with, and nothing else.
    An unlock you had to win a tournament for should not be sitting on the grid
@@ -4110,6 +4114,111 @@ function autoGear(dt){
 
 let brakeLamp = 0;
 let slipT = 0, coasting = false, runSeconds = 0;
+
+/* ===========================================================================
+   WEATHER
+
+   Shared, because rain is not a circuit idea — a wet highway is as good a
+   reason to lift as a wet corner. One number, `wet`, from 0 to 1, and
+   everything reads it:
+
+     grip      falls to 62% of dry, so `cornerG` rises and the car runs wide
+     braking   falls to 68%, which is what actually catches people out
+     spray     the car ahead throws a plume; the slipstream still works but
+               you cannot see through it
+     light     the sky darkens and the road turns reflective
+
+   It builds and clears over minutes rather than switching, so a run has
+   weather rather than a weather SETTING.
+   =========================================================================== */
+/* ===========================================================================
+   BIOMES
+
+   The ground, the skyline and the WEATHER ODDS all come from one record, so a
+   desert cannot snow and a tundra is rarely dry. Shared, because Highway
+   drives through them and Raceway builds a circuit in one.
+
+     rain / snow   the chance a front is that kind. They need not sum to 1 —
+                   what is left over is clear weather.
+     grass         two shades, the verge gradient
+     sky           the horizon tint the sun sets into
+     city          how built-up the skyline silhouette is, 0 to 1
+   =========================================================================== */
+const BIOMES = {
+  FOREST:   { name:'FOREST',   rain:0.42, snow:0.06,
+              grassLo:'#1d3a24', grassHi:'#2a4f31',
+              sky:'#3a2c52', city:0.18, trees:0.85 },
+  DESERT:   { name:'DESERT',   rain:0.04, snow:0.00,
+              grassLo:'#6b5330', grassHi:'#8a6d42',
+              sky:'#5a3520', city:0.05, trees:0.05 },
+  MOUNTAIN: { name:'MOUNTAIN', rain:0.30, snow:0.34,
+              grassLo:'#2b3a33', grassHi:'#3c4f45',
+              sky:'#33405e', city:0.10, trees:0.55 },
+  CITY:     { name:'CITY',     rain:0.38, snow:0.10,
+              grassLo:'#2c2f36', grassHi:'#3b3f48',
+              sky:'#2a2438', city:1.00, trees:0.10 },
+  TUNDRA:   { name:'TUNDRA',   rain:0.10, snow:0.62,
+              grassLo:'#3e4a52', grassHi:'#54626c',
+              sky:'#2e3c50', city:0.06, trees:0.22 }
+};
+const BIOME_KEYS = Object.keys(BIOMES);
+let biome = 'FOREST';
+function bio(){ return BIOMES[biome] || BIOMES.FOREST; }
+
+/* `wet` is any precipitation; `snowy` says which kind it is. Snow whitens the
+   ground as it settles, which is the part you actually see. */
+let wet = 0, wetTarget = 0, wetNext = 0, snowy = 0, settle = 0;
+
+/* ---- HIGHWAY MOVES THROUGH THEM; RACEWAY SITS IN ONE ------------------
+   A circuit is somewhere. A highway goes somewhere, so it changes biome every
+   few miles — and the weather changes with it, which is why a desert stretch
+   feels different from a mountain one without anything else being said.
+   ---------------------------------------------------------------------- */
+let biomeNext = 0;
+function stepBiome(dt){
+  if(CFG.biome){ biome = CFG.biome(); return; }   /* a fork can pin it */
+  biomeNext -= dt;
+  if(biomeNext <= 0){
+    if(biomeNext < -1){                            /* first call: pick one */
+      biome = BIOME_KEYS[(Math.random()*BIOME_KEYS.length)|0];
+    } else {
+      let k = biome;
+      while(k === biome) k = BIOME_KEYS[(Math.random()*BIOME_KEYS.length)|0];
+      biome = k;
+      flashWarn(bio().name);
+    }
+    biomeNext = rnd(70, 130);
+  }
+}
+
+function stepWeather(dt){
+  if(optWeather === 'dry'){ wet = wetTarget = 0; return; }
+  wetNext -= dt;
+  if(wetNext <= 0){
+    /* ---- THE BIOME DECIDES WHAT FALLS ---------------------------------
+       A desert has a 4% chance of rain and none at all of snow; a tundra
+       snows more often than not. The roll is against the biome, so weather
+       belongs to a place rather than to a slider. */
+    const B = bio();
+    const r = Math.random();
+    if(r < B.snow)              { wetTarget = rnd(0.45, 1.0); snowy = 1; }
+    else if(r < B.snow + B.rain){ wetTarget = rnd(0.35, 0.95); snowy = 0; }
+    else                        { wetTarget = 0; }
+    if(optWeather === 'wet' && wetTarget === 0){ wetTarget = rnd(0.5,0.9); snowy = B.snow > B.rain ? 1 : 0; }
+    wetNext = rnd(35, 80);
+  }
+  /* snow SETTLES: it whitens the ground long after it stops falling */
+  const want = snowy ? wet : 0;
+  settle += (want - settle) * Math.min(1, dt * (want > settle ? 0.10 : 0.03));
+  /* rain arrives faster than a road dries */
+  const rate = wetTarget > wet ? 0.22 : 0.055;
+  wet += (wetTarget - wet) * Math.min(1, dt * rate * 3);
+}
+
+/* the two things weather actually changes */
+/* snow is worse than rain, and settled snow keeps costing after it stops */
+function wetGrip(){  return 1 - wet * (snowy ? 0.52 : 0.38) - settle * 0.14; }
+function wetBrake(){ return 1 - wet * (snowy ? 0.46 : 0.32) - settle * 0.12; }
 let horning = false, hornCool = 0, bustT = 0, behindT = 2, slowFor = 0, audioTick = 0, bendT = 0, skySmooth = 0, pushK = 0;
 
 /* ---- rubber on the road --------------------------------------------------
@@ -5589,7 +5698,7 @@ function step(dt){
      a road car most sharply.
 
      `brake` multiplies the base rate, so 1.0 is what every car used to have. */
-  const rate = braking ? 9000 * bodyStat('brake')
+  const rate = braking ? 9000 * bodyStat('brake') * wetBrake()
              : overRun ? 5200         /* aero drag above the limiter is brutal */
              : !onGas ? 420           /* neutral: it rolls, it does not stop */
              /* It felt sluggish because the base rate FELL as you gained speed
@@ -5675,6 +5784,8 @@ function step(dt){
   }
 
   if(state === 'driving') runSeconds += dt;
+  stepBiome(dt);
+  stepWeather(dt);
   if(CFG.onStep) CFG.onStep(dt);
 
   /* ---- THE AI BRINGS IT HOME -----------------------------------------
@@ -6458,6 +6569,17 @@ function drawBody(b, kind){
   ctx.restore();
 }
 
+/* the verge colour, darkened, whitened by settled snow, dimmed at night */
+function groundBase(){
+  const B = bio();
+  const n = parseInt(B.grassLo.slice(1), 16);
+  let r = (n>>16&255), g2 = (n>>8&255), b2 = (n&255);
+  const t = settle * 0.85;
+  r = Math.round(r + (238-r)*t); g2 = Math.round(g2 + (238-g2)*t); b2 = Math.round(b2 + (238-b2)*t);
+  const dim = nightFall() > 0.5 ? 0.72 : 0.88;
+  return 'rgb(' + Math.round(r*dim) + ',' + Math.round(g2*dim) + ',' + Math.round(b2*dim) + ')';
+}
+
 function drawSky(){
   const n = nightFall(), gold = goldenHour();
   /* day sky under night sky, crossfaded; the golden band on top of both */
@@ -6582,11 +6704,23 @@ function drawHaze(){
      every frame regardless of the hour — which is the wash that kept coming
      back. It is a neutral atmospheric haze now: cool grey-blue, the colour
      distance actually is, and it thins out at night instead of glowing. */
-  const d = H*0.13;
-  const a = 0.50;
+  /* ---- IT WAS HALF OPAQUE ---------------------------------------------
+     `a = 0.50` over a band 13% of screen height, painted AFTER the road — so
+     a solid grey-blue veil sat across the far verge, the skyline base and the
+     first stretch of tarmac every frame. That is the ghosting: not a colour
+     mismatch, a translucent sheet drawn on top of the scene.
+
+     Real distance haze is barely there. 0.16 over 7% reads as depth; 0.50
+     over 13% reads as fog on the lens. And it is FADED OUT at the very top
+     rather than starting at full strength, so it never draws a hard edge
+     along the horizon line.
+     ------------------------------------------------------------------- */
+  const d = H*0.07;
+  const a = 0.16;
   const g = ctx.createLinearGradient(0, horizon-2, 0, horizon+d);
-  g.addColorStop(0,    hazeTint(a));
-  g.addColorStop(0.35, hazeTint(a*0.38));
+  g.addColorStop(0,    hazeTint(a*0.55));   /* soft at the line itself */
+  g.addColorStop(0.18, hazeTint(a));
+  g.addColorStop(0.55, hazeTint(a*0.28));
   g.addColorStop(1,    hazeTint(0));
   ctx.fillStyle=g; ctx.fillRect(0,horizon-2,W,d+2);
 }
@@ -6720,8 +6854,16 @@ function drawRoad(){
     /* GRASS, as Out Run has it — the land either side is green, banded like
        the tarmac so it strobes past at speed, and it takes the sky's own
        light so it goes deep and blue at night rather than staying lit. */
-    const grassLo = dark ? '#1d3a24' : '#24462b';
-    const grassHi = dark ? '#2a4f31' : '#33603b';
+    /* the biome's own verge, lifted toward white as snow settles on it */
+    const B = bio();
+    const mixW = (a, t) => {
+      const n = parseInt(a.slice(1), 16);
+      const r = (n>>16&255), g2 = (n>>8&255), b2 = (n&255);
+      const m = v => Math.round(v + (238 - v) * t);
+      return 'rgb(' + m(r) + ',' + m(g2) + ',' + m(b2) + ')';
+    };
+    const grassLo = mixW(B.grassLo, settle * 0.85);
+    const grassHi = mixW(B.grassHi, settle * 0.85);
     /* `gold` lives in the sky function, so the tint is taken from the day
        cycle directly rather than a variable that is not in scope here. */
     const nAmt = nightFall(), gAmt = goldenHour();
@@ -7372,6 +7514,63 @@ function drawPlayer(){
   ctx.globalCompositeOperation='source-over';
 }
 
+/* ---- YOU HAVE TO SEE IT ------------------------------------------------
+   A grip change nobody can see is a bug report. Rain streaks the glass, the
+   scene darkens, and the road picks up a sheen that brightens with the wet.
+   ------------------------------------------------------------------------ */
+let rainDrops = null;
+function drawRain(){
+  if(wet < 0.02) return;
+  if(!rainDrops || rainDrops.length !== 90){
+    rainDrops = [];
+    for(let i = 0; i < 90; i++)
+      rainDrops.push({ x:Math.random(), y:Math.random(), v:0.5+Math.random(), l:0.5+Math.random() });
+  }
+  /* the road goes dark and reflective */
+  ctx.save();
+  ctx.fillStyle = snowy > 0.5 ? 'rgba(210,225,245,' + (wet*0.16 + settle*0.22) + ')'
+                              : 'rgba(12,18,30,' + (wet*0.26) + ')';
+  ctx.fillRect(0, horizon, W, H - horizon);
+  ctx.globalCompositeOperation = 'lighter';
+  const sheen = ctx.createLinearGradient(0, horizon, 0, H);
+  sheen.addColorStop(0, 'rgba(150,180,220,' + (wet*0.10) + ')');
+  sheen.addColorStop(1, 'rgba(150,180,220,0)');
+  ctx.fillStyle = sheen;
+  ctx.fillRect(0, horizon, W, H - horizon);
+  ctx.restore();
+
+  ctx.save();
+  if(snowy > 0.5){
+    /* ---- SNOW FALLS, IT DOES NOT STREAK -------------------------------
+       Rain is a line; snow is a flake that drifts. Slower, rounder, and it
+       wanders sideways instead of leaning with the speed. */
+    ctx.fillStyle = 'rgba(250,252,255,' + (0.28 + wet*0.45) + ')';
+    for(const d of rainDrops){
+      d.y += (0.0030 + d.v*0.0045) * (1 + spd/MAX_SPD*1.1);
+      if(d.y > 1){ d.y = -0.05; d.x = Math.random(); }
+      const drift = Math.sin((d.y*7 + d.v*6)) * W*0.02;
+      const r = Math.max(1, W*0.004*d.l);
+      ctx.beginPath();
+      ctx.arc(d.x*W + drift, d.y*H, r, 0, 6.2832);
+      ctx.fill();
+    }
+  } else {
+    /* the streaks on the glass, leaning with the speed */
+    ctx.strokeStyle = 'rgba(190,215,255,' + (0.10 + wet*0.22) + ')';
+    ctx.lineWidth = Math.max(1, W*0.0028);
+    const lean = 0.10 + (spd/MAX_SPD)*0.42;
+    for(const d of rainDrops){
+      d.y += (0.010 + d.v*0.016) * (1 + spd/MAX_SPD*2.2);
+      if(d.y > 1){ d.y = -0.05; d.x = Math.random(); }
+      const x = d.x*W, y = d.y*H, len = H*0.035*d.l*(1 + spd/MAX_SPD);
+      ctx.beginPath();
+      ctx.moveTo(x, y); ctx.lineTo(x - len*lean, y + len);
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
+
 function drawSpeedLines(){
   const v = clamp((spd - MAX_SPD*0.55)/(MAX_SPD*1.20 - MAX_SPD*0.55), 0, 1);
   if(v <= 0.02 || reduceMotion) return;
@@ -7462,13 +7661,23 @@ function draw(){
      a shade darker, so a gap in the geometry reads as more grass rather than
      as a hole into the sky.
      ------------------------------------------------------------------- */
-  ctx.fillStyle = nightFall() > 0.5 ? '#162a1c' : '#1d3823';
+  /* ---- THE BASE MUST MATCH THE VERGE ---------------------------------
+     Fixed green. So a DESERT showed a green band under its sand, a TUNDRA a
+     green band under its slate, and snow settled on the verge while the
+     ground beneath it stayed summer green — which is the clipping you can see
+     wherever the road crests above the skyline.
+
+     It is the same colour the verge uses, darkened a shade, so a gap in the
+     geometry reads as more ground rather than as a different place.
+     ------------------------------------------------------------------- */
+  ctx.fillStyle = groundBase();
   ctx.fillRect(0, horizon, W, H-horizon);
   drawWorld();          /* buckets the sprites */
   drawRoad();           /* paints the road AND emits them, far to near */
   drawHaze();
   drawPursuitWash();
   drawPlayer();
+  drawRain();
   drawSpeedLines();
   drawFx();
   if(CFG.afterDraw) CFG.afterDraw(ctx);
@@ -8365,10 +8574,14 @@ let titleCv = null, titleT = 0;
 
 /* the alphabet and the shell treatment are shared — see Arcade.wordmark */
 function drawLogo(g, cx, cy, size){
-  AR.wordmark(g, 'HIGHWAY', cx, cy, size, {
+  /* ---- THE WORDMARK IS THE GAME'S OWN ---------------------------------
+     'HIGHWAY' was hardcoded, so Raceway drew a circuit under Highway's name.
+     The title comes from CFG, and a fork can bring its own palette — warm
+     chrome for a sunset road, cold green for a floodlit circuit. */
+  AR.wordmark(g, (GAME_TITLE || 'Highway').toUpperCase(), cx, cy, size, {
     maxW: titleCv.clientWidth * 0.88,
-    cool: ['#f6f8ff','#9fb2d8','#e9eefc'],
-    hot:  ['#ffd27a','#ff8a2b','#c93c1f']
+    cool: (CFG.logoCool || ['#f6f8ff','#9fb2d8','#e9eefc']),
+    hot:  (CFG.logoHot  || ['#ffd27a','#ff8a2b','#c93c1f'])
   });
 }
 
@@ -8383,6 +8596,17 @@ function drawTitleArt(){
   if(titleCv.width !== w*dpr){ titleCv.width = w*dpr; titleCv.height = h*dpr; }
   g.setTransform(dpr,0,0,dpr,0,0);
   const hz = h * 0.52;
+  /* ---- A FORK CAN PAINT ITS OWN ---------------------------------------
+     Raceway was showing Highway's sunset because the title art was hardcoded.
+     `CFG.titleArt` gets the context and the geometry and returns true if it
+     drew everything; anything it does not draw falls through to the highway
+     scene below, so a fork can replace the whole picture or none of it. */
+  if(CFG.titleArt && CFG.titleArt(g, w, h, T)){
+    drawLogo(g, w*0.5, h*0.235, Math.min(w*0.155, 74));
+    if(document.body.classList.contains('titling'))
+      requestAnimationFrame(drawTitleArt);
+    return;
+  }
 
   /* ---- sky ---------------------------------------------------------------
      Six stops, not four: the band right above the horizon is where all the
@@ -9045,6 +9269,14 @@ requestAnimationFrame(frameLoop);
   API.segAt = segAt; API.rr = rr; API.rnd = rnd; API.rint = rint;
   API.flashWarn = flashWarn; API.snd = snd;
   API.horizon = function(){ return horizon; };
+  API.wet = function(){ return +wet.toFixed(3); };
+  API.snowy = function(){ return snowy; };
+  API.settle = function(){ return +settle.toFixed(3); };
+  API.biome = function(){ return biome; };
+  API.throttle = function(){ return (gas||nosOn) ? 1 : 0; };
+  API.revs = function(){ return engineRpm(); };
+  API.redline = function(){ return redline(); };
+  API.setWet = function(v){ wet = wetTarget = v; };
   API.hp = function(){ return bodyHp(); };
   API.setBody = function(k){ optBody = k; buildSprites(); };
   API.launchKick = function(){ return launchKick; };
