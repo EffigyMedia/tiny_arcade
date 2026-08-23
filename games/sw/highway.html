@@ -1958,6 +1958,18 @@ function paintRigFront(kind, o){
        That is a silhouette you can name at a glance from either end, and it
        costs one branch — skip the cabin, draw the hoop.
        ------------------------------------------------------------------- */
+    /* ---- THE ROADSTER, WITH ITS ROOF ON --------------------------------
+       An open cockpit needs a driver in it, and a car with an empty hole where
+       a person should be looks broken — which is exactly how my first attempt
+       read. So the roof stays and the DIFFERENCE moves to proportion:
+
+         a very low, short cabin set well back
+         twin speedster humps on the deck behind it
+         no wing at all
+
+       A roadster with the top up is still unmistakably not a coupe, and
+       nobody has to be drawn sitting in it.
+       ------------------------------------------------------------------- */
     const isOpen = kind === 'roadster';
     const isTuner  = kind === 'tuner';
     /* ---- THE MUSCLE CAR ---------------------------------------------------
@@ -1967,10 +1979,10 @@ function paintRigFront(kind, o){
        almost-nothing the tuner did. */
     const isMuscle = kind === 'muscle';
     const isCoupe = kind === 'coupe' || isTuner || isMuscle || isOpen;
-    const roofY = h*(isMuscle ? 0.20 : isCoupe ? 0.22 : 0.16);
+    const roofY = h*(isOpen ? 0.30 : isMuscle ? 0.20 : isCoupe ? 0.22 : 0.16);
     const deckY = h*(isCoupe ? 0.52 : 0.48);
     const bot   = cy - h*0.075;
-    const cabW  = isMuscle ? 0.48 : isCoupe ? 0.44 : 0.52;
+    const cabW  = isOpen ? 0.38 : isMuscle ? 0.48 : isCoupe ? 0.44 : 0.52;
 
     const pRoof = roofY, pDeck = deckY, pCab = cabW;
 
@@ -1980,29 +1992,6 @@ function paintRigFront(kind, o){
       rr(g, w*0.16, pRoof + h*0.030, w*0.68, h*0.028, 3); g.fill();
     }
 
-    if(kind === 'roadster'){
-      /* seen head on, an open car shows the WINDSCREEN and the hoop behind it,
-         not a cabin — a low raked screen and two fairings peeking over it */
-      g.fillStyle = '#2b3038';
-      g.beginPath();
-      g.moveTo(w*(0.5-pCab*0.40), pDeck);
-      g.lineTo(w*(0.5+pCab*0.40), pDeck);
-      g.lineTo(w*(0.5+pCab*0.30), pDeck - h*0.085);
-      g.lineTo(w*(0.5-pCab*0.30), pDeck - h*0.085);
-      g.closePath(); g.fill();
-      g.fillStyle = 'rgba(120,160,200,.20)';
-      g.beginPath();
-      g.moveTo(w*(0.5-pCab*0.36), pDeck - h*0.006);
-      g.lineTo(w*(0.5+pCab*0.36), pDeck - h*0.006);
-      g.lineTo(w*(0.5+pCab*0.27), pDeck - h*0.078);
-      g.lineTo(w*(0.5-pCab*0.27), pDeck - h*0.078);
-      g.closePath(); g.fill();
-      for(const sx of [-1,1]){
-        g.fillStyle = P.lo;
-        rr(g, w*0.5 + sx*w*0.145 - w*0.048, pDeck - h*0.120,
-           w*0.096, h*0.048, h*0.020); g.fill();
-      }
-    } else {
     /* the greenhouse: the rear's own trapezium, mirrored */
     g.fillStyle = P.lo;
     g.beginPath();
@@ -2026,7 +2015,6 @@ function paintRigFront(kind, o){
     g.lineTo(w*(0.5+pCab/2-0.02), pRoof+h*0.070);
     g.lineTo(w*(0.5-pCab/2+0.02), pRoof+h*0.070);
     g.closePath(); g.fill();
-    }
 
     /* the body: 0.055 to 0.945, exactly as the back */
     g.fillStyle = grad(pDeck, bot);
@@ -2316,6 +2304,18 @@ function paintRig(kind, o){
        That is a silhouette you can name at a glance from either end, and it
        costs one branch — skip the cabin, draw the hoop.
        ------------------------------------------------------------------- */
+    /* ---- THE ROADSTER, WITH ITS ROOF ON --------------------------------
+       An open cockpit needs a driver in it, and a car with an empty hole where
+       a person should be looks broken — which is exactly how my first attempt
+       read. So the roof stays and the DIFFERENCE moves to proportion:
+
+         a very low, short cabin set well back
+         twin speedster humps on the deck behind it
+         no wing at all
+
+       A roadster with the top up is still unmistakably not a coupe, and
+       nobody has to be drawn sitting in it.
+       ------------------------------------------------------------------- */
     const isOpen = kind === 'roadster';
     const isTuner  = kind === 'tuner';
     /* ---- THE MUSCLE CAR ---------------------------------------------------
@@ -2325,31 +2325,11 @@ function paintRig(kind, o){
        almost-nothing the tuner did. */
     const isMuscle = kind === 'muscle';
     const isCoupe = kind === 'coupe' || isTuner || isMuscle || isOpen;
-    const roofY = h*(isMuscle ? 0.20 : isCoupe ? 0.22 : 0.16);
+    const roofY = h*(isOpen ? 0.30 : isMuscle ? 0.20 : isCoupe ? 0.22 : 0.16);
     const deckY = h*(isCoupe ? 0.52 : 0.48);
     const bot   = cy - h*0.075;
-    const cabW  = isMuscle ? 0.48 : isCoupe ? 0.44 : 0.52;
+    const cabW  = isOpen ? 0.38 : isMuscle ? 0.48 : isCoupe ? 0.44 : 0.52;
 
-    if(isOpen){
-      /* the cockpit opening: a dark well where a cabin would be */
-      g.fillStyle = '#0d1016';
-      rr(g, w*(0.5-cabW*0.46), deckY - h*0.075, w*cabW*0.92, h*0.095, h*0.02); g.fill();
-      /* two headrest fairings, and the hoop between them */
-      for(const sx of [-1,1]){
-        g.fillStyle = P.lo;
-        rr(g, w*0.5 + sx*w*0.145 - w*0.055, deckY - h*0.130,
-           w*0.110, h*0.070, h*0.026); g.fill();
-        g.fillStyle = 'rgba(255,255,255,.10)';
-        rr(g, w*0.5 + sx*w*0.145 - w*0.055, deckY - h*0.130,
-           w*0.110, h*0.018, h*0.012); g.fill();
-      }
-      g.strokeStyle = '#2b3038';
-      g.lineWidth = Math.max(2, w*0.022);
-      g.beginPath();
-      g.moveTo(w*0.5 - w*0.115, deckY - h*0.095);
-      g.quadraticCurveTo(w*0.5, deckY - h*0.185, w*0.5 + w*0.115, deckY - h*0.095);
-      g.stroke();
-    } else {
     /* the greenhouse: narrower than the body, and raked on a coupe */
     g.fillStyle = P.lo;
     g.beginPath();
@@ -2391,6 +2371,19 @@ function paintRig(kind, o){
       g.fillStyle='rgba(255,255,255,.18)';
       g.beginPath(); g.ellipse(w*sx, hipY-h*0.004, w*0.065, h*0.014, 0, 0, 6.2832); g.fill();
     }
+    /* the twin humps behind the cabin — the one thing on the back of a
+       roadster that no other body has */
+    if(isOpen){
+      for(const sx of [-1,1]){
+        g.fillStyle = P.lo;
+        rr(g, w*0.5 + sx*w*0.135 - w*0.062, deckY - h*0.052,
+           w*0.124, h*0.062, h*0.028); g.fill();
+        g.fillStyle = 'rgba(255,255,255,.16)';
+        rr(g, w*0.5 + sx*w*0.135 - w*0.062, deckY - h*0.052,
+           w*0.124, h*0.016, h*0.010); g.fill();
+      }
+    }
+
     /* the boot shut line, which is what says saloon */
     if(!isCoupe){
       g.strokeStyle='rgba(0,0,0,.26)'; g.lineWidth=Math.max(1,w*0.006);
