@@ -894,7 +894,7 @@ var snd = {
       snd.sqC = AR.sfx.hold({ freq:1412, type:'sawtooth', cutoff:3600, q:6, detune:-16 });
       snd.screechLow = AR.sfx.holdNoise({ freq:320, q:0.7 });   /* the scrub */
     }
-    AR.music.start(152, 4, snd.bed);
+    AR.music.start(152, 4, snd.bed); menuBedOn = false;
   },
 
   shift: function(g){
@@ -904,19 +904,27 @@ var snd = {
     if(into < 1 || into > 4){
       /* NEUTRAL: the lever falls into the middle of the gate with nothing to
          engage, so it is softer, hollower and has no engagement thud. */
-      AR.sfx.noise({ t, freq:900, to:420, dur:0.045, gain:0.048, filter:'bandpass' });
-      AR.sfx.tone({ t:t+0.012, freq:150, to:112, dur:0.075, type:'triangle',
-                    gain:0.042, cutoff:700 });
+      /* still softer than an engaged gear, but audible */
+      AR.sfx.noise({ t, freq:900, to:420, dur:0.070, gain:0.140, filter:'bandpass' });
+      AR.sfx.tone({ t:t+0.014, freq:150, to:112, dur:0.110, type:'triangle',
+                    gain:0.125, cutoff:700 });
       return;
     }
-    /* Into gear: three layers — the rod knocking through the gate, the collar
-       engaging, and a short metallic ring off the linkage. */
-    AR.sfx.noise({ t, freq:2100, to:700, dur:0.035, gain:0.070, filter:'bandpass' });
-    AR.sfx.noise({ t:t+0.018, freq:420, to:140, dur:0.075, gain:0.090, filter:'lowpass' });
-    AR.sfx.tone({ t:t+0.020, freq:196, to:124, dur:0.085, type:'square',
-                  gain:0.062, cutoff:1100 });
-    AR.sfx.tone({ t:t+0.026, freq:1560, to:1180, dur:0.055, type:'sine',
-                  gain:0.030, verb:0.25 });
+    /* ---- A SHIFT YOU CAN HEAR --------------------------------------------
+       Three layers at 0.07 gain across 35 milliseconds, under a running
+       engine, wind and tyres — correct in shape and inaudible in practice, the
+       same fault as the countdown beep.
+
+       Roughly tripled, and lengthened: a 35ms knock is a click at any volume,
+       so the collar and the ring get long enough to register as a mechanism
+       rather than a tick.
+       -------------------------------------------------------------------- */
+    AR.sfx.noise({ t, freq:2400, to:700, dur:0.055, gain:0.200, filter:'bandpass' });
+    AR.sfx.noise({ t:t+0.020, freq:420, to:140, dur:0.115, gain:0.260, filter:'lowpass' });
+    AR.sfx.tone({ t:t+0.022, freq:196, to:124, dur:0.130, type:'square',
+                  gain:0.185, cutoff:1200 });
+    AR.sfx.tone({ t:t+0.028, freq:1560, to:1180, dur:0.090, type:'sine',
+                  gain:0.095, verb:0.25 });
   },
 
   warnCop: function(){
@@ -1025,9 +1033,10 @@ var snd = {
     for(i2=0;i2<near.length;i2++){
       cc = near[i2];
       dd = Math.abs(cc.z - pos);
-      want += Math.pow(Math.max(0, 1 - dd/36000), 2);
+      want += Math.pow(Math.max(0, 1 - dd/36000), 1.4);
     }
-    var TRAFFIC_CEIL = 3.4;          /* in units of one voice at full level */
+    /* the ceiling rises with the level, or normalising would just undo it */
+    var TRAFFIC_CEIL = 5.0;          /* in units of one voice at full level */
     snd.tScale = want > TRAFFIC_CEIL ? TRAFFIC_CEIL / want : 1;
 
     for(var v=0; v<snd.voices.length; v++){
@@ -1058,13 +1067,31 @@ var snd = {
          60mph is near its limit where a coupe at 60 is barely off idle */
       var rr = Math.min(1, (c.spd || c.cruise || 0) / (MAX_SPD * ceil));
       var hz = (54 + rr*rr*250 + rr*95) * pitch;
+      /* ---- DOPPLER ------------------------------------------------------
+         Approaching traffic should sit sharp and drop as it passes. The shift
+         is driven by the CLOSING speed — its speed relative to yours — and
+         signed by which side of you it is on, so the drop happens exactly as
+         it goes by rather than fading in and out at one pitch. */
+      var closing = ((c.spd || c.cruise || 0) - spd) / MAX_SPD;   /* -1 .. +1 */
+      var side    = d > 0 ? 1 : -1;      /* ahead of you, or behind */
+      hz *= 1 + clamp(-closing * side, -0.5, 0.5) * 0.16;
       /* PLACEMENT: lateral offset, exaggerated as it gets close, because a
          car alongside is hard left or hard right and one far ahead is centred */
       var lateral = ((c.x || 0) - playerX);
       /* same correction: "close" is thousands of units, not hundreds */
       var closeness = 1 - Math.min(1, dist / 14000);
       vo.a.place(clamp(lateral * (0.9 + closeness*1.9), -1, 1), 0.07);
-      vo.a.set(hz, 0.058 * fall * fall * snd.tScale, 300 + rr*900, 0.07);
+      /* ---- LOUD ENOUGH TO HEAR IT MOVE ---------------------------------
+         0.058 with a SQUARED falloff meant a car at half distance was at a
+         quarter level and a car at the horizon was inaudible — so the panning
+         and the pitch shift were happening below the threshold where anyone
+         could notice them. The effects were correct and unhearable.
+
+         0.115 and a gentler falloff (`fall^1.4`): near enough double at close
+         range, and far more than double in the middle distance, which is
+         exactly where a car crossing the stereo field is most interesting.
+         ---------------------------------------------------------------- */
+      vo.a.set(hz, 0.115 * Math.pow(fall, 1.4) * snd.tScale, 300 + rr*900, 0.07);
     }
   },
 
@@ -1145,12 +1172,29 @@ var snd = {
   /* the last five seconds: a hard pip, rising as it runs out */
   tick: function(secondsLeft){
     if(!AR) return;
+    /* ---- LOUD ENOUGH TO BE A WARNING -------------------------------------
+       This fired correctly all five times and nobody ever heard it: a 0.09s
+       square at 0.075 gain, against an engine, wind, tyres, traffic and music.
+       A crash is 0.26. The last five seconds of a run deserve at least that.
+
+       Three parts, so it reads as a COUNTDOWN and not a blip:
+         - a hard pip that rises a step each second
+         - a low body under it, so it has weight on a phone speaker
+         - the last one is a longer, higher tone — you can hear which beep
+           was the final one without looking at the clock
+       -------------------------------------------------------------------- */
     const up = (6 - secondsLeft);
-    AR.sfx.tone({ freq: 660 + up*110, dur: 0.09, type:'square',
-                  gain: 0.075, cutoff: 3000 });
-    if(secondsLeft <= 1)
-      AR.sfx.tone({ t: AR.audio.now()+0.10, freq: 990, dur: 0.30,
-                    type:'square', gain: 0.07, cutoff: 3200 });
+    const f  = 720 + up*130;
+    AR.sfx.tone({ freq: f, dur: 0.16, type:'square',
+                  gain: 0.30, cutoff: 3400, q:1.5 });
+    AR.sfx.tone({ freq: f/2, dur: 0.13, type:'triangle',
+                  gain: 0.16, cutoff: 1400 });
+    if(secondsLeft <= 1){
+      AR.sfx.tone({ t: AR.audio.now()+0.13, freq: 1320, dur: 0.55,
+                    type:'square', gain: 0.26, cutoff: 3600, verb:0.35 });
+      AR.sfx.tone({ t: AR.audio.now()+0.13, freq: 660, dur: 0.50,
+                    type:'triangle', gain: 0.14, cutoff: 1600 });
+    }
   },
 
   bed: function(step, t){
@@ -3838,6 +3882,14 @@ function reset(){
   gear=1; idleRev=IDLE; autoHold=0; autoDownT=0;
   if(typeof knobRail !== 'undefined'){ knobRail=0; knobY=TOP_Y; }
   dmg=0; nos=40; nosOn=false; nosTime=0; bustT=0;
+  /* ---- ROLLING START --------------------------------------------------
+     Starting at a dead stop in first meant every run began with four seconds
+     of nothing while the car got out of its own way — and after the
+     acceleration retune that got worse, not better. You start MOVING, in the
+     middle of second, which is where a race actually begins.
+     ------------------------------------------------------------------- */
+  gear = 2;
+  spd = MAX_SPD * 0.155;
   racers=[]; place=12; finished=false; hasMoved=false;
   curveSegs=[]; hillSegs=[]; signs=[]; bendZ0=0; bendCache=[]; bendT=0; skySmooth=0; pushK=0; rebuildBend();
   /* and the field itself: `buildField` only ever ADDS, so a race left eleven
@@ -3894,6 +3946,17 @@ function wreck(reason){
     wreckWait = 2.0;
     spd = 0; dmg = 0; playerX = 0; targetX = 0; camX = 0;
     gear = 1; nosOn = false;
+    /* ---- CLEAR THE THING THAT CALLED US -------------------------------
+       A BUSTED wreck sets `spd = 0` and returns without ending the run — so
+       the very next frame you are still crawling, still boxed in, and `bustT`
+       is still over 3. It called `wreck()` again. And again, every frame,
+       forever: a fresh `snd.dead()` and a `flashWarn` sixty times a second
+       until the tab stops responding.
+
+       That is the freeze on the PULL AWAY bar. The counter has to be cleared
+       by the thing it triggers.
+       ---------------------------------------------------------------- */
+    bustT = 0;
     flashWarn('WRECKED  \u22122s');
     return;
   }
@@ -3912,7 +3975,7 @@ function wreck(reason){
       r:rnd(2,7), c: Math.random()<0.5 ? '#ff8a3d' : '#ffe0a0'});
   }
   /* a game over belongs to the menu, so the menu's music takes over */
-  if(AR && AR.music){ AR.music.stop(); AR.music.start(140, 16, snd.menuBed); }
+  menuMusic();
   setTimeout(()=>showEnd(reason), 700);
 }
 
@@ -4538,7 +4601,18 @@ function buildField(){
          past the whole field in the first ten seconds and then watched them
          all re-pass you, so placement swung 12 to 2 to 11 and meant nothing. */
       spd: 0,
-      num: rank + 1,
+      /* ---- A CAR NUMBER, NOT A POSITION ---------------------------------
+         `rank` is the grid SLOT and it counts from the car nearest you, so
+         `rank + 1` painted #1 on the last car in the field and #11 on the
+         leader — backwards from what a number on a car means to anyone.
+         Measured at the line: #11 was 26,046 ahead and #2 was 20,115.
+
+         Inverted, so **#1 is the car at the front**. It is painted on the boot
+         and it never changes — a race number, not a placing.
+
+         Your own position is the P x/12 readout in the HUD. One is who the car
+         IS, the other is where YOU are. */
+      num: FIELD - rank,
       /* the same sports car as yours, in whichever paints you did not take */
       paint: null,
       wreck: 0, ang: 0, dodgeT: 0, w: 0.265, len: 390
@@ -4676,10 +4750,25 @@ function stepRacers(dt){
      which read as the rivals de-spawning. They stay in the race for the whole
      twelve miles; only the draw skips them when they are out of view. */
 
-  /* placement: how many are still ahead of you */
+  /* ---- LIVE PLACES, FOR EVERYONE --------------------------------------
+     A rival's boot carried its GRID number, which never changed — useful for
+     telling cars apart and useless for telling how the race is going. Both
+     you and every rival now get a live place from the same rule: count how
+     many cars are up the road, add one.
+
+     Computed once here, per frame, rather than in the draw — the draw runs
+     per visible car and would redo the whole comparison each time.
+     -------------------------------------------------------------------- */
   let ahead = 0;
   for(const r of racers) if(r.z > pos) ahead++;
   place = ahead + 1;
+
+  for(const r of racers){
+    let n = 0;
+    if(pos > r.z) n++;                          /* you are up the road */
+    for(const o of racers) if(o !== r && o.z > r.z) n++;
+    r.place = n + 1;
+  }
 
   if(!finished && pos >= finishZ){
     /* ---- CROSSING THE LINE ENDS IT --------------------------------------
@@ -4694,7 +4783,16 @@ function stepRacers(dt){
       best: bestScore, bestMi: +bestDist.toFixed(1), runs: runs,
       label: 'BEST ' + bestDist.toFixed(1) + ' MI'
     });
-    if(AR && AR.music){ AR.music.stop(); AR.music.start(140, 16, snd.menuBed); }
+    /* ---- SILENCE THE CAR ------------------------------------------------
+       `snd.quiet()` is only reachable through `snd.dead()`, and a clean finish
+       never crashes — so crossing the line left the engine, the wind, the
+       tyres and the siren all HELD at whatever they were doing at 190mph, and
+       they carried on under the end card forever.
+
+       Every other exit from a run goes through `dead()` and gets silenced by
+       accident. This one has to ask. */
+    snd.quiet();
+    menuMusic();
     snd.checkpoint();
     if(tourOn){
       tourScore(place);
@@ -5590,7 +5688,7 @@ function step(dt){
       label: 'BEST ' + bestDist.toFixed(1) + ' MI'
     });
     snd.dead();
-    if(AR && AR.music){ AR.music.stop(); AR.music.start(140, 16, snd.menuBed); }
+    menuMusic();
     setTimeout(() => showEnd('OUT OF TIME'), 500);
     return;
   }
@@ -6223,7 +6321,9 @@ function step(dt){
      seconds later the run is over. The bar is the only warning you get, and
      the only way out is to move.
      ---------------------------------------------------------------------- */
-  if(state === 'driving'){
+  if(state === 'driving' && wreckWait <= 0){
+    /* you cannot be busted for standing still during the two seconds it takes
+       to put a fresh car on the road */
     const crawling = spd < MAX_SPD * 0.10;
     let boxed = false;
     if(crawling && !optEasy){
@@ -6910,13 +7010,31 @@ function emitBucket(n){
       const box = drawSprite(RIVAL_SP[(r.body||'MATADOR')+'|'+r.paint] || SP.player,
                              r.x, r.z, r.w, r.wreck>0?0.85:1);
       if(box){
-        if(box.w > 26){
+        /* 26px of car is a long way up the road — the place vanished exactly
+           when you most wanted it, on the cars you are chasing. 14 shows it
+           for anything you can actually make out. */
+        if(box.w > 14){
+          /* ---- ABOVE THE CAR, AND LEGIBLE ------------------------------
+             It sat ON the boot in flat white, so it fought the tail lights
+             and the paint and vanished against a pale car. It goes ABOVE the
+             roof, in white with a dark stroke around it — the same trick a
+             race caption uses, readable over anything behind it.
+
+             And it is the LIVE place now, not the grid number. No "P" — a
+             number above a car in a race is a position; saying so is noise. */
           ctx.save();
           ctx.textAlign = 'center';
-          ctx.font = '700 ' + Math.round(box.w*0.30) + 'px ' +
+          ctx.textBaseline = 'alphabetic';
+          const fs = Math.max(11, Math.round(box.w*0.34));
+          ctx.font = '800 ' + fs + 'px ' +
                      getComputedStyle(document.body).getPropertyValue('--disp');
-          ctx.fillStyle = 'rgba(255,255,255,.92)';
-          ctx.fillText(r.num, box.x + box.w/2, box.y - box.h*0.26);
+          const tx = box.x + box.w/2, ty = box.y - box.h - fs*0.35;
+          ctx.lineJoin = 'round';
+          ctx.lineWidth = Math.max(3, fs*0.34);
+          ctx.strokeStyle = 'rgba(6,4,10,.92)';
+          ctx.strokeText(String(r.place || r.num), tx, ty);
+          ctx.fillStyle = '#fff6e6';
+          ctx.fillText(String(r.place || r.num), tx, ty);
           ctx.restore();
         }
       }
@@ -7287,7 +7405,17 @@ function draw(){
     ctx.translate(rnd(-s,s), rnd(-s,s));
   }
   drawSky();
-  ctx.fillStyle='#241a30';
+  /* ---- THE GROUND UNDER EVERYTHING ------------------------------------
+     This was '#241a30', a dark purple-blue — the same family as the sky. It
+     is the base the world is painted on, so anywhere the road or the verge
+     does not reach, that colour shows: which is exactly what you see through
+     the ground when the road crests above the skyline.
+
+     It is GROUND, so it is the colour of ground. Same values the verge uses,
+     a shade darker, so a gap in the geometry reads as more grass rather than
+     as a hole into the sky.
+     ------------------------------------------------------------------- */
+  ctx.fillStyle = nightFall() > 0.5 ? '#162a1c' : '#1d3823';
   ctx.fillRect(0, horizon, W, H-horizon);
   drawWorld();          /* buckets the sprites */
   drawRoad();           /* paints the road AND emits them, far to near */
@@ -7381,6 +7509,16 @@ function drawMirrorFull(mx, my, mw, mh){
      -------------------------------------------------------------------------- */
   const vpy = my + mh*0.16;            /* the horizon, near the top */
   const H_M = mh - (vpy - my);         /* usable depth below it */
+  /* ---- THE MIRROR SITS HIGHER THAN THE ROAD ---------------------------
+     It used the forward view's `CAM_H` unchanged, which puts the eye at the
+     driver's height in a car whose camera is already low — in a small pane
+     that reads as a lens lying on the tarmac, with everything behind you
+     stretched flat along the bottom edge.
+
+     A real mirror is mounted above your eyeline and looks slightly DOWN. 1.55x
+     lifts it enough to see over what is following you rather than up at it.
+     -------------------------------------------------------------------- */
+  const CAM_H_M = CAM_H * 1.55;
   /* the same camera constants as the forward view, remapped to this glass */
   function rproj(worldX, worldZ){
     const dz = pos - worldZ;           /* BEHIND is positive here */
@@ -7389,7 +7527,7 @@ function drawMirrorFull(mx, my, mw, mh){
     return {
       scale,
       x: mx + mw/2 + scale*(worldX - camX*ROAD)*mw/2,
-      y: vpy + scale*CAM_H*H_M/2,
+      y: vpy + scale*CAM_H_M*H_M/2,
       w: scale*ROAD*mw/2
     };
   }
@@ -8008,7 +8146,7 @@ function showGarage(){
   /* the garage is reachable from the end card, so it has to tear down too —
      but it keeps the menu music rather than restarting it */
   if(state !== 'garage'){ endRun(); state = 'garage';
-    if(AR && AR.music) AR.music.start(140, 16, snd.menuBed); }
+    menuMusic(); }
   state = 'garage';
   openVeil(
     '<div class="eyebrow">CHOOSE YOUR CAR</div>' +
@@ -8115,7 +8253,12 @@ function endRun(){
   traffic.length = 0; cops.length = 0; blocks.length = 0;
   racers.length = 0; crates.length = 0; skids.length = 0;
   if(typeof cpGantries !== 'undefined') cpGantries.length = 0;
+  /* the MUSIC was stopped and the CAR was not — the engine, wind and tyre
+     loops are held voices and they keep sounding until something tells them
+     to stop. Leaving a run has to silence both. */
+  snd.quiet();
   if(AR && AR.music) AR.music.stop();
+  menuBedOn = false;
 }
 
 
@@ -8278,18 +8421,29 @@ function drawTitleArt(){
   /* ---- the car ------------------------------------------------------------ */
   const img = SP.player;
   if(img){
-    const bob = Math.sin(T*2.4)*2.2;
+    /* ---- IT SWAYS, IT DOES NOT BOB --------------------------------------
+       Up and down reads as a car bouncing on its springs while parked. Side to
+       side reads as a car being driven — small corrections at speed. Two
+       frequencies so it never looks like a metronome, and a touch of roll into
+       the direction it is leaning. */
+    const sway = Math.sin(T*0.9)*7.5 + Math.sin(T*1.7)*3.0;
+    const roll = Math.sin(T*0.9)*0.022;
+    const bob  = Math.sin(T*2.4)*0.5;
     /* ---- FURTHER UP THE ROAD ------------------------------------------
        70% still crowded the top button. It sits at 60% now and is smaller with
        it — 0.19 rather than 0.26 — because a car further away is a car that
        LOOKS further away. Moving it up without shrinking it would just read as
        a car floating above the road. */
     const cw = w*0.19, ch = cw * img.height/img.width;
-    const cxp = w*0.5, cyp = h*0.60 + bob;
+    const cxp = w*0.5 + sway, cyp = h*0.60 + bob;
     /* what it is standing on */
     g.fillStyle = 'rgba(0,0,0,.45)';
     g.beginPath(); g.ellipse(cxp, cyp-2, cw*0.42, ch*0.07, 0, 0, 6.2832); g.fill();
-    g.drawImage(img, cxp - cw/2, cyp - ch, cw, ch);
+    g.save();
+    g.translate(cxp, cyp - ch*0.5);
+    g.rotate(roll);
+    g.drawImage(img, -cw/2, -ch*0.5, cw, ch);
+    g.restore();
     /* ---- THE LAMPS THEMSELVES ARE LIT -------------------------------------
        There was a halo but nothing under it, so the car had a red smudge
        floating behind a dark tail. The lamps are painted ON the sprite's own
@@ -8339,12 +8493,36 @@ function drawTitleArt(){
    it removes the only case where the title is genuinely silent.
    -------------------------------------------------------------------------- */
 let audioArmed = false;
+/* ---- DO NOT RESTART A TRACK THAT IS ALREADY PLAYING ---------------------
+   `showTitle` and `showGarage` each called `music.start()` unconditionally, so
+   stepping between them stopped the bed mid-bar and began it again from step
+   zero — the hiccup. Moving between two MENUS is not a change of music.
+
+   `menuMusic()` is the only way in: it starts the bed if something else is
+   playing or nothing is, and does nothing at all if the bed is already
+   running.
+   ------------------------------------------------------------------------ */
+let menuBedOn = false;
+function menuMusic(){
+  if(!AR || !AR.music) return;
+  if(menuBedOn) return;
+  AR.music.stop();
+  AR.music.start(140, 16, snd.menuBed);
+  menuBedOn = true;
+}
+function raceMusic(){
+  if(!AR || !AR.music) return;
+  AR.music.stop();
+  AR.music.start(152, 4, snd.bed);
+  menuBedOn = false;
+}
+
 function armMenuAudio(){
   if(audioArmed) return;
   audioArmed = true;
   const go = () => {
     if(state !== 'title') return;
-    if(AR && AR.music) AR.music.start(140, 16, snd.menuBed);
+    menuMusic();
   };
   addEventListener('pointerdown', go, { once:true });
   addEventListener('keydown',     go, { once:true });
@@ -8356,7 +8534,7 @@ function showTitle(){
   document.body.classList.add('titling');
   titleT = 0;
   requestAnimationFrame(drawTitleArt);
-  if(AR && AR.music) AR.music.start(140, 16, snd.menuBed);
+  menuMusic();
   openVeil(
     '<h1>Highway</h1>' +
     '<div class="tmenu">' +
