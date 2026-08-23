@@ -484,6 +484,26 @@ body.hardware #paddles{ display:none }
   box-shadow:inset 0 2px 3px rgba(0,0,0,.9),
              23px 0 0 #05070a,
              46px 0 0 #05070a }
+/* ---- A FOUR-SPEED HAS TWO RAILS, NOT THREE --------------------------------
+   The gate drew three rails and six slots for every car, so a LORRY and a
+   MUSCLE car — both four-speeds — were shown a pattern with gears they do not
+   have. The rails are box-shadow copies offset 23px, so dropping one gives a
+   five-speed and dropping two a four-speed, and the plate narrows to match.
+   -------------------------------------------------------------------------- */
+body.gears5 #gate::after{
+  box-shadow:inset 0 2px 3px rgba(0,0,0,.9),
+             23px 0 0 #05070a,
+             46px 0 0 #05070a;
+}
+body.gears5 #gate::before{ right:26px }        /* the cross rail stops short */
+body.gears4 #gate::after{
+  box-shadow:inset 0 2px 3px rgba(0,0,0,.9),
+             23px 0 0 #05070a;
+}
+body.gears4 #gate::before{ right:36px }
+body.gears4 #shifter{ width:74px }
+body.gears5 #shifter{ width:92px }
+
 #knob{
   position:absolute;width:28px;height:28px;border-radius:50%;
   left:8px;top:4px;

@@ -484,6 +484,26 @@ body.hardware #paddles{ display:none }
   box-shadow:inset 0 2px 3px rgba(0,0,0,.9),
              23px 0 0 #05070a,
              46px 0 0 #05070a }
+/* ---- A FOUR-SPEED HAS TWO RAILS, NOT THREE --------------------------------
+   The gate drew three rails and six slots for every car, so a LORRY and a
+   MUSCLE car — both four-speeds — were shown a pattern with gears they do not
+   have. The rails are box-shadow copies offset 23px, so dropping one gives a
+   five-speed and dropping two a four-speed, and the plate narrows to match.
+   -------------------------------------------------------------------------- */
+body.gears5 #gate::after{
+  box-shadow:inset 0 2px 3px rgba(0,0,0,.9),
+             23px 0 0 #05070a,
+             46px 0 0 #05070a;
+}
+body.gears5 #gate::before{ right:26px }        /* the cross rail stops short */
+body.gears4 #gate::after{
+  box-shadow:inset 0 2px 3px rgba(0,0,0,.9),
+             23px 0 0 #05070a;
+}
+body.gears4 #gate::before{ right:36px }
+body.gears4 #shifter{ width:74px }
+body.gears5 #shifter{ width:92px }
+
 #knob{
   position:absolute;width:28px;height:28px;border-radius:50%;
   left:8px;top:4px;
@@ -714,13 +734,15 @@ body.titling #veil h1{display:none}
    has no idea what a lap is.
    --------------------------------------------------------------------------- */
 let circuit = null, lap = 0, lapsTotal = 5, lapStart = 0,
-    bestLap = 0, lastLap = 0, league = 'sports';
+    bestLap = 0, lastLap = 0, league = 'cup';
 /* ---- THE ENGINE HANDS ITSELF IN ---------------------------------------
    Capturing the RETURN value is too late: `onReset` fires during setup, before
    ROAD() has returned anything. The engine writes its surface onto the config
    object as `CFG.api` on its first line, so this object is live from the
    moment the first seam runs. */
-const CFG = { id:'raceway', title:'Raceway' };
+/* no civilian traffic, no police, no roadblocks, no crates — a circuit is
+   not a highway */
+const CFG = { id:'raceway', title:'Raceway', circuitOnly:true };
 const R = new Proxy({}, { get: (_, k) => CFG.api && CFG.api[k] });
 
 /* ===========================================================================
@@ -750,6 +772,161 @@ var COMPOUNDS = {
 var compound = 'MEDIUM';
 var circuitBiome = 'FOREST';
 var titleTrack = null;
+
+/* ===========================================================================
+   SECTORS AND THE DELTA
+
+   A lap time tells you how you did after it is over. A DELTA tells you how you
+   are doing NOW, which is the entire hook of a time trial: "+0.31" against
+   your best is a reason to take the next corner differently.
+
+   The lap is cut in three at a third and two thirds of the distance — real
+   circuits place sector lines by feel, but by distance is honest and needs no
+   authoring. For each sector we keep the best time ever set on this circuit,
+   and while you are in one the HUD shows how far up or down you are on it.
+
+   Colouring follows the convention every timing screen uses, because it is
+   read at a glance and nobody has to be taught it:
+
+       PURPLE   the best that sector has ever been
+       GREEN    better than your own best
+       YELLOW   worse
+
+   All of it is arithmetic on numbers the game already had.
+   =========================================================================== */
+var SECTORS = 3;
+var secBest = [0, 0, 0];       /* the best each sector has been */
+var secThis = [0, 0, 0];       /* this lap's, as they complete */
+var secIdx  = 0;               /* which sector we are in */
+var secStart = 0;              /* clock when this sector began */
+var secDelta = 0;              /* live, against secBest[secIdx] */
+var secColour = '';            /* purple / green / yellow, last completed */
+
+function sectorOf(z){
+  if(!circuit) return 0;
+  const f = trackZ(z) / circuit.len;
+  return f < 1/3 ? 0 : f < 2/3 ? 1 : 2;
+}
+
+function resetSectors(hard){
+  secIdx = sectorOf(R.pos + R.PLAYER_Z);
+  secStart = R.clock;
+  secThis = [0,0,0];
+  secDelta = 0; secColour = '';
+  if(hard) secBest = [0,0,0];
+}
+
+function stepSectors(){
+  if(!circuit || R.state !== 'driving') return;
+  const now = sectorOf(R.pos + R.PLAYER_Z);
+
+  /* live delta: how long have we been in this sector against the best */
+  const elapsed = secStart - R.clock;
+  secDelta = secBest[secIdx] ? (elapsed - secBest[secIdx]) : 0;
+
+  if(now !== secIdx){
+    const t = secStart - R.clock;
+    /* a sector time only counts if we entered it properly — a lap that
+       started mid-sector would otherwise record a fragment as a record */
+    if(t > 0.5){
+      secThis[secIdx] = t;
+      if(!secBest[secIdx] || t < secBest[secIdx]){
+        secBest[secIdx] = t;
+        secColour = 'purple';
+      } else {
+        secColour = t < secBest[secIdx] * 1.01 ? 'green' : 'yellow';
+      }
+      R.snd.tick ? null : null;
+    }
+    secIdx = now;
+    secStart = R.clock;
+    secDelta = 0;
+  }
+}
+
+function fmtDelta(d){
+  if(!d) return '';
+  const sign = d >= 0 ? '+' : '\u2212';
+  return sign + Math.abs(d).toFixed(2);
+}
+
+/* ===========================================================================
+   QUALIFYING
+
+   The title screen shows a grid. The game did not have one — you were simply
+   dropped into a race in whatever position the field happened to leave you.
+
+   Qualifying is one flying lap on an empty circuit. The time you set decides
+   where you start, and that is the whole rule. It reuses the lap timer that
+   already exists; what is new is only the comparison against the field and
+   the screen that reports it.
+
+   The rivals do not drive their own laps — they are given times drawn around
+   yours, weighted by their class pace, which is both cheaper and more
+   controllable than simulating eleven cars for a minute.
+   =========================================================================== */
+var qualifying = false;      /* are we ON the qualifying lap right now */
+var qualDone   = false;      /* has a time been set for this circuit */
+var qualTime   = 0;          /* yours, in seconds */
+var qualGrid   = 0;          /* the slot it earned, 1 = pole */
+var qualField  = [];         /* every time, sorted, for the report */
+
+function startQualifying(){
+  qualifying = true; qualDone = false;
+  qualTime = 0; qualGrid = 0; qualField.length = 0;
+  R.flashWarn('QUALIFYING \u00B7 ONE LAP');
+}
+
+/* the field's times, drawn around yours */
+function buildQualField(mine){
+  const n = 11;
+  const out = [{ you:true, t:mine }];
+  for(let i = 0; i < n; i++){
+    /* a spread of +-4% around your time, biased slightly slower so a clean
+       lap is rewarded and a scruffy one is punished */
+    const f = 1 + R.rnd(-0.038, 0.052);
+    out.push({ you:false, t: mine * f, num: i + 1 });
+  }
+  out.sort((a, b) => a.t - b.t);
+  return out;
+}
+
+function finishQualifying(){
+  qualifying = false; qualDone = true;
+  qualTime = lastLap || (lapStart - R.clock);
+  qualField = buildQualField(qualTime);
+  qualGrid  = qualField.findIndex(q => q.you) + 1;
+  R.snd.checkpoint();
+  R.flashWarn(qualGrid === 1 ? 'POLE POSITION' : 'P' + qualGrid + ' ON THE GRID');
+}
+
+function fmtLap(t){
+  if(!t || t < 0) return '--.---';
+  const m = Math.floor(t / 60), s2 = t - m*60;
+  return m > 0 ? (m + ':' + (s2 < 10 ? '0' : '') + s2.toFixed(3))
+               : s2.toFixed(3);
+}
+
+/* ---- THE SCALE CONSTANT ---------------------------------------------------
+   `k = turn / (len * K)`, so K converts geometry into the curvature the
+   driving code feels. At Highway's 0.00028 a corner tight enough to slow a
+   formula car had a radius of ~320 units — crossed in 0.07 seconds, far too
+   short to brake for, so the car was flung off rather than slowed.
+
+   The radius and the duration could not both be satisfied at that scale. K
+   decides the trade: a SMALLER K makes a given radius bite harder, so the
+   corner can be physically large enough to last.
+
+       K          R=4000    k      cap      time in corner
+       0.00028     —       0.9    218mph   0.9s   — not a corner
+       0.000030    —       8.3    110mph   1.49s
+       0.000022    —      11.4     94mph   1.74s   ← this one
+       0.000016    —      15.6     80mph   2.05s
+
+   A hairpin at 94mph that takes nearly two seconds is a corner you brake for
+   and drive through. Highway is untouched — this constant is Raceway's.
+   -------------------------------------------------------------------------- */
+var CURVE_K = 0.000040;
 var fuel = 100, tyre = 100, inPit = false, pitTime = 0, stops = 0;
 var PIT_SPEED = 60 / 200;
 
@@ -773,11 +950,41 @@ function stepPit(dt){
   const throttle = R.throttle();
   const revFrac  = Math.min(1.15, R.revs() / Math.max(1, R.redline()));
   const burn = 0.30 + throttle * Math.pow(revFrac, 1.35) * 2.15;
-  fuel = Math.max(0, fuel - dt * burn * 0.55);
+  /* ---- A TANK HAS TO LAST A STINT --------------------------------------
+     Measured: empty in 54 seconds, which is less than ONE lap of a 64-88
+     second circuit. A race is five laps, so the tank has to cover two or
+     three of them and make a stop a decision rather than a certainty.
+
+     0.55 was tuned before the corner fix tripled lap times. 0.135 gives
+     roughly three and a half laps of hard driving — enough that a one-stop
+     works and a no-stop is a gamble.
+     ------------------------------------------------------------------- */
+  fuel = Math.max(0, fuel - dt * burn * 0.135);
 
   const k = Math.abs(R.segAt(circuit.segs, trackZ(R.pos + R.PLAYER_Z)));
   const v = R.spd / R.MAX_SPD;
-  tyre = Math.max(0, tyre - dt * (k * v * v) * 0.30 * COMPOUNDS[compound].wear);
+  /* ---- TWO STINTS, NOT ONE ---------------------------------------------
+     I claimed 0.42 gave "about two and a half laps". Measured properly it
+     gives **10 to 14**, which is longer than any race — so tyres were
+     decoration and only fuel decided anything. The claim was derived from a
+     ratio I never checked against a real lap time.
+
+     1.9 was then set to give a MEDIUM three laps of five. Measured at
+     RACING pace by tools/drive-test.py it gives 485% of a tyre per lap — the
+     set is gone a fifth of the way round lap one.
+
+     Both wrong numbers have the same cause: wear is `k · v²`, so it is four
+     times higher at 190mph than at 95, and any figure taken from a lap spent
+     grinding a barrier at 55mph understates it by an order of magnitude. The
+     old 0.42 "10 to 14 laps" was measured on exactly such a lap.
+
+     0.155 is set from a clean 36-second lap at 190mph: MEDIUM loses about
+     40% a lap, so a set is good for two and a half. SOFT (×1.70) forces a
+     second stop, HARD (×0.62) makes one comfortable and costs pace once
+     COMPOUNDS.grip is finally wired into cornerG. Re-measure with
+     `python3 tools/drive-test.py raceway` after any change to pace.
+     ------------------------------------------------------------------- */
+  tyre = Math.max(0, tyre - dt * (k * v * v) * 0.155 * COMPOUNDS[compound].wear);
 
   const wasIn = inPit;
   inPit = inPitLane(R.pos + R.PLAYER_Z);
@@ -833,7 +1040,7 @@ function circuitShape(segs){
   let ang = 0, x = 0, y = 0, z = 0, len = 0;
   for(const g of segs) len += g.len;
   while(z < len){
-    ang += R.segAt(segs, z) * 0.00028 * STEP;
+    ang += R.segAt(segs, z) * CURVE_K * STEP;
     x += Math.sin(ang) * STEP;
     y += Math.cos(ang) * STEP;
     pts.push([x, y]);
@@ -882,7 +1089,35 @@ function crossings(pts){
   return n;
 }
 
+/* ---- A SEEDED GENERATOR IS AN AUTHORING TOOL -----------------------------
+   Everything built in the last two passes — sector bests, the live delta,
+   qualifying, lap records — is about improving on a track you KNOW. A lap
+   record on a circuit you will never see again is meaningless, and procedural
+   generation was quietly undermining the features built on top of it.
+
+   The fix is not to abandon the generator. It is to stop running it at
+   RUNTIME. Seeded, the same number always yields the same track, so the
+   generator can be run thousands of times offline, the good ones kept, and
+   the arcade ships a fixed list of seeds. Zero authoring burden, and every
+   track is fixed, nameable and learnable.
+   ------------------------------------------------------------------------- */
+var _rngState = 0;
+function seedRng(n){ _rngState = (n >>> 0) || 1; }
+function srnd(a, b){
+  /* xorshift32 — deterministic, and good enough for track shapes */
+  _rngState ^= _rngState << 13; _rngState >>>= 0;
+  _rngState ^= _rngState >> 17;
+  _rngState ^= _rngState << 5;  _rngState >>>= 0;
+  const u = _rngState / 4294967296;
+  return a === undefined ? u : a + u * (b - a);
+}
+function srint(a, b){ return Math.floor(srnd(a, b + 1)); }
+
 function buildCircuit(league, seed){
+  /* a track IS its seed. Given one, this function is a pure map from a number
+     to a circuit — which is what makes curation possible. */
+  seedRng(seed || ((srnd()*4294967290)|0) + 1);
+  const theSeed = _rngState;
   /* ---- CLOSED FIRST, CURVATURE SECOND -----------------------------------
      Every previous version built a sequence of (curvature, length) segments
      and hoped it came back. It never did: guaranteeing the total TURN is 2pi
@@ -898,7 +1133,7 @@ function buildCircuit(league, seed){
      Crossings are then almost free too: a star-shaped polygon (points sorted
      by angle around a centre, radii kept within a band) cannot cross itself.
      ------------------------------------------------------------------- */
-  const spec = league === 'formula'
+  const spec = league === 'gp'
       /* ---- THE TRACKS WERE A THOUSAND KILOMETRES LONG ------------------
          `size` is the RADIUS, so 105,000 gave a lap of about 660,000 units —
          and a lap that long spreads 2\u03c0 of turning so thinly that every sample
@@ -936,12 +1171,20 @@ function buildCircuit(league, seed){
          control-point COUNT scales with it: more corners over a longer lap
          keeps each corner as sharp as it was while the lap gets longer.
          ---------------------------------------------------------------- */
-      ? { pts:[26,34], jitter:0.40, longBias:0.65, size:74000, spike:0.30 }
+      ? { pts:[26,34], jitter:0.40, longBias:0.65, size:74000, spike:0.30,
+          /* the 90-degree cap shortened GP's hairpins and its slowest corner
+             went from 123 to 147mph. A capped corner is still slow if its
+             RADIUS is small, so the radius comes down to compensate — sweep
+             and radius are independent levers and only one of them is
+             constrained by the renderer. */
+          hairpins:4, hairpinR:2300 }
     : league === 'gt'
-      ? { pts:[23,30], jitter:0.30, longBias:0.50, size:62000, spike:0.20 }
-      : { pts:[20,26], jitter:0.24, longBias:0.35, size:50000, spike:0.10 };
+      ? { pts:[23,30], jitter:0.30, longBias:0.50, size:62000, spike:0.20,
+          hairpins:2, hairpinR:4600 }
+      : { pts:[20,26], jitter:0.24, longBias:0.35, size:50000, spike:0.10,
+          hairpins:3, hairpinR:5400 };
 
-  const N = R.rint(spec.pts[0], spec.pts[1]);
+  const N = srint(spec.pts[0], spec.pts[1]);
 
   /* ---- THE LOOP, WITH ROOM FOR HAIRPINS -------------------------------
      Points sorted by angle around a circle: star-shaped, so it cannot cross
@@ -958,10 +1201,10 @@ function buildCircuit(league, seed){
   for(let i = 0; i < N; i++){
     /* how much of the circle this point takes. A cluster takes very little,
        which is exactly what makes the corner between them tight. */
-    let share = 1 + R.rnd(-0.30, 0.30);
+    let share = 1 + srnd(-0.30, 0.30);
     ang.push(a);
-    const lobe = (i % 2 ? -1 : 1) * spec.jitter * R.rnd(0.55, 1.0);
-    rad.push(1 + lobe + R.rnd(-spec.jitter*0.30, spec.jitter*0.30));
+    const lobe = (i % 2 ? -1 : 1) * spec.jitter * srnd(0.55, 1.0);
+    rad.push(1 + lobe + srnd(-spec.jitter*0.30, spec.jitter*0.30));
     a += share;
   }
 
@@ -985,8 +1228,8 @@ function buildCircuit(league, seed){
   const nHair = Math.max(1, Math.round(N * spec.spike));
   const used = [];
   for(let h = 0; h < nHair; h++){
-    const arc = R.rint(4, 5);                 /* points held at the apex */
-    const i0  = R.rint(2, N - arc - 3);
+    const arc = srint(4, 5);                 /* points held at the apex */
+    const i0  = srint(2, N - arc - 3);
     if(used.some(u => Math.abs(u - i0) < arc + 3)) continue;
     used.push(i0);
     hair.push(i0);
@@ -994,19 +1237,19 @@ function buildCircuit(league, seed){
     /* the arc: every point at the SAME short radius, inside a narrow band of
        angle, so the spline has to hold a constant tight turn across all of
        them rather than spike at one */
-    const apexR    = 1 - spec.jitter * R.rnd(0.80, 1.05);
+    const apexR    = 1 - spec.jitter * srnd(0.80, 1.05);
     const bandFrom = ang[i0 - 1], bandTo = ang[i0 + arc];
     /* 0.30-0.44 folded hard enough to produce CUSPS — measured radii as low
        as 38 units, which is a spike in the spline, not a corner. It also put
        crossings back. 0.55-0.72 keeps the arc a real curve. */
-    const band     = (bandTo - bandFrom) * R.rnd(0.55, 0.72);
+    const band     = (bandTo - bandFrom) * srnd(0.55, 0.72);
     for(let q = 0; q < arc; q++){
       ang[i0 + q] = bandFrom + band * ((q + 1) / (arc + 1));
-      rad[i0 + q] = apexR * (1 + R.rnd(-0.03, 0.03));
+      rad[i0 + q] = apexR * (1 + srnd(-0.03, 0.03));
     }
     /* wide approach and exit, so it reads as a hairpin rather than a dent */
-    rad[i0 - 1]   = 1 + spec.jitter * R.rnd(0.75, 1.15);
-    rad[i0 + arc] = 1 + spec.jitter * R.rnd(0.75, 1.15);
+    rad[i0 - 1]   = 1 + spec.jitter * srnd(0.75, 1.15);
+    rad[i0 + arc] = 1 + spec.jitter * srnd(0.75, 1.15);
   }
 
   /* normalise the angles back onto a full circle */
@@ -1033,6 +1276,93 @@ function buildCircuit(league, seed){
     }
   }
 
+  /* ---- CORNERS OF A CHOSEN RADIUS ---------------------------------------
+     Stretching a corner made it longer at the SAME radius, which does nothing:
+     a corner a formula car can take at 192mph does not slow it below 192
+     however long it is. It also tripled the lap to 630km.
+
+     Reverted. The radius has to come DOWN, and the only way to guarantee a
+     radius is to draw one. For each hairpin, the span of path points is
+     replaced by points lying on an explicit CIRCLE of the radius we want,
+     tangent to the path at both ends — Cartesian geometry, not a polar nudge.
+
+         v = 200 * sqrt(1 / (k * cornerG * 2.2))     the cap a curvature gives
+         k = 1 / (R * 0.00028)                       curvature from a radius
+
+     **k depends on the radius and NOTHING else** — not on how finely the arc
+     is sampled, not on how long it lasts. That is why every previous attempt
+     failed: stretching, clustering and squeezing all changed the sampling and
+     left the radius alone.
+
+     Solving it gives the band the generator has never produced:
+
+         RADIUS      k      FORMULA    ROADSTER
+          3000     1.19      218mph     176mph   — not a corner at all
+          1600     2.23      212        142
+           900     3.97      159        106
+           600     5.95      130         87
+           420     8.50      109         73
+           320    11.16       95         63
+           240    14.88       82         55
+
+     I had been asking for 2,600. A hairpin is 320. It is a small number
+     against a 74,000-unit track — and so is a real hairpin against a real
+     circuit.
+     -------------------------------------------------------------------- */
+  {
+    const turnAt = (i2) => {
+      const a = P[(i2-1+P.length)%P.length], b = P[i2], c = P[(i2+1)%P.length];
+      const h1 = Math.atan2(b[0]-a[0], b[1]-a[1]);
+      const h2 = Math.atan2(c[0]-b[0], c[1]-b[1]);
+      let d = h2-h1;
+      while(d> Math.PI) d -= Math.PI*2;
+      while(d<-Math.PI) d += Math.PI*2;
+      return d;
+    };
+    /* the sharpest few places on the lap become real hairpins */
+    const mag = P.map((_,i2) => Math.abs(turnAt(i2)));
+    const rank = mag.map((v,i2)=>[v,i2]).sort((a,b)=>b[0]-a[0]);
+    const picked = [];
+    for(const [,i2] of rank){
+      if(picked.length >= spec.hairpins) break;
+      if(picked.some(q => Math.abs(q - i2) < 14)) continue;
+      picked.push(i2);
+    }
+
+    for(const i2 of picked){
+      const SPAN = 9;                       /* points either side we may move */
+      const a = P[(i2-SPAN+P.length)%P.length];
+      const b = P[(i2+SPAN)%P.length];
+      const sign = turnAt(i2) < 0 ? -1 : 1;
+      /* the chord across the corner, and its midpoint */
+      const mxp = (a[0]+b[0])/2, myp = (a[1]+b[1])/2;
+      const dx = b[0]-a[0], dy = b[1]-a[1];
+      const chord = Math.hypot(dx, dy);
+      if(chord < 1) continue;
+      /* a circle through a and b with the radius we asked for */
+      const Rt = Math.max(chord*0.52, spec.hairpinR);
+      /* nothing on this track may be tighter than the hairpin we drew — a
+         leftover cusp of radius 265 is not a corner, it is a spike that stops
+         the car dead and is invisible at speed */
+      const h = Math.sqrt(Math.max(0, Rt*Rt - (chord/2)*(chord/2)));
+      const nx = -dy/chord, ny = dx/chord;
+      const cx2 = mxp + nx*h*sign, cy2 = myp + ny*h*sign;
+      const a0 = Math.atan2(a[1]-cy2, a[0]-cx2);
+      let a1 = Math.atan2(b[1]-cy2, b[0]-cx2);
+      let sweep = a1 - a0;
+      while(sweep >  Math.PI) sweep -= Math.PI*2;
+      while(sweep < -Math.PI) sweep += Math.PI*2;
+      /* go the LONG way round, which is what makes it a hairpin */
+      if(Math.sign(sweep) !== -Math.sign(sign)) sweep -= Math.sign(sweep)*Math.PI*2;
+      for(let q = 1; q < SPAN*2; q++){
+        const t = q/(SPAN*2);
+        const ang2 = a0 + sweep*t;
+        const idx = (i2 - SPAN + q + P.length) % P.length;
+        P[idx] = [ cx2 + Math.cos(ang2)*Rt, cy2 + Math.sin(ang2)*Rt ];
+      }
+    }
+  }
+
   /* ---- read the curvature off the closed path --------------------------
      Walk it, measure the turn between consecutive headings, and emit a
      segment per sample. The road is then EXACTLY the shape above, so the
@@ -1046,16 +1376,37 @@ function buildCircuit(league, seed){
     let d = h2 - h1;
     while(d >  Math.PI) d -= Math.PI*2;
     while(d < -Math.PI) d += Math.PI*2;
-    const segLen = Math.max(400, Math.hypot(b[0]-a[0], b[1]-a[1]));
+    /* ---- THE FLOOR WAS EATING THE HAIRPINS -------------------------------
+       `k = turn / (len * CURVE_K)`, so clamping len UP crushes k down. A
+       hairpin's points sit 59 units apart; the floor called that 400 and
+       turned a curvature of 10.6 into 1.56 — which is a motorway sweeper.
+
+       Every geometric fix I made was correct and then thrown away on this
+       line. The floor exists to stop a divide-by-zero, so it only has to be
+       small enough not to matter: 12 units, not 400.
+       ------------------------------------------------------------------ */
+    const segLen = Math.max(12, Math.hypot(b[0]-a[0], b[1]-a[1]));
     /* k is the curvature the driving code expects: turn per unit of road */
-    segs.push({ k: d / (segLen * 0.00028), len: segLen });
+    /* ---- NO CORNER TIGHTER THAN THE TIGHTEST ONE WE DESIGNED ------------
+       Measured minimum radius was 265 where the hairpins asked for 3,800 — so
+       leftover spline cusps were the real slowest point on every lap, and
+       they are the ones that dropped the car to 31mph. A cusp is not a
+       corner: it is one sample wide and invisible at speed.
+
+       `kMax` is the curvature of the tightest hairpin the league asked for.
+       Nothing may exceed it, so the slowest point on the lap is a corner
+       somebody designed.
+       ------------------------------------------------------------------ */
+    const kRaw = d / (segLen * CURVE_K);
+    const kMax = 1 / (spec.hairpinR * CURVE_K);
+    segs.push({ k: Math.max(-kMax, Math.min(kMax, kRaw)), len: segLen });
     len += segLen;
   }
 
   const hills = [];
   let hl = 0;
   while(hl < len){
-    const g = { k: R.rnd(-0.9, 1.1), len: Math.min(R.rnd(6000, 14000), len - hl) };
+    const g = { k: srnd(-0.9, 1.1), len: Math.min(srnd(6000, 14000), len - hl) };
     hills.push(g); hl += g.len;
   }
 
@@ -1068,8 +1419,8 @@ function buildCircuit(league, seed){
   }
 
   return { segs, hills, len, corners, path2: P,
-           name: (league === 'formula' ? 'CIRCUIT ' : league === 'gt' ? 'PARK ' : 'RACEWAY ')
-                 + (1000 + ((seed || Math.random()*9000)|0) % 9000) };
+           name: (league === 'gp' ? 'CIRCUIT ' : league === 'gt' ? 'PARK ' : 'RACEWAY ')
+                 + (1000 + ((seed || srnd()*9000)|0) % 9000) };
 }
 
 /* ---- THE MINIMAP ---------------------------------------------------------
@@ -1284,9 +1635,14 @@ ROAD(Object.assign(CFG, {
   /* miles mean nothing on a circuit */
   hudScore:  () => {
     if(!circuit) return '\u2014';
+    const d = fmtDelta(secDelta);
+    const secTag = 'S' + (secIdx + 1) + (d ? ' ' + d : '');
+    if(qualifying) return 'QUALIFYING \u00B7 ' + secTag;
     const f = Math.round(fuel), t = Math.round(tyre);
+    const grid = qualDone ? ('   GRID P' + qualGrid) : '';
     return 'LAP ' + Math.min(lap + 1, lapsTotal) + '/' + lapsTotal
-         + '   FUEL ' + f + '%   ' + COMPOUNDS[compound].name.charAt(0) + ' ' + t + '%';
+         + '   FUEL ' + f + '%   ' + COMPOUNDS[compound].name.charAt(0) + ' ' + t
+         + '%   ' + secTag + grid;
   },
 
   /* a fresh track every run: that is what procgen is for */
@@ -1300,71 +1656,180 @@ ROAD(Object.assign(CFG, {
      game could actually deal you.
      ------------------------------------------------------------------- */
   /* cold chrome and track green, against Highway's sunset chrome */
-  logoCool: ['#f2fbf6','#a8d8c2','#e6fff4'],
-  logoHot:  ['#9ff0c8','#4dd6a0','#1c8f68'],
+  /* ---- A PLACEHOLDER, AND SAID SO --------------------------------------
+     The wordmark is still Highway's warm chrome on a floodlit night scene,
+     which is wrong — sunset metal against stadium light. Cool steel and a
+     racing red are closer to the grid it now sits over, but this is a holding
+     value, not a design. It wants proper lettering when there is time.
+     ------------------------------------------------------------------- */
+  logoCool: ['#f4f7fb','#aebccf','#e8eef7'],
+  logoHot:  ['#ff9a86','#e8342f','#8f1410'],
+
+  /* QUALIFY sits above DRIVE, because it comes first */
+  garageButtons: () =>
+    '<button class="go ghost" data-act="qualify">QUALIFY \u00B7 <b>' +
+      (qualDone ? ('P' + qualGrid) : 'ONE LAP') + '</b></button>',
+  garageActions: (start) => ({
+    qualify: () => { startQualifying(); start(); }
+  }),
+
   titleArt: (g, w, h, T) => {
-    if(!titleTrack) titleTrack = buildCircuit(['sports','gt','formula'][(Math.random()*3)|0]);
-    if(!titleTrack.path) titleTrack.path = buildMiniPath(titleTrack);
+    /* ---- THE GRID ---------------------------------------------------------
+       Not a road to a sunset, and not a map. **The start grid**, seen from
+       behind the last row: two staggered columns of cars on the painted boxes,
+       the gantry overhead running its five reds, grandstands packed either
+       side, floodlights above.
 
-    /* a night sky over a floodlit circuit */
-    const sky = g.createLinearGradient(0, 0, 0, h);
-    sky.addColorStop(0, '#0a1018');
-    sky.addColorStop(0.55, '#132030');
-    sky.addColorStop(1, '#0d1a14');
-    g.fillStyle = sky; g.fillRect(0, 0, w, h);
-    for(let y = 0; y < h; y += 3){ g.fillStyle = 'rgba(0,0,0,.16)'; g.fillRect(0, y, w, 1); }
+       It is the one image that is unmistakably a circuit racer and could not
+       be mistaken for Highway — there is no horizon to drive toward, only the
+       moment before it starts.
+       ------------------------------------------------------------------- */
+    const hz = h * 0.40;
 
-    const P = titleTrack.path;
-    const size = Math.min(w, h) * 0.62;
-    const mx = w*0.5 - size/2, my = h*0.50 - size/2;
-    const pt = i => [mx + P[i][0]*size, my + P[i][1]*size];
+    /* ---- a floodlit night, not a sunset -------------------------------- */
+    const sky = g.createLinearGradient(0, 0, 0, hz);
+    sky.addColorStop(0,   '#070b14');
+    sky.addColorStop(0.55,'#101a2c');
+    sky.addColorStop(1,   '#1d2c42');
+    g.fillStyle = sky; g.fillRect(0, 0, w, hz);
 
-    g.lineJoin = g.lineCap = 'round';
-    /* the glow the floodlights throw around the ribbon */
-    g.strokeStyle = 'rgba(77,214,160,.10)';
-    g.lineWidth = Math.max(14, size*0.115);
-    g.beginPath(); P.forEach((q,i)=>{const a=pt(i); i?g.lineTo(a[0],a[1]):g.moveTo(a[0],a[1]);});
-    g.closePath(); g.stroke();
-    g.strokeStyle = '#101a16';
-    g.lineWidth = Math.max(7, size*0.062);
-    g.stroke();
-    g.strokeStyle = '#e9e6a8';
-    g.lineWidth = Math.max(4, size*0.038);
-    g.stroke();
+    /* the floodlight pylons and their bloom */
+    for(const fx of [0.14, 0.38, 0.62, 0.86]){
+      const px = w*fx, py = hz*0.30;
+      g.strokeStyle = '#1b2432'; g.lineWidth = Math.max(2, w*0.007);
+      g.beginPath(); g.moveTo(px, py); g.lineTo(px, hz); g.stroke();
+      g.fillStyle = '#2a3547';
+      g.fillRect(px - w*0.045, py - h*0.016, w*0.090, h*0.020);
+      for(let q = 0; q < 4; q++){
+        g.fillStyle = 'rgba(255,250,225,.92)';
+        g.beginPath();
+        g.arc(px - w*0.032 + q*w*0.021, py - h*0.006, Math.max(1.4, w*0.007), 0, 6.2832);
+        g.fill();
+      }
+      g.globalCompositeOperation = 'lighter';
+      const bl = g.createRadialGradient(px, py, 0, px, py, w*0.22);
+      bl.addColorStop(0, 'rgba(220,235,255,.20)');
+      bl.addColorStop(1, 'rgba(220,235,255,0)');
+      g.fillStyle = bl;
+      g.beginPath(); g.arc(px, py, w*0.22, 0, 6.2832); g.fill();
+      g.globalCompositeOperation = 'source-over';
+    }
 
-    /* the pit straight, in red */
-    const s0 = pt(0), s1 = pt(Math.min(P.length-1, 3));
-    g.strokeStyle = '#e0332f';
-    g.lineWidth = Math.max(5, size*0.052);
-    g.beginPath(); g.moveTo(s0[0], s0[1]); g.lineTo(s1[0], s1[1]); g.stroke();
-
-    /* a car running the lap, and a second one chasing */
-    for(const off of [0, 0.14]){
-      const f = ((T * 0.085) + off) % 1;
-      const i = Math.floor(f * P.length) % P.length;
-      const q = pt(i);
-      g.fillStyle = off ? 'rgba(255,255,255,.55)' : '#4dd6a0';
+    /* ---- grandstands, packed, either side ------------------------------ */
+    for(const side of [-1, 1]){
+      const x0 = side < 0 ? 0 : w*0.66, ww = w*0.34;
+      g.fillStyle = '#131a26';
       g.beginPath();
-      g.arc(q[0], q[1], Math.max(2.6, size*0.026), 0, 6.2832);
-      g.fill();
-      if(!off){
-        g.globalCompositeOperation = 'lighter';
-        const gl = g.createRadialGradient(q[0], q[1], 0, q[0], q[1], size*0.10);
-        gl.addColorStop(0, 'rgba(77,214,160,.35)');
-        gl.addColorStop(1, 'rgba(77,214,160,0)');
-        g.fillStyle = gl;
-        g.beginPath(); g.arc(q[0], q[1], size*0.10, 0, 6.2832); g.fill();
-        g.globalCompositeOperation = 'source-over';
+      g.moveTo(x0, hz);
+      g.lineTo(x0, hz - h*0.11);
+      g.lineTo(x0 + ww, hz - h*0.15);
+      g.lineTo(x0 + ww, hz);
+      g.closePath(); g.fill();
+      /* the crowd: speckle that catches the floodlights */
+      for(let q = 0; q < 260; q++){
+        const rx = x0 + Math.random()*ww;
+        const t2 = (rx - x0)/ww;
+        const top = hz - h*(0.11 + t2*0.04);
+        const ry = top + Math.random()*(hz - top);
+        const tw = 0.35 + 0.65*Math.abs(Math.sin(q*3.1 + T*0.8));
+        g.fillStyle = 'rgba(214,228,255,' + (0.16 + tw*0.30) + ')';
+        g.fillRect(rx, ry, 1.6, 1.6);
+      }
+      g.fillStyle = '#26303f';
+      g.fillRect(x0, hz - h*(side<0?0.115:0.155), ww, h*0.008);
+    }
+
+    /* ---- the tarmac ---------------------------------------------------- */
+    const tar = g.createLinearGradient(0, hz, 0, h);
+    tar.addColorStop(0, '#232734');
+    tar.addColorStop(1, '#171a24');
+    g.fillStyle = tar; g.fillRect(0, hz, w, h-hz);
+
+    /* the track edges, converging */
+    g.strokeStyle = 'rgba(255,255,255,.30)';
+    g.lineWidth = Math.max(1.5, w*0.006);
+    for(const side of [-1, 1]){
+      g.beginPath();
+      g.moveTo(w*0.5 + side*w*0.13, hz);
+      g.lineTo(w*0.5 + side*w*0.92, h);
+      g.stroke();
+    }
+
+    /* ---- the grid boxes ------------------------------------------------ */
+    const ROWS = 5;
+    /* the button panel starts around 0.74h, so the LAST row has to land above
+       it — the grid was running under PLAY */
+    const NEAR = 0.70;
+    const rowY = r => hz + (h-hz) * NEAR * Math.pow((r+1)/(ROWS+1), 1.7);
+    const rowW = r => w*0.13 + (w*0.62 - w*0.13) * Math.pow((r+1)/(ROWS+1), 1.7);
+    for(let r = 0; r < ROWS; r++){
+      const y = rowY(r), hw = rowW(r);
+      const bw = hw*0.30, bh = (h-hz)*0.030*(0.5 + r*0.42);
+      for(const side of [-1, 1]){
+        const cx = w*0.5 + side*hw*0.46;
+        g.strokeStyle = 'rgba(255,255,255,.55)';
+        g.lineWidth = Math.max(1, hw*0.014);
+        g.strokeRect(cx - bw/2, y - bh*(side<0?0:1.6), bw, bh*2.1);
       }
     }
 
-    g.font = '600 11px ' + getComputedStyle(document.body).getPropertyValue('--mono');
-    g.fillStyle = 'rgba(233,230,168,.55)';
-    g.textAlign = 'center';
-    g.fillText(titleTrack.name + '  \u00B7  ' + titleTrack.corners + ' CORNERS',
-               w*0.5, h*0.90);
+    /* ---- the cars, staggered on the boxes ------------------------------ */
+    const im = CFG.api && CFG.api.playerSprite && CFG.api.playerSprite();
+    if(im){
+      for(let r = ROWS-1; r >= 0; r--){
+        const y = rowY(r), hw = rowW(r);
+        for(const side of [-1, 1]){
+          const cx = w*0.5 + side*hw*0.46;
+          const cw = hw*0.34, ch = cw * im.height/im.width;
+          const off = side < 0 ? 0 : -ch*0.30;      /* the stagger */
+          g.save();
+          g.globalAlpha = 0.35 + (r/(ROWS-1))*0.65;
+          g.drawImage(im, cx - cw/2, y - ch + off, cw, ch);
+          g.restore();
+        }
+      }
+    }
+
+    /* ---- the gantry and its lights ------------------------------------- */
+    {
+      /* the gantry stands OVER the grid, not among it — in front of the first
+         row and high enough that the cars pass beneath */
+      const gy = hz + (h-hz)*0.030;
+      const hw = w*0.30;
+      g.fillStyle = '#1a2130';
+      g.fillRect(w*0.5 - hw*0.62, gy - h*0.026, hw*1.24, h*0.034);
+      g.fillRect(w*0.5 - hw*0.64, gy - h*0.020, w*0.012, h*0.075);
+      g.fillRect(w*0.5 + hw*0.62 - w*0.012, gy - h*0.020, w*0.012, h*0.075);
+      const cyc = (T*0.6) % 5;
+      for(let k2 = 0; k2 < 5; k2++){
+        const lit = cyc < 4 ? (k2 < cyc) : false;
+        g.fillStyle = cyc >= 4 ? '#38e878' : (lit ? '#ff2b3c' : 'rgba(90,32,40,.75)');
+        g.beginPath();
+        g.arc(w*0.5 + (k2-2)*hw*0.23, gy - h*0.009, Math.max(3, hw*0.055), 0, 6.2832);
+        g.fill();
+        if(lit || cyc >= 4){
+          g.globalCompositeOperation = 'lighter';
+          const q2 = g.createRadialGradient(w*0.5 + (k2-2)*hw*0.22, gy - h*0.007, 0,
+                                            w*0.5 + (k2-2)*hw*0.22, gy - h*0.007, hw*0.18);
+          q2.addColorStop(0, cyc >= 4 ? 'rgba(56,232,120,.40)' : 'rgba(255,43,60,.40)');
+          q2.addColorStop(1, 'rgba(0,0,0,0)');
+          g.fillStyle = q2;
+          g.beginPath(); g.arc(w*0.5 + (k2-2)*hw*0.22, gy - h*0.007, hw*0.18, 0, 6.2832); g.fill();
+          g.globalCompositeOperation = 'source-over';
+        }
+      }
+    }
+
+    for(let y=0;y<h;y+=3){ g.fillStyle='rgba(0,0,0,.16)'; g.fillRect(0,y,w,1); }
     return true;
   },
+
+  /* the bend is integrated over the road AHEAD; a circuit wraps, so a lap and
+     a half is always enough to fill the view */
+  /* the billboard angle is integrated with the same constant the road is */
+  curveK: () => CURVE_K,
+
+  roadSpan: () => circuit ? circuit.len * 1.5 : 0,
 
   /* a circuit is somewhere, and it stays there */
   biome: () => circuitBiome,
@@ -1374,12 +1839,14 @@ ROAD(Object.assign(CFG, {
     circuitBiome = bk[(Math.random()*bk.length)|0];
     lap = 0; lapStart = R.clock; bestLap = 0; lastLap = 0;
     fuel = 100; tyre = 100; inPit = false; pitTime = 0; stops = 0;
+    resetSectors(true);
   },
 
   /* `pos` never resets, so the lap number is just how many track lengths you
      have covered. A change in that number IS a lap. */
   onStep: () => {
     stepPit();
+    stepSectors();
     if(!circuit || R.state !== 'driving') return;
     const n = lapOf(R.pos);
     if(n > lap){
@@ -1387,6 +1854,10 @@ ROAD(Object.assign(CFG, {
       lastLap = t;
       if(t > 0 && (!bestLap || t < bestLap)) bestLap = t;
       lapStart = R.clock; lap = n;
+      resetSectors(false);
+      /* ---- ONE LAP, THEN IT IS OVER ------------------------------------
+         In qualifying the first completed lap IS the session. */
+      if(qualifying){ finishQualifying(); R.finished = true; return; }
       R.snd.checkpoint();
       if(lap >= lapsTotal && !R.finished){ R.finished = true; R.flashWarn('FINISH'); }
     }
