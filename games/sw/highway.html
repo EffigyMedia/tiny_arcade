@@ -146,6 +146,9 @@ canvas{display:block;width:100%;height:100%;touch-action:none}
 #brake.on i{ filter:brightness(1.35) saturate(1.5) }
 
 /* the nitrous bottle, lying on its side over the accelerator */
+/* a car with no bottle shows no bottle — the LORRY and the CAB had a nitrous
+   button and a gauge they could never use */
+body.nonos #nitro, body.nonos #nosWrap{ display:none !important }
 #nitro{
   /* The dials and the gate were landing on top of it. 92px cleared the pedals
      but nothing above, so it needed the gap raising — not by much, or it

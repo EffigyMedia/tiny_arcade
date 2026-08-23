@@ -146,6 +146,9 @@ canvas{display:block;width:100%;height:100%;touch-action:none}
 #brake.on i{ filter:brightness(1.35) saturate(1.5) }
 
 /* the nitrous bottle, lying on its side over the accelerator */
+/* a car with no bottle shows no bottle — the LORRY and the CAB had a nitrous
+   button and a gauge they could never use */
+body.nonos #nitro, body.nonos #nosWrap{ display:none !important }
 #nitro{
   /* The dials and the gate were landing on top of it. 92px cleared the pedals
      but nothing above, so it needed the gap raising — not by much, or it
@@ -851,45 +854,92 @@ function buildCircuit(league, seed){
          A hairpin is also where braking decides the lap, which is why it
          belongs with the cars that can brake.
          ---------------------------------------------------------------- */
-      ? { pts:[15,19], jitter:0.40, longBias:0.65, size:24000, spike:0.30 }
+      /* ---- A LAP HAS TO LAST ------------------------------------------
+         Simulated with the real car stats, laps came out at 14-20 SECONDS. A
+         real circuit lap is 60 to 120. The tracks were the right shape and a
+         quarter of the size they needed to be.
+
+         Simply scaling `size` up makes the curvature gentler and turns every
+         corner into a sweep — that was the 95%-straight failure. So the
+         control-point COUNT scales with it: more corners over a longer lap
+         keeps each corner as sharp as it was while the lap gets longer.
+         ---------------------------------------------------------------- */
+      ? { pts:[26,34], jitter:0.40, longBias:0.65, size:74000, spike:0.30 }
     : league === 'gt'
-      ? { pts:[13,17], jitter:0.30, longBias:0.50, size:19500, spike:0.18 }
-      : { pts:[11,14], jitter:0.22, longBias:0.35, size:15500, spike:0.08 };
+      ? { pts:[23,30], jitter:0.30, longBias:0.50, size:62000, spike:0.20 }
+      : { pts:[20,26], jitter:0.24, longBias:0.35, size:50000, spike:0.10 };
 
   const N = R.rint(spec.pts[0], spec.pts[1]);
 
-  /* ---- the loop: radii around a circle, angles kept in order ------------
-     Sorting by angle is what makes it star-shaped, and a star-shaped polygon
-     is one that never crosses itself. The jitter gives it character; the
-     radius band stops it becoming a splinter. */
-  /* ---- LOBES, NOT A BLOB ----------------------------------------------
-     Radii drawn independently gave a nearly round loop — a circle with a wobble
-     on it. The reference shapes are LOBED: they push out and pull in, and that
-     alternation is what makes a shape read as a circuit rather than a puddle.
+  /* ---- THE LOOP, WITH ROOM FOR HAIRPINS -------------------------------
+     Points sorted by angle around a circle: star-shaped, so it cannot cross
+     itself. The jitter gives character; the radius band stops it becoming a
+     splinter.
 
-     So the radius alternates deliberately, in and out, with the jitter riding
-     on top of that rather than being the whole story. */
-  const ang = [], rad = [];
+     A HAIRPIN is not one point pulled deep — that overshoots and crosses. It
+     is THREE points close together in ANGLE at a short radius: the spline has
+     to turn hard to thread them, and the radius it can achieve is set by how
+     far apart they are. Clustering is the geometry; depth is not.
+     ------------------------------------------------------------------- */
+  const ang = [], rad = [], hair = [];
+  let a = 0;
   for(let i = 0; i < N; i++){
-    const base = (i / N) * Math.PI * 2;
-    ang.push(base + R.rnd(-0.30, 0.30) * (Math.PI * 2 / N));
-    let lobe = (i % 2 ? -1 : 1) * spec.jitter * R.rnd(0.55, 1.0);
-    /* a SPIKE is a hairpin: one point pulled hard in, so the path has to fold
-       back on itself to reach it. Formula circuits get them often, sports
-       circuits almost never. */
-    if(Math.random() < spec.spike) lobe = -spec.jitter * R.rnd(1.15, 1.55);
+    /* how much of the circle this point takes. A cluster takes very little,
+       which is exactly what makes the corner between them tight. */
+    let share = 1 + R.rnd(-0.30, 0.30);
+    ang.push(a);
+    const lobe = (i % 2 ? -1 : 1) * spec.jitter * R.rnd(0.55, 1.0);
     rad.push(1 + lobe + R.rnd(-spec.jitter*0.30, spec.jitter*0.30));
+    a += share;
   }
-  ang.sort((a,b) => a - b);
 
-  /* one signature straight: pull two neighbouring points apart so the run
-     between them is long, and flatten the corner at each end */
-  const hasLong = Math.random() < spec.longBias;
-  const longAt  = hasLong ? R.rint(0, N-1) : -1;
-  if(hasLong){
-    rad[longAt] = 1 + spec.jitter * 1.5;
-    rad[(longAt+1) % N] = 1 + spec.jitter * 1.5;
+  /* ---- fold in the hairpins -------------------------------------------
+     Take a point, pull it IN, and pull its two neighbours in ANGLE hard
+     toward it. Three points at a short radius within a narrow arc is a
+     hairpin: a wide approach, a tight apex, a wide exit. */
+  /* ---- A CORNER NEEDS LENGTH, NOT A SHARP POINT ------------------------
+     Measured on a warm lap, a formula car never dropped below 192mph. The
+     corners were sharp — peak curvature 14 — and far too SHORT to matter: at
+     218mph the car crosses a 600-unit sample in 0.036 seconds and the brakes
+     take almost nothing off it, so it carries straight through the apex.
+
+     A tight radius over 200 units is a kink. Over 6,000 it is a corner you
+     must brake for. So a hairpin is built as a SUSTAINED ARC: four or five
+     control points held at the same short radius across a narrow band of
+     angle. The spline threads them at a constant tight radius, which is what
+     an apex actually is, and the length comes for free because the points are
+     spread along the arc rather than piled on one spot.
+     ------------------------------------------------------------------- */
+  const nHair = Math.max(1, Math.round(N * spec.spike));
+  const used = [];
+  for(let h = 0; h < nHair; h++){
+    const arc = R.rint(4, 5);                 /* points held at the apex */
+    const i0  = R.rint(2, N - arc - 3);
+    if(used.some(u => Math.abs(u - i0) < arc + 3)) continue;
+    used.push(i0);
+    hair.push(i0);
+
+    /* the arc: every point at the SAME short radius, inside a narrow band of
+       angle, so the spline has to hold a constant tight turn across all of
+       them rather than spike at one */
+    const apexR    = 1 - spec.jitter * R.rnd(0.80, 1.05);
+    const bandFrom = ang[i0 - 1], bandTo = ang[i0 + arc];
+    /* 0.30-0.44 folded hard enough to produce CUSPS — measured radii as low
+       as 38 units, which is a spike in the spline, not a corner. It also put
+       crossings back. 0.55-0.72 keeps the arc a real curve. */
+    const band     = (bandTo - bandFrom) * R.rnd(0.55, 0.72);
+    for(let q = 0; q < arc; q++){
+      ang[i0 + q] = bandFrom + band * ((q + 1) / (arc + 1));
+      rad[i0 + q] = apexR * (1 + R.rnd(-0.03, 0.03));
+    }
+    /* wide approach and exit, so it reads as a hairpin rather than a dent */
+    rad[i0 - 1]   = 1 + spec.jitter * R.rnd(0.75, 1.15);
+    rad[i0 + arc] = 1 + spec.jitter * R.rnd(0.75, 1.15);
   }
+
+  /* normalise the angles back onto a full circle */
+  const span = ang[N-1] + 1;
+  for(let i = 0; i < N; i++) ang[i] = (ang[i] / span) * Math.PI * 2;
 
   /* ---- sample the loop into a smooth path ------------------------------
      A Catmull-Rom through the control points, closed, so the track flows
