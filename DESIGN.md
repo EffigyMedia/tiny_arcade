@@ -1,3 +1,206 @@
+# RACEWAY — THE FORK
+
+Forked from Highway. Same car, same road engine, a CIRCUIT instead of a
+highway. Registered as cabinet 18, own save namespace (`raceway-opts`), loads
+clean.
+
+## THE THREE CLASSES — naming
+
+Recommendation, same word in code and on screen so there is no translation
+layer to get wrong:
+
+    code        in game     the cars
+    'sports'    SPORTS      ROADSTER, TUNER, MUSCLE
+    'gt'        GT          STALLION, MATADOR, CREST
+    'formula'   FORMULA     the open-wheeler
+
+**Why not "gran prix".** It is spelled Grand Prix, and a Grand Prix IS formula
+racing — so as a middle rung it fights the top rung for meaning. GT is what
+those three cars actually are, everyone knows it, and it is two characters wide
+in a HUD.
+
+**One conflict to settle.** The FORMULA class currently contains a car called
+FORMULA. That is the same ambiguity that bit us with TYPE-T — a name that is
+sometimes a category and sometimes a thing. Either:
+
+  - rename the CAR (it is the only open-wheeler, so it can take a marque name
+    like the others — something in the register of STALLION and MATADOR), or
+  - rename the CLASS to OPEN or OPEN WHEEL
+
+Renaming the car is the better fix: the class name is the one a player reads
+most often, and FORMULA is the right word for a class.
+
+**And one gap.** A one-car class is not a class. SPORTS and GT have three each;
+FORMULA needs at least two more before the league means anything, or it is a
+single-car time trial with a rosette.
+
+## THE ROADSTER
+
+    top          176 mph        grip      1.34  (best in class)
+    0-60         5.1s           CORNER_G  0.313
+    gearbox      5-speed        badge     ROADSTER — a winged disc
+    redline      9.5k           shape     coupe body, narrowest arches
+    pitch        0.96           wheel     production (round)
+    horn         1.04
+
+Light, small and underpowered: it loses every straight and carries speed through
+a corner neither of the others can touch.
+
+**Two things the render caught.** Its wheel was flat-bottomed — it was missing
+from the `roundRim` list, so a production car had a supercar's rim. And it wore
+the generic oval on the boot, because it borrows the coupe's SHAPE and the shape
+decides the badge. A `marque` field now overrides that, so a car can share a
+body without sharing an identity.
+
+## THE LIGHT POOL — I MADE IT WORSE
+
+`sc` is `scale * ROAD * W`, which is HUGE near the camera. So `sc * 0.55`
+produced a TALLER pool than the slice-based version it replaced, and the haze
+got stronger rather than going away.
+
+A pool of light on tarmac is a FLAT ellipse — wide across the road, shallow up
+it, because you are looking at the ground almost edge on. And it has to be
+capped, or the nearest lamp on a crest paints half the screen:
+
+    was    rh = (y1-y2) * 5.5      grew and shrank with the slice
+    then   rh = sc * 0.17          capped at 6% of screen height
+    width  rw = sc * 2.2           capped at 55% of screen width
+    alpha  0.26 -> 0.13            it was twice as bright as it needed to be
+
+**I changed the formula without checking the magnitude of the variable I moved
+to.** Both are in Highway and Raceway.
+
+## SLIPSTREAM WAS TOO STRONG
+
+9% is a boost, not a tow — and a 0.34 lateral window is most of a lane, so
+weaving through traffic kept clipping it and the car surged for no reason the
+player could see.
+
+    gain    9% -> 4.5%      completes a pass you were already close to
+    window  0.34 -> 0.20    you have to actually be BEHIND the car
+
+## THE SPORTS LEAGUE — built and measured
+
+    CAR        TOP    0-60    GRIP  | FAST BEND  MEDIUM  HAIRPIN
+    ROADSTER   176    5.1s    1.34  |    176       131     106
+    TUNER      164    3.2s    1.00  |    144       106      85
+    MUSCLE     188    4.1s    0.82  |    150       110      89
+
+    best top      MUSCLE     worst  TUNER
+    best 0-60     TUNER      worst  ROADSTER
+    best corner   ROADSTER   worst  TUNER
+
+**Each is best at exactly one thing and worst at exactly one other.** No car is
+the right answer on every circuit, which is the only test a three-car league has
+to pass.
+
+ROADSTER can hold a hairpin at 106mph where the others are down at 85 and 89 —
+a 20% advantage that compounds over every corner of a lap. It pays for it with
+the worst launch in the class by nearly two seconds.
+
+**My first pass failed that test.** I gave ROADSTER middling straight-line stats
+and the best grip, which is not a trade — it is simply the best car. It has to
+give something up, and for a small light underpowered thing the honest thing to
+give up is the launch.
+
+**And my first measurement was useless**: I picked one representative bend, and
+it was gentle enough that all three could take it flat out, so every car
+reported its own top speed and the table said nothing. Three curvatures — fast,
+medium, hairpin — is what makes the difference visible.
+
+## GRIP: how it works
+
+`CORNER_G` was a global feel dial, because on a straight road a corner you can
+take flat is a corner nobody thinks about. It is now per-car.
+
+It is the force a bend exerts on YOU, so a HIGHER number is a car pushed wide
+more easily — grip is its inverse. `cornerG() = 0.42 / grip`:
+
+    ROADSTER  grip 1.34  ->  CORNER_G 0.313
+    TUNER     grip 1.00  ->  CORNER_G 0.420
+    MUSCLE    grip 0.82  ->  CORNER_G 0.512
+
+## The stat Highway never needed: GRIP
+
+Highway measures a car on top speed and 0-60, because a straight road only ever
+asks those two questions. A circuit asks a third: **how fast can you take a
+corner without running wide.** The cornering force is already
+`curvature * v² * CORNER_G`, so `CORNER_G` becomes a per-car number instead of a
+global feel dial — and that is the axis the whole game turns on.
+
+It also settles the third sports car. TUNER pulls hard and runs out of top end;
+MUSCLE is the reverse. The missing corner of that triangle is the one that is
+slow in a straight line and **quickest through the bends**:
+
+    TUNER     quick off, low top, average grip
+    MUSCLE    slow off, high top, poor grip
+    ROADSTER  lowest top of the three, best grip by a distance
+
+Light, small, no power. It wins on a twisty circuit and loses on a fast one,
+which is exactly what makes a three-car league interesting.
+
+## WHAT ELSE — the things not yet on the list
+
+**Qualifying.** A single hot lap sets your grid slot. Nearly free: it is the
+time-trial mode with a different result screen, and it turns the start of a race
+into something you earned rather than something assigned.
+
+**Sector times and a live delta.** The one thing that makes time trials
+addictive is a number that says "you are 0.3 up on your best RIGHT NOW". Split
+the lap in three, store the best, show the delta. Cheap, and it is the entire
+hook of the time-trial mode.
+
+**Flags.**
+  - YELLOW where a car is wrecked ahead — and no overtaking under it
+  - BLUE when the leader is catching you to lap you
+  - CHEQUERED, which you already have as a finish line
+Flags cost almost nothing and they are most of what makes a race feel officiated
+rather than simulated.
+
+**Lapped traffic.** Once a race is long enough, the leaders catch the tail. That
+is where slipstream, blue flags and pit strategy all start interacting — and it
+is free, because rivals already exist and already lap.
+
+**Track limits.** You said speed and penalty. The rule needs to be stated: I
+would put a lap time on it — all four wheels off, and that lap does not count.
+Simple to explain, brutal in a time trial, and it needs no new UI.
+
+**Grid start with lights.** The countdown SFX built two passes ago is already
+five reds and a go. It was written for a clock running out; it is a better fit
+here.
+
+**A championship.** The tournament frame is four rounds and a points table.
+A season is the same thing with more rounds and a standings screen between them.
+
+## On the things you did list
+
+**Fuel and tyres replacing damage** is the right trade. Damage is a punishment
+for contact; fuel and tyres are a decision you make BEFORE the race and live
+with. That is a better game. Keep a light contact penalty so ramming is not
+free — but it should cost time, not health.
+
+**Tyre compounds only matter if the race is long enough to need two stints.**
+Soft/medium/hard is a real choice at 12 laps and noise at 3. That sets your
+minimum race length more than anything else does.
+
+**Weather** doubles the value of compounds — wet tyres, a drying line — but it
+is also the biggest single piece of work here. It is the last thing to build,
+not the first.
+
+**Environments** are the cheapest big win on the list. The skyline is already a
+generated sprite with a palette; forest, desert and mountains are the same
+generator with different silhouettes and a different `hazeTint`.
+
+## Build order I would suggest
+
+    1  closed circuit + laps          the only genuinely new system
+    2  ROADSTER + per-car grip        makes the leagues mean something
+    3  qualifying, sectors, delta     reuses what exists
+    4  pit lane, fuel, tyres          the strategic layer
+    5  environments                   cheap, transformative
+    6  flags and lapped traffic       polish that reads as depth
+    7  weather                        the expensive one, last
+
 # TINY ARCADE — Design Doc & Work Queue
 
 The plan: keep making original titles, and alongside them build a floor of

@@ -197,5 +197,17 @@ window.TINY_ARCADE = [
     genre: 'DRIVING \u00B7 RACE \u00B7 ENDLESS',
     hook:  'Four races, a clock that only checkpoints reset, and the law behind you.',
     attract:'road'
+  },
+  {
+    file:  'games/sw/raceway.html',
+    id:    'raceway',
+    cat:   'sw',
+    name:  'Raceway',
+    accent:'#4dd6a0',
+    /* the fork: the same car and the same road engine, on a CIRCUIT. What
+       Highway measures in miles survived, this measures in laps. */
+    genre: 'RACING \u00B7 CIRCUIT \u00B7 LAPS',
+    hook:  'Procedural circuits in three leagues, and a pit lane that decides it.',
+    attract:'road'
   }
 ];
