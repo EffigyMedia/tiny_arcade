@@ -724,6 +724,78 @@ const CFG = { id:'raceway', title:'Raceway' };
 const R = new Proxy({}, { get: (_, k) => CFG.api && CFG.api[k] });
 
 /* ===========================================================================
+   FUEL, TYRES AND THE PIT LANE
+
+   Damage punishes contact. Fuel and tyres are a DECISION you make before the
+   race and live with — a better game, and the whole reason a circuit needs a
+   pit lane.
+
+     FUEL   burns with the THROTTLE, not with time, so a lap at full noise
+            costs more than a lap spent braking
+     TYRES  wear with LATERAL load, so corners eat them and straights do not.
+            As they go, grip falls and the same corner needs more braking
+            every lap — which is the pressure that makes a stop a decision
+     PIT    the last 9% of the lap. Under 60mph the crew works: fuel in at a
+            fixed rate, tyres back to new. The time lost is the price.
+
+   Declared with `var`, deliberately: `hudScore` is called during ROAD()'s
+   setup, before this file finishes executing, so a `const` here is still in
+   its temporal dead zone and the whole game throws.
+   =========================================================================== */
+var COMPOUNDS = {
+  SOFT:   { grip:1.10, wear:1.70, name:'SOFT'   },
+  MEDIUM: { grip:1.00, wear:1.00, name:'MEDIUM' },
+  HARD:   { grip:0.92, wear:0.62, name:'HARD'   }
+};
+var compound = 'MEDIUM';
+var circuitBiome = 'FOREST';
+var titleTrack = null;
+var fuel = 100, tyre = 100, inPit = false, pitTime = 0, stops = 0;
+var PIT_SPEED = 60 / 200;
+
+function inPitLane(z){
+  if(!circuit) return false;
+  return (trackZ(z) / circuit.len) > 0.91;
+}
+
+function stepPit(dt){
+  if(!circuit || R.state !== 'driving') return;
+  dt = dt || 1/60;
+  /* ---- FUEL IS THROTTLE x RPM ----------------------------------------
+     Burn was a function of SPEED, which is wrong: an engine drinks by how
+     hard it is working and how fast it is spinning, not by how far along the
+     road it happens to be. A car held at the limiter in second burns far
+     more than the same car loafing at the same speed in sixth — and that is
+     the whole reason a driver short-shifts to save fuel.
+
+         burn = idle + throttle x revFrac^1.35
+     ------------------------------------------------------------------- */
+  const throttle = R.throttle();
+  const revFrac  = Math.min(1.15, R.revs() / Math.max(1, R.redline()));
+  const burn = 0.30 + throttle * Math.pow(revFrac, 1.35) * 2.15;
+  fuel = Math.max(0, fuel - dt * burn * 0.55);
+
+  const k = Math.abs(R.segAt(circuit.segs, trackZ(R.pos + R.PLAYER_Z)));
+  const v = R.spd / R.MAX_SPD;
+  tyre = Math.max(0, tyre - dt * (k * v * v) * 0.30 * COMPOUNDS[compound].wear);
+
+  const wasIn = inPit;
+  inPit = inPitLane(R.pos + R.PLAYER_Z);
+  if(inPit && !wasIn) R.flashWarn('PIT LANE');
+  if(inPit && R.spd < R.MAX_SPD * PIT_SPEED){
+    pitTime += dt;
+    const before = fuel;
+    fuel = Math.min(100, fuel + dt * 26);
+    tyre = Math.min(100, tyre + dt * 34);
+    if(before < 100 && fuel >= 100 && tyre >= 100){
+      stops++; R.snd.checkpoint(); R.flashWarn('SERVICED');
+    }
+  }
+}
+
+
+
+/* ===========================================================================
    THE CIRCUIT
 
    Highway's road is INFINITE: `pushCurve` adds segments at the front and old
@@ -1210,18 +1282,104 @@ ROAD(Object.assign(CFG, {
   grade:     z => circuit ? R.segAt(circuit.hills, trackZ(z)) : 0,
 
   /* miles mean nothing on a circuit */
-  hudScore:  () => circuit ? ('LAP ' + Math.min(lap + 1, lapsTotal) + '/' + lapsTotal)
-                           : '\u2014',
+  hudScore:  () => {
+    if(!circuit) return '\u2014';
+    const f = Math.round(fuel), t = Math.round(tyre);
+    return 'LAP ' + Math.min(lap + 1, lapsTotal) + '/' + lapsTotal
+         + '   FUEL ' + f + '%   ' + COMPOUNDS[compound].name.charAt(0) + ' ' + t + '%';
+  },
 
   /* a fresh track every run: that is what procgen is for */
+  /* ---- RACEWAY'S OWN TITLE --------------------------------------------
+     Highway's title is a sunset at the end of an endless road, which is the
+     wrong promise for a circuit racer. This is a track seen from ABOVE — the
+     minimap idiom the game already uses, drawn large, with a car running a
+     lap on it and the pit straight picked out in red.
+
+     It uses the real generator, so the title screen is showing a circuit the
+     game could actually deal you.
+     ------------------------------------------------------------------- */
+  /* cold chrome and track green, against Highway's sunset chrome */
+  logoCool: ['#f2fbf6','#a8d8c2','#e6fff4'],
+  logoHot:  ['#9ff0c8','#4dd6a0','#1c8f68'],
+  titleArt: (g, w, h, T) => {
+    if(!titleTrack) titleTrack = buildCircuit(['sports','gt','formula'][(Math.random()*3)|0]);
+    if(!titleTrack.path) titleTrack.path = buildMiniPath(titleTrack);
+
+    /* a night sky over a floodlit circuit */
+    const sky = g.createLinearGradient(0, 0, 0, h);
+    sky.addColorStop(0, '#0a1018');
+    sky.addColorStop(0.55, '#132030');
+    sky.addColorStop(1, '#0d1a14');
+    g.fillStyle = sky; g.fillRect(0, 0, w, h);
+    for(let y = 0; y < h; y += 3){ g.fillStyle = 'rgba(0,0,0,.16)'; g.fillRect(0, y, w, 1); }
+
+    const P = titleTrack.path;
+    const size = Math.min(w, h) * 0.62;
+    const mx = w*0.5 - size/2, my = h*0.50 - size/2;
+    const pt = i => [mx + P[i][0]*size, my + P[i][1]*size];
+
+    g.lineJoin = g.lineCap = 'round';
+    /* the glow the floodlights throw around the ribbon */
+    g.strokeStyle = 'rgba(77,214,160,.10)';
+    g.lineWidth = Math.max(14, size*0.115);
+    g.beginPath(); P.forEach((q,i)=>{const a=pt(i); i?g.lineTo(a[0],a[1]):g.moveTo(a[0],a[1]);});
+    g.closePath(); g.stroke();
+    g.strokeStyle = '#101a16';
+    g.lineWidth = Math.max(7, size*0.062);
+    g.stroke();
+    g.strokeStyle = '#e9e6a8';
+    g.lineWidth = Math.max(4, size*0.038);
+    g.stroke();
+
+    /* the pit straight, in red */
+    const s0 = pt(0), s1 = pt(Math.min(P.length-1, 3));
+    g.strokeStyle = '#e0332f';
+    g.lineWidth = Math.max(5, size*0.052);
+    g.beginPath(); g.moveTo(s0[0], s0[1]); g.lineTo(s1[0], s1[1]); g.stroke();
+
+    /* a car running the lap, and a second one chasing */
+    for(const off of [0, 0.14]){
+      const f = ((T * 0.085) + off) % 1;
+      const i = Math.floor(f * P.length) % P.length;
+      const q = pt(i);
+      g.fillStyle = off ? 'rgba(255,255,255,.55)' : '#4dd6a0';
+      g.beginPath();
+      g.arc(q[0], q[1], Math.max(2.6, size*0.026), 0, 6.2832);
+      g.fill();
+      if(!off){
+        g.globalCompositeOperation = 'lighter';
+        const gl = g.createRadialGradient(q[0], q[1], 0, q[0], q[1], size*0.10);
+        gl.addColorStop(0, 'rgba(77,214,160,.35)');
+        gl.addColorStop(1, 'rgba(77,214,160,0)');
+        g.fillStyle = gl;
+        g.beginPath(); g.arc(q[0], q[1], size*0.10, 0, 6.2832); g.fill();
+        g.globalCompositeOperation = 'source-over';
+      }
+    }
+
+    g.font = '600 11px ' + getComputedStyle(document.body).getPropertyValue('--mono');
+    g.fillStyle = 'rgba(233,230,168,.55)';
+    g.textAlign = 'center';
+    g.fillText(titleTrack.name + '  \u00B7  ' + titleTrack.corners + ' CORNERS',
+               w*0.5, h*0.90);
+    return true;
+  },
+
+  /* a circuit is somewhere, and it stays there */
+  biome: () => circuitBiome,
   onReset: () => {
     circuit = buildCircuit(league);
+    const bk = R.BIOME_KEYS();
+    circuitBiome = bk[(Math.random()*bk.length)|0];
     lap = 0; lapStart = R.clock; bestLap = 0; lastLap = 0;
+    fuel = 100; tyre = 100; inPit = false; pitTime = 0; stops = 0;
   },
 
   /* `pos` never resets, so the lap number is just how many track lengths you
      have covered. A change in that number IS a lap. */
   onStep: () => {
+    stepPit();
     if(!circuit || R.state !== 'driving') return;
     const n = lapOf(R.pos);
     if(n > lap){
