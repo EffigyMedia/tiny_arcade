@@ -50,14 +50,23 @@ Knowledge Base (`<env-root>/Process/Knowledge_Base/`), not here. This log is onl
   bullet; the design document's section 0.
 - Agent, 2026-08-23.
 
-### The work record is the fragment store, and `tracker.md` is a generated view
+### The work record is the fragment store, and this project keeps no `tracker.md`
 
 - **Instruction:** every unit of work is an `RLG-NNN` fragment in `docs/fragments/`, written with
-  `<env-root>/Commands/fragment.py` and never by hand. `docs/core/tracker.md` is regenerated from
-  the store with `<env-root>/Commands/tracker.py`. **Never author into `tracker.md`.**
-- **Why:** owner decision at the standup. The store is the live system in this environment, and a
-  project that starts on it carries no migration debt. A generated view cannot diverge from its
-  source, which is the failure the environment's own migration was fixing.
-- **Encoded in:** `CLAUDE.md` → the work-record bullet and the trigger table; the header of
-  `docs/core/tracker.md`.
-- Owner, 2026-08-23.
+  `<env-root>/Commands/fragment.py` and never by hand. The view over the store is the dashboard.
+  **Do not generate `docs/core/tracker.md` for this project.**
+- **Why, first half:** owner decision at the standup. The store is the live system in this
+  environment, and a project that starts on it carries no migration debt.
+- **Why, second half — and this part is a finding, not a preference.** `Commands/tracker.py` was
+  written to serve one document: the environment's own `roadmap.md`, which cites tracker anchors 159
+  times. It hardcodes that purpose. Pointed at this project's store it produced a file whose header
+  says "GENERATED from `Environment/docs/fragments/`", cites `roadmap.md` by name, counts 159
+  anchors that belong to another repository, and describes a frozen succession line that this
+  project does not have. **A generated file that misdescribes its own source is worse than no
+  file**, because a future session will believe the header. The generated file was deleted rather
+  than committed.
+- **What this does not change:** the store is still the record, and the dashboard still reads it.
+  Nothing is lost except a second view that nothing here needs. If `tracker.py` learns to describe
+  the store it was pointed at, this entry is superseded.
+- **Encoded in:** `CLAUDE.md` → the work-record bullet.
+- Owner and agent, 2026-08-23.

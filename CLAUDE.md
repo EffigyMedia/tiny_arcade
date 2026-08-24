@@ -47,9 +47,10 @@ starter blanks: `<env-root>/Templates/_Project_Template/`
 - `docs/core/Instruction_Changelog.md` *(project-local)* — dated log of amendments to *how this
   project works*. A documented project amendment **wins** over the shared docs on conflict.
 - **The work record is the fragment store** in `docs/fragments/`, written with
-  `<env-root>/Commands/fragment.py` and never by hand. `docs/core/tracker.md` is a **generated
-  view** over it — never author into that file. `Dashboard.bat` / `dashboard.sh` at the root open
-  the dashboard.
+  `<env-root>/Commands/fragment.py` and never by hand. **This project keeps no `tracker.md`** — the
+  view over the store is the dashboard, opened by `Dashboard.bat` / `dashboard.sh` at the root. The
+  reason is in the instruction log: `Commands/tracker.py` writes a header that describes the
+  environment's own store, whatever store it is pointed at.
 - Core artifacts in `docs/core/`; handoffs, technical references, performance and audit documents in
   their `docs/` subfolders. **This file is the only Markdown file at the repository root.**
 - **Shared Knowledge Base** — `<env-root>/Process/Knowledge_Base/`: consult it for browser, PWA and
