@@ -81,10 +81,18 @@ Python 3 with Playwright installed runs the two test harnesses; a browser runs e
 - `run` — serve the folder and open it: `python -m http.server 8000`, then `http://localhost:8000`.
   `index.html` also opens straight from the file system. **Neither is an on-target check** — a
   desktop browser does not verify phone layout, webview audio, or feel.
-- `test` — `python tools/smoke-test.py` boots all eighteen machines and asserts a clean console and
-  paint on the canvas. `python tools/drive-test.py` drives Highway and Raceway for 30 seconds with
-  an autopilot and asserts speed, laps, fuel, tires, damage, the HUD, and page errors. **Run both
-  before shipping anything.**
+- `setup` — build the test environment. Playwright cannot be installed into the environment's
+  uv-managed Python (it refuses, by PEP 668), so the harnesses run from a project-local venv:
+  `<env-root>/Runtime/bin/uv venv .venv` then
+  `<env-root>/Runtime/bin/uv pip install --python .venv playwright`. `.venv/` is git-ignored.
+- `test` — `.venv/Scripts/python tools/smoke-test.py` boots all eighteen machines and asserts a
+  clean console and real paint on the canvas. `.venv/Scripts/python tools/drive-test.py` drives
+  Highway and Raceway for 30 seconds with an autopilot and asserts speed, laps, fuel, tires,
+  damage, the HUD, and page errors. **Run both before shipping anything.**
+  The harnesses use the Chrome already on the machine when Playwright has no browser of its own,
+  **and they print which engine they used** — a harness that silently changes engine produces
+  numbers that cannot be compared between runs. To pin it instead:
+  `.venv/Scripts/python -m playwright install chromium`.
 - `build` — `./pack.sh` builds and validates `tiny-arcade.zip` from an explicit whitelist;
   `./pack.sh --check` validates and builds nothing; `--standalone <id>` emits one self-contained
   HTML file; `--commercial` omits a shelf. A build **regenerates `assets.js` and `sw.js ALL_FILES`**

@@ -27,13 +27,15 @@ from pathlib import Path
 
 from playwright.sync_api import sync_playwright
 
+from harness import console_utf8, launch_chromium, node_exe
+
 ROOT = Path(__file__).resolve().parent.parent
 
 
 def catalogue():
     """games.js is the single source of truth; read it, do not restate it."""
     out = subprocess.run(
-        ['node', '-e',
+        [node_exe(), '-e',
          "global.window={};eval(require('fs').readFileSync('games.js','utf8'));"
          "console.log(JSON.stringify(window.TINY_ARCADE))"],
         cwd=ROOT, capture_output=True, text=True, check=True)
@@ -100,6 +102,7 @@ def smoke(page, base, game, seconds):
 
 
 def main():
+    console_utf8()
     ap = argparse.ArgumentParser()
     ap.add_argument('ids', nargs='*')
     ap.add_argument('--seconds', type=float, default=8.0)
@@ -114,7 +117,8 @@ def main():
     failed = 0
     print(f'smoke-test  ·  {len(games)} cabinets  ·  {args.seconds:g}s each')
     with sync_playwright() as p:
-        browser = p.chromium.launch(
+        browser = launch_chromium(
+            p,
             args=['--mute-audio', '--autoplay-policy=no-user-gesture-required'])
         ctx = browser.new_context(viewport={'width': 480, 'height': 900})
         for g in games:

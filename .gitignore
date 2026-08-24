@@ -24,3 +24,8 @@ Thumbs.db
 Desktop.ini
 *.tmp
 *.bak
+
+# The test venv. Playwright cannot be installed into the environment's uv-managed
+# Python - it refuses, by PEP 668 - so the harnesses get a project-local venv. It is
+# rebuilt by the setup command in one line and never belongs in the repository.
+.venv/

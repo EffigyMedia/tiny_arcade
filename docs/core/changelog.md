@@ -12,6 +12,19 @@ the development process. See `docs/core/tiny_arcade_design.md` section 0.
 
 ---
 
+<a id="v0-9-3"></a>
+## [0.9.3] — 2026-08-23 23:57:56
+- Added: `tools/harness.py` — what the two test harnesses need from the machine they run on: a
+  browser that exists, a `node` that resolves, and a console that takes the characters they print
+  ([RLG-042](../fragments/RLG-042.md)).
+- Fixed: `subprocess` could not find `node` on Windows — CreateProcess does not apply PATHEXT, so a
+  bare `node` misses `node.cmd` and `node.exe` ([RLG-042](../fragments/RLG-042.md)).
+- Fixed: the reports raised `UnicodeEncodeError` on a cp1252 console **after every check had
+  passed** — the harness did the work, threw the answer away, and exited non-zero
+  ([RLG-042](../fragments/RLG-042.md)).
+- Changed: the test environment is a project-local `.venv`, because the environment's Python is
+  uv-managed and refuses package installs ([RLG-042](../fragments/RLG-042.md)).
+
 <a id="v0-9-2"></a>
 ## [0.9.2] — 2026-08-23 22:49:54
 - Added: `LICENSE` — an all-rights-reserved notice. The repository stays public, because that is
