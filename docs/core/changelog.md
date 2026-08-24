@@ -12,6 +12,14 @@ the development process. See `docs/core/tiny_arcade_design.md` section 0.
 
 ---
 
+<a id="v0-9-2"></a>
+## [0.9.2] — 2026-08-23 22:49:54
+- Added: `LICENSE` — an all-rights-reserved notice. The repository stays public, because that is
+  what GitHub Pages needs, and the notice grants no rights rather than relying on the repository
+  being closed ([RLG-022](../fragments/RLG-022.md)).
+- Changed: the packer's whitelist ships `LICENSE`, so a downloaded build carries its terms beside
+  the font licenses ([RLG-022](../fragments/RLG-022.md)).
+
 <a id="v0-9-1"></a>
 ## [0.9.1] — 2026-08-23 22:00:49
 - Added: `pack.sh` — the whitelist build, the four validation gates, and the generator of the

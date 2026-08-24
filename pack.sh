@@ -78,6 +78,7 @@ command -v node >/dev/null || fail "node is required (parse gate, catalogue read
 ROOT_FILES=(
   index.html arcade.js audio.js road.js assets.js games.js sw.js
   manifest.webmanifest icon.png icon-512.png effigy.png
+  LICENSE
   pack.sh sync.sh
 )
 # The six project documents used to be listed here and used to sit at the root.
