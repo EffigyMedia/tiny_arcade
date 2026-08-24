@@ -8218,7 +8218,7 @@ function drawFinish(){
 /* ---- full-render mirror -------------------------------------------------
    A second projection pass looking backward: the road receding behind you,
    with real perspective, and every sprite placed by the same maths as the
-   forward view. Costs a full extra pass — see MIRROR notes in DESIGN.md.
+   forward view. Costs a full extra pass — see MIRROR notes in docs/reference/DESIGN.md.
    -------------------------------------------------------------------------- */
 function drawMirrorFull(mx, my, mw, mh){
   ctx.save();

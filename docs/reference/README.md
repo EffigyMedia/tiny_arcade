@@ -1,3 +1,10 @@
+> **REFERENCE ANCESTOR — frozen on 2026-08-23 at the Code Continuum standup.**
+> This document is the record of the work done before the project moved into the
+> development process. It is not updated. The live design authority is
+> `docs/core/tiny_arcade_design.md`. The live work record is the fragment store in
+> `docs/fragments/`. Read this document for the reasoning behind what exists; do not
+> add to it.
+
 # TINY ARCADE
 
 A tiny arcade cabinet that lives in a browser tab. Runs offline, no build step.
