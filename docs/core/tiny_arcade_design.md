@@ -29,6 +29,15 @@ costs more than the model time saved.
 > ancestor, this document wins, and the disagreement is a defect in this document until section 12
 > records the decision. Where a decision was made before the standup and its date is not recorded,
 > section 12 says so instead of inventing one.
+>
+> **THE ANCESTORS ARE NOT EQUALLY AGED, AND THE FIRST VERSION OF THIS DOCUMENT GOT IT WRONG.**
+> `DESIGN.md` is a running log in reverse date order, and it kept being appended after `DRIVING.md`
+> and `START-HERE.md` were written. Its **top** entries are the newest thing in the repository. Read
+> in the wrong order they produce a plan for work that is already done: this document's first
+> version, and the fragment store seeded from it, listed corners, qualifying, sector times and the
+> per-biome skyline as queued when all four had shipped. Corrected 2026-08-23 against the code.
+> **When the frozen documents disagree, `DESIGN.md` from the top is the newest, and the code is the
+> truth.**
 
 ---
 
@@ -366,7 +375,8 @@ that it decided was still fresh. With `reload`, the Cache API is the only cache 
 | Problem | State | How it is managed |
 |---|---|---|
 | A pseudo-3D road cannot draw a corner past about 90 degrees | Settled. The cap is a renderer limit, not a taste one. Past that angle the road leaves the frame | Recorded here and in section 12. Do not re-derive it |
-| Corners that are slow enough to matter | **Open, and it is the blocking one.** A formula car never drops below 182 mph. Braking is 1% to 3% of a lap against a target near 15% | Section 10, slice 1. The harness measures brake time as a share of the lap |
+| Corners that are slow enough to matter | **Solved.** The scale constant was the lever, not the geometry, and the slowest point on every lap turned out to be a leftover spline cusp rather than a designed corner | Built. `CURVE_K` is Raceway's own at 0.000040, and curvature is clamped to the tightest hairpin the league asked for. Slowest corner 99 to 123 mph, braking 6.9% to 10.1% |
+| The generator can still ask for a corner the renderer cannot draw | Open. The 90-degree limit is a fact about the projection; nothing clamps the generator to it | Sweep cap, one clamp. Tracked |
 | A 914-line `step()` function, a 634-line `paintCar()`, and a 585-line `zUnlocked()` | Known. They accreted | A refactor is not scheduled. The harness comes first, and it now exists |
 | The painters look repetitive and are not | Settled. Each body's proportions were tuned against screenshots over many sessions | **Do not collapse them into one parameterized painter.** The duplication is the record of the tuning |
 | `paintProfile` and `paintQuarter` are unbuilt | Deliberate. They are for a kart racer | Do not delete them as dead code |
@@ -446,10 +456,25 @@ The packer enforces these and refuses to build otherwise:
 |---|---|---|---|
 | Frame rate | frames per second | 60, sustained | A mid-range phone, any machine, a full run |
 | Launch | network requests before the launcher is usable | 0 | A cold load with the network disabled |
-| Corner discipline (Raceway) | brake time as a share of one lap | near 15% | `drive-test.py`, a formula car, a generated circuit |
-| Tire life (Raceway) | wear per lap with a steady driver | about 36% | `drive-test.py`, smoothed autopilot |
+| Corner discipline (Raceway) | brake time as a share of one lap | 7% to 12% | a generated circuit per league |
+| Slowest corner (Raceway) | speed at the slowest point of a lap | 95 to 125 mph | a generated circuit per league |
+| Tire life (Raceway) | wear per lap with a steady driver | 35% to 40% | `drive-test.py`, smoothed autopilot |
+| Fuel range (Raceway) | fuel per lap with a steady driver | 3 to 4.5 laps per tank | `drive-test.py`, smoothed autopilot |
 
-The first two hold today. The third is the open one; today it measures 1% to 3%.
+**Measured 2026-08-23.** Frame rate and launch hold. Tire life is 37% a lap and fuel 25% a lap
+(about 2.7 and 4.1 laps) — both confirmed by `drive-test.py`, independently of the frozen log that
+first claimed them.
+
+**The two corner rows are recorded from the frozen log and cannot yet be re-measured here.** Its
+figures are 99, 102 and 123 mph at the slowest corner and 6.9%, 10.1% and 7.7% braking for CUP, GT
+and GP. `drive-test.py` reports neither number, so the thresholds above are written from one
+measurement that no command in this repository can repeat. **That gap is tracked, and until it
+closes these two rows are a claim rather than a check.**
+
+**The 15% braking target was dropped, deliberately.** It was written into the first version of this
+document from a note that predated the corner work. The circuits measure 7% to 10% and drive as
+circuits, so the number to hold is the one the game actually produces, not the one an older note
+aimed at.
 
 ### Security and privacy
 
@@ -464,39 +489,63 @@ The product is past its walking skeleton. Eighteen machines ship, and the proces
 codebase at v0.9.0. The slices below are ordered by dependency, not by size, and they carry the
 order the frozen ancestors set on 2026-08-23.
 
-**Slice 1 — Corners that matter.** *The blocking one.* A formula car never drops below 182 mph and
-brakes for 1% to 3% of a lap. Until a corner forces a lift, Raceway is a fast motorway with a lap
-counter. Done when `drive-test.py` reports brake time near 15% of a lap and the car is not on the
-road 100% of the time by default.
+**WHAT THE STANDUP GOT WRONG HERE, AND WHY IT IS WORTH SAYING.** The first version of this section
+listed eight slices in dependency order. **Four of them were already built** — the corner work,
+qualifying, sector times and the live delta, and the per-biome skyline — and the plan was written
+from `DRIVING.md` and `START-HERE.md` without noticing that the top of `DESIGN.md` is newer than
+both. Corrected 2026-08-24 against the code. Section 0 carries the rule that prevents the repeat.
 
-**Slice 2 — The end card shows the session.** The game records qualifying, sector bests, lap times,
-and grid position, and then throws all of it away. This is the highest value per hour on the list,
-because the data already exists.
+**What is built, so it is not re-planned:** the corners (slowest 99 to 123 mph, braking 6.9% to
+10.1%), qualifying and the grid it feeds, sector times with a live delta, the per-biome skyline, the
+grid title screen, the fuel and tire re-tune that followed the corner work, and the billboard car
+angles.
 
-**Slice 3 — Qualifying and the grid it feeds.** A hot lap that sets the starting position. It is the
-time-trial loop with a different result screen. The title screen already shows a grid, so the game
-promises this and does not deliver it.
+### The slices, in dependency order
 
-**Slice 4 — Sector times and a live delta.** Split the lap in three, keep the best, and show the
-delta. It is arithmetic on data the game already has.
+**Slice 1 — Curate the seeded circuits.** *Promoted to first, and the reason is the strongest
+argument in the frozen log.* The generator is already deterministic — a track is a number — and a
+curation trial over 120 seeds passed 118. What ships is still a fresh random circuit every race.
+**Everything built in the last two passes quietly depends on this**: sector bests, the live delta,
+qualifying and lap records are all about improving on a track you know, and a lap record on a
+circuit you will never see again is meaningless. Procedural generation is undermining the features
+built on top of it.
 
-**Slice 5 — The start line and the lights.** There is no visible line and no start sequence. The
-countdown sound built weeks ago is already five reds and a go.
+**Slice 2 — The end card shows the session.** The game records qualifying, sector bests, lap times
+and grid position, then throws all of it away. The highest value per hour on the list, because the
+data already exists and the work is display.
 
-**Slice 6 — Pit road art.** Fuel and tires are real. The pit lane is a speed zone with no picture.
+**Slice 3 — Tire compounds into `cornerG`.** `COMPOUNDS` defines 1.10, 1.00 and 0.92 and nothing
+reads it. It was blocked while every lap was flat out; the corners are built now, so an 18% grip
+difference is finally observable. One line turns a cosmetic choice into a strategic one.
 
-**Slice 7 — Tire compounds into `cornerG`.** `COMPOUNDS` defines 1.10, 1.00, and 0.92 and is not
-connected. One line turns a cosmetic choice into a strategic one.
+**Slice 4 — The start line and the lights.** Half of it exists on the wrong screen: the title art is
+the start grid with a gantry running five reds. The race has no line and no start sequence.
 
-**Slice 8 — Flags and lapped traffic.** Yellow where a car is wrecked, blue when the leader is
-catching you. Both are cheap, and both make a race feel officiated.
+**Slice 5 — Pit road art.** Fuel and tires are real and decide races. The pit lane is a speed zone
+with no picture.
 
-**Later, in no fixed order:** curated seeded circuits; the garage split into a car screen and a
-session screen; per-biome skyline art; the weather and compound options that exist in code with no
-interface; a championship across circuits; a track-limits penalty; bridges; a real Raceway wordmark;
+**Slice 6 — Flags and lapped traffic.** Cheap, and they make a race feel officiated rather than
+simulated.
+
+**Slice 7 — Cap corner sweep at 90 degrees.** One clamp, so the generator never asks the renderer
+for a corner it cannot express.
+
+### Two measurement debts, ahead of any of it
+
+**`drive-test.py` reports neither brake share nor slowest cornering speed**, so section 9's two
+corner rows cannot be re-measured — they rest on one reading in a frozen document. And **the bend
+fix was never verified in view**: the road rendered dead straight on every circuit, `CFG.roadSpan()`
+fixed it, and no screenshot has ever shown a bent road because the probe that would jump the car to
+a corner did not move it. Both are tracked. Neither is large, and both make everything after them
+checkable rather than claimed.
+
+**Later, in no fixed order:** the garage split into a car screen and a session screen; the weather
+and compound options that exist in code with no interface; a championship across circuits; a
+track-limits penalty; tunnels as a z-range effect, then bridges; a real Raceway wordmark, since the
+title scene was rebuilt and the wordmark is still Highway's; finishing the billboard angle tuning;
 the shared engine helpers (`Arcade.grid`, `Arcade.fx`, `Arcade.scores`, `Arcade.haptics`,
 `Arcade.sticks`, `Arcade.tilt`); landscape support in the shell; the attract-loop kit; title screens
-for Penboy, Highway, and Deep; and `Arcade.cinema.play` as a shell convention.
+for Penboy, Highway and Deep; and `Arcade.cinema.play` as a shell convention.
 
 **The queues.** Nine Golden Era machines remain unbuilt, and the Second Wave shelf holds a queue of
 twenty-four. Neither queue is scheduled. Each entry is written to be picked up cold.
@@ -546,6 +595,15 @@ build is tested on a real device.
 Entries are newest first. An entry with "before 2026-08-23" carries a decision recovered from the
 frozen ancestors, where the source records no date.
 
+- **The fragment store and the delivery plan were seeded from stale documents, and are corrected
+  against the code** — `DESIGN.md` is a reverse-order log that kept being appended after `DRIVING.md`
+  and `START-HERE.md` were written, so its top entries are the newest thing in the repository. Four
+  items were queued that had already shipped: the corner work, qualifying, sector times, and the
+  per-biome skyline — *the rule that follows is in section 0: when the frozen documents disagree,
+  the top of `DESIGN.md` is newest and the code is the truth* — 2026-08-24.
+- **The 15% braking target is dropped in favor of the 7% to 12% the circuits actually produce** —
+  the higher figure came from a note written before the corner work, and a target nothing has ever
+  met is a target nobody reads — 2026-08-24.
 - **Highway and Raceway are `sw` shelf cabinets, and the design note that calls Highway an Effigy
   Original is stale** — owner ruling: "It's a Second Wind cabinet now." The shelf grew into the
   driving floor, so the catalog is right and the note is out of date — *the consequence: a

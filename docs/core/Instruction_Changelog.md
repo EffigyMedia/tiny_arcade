@@ -14,6 +14,31 @@ Knowledge Base (`<env-root>/Process/Knowledge_Base/`), not here. This log is onl
 
 ---
 
+## 2026-08-24
+
+### Check a frozen document's age before planning from it, and settle it against the code
+
+- **Instruction:** before any item is queued from `docs/reference/`, check which document is newest
+  and confirm the claim in the source. **The top of `DESIGN.md` is the newest record in this
+  repository** — it was appended to after the other five frozen documents were written. `DRIVING.md`
+  and `START-HERE.md` describe a "what is next" that has partly shipped. **The code settles any
+  disagreement.**
+- **Why:** the standup seeded the fragment store and the delivery plan from `DRIVING.md` and
+  `START-HERE.md`, and queued four items that were already built — the corner work, qualifying,
+  sector times with the live delta, and the per-biome skyline. It also carried a 15% braking target
+  from a note written before the corner work, against circuits that measure 7% to 10%. **A plan for
+  work that is done is worse than no plan**: it sends the next session to build a thing twice and it
+  makes the tracker lie about where the project is.
+- **The narrower lesson, which is the one that generalizes:** a reverse-chronological log has no
+  visible age. Every other document announces when it was written; that one announces it only at the
+  top of each entry, and the file's own modification date says nothing about which entry is current.
+- **Corollary, found the same day:** a comment is not evidence either. `raceway.html:984` reads
+  *"once COMPOUNDS.grip is finally wired into cornerG"* and a fast reader takes it as done. It is
+  not wired. `cornerG()` reads the body and the weather and nothing else.
+- **Encoded in:** `CLAUDE.md` → the `docs/reference/` bullet; the design document's section 0 and
+  its Decision Log.
+- Agent, 2026-08-24.
+
 ## 2026-08-23
 
 ### Two environment tools were fixed from this project, and it is recorded in both places

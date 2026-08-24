@@ -34,6 +34,11 @@ starter blanks: `<env-root>/Templates/_Project_Template/`
   `DRIVING.md` (what is built in the two driving games and what is not), `REFACTOR.md` (the state of
   `road.js` and what is load-bearing but invisible), `README.md`, `SHIPPING.md`, `START-HERE.md`.
   **Read them for reasoning; never add to them.**
+  **They are not equally aged, and this has already cost one wrong plan.** `DESIGN.md` kept being
+  appended after the other five were written, so **its top entries are the newest thing in the
+  repository** — newer than `DRIVING.md`'s "what is next" list and `START-HERE.md`'s next steps,
+  both of which describe work that later shipped. When they disagree: the top of `DESIGN.md` is
+  newest, **and the code settles it.**
 - `Development_Process.md` — the operating manual: bootstrap, the feature loop, milestones,
   handoffs, releases, the trigger phrases below. **The source of *how*.**
 - `Artifact_Formats.md` — formats for the tracker, `changelog.md`, handoffs, technical references.
