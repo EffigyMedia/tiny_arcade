@@ -12,6 +12,18 @@ the development process. See `docs/core/tiny_arcade_design.md` section 0.
 
 ---
 
+<a id="v0-9-1"></a>
+## [0.9.1] — 2026-08-23 22:00:49
+- Added: `pack.sh` — the whitelist build, the four validation gates, and the generator of the
+  offline cache lists. It is a **recreation**, not the lost original, and the file says so
+  ([RLG-018](../fragments/RLG-018.md)).
+- Fixed: the catalog cross-check compared `path.join` output against forward-slash catalog entries,
+  so on Windows all eighteen machines were reported as unlisted ([RLG-018](../fragments/RLG-018.md)).
+- Fixed: `fonts/.gitkeep` reached both regenerated cache lists, while the staging copy does not
+  carry it — one 404 fails the whole precache ([RLG-018](../fragments/RLG-018.md)).
+- Added: a PowerShell fallback for the archive step, because Git Bash on Windows ships `unzip` and
+  not `zip` ([RLG-018](../fragments/RLG-018.md)).
+
 <a id="v0-9-0"></a>
 ## [0.9.0] — 2026-08-23 20:41:31
 - Added: the project version — `Arcade.version` in `arcade.js` is the one authoritative copy, and

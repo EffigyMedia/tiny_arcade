@@ -36,7 +36,7 @@ var A = window.Arcade = window.Arcade || {};
    readable from anywhere in the arcade. There is no package.json to hold it, and a
    second copy in a file that nothing reads is how two answers to one question start.
    The git tag mirrors this string; a tag is a record, not a source. */
-A.version = '0.9.0';
+A.version = '0.9.1';
 
 /* every cabinet draws its name with the same hand */
 A.wordmark = wordmark;
