@@ -136,10 +136,10 @@ The rules that follow from this:
   says nothing; "after Centipede" says everything.
 - Each machine gets a distinct accent color, so the launcher never shows two of one color.
 
-**The commercial split.** The intended posture is to sell the Effigy Originals and to keep the
-clones free. The mechanism is already built: every catalog entry carries a `cat` field and the
-launcher builds its shelves from it, so a commercial build omits a shelf. See section 11 for the
-risk this manages.
+**The commercial split.** The intended posture is to sell the Effigy Originals — Deep and Derelict —
+and to keep the other two shelves free. The mechanism is already built: every catalog entry carries
+a `cat` field and the launcher builds its shelves from it, so a commercial build omits a shelf. See
+section 11 for the risk this manages.
 
 ### Not greenfield
 
@@ -534,7 +534,7 @@ build is tested on a real device.
 
 | Question | Who decides | When it matters |
 |---|---|---|
-| Highway is an Effigy Original in the frozen design notes, and its catalog entry puts it on the Second Wave shelf with Raceway. Which is right? | Owner | Before the commercial split, because the split drops a shelf |
+| The `sw` shelf renders as "SECOND WAVE" in the launcher, and the owner named it "Second Wind" when the shelf question was ruled on. Is the label renamed? | Owner | Before the next machine joins that shelf |
 | Does a root `README.md` come back for the public repository? The process permits one Markdown file at the root, and it is `CLAUDE.md` | Owner | Whenever the repository's front page matters |
 | Is there any localization target, or is English-only a decided non-goal? | Owner | Before a store submission |
 | Which store comes first: itch.io, Steam through a desktop wrapper, or the mobile stores? | Owner | Before any wrapping work starts |
@@ -546,6 +546,10 @@ build is tested on a real device.
 Entries are newest first. An entry with "before 2026-08-23" carries a decision recovered from the
 frozen ancestors, where the source records no date.
 
+- **Highway and Raceway are `sw` shelf cabinets, and the design note that calls Highway an Effigy
+  Original is stale** — owner ruling: "It's a Second Wind cabinet now." The shelf grew into the
+  driving floor, so the catalog is right and the note is out of date — *the consequence: a
+  commercial build that omits the clone shelves omits these two as well* — 2026-08-23.
 - **The project adopts the Code Continuum process at v0.9.0, not at 0.0.0** — the codebase already
   ships eighteen machines, and a version that says 0.0.0 would be a false statement about maturity —
   *rejected: 0.0.0 by a literal reading of bootstrap; 1.0.0, which would declare a release that has
