@@ -16,6 +16,29 @@ Knowledge Base (`<env-root>/Process/Knowledge_Base/`), not here. This log is onl
 
 ## 2026-08-23
 
+### Two environment tools were fixed from this project, and it is recorded in both places
+
+- **Instruction:** none changed here. This entry exists because work done for this project was
+  committed to **another repository**, and `Agent_Scope.md` requires that to be stated rather than
+  done quietly.
+- **What was written elsewhere:** two fixes in the Code Continuum environment repository, each with
+  its own fragment, changelog entry, and version.
+  - `RLG-153`, environment v1.60.0 — `Commands/tracker.py` described this environment's own store
+    whatever store it was pointed at, and its `default_out()` would have overwritten the
+    environment's `tracker.md` with a project's items had `--out` been omitted. This project found
+    it and chose to keep no `tracker.md`; the tool is now correct for any project that wants one.
+  - `RLG-154`, environment v1.61.0 — the POSIX `node` shim looked for the executable in
+    `Runtime/node/bin`, which is the macOS and Linux layout. On Windows it sits at
+    `Runtime/node/node.exe`, so Git Bash was told Node was not installed. **`pack.sh` needs `node`
+    on PATH**, so this project's build could not run without a manual workaround. The workaround was
+    written into `CLAUDE.md` and has now been removed, because the shim is fixed and verified.
+- **Why it was done rather than only reported:** the owner asked for the first one directly, and the
+  second blocked this project's build command. Both are one-file fixes with the environment's own
+  view regenerating byte-identical, which is the property that says nothing else moved.
+- **Encoded in:** the environment repository, at `Environment/docs/fragments/RLG-153.md` and
+  `RLG-154.md`; here, only the removal of the PATH workaround from `CLAUDE.md`.
+- Agent, 2026-08-23.
+
 ### The public front page lives at `docs/README.md`, and the root stays clean
 
 - **Instruction:** the repository's public README is `docs/README.md`. It is a live document: keep

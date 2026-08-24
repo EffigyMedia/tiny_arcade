@@ -89,10 +89,7 @@ Python 3 with Playwright installed runs the two test harnesses; a browser runs e
   `./pack.sh --check` validates and builds nothing; `--standalone <id>` emits one self-contained
   HTML file; `--commercial` omits a shelf. A build **regenerates `assets.js` and `sw.js ALL_FILES`**
   from what is shipping, so run it after any file is added, moved, or removed.
-  **It needs `node` on PATH, and the environment's `Runtime/bin/node` shim is broken on this
-  machine** — it looks for `Runtime/node/bin/node` and the Windows layout puts the binary at
-  `Runtime/node/node.exe`. Until that is fixed, prepend the real folder:
-  `export PATH="<env-root>/Runtime/node:$PATH"`.
+  **It needs `node` on PATH**, which the environment's shim provides.
   **The script is a recreation**, not the lost original — see `docs/fragments/RLG-018.md`.
   **`--commercial` is known to be wrong** in two ways and RLG-023 owns the fix; the script's own
   header says so.
