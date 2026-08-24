@@ -16,6 +16,23 @@ Knowledge Base (`<env-root>/Process/Knowledge_Base/`), not here. This log is onl
 
 ## 2026-08-23
 
+### The public front page lives at `docs/README.md`, and the root stays clean
+
+- **Instruction:** the repository's public README is `docs/README.md`. It is a live document: keep
+  it current with what the product is and how it is run and built. The root keeps one Markdown file
+  and it is `CLAUDE.md`. The old root `README.md` stays frozen in `docs/reference/`.
+- **Why:** the process permits exactly one Markdown file at the repository root, and this repository
+  is also a public front page and the deployed GitHub Pages site. Those two facts looked like a
+  conflict that needed a project amendment, and they do not: **GitHub renders a README from the root,
+  from `.github/`, or from `docs/`.** Putting it in `docs/` satisfies the process rule and the front
+  page at the same time, with no rule bent.
+- **Why it is a new document and not the moved one:** the old `README.md` is a frozen ancestor and
+  describes a folder layout and a workflow that no longer exist - a root full of documents, and a
+  `sync.sh` that pushes from a folder that was not a repository. A frozen document must not be
+  edited, and a stale front page is worse than none.
+- **Encoded in:** `docs/README.md`; `CLAUDE.md` → the root Markdown rule is unchanged.
+- Agent, 2026-08-23.
+
 ### The writing standard governs new prose only; the existing corpus is not rewritten
 
 - **Instruction:** write all new output in Simplified Technical English with American spelling, as
