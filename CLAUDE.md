@@ -85,9 +85,17 @@ Python 3 with Playwright installed runs the two test harnesses; a browser runs e
   paint on the canvas. `python tools/drive-test.py` drives Highway and Raceway for 30 seconds with
   an autopilot and asserts speed, laps, fuel, tires, damage, the HUD, and page errors. **Run both
   before shipping anything.**
-- `build` — `./pack.sh`. **The script is absent from this repository and never existed in it.**
-  It is the whitelist build, the enforcement of the machine-checked list, and the generator of
-  `assets.js`. Until it is rebuilt, the offline cache list cannot be regenerated. Tracked.
+- `build` — `./pack.sh` builds and validates `tiny-arcade.zip` from an explicit whitelist;
+  `./pack.sh --check` validates and builds nothing; `--standalone <id>` emits one self-contained
+  HTML file; `--commercial` omits a shelf. A build **regenerates `assets.js` and `sw.js ALL_FILES`**
+  from what is shipping, so run it after any file is added, moved, or removed.
+  **It needs `node` on PATH, and the environment's `Runtime/bin/node` shim is broken on this
+  machine** — it looks for `Runtime/node/bin/node` and the Windows layout puts the binary at
+  `Runtime/node/node.exe`. Until that is fixed, prepend the real folder:
+  `export PATH="<env-root>/Runtime/node:$PATH"`.
+  **The script is a recreation**, not the lost original — see `docs/fragments/RLG-018.md`.
+  **`--commercial` is known to be wrong** in two ways and RLG-023 owns the fix; the script's own
+  header says so.
 - `doctor` — **does not exist yet.** Tracked.
 - `deploy` — `./sync.sh "message"`. **Obsolete in its current form**: it clones the remote to a
   temporary folder and copies files over the top, because the working folder used to not be a
