@@ -515,9 +515,9 @@ function showOptions(){
 function showControls(){
   const touch=!!(AR&&AR.touch);
   const rows = touch ? [
-    ['Left half of the glass','rotate left'],
+    ['Left half of the screen','rotate left'],
     ['Right half','rotate right'],
-    ['Bottom strip, or a second finger','thrust'],
+    ['Bottom of the screen, or a second finger','thrust'],
     ['Down slow, level, and not drifting','all three, or it is a crash'],
     ['The smaller pad','pays more']
   ] : [
@@ -555,27 +555,35 @@ function apply(){
     else if(z === 'r') held.r = true;
   }
 }
+/* THE ZONES ARE THE SCREEN, NOT THE CANVAS, and that was the whole problem.
+   Thrust was the bottom strip OF THE GLASS - but the glass is 320x440 logical
+   inside a much taller phone, so the natural place for a thumb, the bottom of
+   the SCREEN, sat below the canvas and did nothing. In a game where thrust
+   timing IS the game, the most important control was in the least reachable
+   place. Zones are measured off the viewport now, so the bottom of the phone
+   is the bottom of the phone. */
 function zoneFor(cx, cy){
-  const r = cv.getBoundingClientRect();
-  const x = (cx-r.left)/S, y = (cy-r.top)/S;
-  if(y > H*0.78) return 'up';
-  return x < W/2 ? 'l' : 'r';
+  const h = window.innerHeight || 1, w = window.innerWidth || 1;
+  if(cy > h*0.74) return 'up';
+  return cx < w/2 ? 'l' : 'r';
 }
-cv.addEventListener('pointerdown', e => {
-  cv.setPointerCapture(e.pointerId);
+function grab(e){
+  if(e.target.closest && e.target.closest('button, a, input, #veil:not(.hidden)')) return;
   /* a second finger anywhere is thrust, which keeps both thumbs useful */
   zones.set(e.pointerId, zones.size >= 1 ? 'up' : zoneFor(e.clientX, e.clientY));
   apply();
-});
-cv.addEventListener('pointermove', e => {
+}
+function drag(e){
   if(!zones.has(e.pointerId)) return;
   if(zones.get(e.pointerId) === 'up' && zones.size > 1) return;
   zones.set(e.pointerId, zoneFor(e.clientX, e.clientY));
   apply();
-});
+}
 function lift(e){ zones.delete(e.pointerId); apply(); }
-cv.addEventListener('pointerup', lift);
-cv.addEventListener('pointercancel', lift);
+window.addEventListener('pointerdown', grab, { passive:true });
+window.addEventListener('pointermove', drag, { passive:true });
+window.addEventListener('pointerup', lift, { passive:true });
+window.addEventListener('pointercancel', lift, { passive:true });
 
 window.addEventListener('keydown', e => {
   if(state!=='play'){

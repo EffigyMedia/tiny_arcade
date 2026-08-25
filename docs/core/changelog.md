@@ -12,6 +12,14 @@ the development process. See `docs/core/tiny_arcade_design.md` section 0.
 
 ---
 
+<a id="v0-9-9"></a>
+## [0.9.9] — 2026-08-24 23:32:29
+- Fixed: Coil, Ribbit and Ziggurat took touch only on their canvas, leaving wide dead bands on a
+  phone ([RLG-055](../fragments/RLG-055.md)).
+- Fixed: **Feather's thrust zone was the bottom of the canvas, not the bottom of the screen** — the
+  natural thumb position did nothing in the game where thrust timing matters most
+  ([RLG-055](../fragments/RLG-055.md)).
+
 <a id="v0-9-8"></a>
 ## [0.9.8] — 2026-08-24 23:29:18
 - Changed: Phalanx's title card draws the game's own medusa, crab and louse instead of the generic

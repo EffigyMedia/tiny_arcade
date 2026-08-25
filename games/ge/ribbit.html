@@ -906,8 +906,8 @@ function showOptions(){
 function showControls(){
   const touch = !!(AR&&AR.touch);
   const rows = [
-    [touch?'Swipe':'Arrow keys','one hop, in that direction'],
-    [touch?'Tap ahead':'Up','hop forward'],
+    [touch?'Swipe anywhere':'Arrow keys','one hop, in that direction'],
+    [touch?'Tap anywhere':'Up','hop forward'],
     ['The road','kills you if you touch anything'],
     ['The water','kills you if you touch nothing'],
     ['Riding to the edge','also kills you \u2014 get off in time']
@@ -930,15 +930,25 @@ function showOver(){
 }
 
 /* ---- input ------------------------------------------------------------- */
-let sx=0, sy=0, sw=false;
-cv.addEventListener('pointerdown', e => { sw=true; sx=e.clientX; sy=e.clientY; });
-cv.addEventListener('pointerup', e => {
-  if(!sw) return; sw=false;
-  const dx=e.clientX-sx, dy=e.clientY-sy;
-  if(Math.hypot(dx,dy) < 18){ move(0,-1); return; }      /* a tap is forward */
-  if(Math.abs(dx) > Math.abs(dy)) move(dx>0?1:-1, 0);
-  else move(0, dy>0?1:-1);
+/* PAGE-WIDE. The board is 312x336 logical and a phone is much taller, so a
+   swipe in the band above or below it used to do nothing. The shared gesture
+   layer reads the whole page and already ignores controls and open panels. */
+if(AR && AR.gesture) AR.gesture.onSwipe(d => {
+  if(d === 'left') move(-1, 0);
+  else if(d === 'right') move(1, 0);
+  else if(d === 'up') move(0, -1);
+  else if(d === 'down') move(0, 1);
 });
+/* and a tap anywhere is a hop forward, which is the move you make most */
+let tapX = 0, tapY = 0, tapping = false;
+window.addEventListener('pointerdown', e => {
+  if(e.target.closest && e.target.closest('button, a, input, #veil:not(.hidden)')) return;
+  tapping = true; tapX = e.clientX; tapY = e.clientY;
+}, { passive:true });
+window.addEventListener('pointerup', e => {
+  if(!tapping) return; tapping = false;
+  if(Math.hypot(e.clientX-tapX, e.clientY-tapY) < 18) move(0,-1);
+}, { passive:true });
 window.addEventListener('keydown', e => {
   if(state!=='play'){
     if(e.key==='Enter'||e.key===' '){ const b=veilBody.querySelector('.btn'); if(b){ e.preventDefault(); b.click(); } }

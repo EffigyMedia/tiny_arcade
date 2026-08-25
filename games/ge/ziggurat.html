@@ -724,17 +724,27 @@ function showOver(){
 }
 
 /* ---- input: four diagonals, and nothing else --------------------------- */
+/* PAGE-WIDE, AND STILL DIAGONAL. This cannot use `Arcade.gesture`, which
+   reports four CARDINAL directions - this game has no cardinal moves at all,
+   only the four diagonals, and that is deliberately its whole difficulty. So
+   it keeps its own reading of the swipe and simply takes it from the page
+   rather than from the canvas, which used to leave the bands above and below
+   the model dead. Controls and open panels are skipped by hand here, which is
+   the part the gesture layer would otherwise have done. */
 let sx=0, sy=0, sw=false;
-cv.addEventListener('pointerdown', e => { sw=true; sx=e.clientX; sy=e.clientY; });
-cv.addEventListener('pointerup', e => {
+window.addEventListener('pointerdown', e => {
+  if(e.target.closest && e.target.closest('button, a, input, #veil:not(.hidden)')) return;
+  sw=true; sx=e.clientX; sy=e.clientY;
+}, { passive:true });
+window.addEventListener('pointerup', e => {
   if(!sw) return; sw=false;
   const dx = e.clientX-sx, dy = e.clientY-sy;
   if(Math.hypot(dx,dy) < 16) return;
   /* the two diagonals split the compass into four; there is no orthogonal */
   if(dy > 0) move(dx > 0 ? 'dr' : 'dl');
   else       move(dx > 0 ? 'ur' : 'ul');
-});
-cv.addEventListener('pointercancel', ()=>{ sw=false; });
+}, { passive:true });
+window.addEventListener('pointercancel', ()=>{ sw=false; }, { passive:true });
 
 window.addEventListener('keydown', e => {
   if(state!=='play'){
