@@ -78,9 +78,12 @@ command -v node >/dev/null || fail "node is required (parse gate, catalogue read
 ROOT_FILES=(
   index.html arcade.js audio.js road.js assets.js games.js sw.js
   manifest.webmanifest icon.png icon-512.png effigy.png
-  LICENSE
+  LICENSE 404.html
   pack.sh sync.sh
 )
+# `.nojekyll` is deliberately NOT here. It exists for GitHub Pages, which serves the
+# repository rather than this archive, and the staging area refuses dotfiles - so
+# listing it would fail the build it is meant to protect.
 # The six project documents used to be listed here and used to sit at the root.
 # The standup moved them to docs/reference/ and froze them, and the live
 # documents live in docs/. None of them is part of the playable arcade, so the

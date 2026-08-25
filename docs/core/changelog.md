@@ -12,6 +12,17 @@ the development process. See `docs/core/tiny_arcade_design.md` section 0.
 
 ---
 
+<a id="v0-9-4"></a>
+## [0.9.4] — 2026-08-24 22:27:01
+- Fixed: a wrong address under the site now opens the arcade instead of a host 404 page. Every
+  cabinet link shared before the games moved into shelf folders was dead
+  ([RLG-049](../fragments/RLG-049.md)).
+- Added: `404.html`, which computes the way home rather than hardcoding it, so it names no
+  repository and is already correct on a host that serves at the root
+  ([RLG-049](../fragments/RLG-049.md)).
+- Added: `.nojekyll`, so GitHub Pages never runs the site through Jekyll
+  ([RLG-049](../fragments/RLG-049.md)).
+
 <a id="v0-9-3"></a>
 ## [0.9.3] — 2026-08-23 23:57:56
 - Added: `tools/harness.py` — what the two test harnesses need from the machine they run on: a
