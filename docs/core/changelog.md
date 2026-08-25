@@ -12,6 +12,14 @@ the development process. See `docs/core/tiny_arcade_design.md` section 0.
 
 ---
 
+<a id="v0-9-5"></a>
+## [0.9.5] — 2026-08-24 23:18:57
+- Fixed: a dead click handler answered every cabinet tap alongside the live one, playing a second
+  coin jingle and scheduling a navigation to `null` ([RLG-050](../fragments/RLG-050.md)).
+- Added: `smoke-test.py` opens the launcher, opens a shelf and taps a cabinet — the Must-flow that
+  had no coverage — and asserts one tap schedules one launch ([RLG-050](../fragments/RLG-050.md)).
+- Fixed: launching a cabinet with the space key also scrolled the rack ([RLG-050](../fragments/RLG-050.md)).
+
 <a id="v0-9-4"></a>
 ## [0.9.4] — 2026-08-24 22:27:01
 - Fixed: a wrong address under the site now opens the arcade instead of a host 404 page. Every
