@@ -99,7 +99,7 @@ const COLS = 17, ROWS = 21, U = 18;
 const W = COLS*U, H = ROWS*U;
 let S = 1;
 
-let body, dir, queued, food, bonusNode, walls, state, score, best, tickAcc, alive;
+let body, dir, queued, queued2, food, bonusNode, walls, state, score, best, tickAcc, alive;
 let pulses, deathT = 0, ate = 0, runs = 0;
 
 /* ---- obstacle layouts, unlocked by what you have already scored --------- */
@@ -117,7 +117,7 @@ function wallsFor(sc){
 function reset(){
   score = 0; ate = 0;
   body = [{c:8,r:14},{c:8,r:15},{c:8,r:16}];
-  dir = {c:0,r:-1}; queued = null;
+  dir = {c:0,r:-1}; queued = null; queued2 = null;
   walls = wallsFor(0);
   pulses = []; deathT = 0; alive = true;
   placeFood(); bonusNode = null; tickAcc = 0;
@@ -160,17 +160,22 @@ function turn(c, r){
   if(state !== 'play' || !alive) return;
   /* reversal blocked, and ONE turn buffered so a fast double round a corner
      actually lands — without the buffer the second swipe is eaten */
-  const last = queued || dir;
+  /* THE BUFFER IS TWO DEEP, and both branches used to assign the same thing -
+     so a fast double round a corner threw the FIRST turn away and did the
+     second, which is the opposite of what this game's own CONTROLS page
+     promises. The second turn waits its turn now. */
+  const last = queued2 || queued || dir;
   if(last.c === -c && last.r === -r) return;
   if(last.c === c && last.r === r) return;
   if(!queued) queued = { c, r };
-  else queued = { c, r };
+  else if(!queued2) queued2 = { c, r };
+  else return;
   snd.turn();
 }
 
 function tick(){
   if(!alive) return;
-  if(queued){ dir = queued; queued = null; }
+  if(queued){ dir = queued; queued = queued2; queued2 = null; }
   const head = body[0];
   const nc = head.c + dir.c, nr = head.r + dir.r;
 

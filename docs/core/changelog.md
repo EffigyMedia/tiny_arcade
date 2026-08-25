@@ -12,6 +12,16 @@ the development process. See `docs/core/tiny_arcade_design.md` section 0.
 
 ---
 
+<a id="v0-9-7"></a>
+## [0.9.7] — 2026-08-24 23:27:32
+- Fixed: Swarm and Aegis ran easier on high-refresh screens — their spawn odds were proportional to
+  dt squared ([RLG-053](../fragments/RLG-053.md)).
+- Fixed: pausing Ribbit while riding a pad could drown you on resume ([RLG-053](../fragments/RLG-053.md)).
+- Fixed: Burrow's fire-breathing drake was built and unreachable; it spawns from level 3
+  ([RLG-053](../fragments/RLG-053.md)).
+- Fixed: Coil's turn buffer kept the wrong turn of a fast double ([RLG-053](../fragments/RLG-053.md)).
+- Fixed: Popshot could serve a colour no longer on the board ([RLG-053](../fragments/RLG-053.md)).
+
 <a id="v0-9-6"></a>
 ## [0.9.6] — 2026-08-24 23:24:45
 - Fixed: **Aegis could not be played on a keyboard or a gamepad at all** — it has a driven

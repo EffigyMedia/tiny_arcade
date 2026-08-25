@@ -157,8 +157,15 @@ function buildLevel(){
     } while(tries < 40 && (Math.hypot(c - you.c, r - you.r) < 5 ||
                            (c === you.c && r < you.r + 8)));
     soil[idx(c,r)] = 0;
-    foes.push({ c, r, x:c*U, y:r*U, kind: i%3===2 ? 'wisp' : 'grub',
-                mc:c, mr:r, t:0, ghost:0, frust:0, alive:true, breath:2.5+Math.random()*3, flame:0,
+    /* THE DRAKE WAS BUILT AND COULD NEVER SPAWN. Its telegraph, its three-cell
+       flame with a kill check, its own art, its breath sound and its 400-point
+       score case were all reachable from nothing, because this line only ever
+       produced wisps and grubs. It arrives from level 3, so the first two
+       levels still teach digging and pumping before anything breathes fire. */
+    const kind = (level >= 3 && i % 4 === 3) ? 'drake' : (i % 3 === 2 ? 'wisp' : 'grub');
+    foes.push({ c, r, x:c*U, y:r*U, kind,
+                mc:c, mr:r, t:0, ghost:0, frust:0, alive:true, face:1,
+                breath:2.5+Math.random()*3, flame:0, fdir:1,
                 inflate:0, pumping:false, dead:0 });
   }
 

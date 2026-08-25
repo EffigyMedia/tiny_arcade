@@ -126,9 +126,12 @@ function paletteFor(){
      solvable rather than a lottery */
   const live = new Set();
   for(const k in grid) if(grid[k]) live.add(grid[k].t);
-  const n = Math.min(TINTS.length, 3 + Math.floor(level/2));
-  const pool = live.size ? [...live] : [0,1,2];
-  return pool.length >= 2 ? pool : [0,1,2].slice(0, Math.max(2, n));
+  /* With ONE colour left this used to fall back to three, so the endgame could
+     serve a bubble that matches nothing - the opposite of the comment above it
+     and of the reason this function exists. One colour left means one colour
+     served. */
+  if(!live.size) return [0,1,2];
+  return [...live];
 }
 function pick(){ const p = paletteFor(); return p[(Math.random()*p.length)|0]; }
 

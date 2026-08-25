@@ -214,7 +214,11 @@ function step(dt){
       const nx = bez(Math.min(1,q+0.02), f.dive[0], f.dive[1], f.dive[2], f.dive[3]);
       f.a = Math.atan2(nx.y-pt.y, nx.x-pt.x) + Math.PI/2;
       f.x = pt.x; f.y = pt.y;
-      if(!bonusStage && Math.random() < 0.014*k*60*dt*10 && f.y < H-90) dropBomb(f);
+      /* `k` is already dt*60, so `k*60*dt` made this proportional to dt SQUARED
+         and the event rate proportional to frame rate: a 120Hz phone got half
+         the bombs a 60Hz one did. Linear in dt, so a second of play is a second
+         of play on any screen. */
+      if(!bonusStage && Math.random() < 8.4*dt && f.y < H-90) dropBomb(f);
       if(q >= 1){
         /* off the bottom, come back around into the slot */
         f.state = 'entering'; f.p = 0; f.delay = waveT;

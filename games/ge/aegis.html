@@ -173,11 +173,14 @@ function step(dt){
   }
 
   waveT += dt;
-  if(spawned < quota && waveT > 0.7 && Math.random() < 0.016*k*60*dt*12){
+  /* `k` is dt*60 already, so `k*60*dt` was dt SQUARED and the spawn rate rose
+     with the refresh rate - a 120Hz screen played a materially easier game.
+     Both spawns below are linear in dt now. */
+  if(spawned < quota && waveT > 0.7 && Math.random() < 11.5*dt){
     spawnTrack(); spawned++;
   }
   /* a dart: it steers around blasts, so you have to bracket it */
-  if(wave >= 4 && spawned < quota && Math.random() < 0.0016*k*60*dt*12){
+  if(wave >= 4 && spawned < quota && Math.random() < 1.15*dt){
     const t = aliveTargets();
     if(t.length){
       darts.push({ x: Math.random()*W, y:-6, tx: t[(Math.random()*t.length)|0].x,
