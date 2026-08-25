@@ -16,6 +16,30 @@ Knowledge Base (`<env-root>/Process/Knowledge_Base/`), not here. This log is onl
 
 ## 2026-08-24
 
+### Milestones and handoffs are retired; the thread fragment replaces both
+
+- **Instruction:** this project performs no milestone and writes no handoff. Re-entry after a
+  context clear is the **thread fragment**, `docs/fragments/THR-001.md`, read with
+  `<env-root>/Commands/thread.py show --store docs/fragments` and written only with that same tool.
+  The `docs/milestones/` folder is deleted and is not recreated.
+- **Why:** the environment retired both ceremonies when it built the thread. The owner said so
+  directly, twice, and was right both times. The reason the replacement is better is a difference in
+  *when* the writing happens: a milestone and a handoff are both written **at the threshold**, which
+  means the record is produced by the session that is already out of room, and it is only as good as
+  what that session can still remember. The thread is **maintained continuously**, so it is never
+  composed under that pressure, and a clear becomes cheap rather than expensive.
+- **What this cost, and it is the reason this entry exists.** A handoff document was written and
+  committed on 2026-08-25, at the owner's request and immediately before a clear, by a session that
+  had not noticed the retirement. Its content was correct; its form was obsolete. It was converted
+  into the thread and deleted. **The stale trigger was sitting in `CLAUDE.md` the whole time**,
+  inherited from the project template at the standup and never checked against the environment it
+  claimed to summarize. A trigger table that is copied rather than verified will keep a retired
+  ceremony alive for as long as nobody reads it against the source.
+- **What this does not change:** audits stay, and `docs/audits/` stays. An audit is a piece of work
+  with a finding, not a ceremony at a boundary.
+- **Encoded in:** `CLAUDE.md` → the trigger table and the note below it; `docs/fragments/THR-001.md`.
+- Owner and agent, 2026-08-25.
+
 ### Check a frozen document's age before planning from it, and settle it against the code
 
 - **Instruction:** before any item is queued from `docs/reference/`, check which document is newest

@@ -39,9 +39,9 @@ starter blanks: `<env-root>/Templates/_Project_Template/`
   repository** — newer than `DRIVING.md`'s "what is next" list and `START-HERE.md`'s next steps,
   both of which describe work that later shipped. When they disagree: the top of `DESIGN.md` is
   newest, **and the code settles it.**
-- `Development_Process.md` — the operating manual: bootstrap, the feature loop, milestones,
-  handoffs, releases, the trigger phrases below. **The source of *how*.**
-- `Artifact_Formats.md` — formats for the tracker, `changelog.md`, handoffs, technical references.
+- `Development_Process.md` — the operating manual: bootstrap, the feature loop, releases, the
+  trigger phrases below. **The source of *how*.**
+- `Artifact_Formats.md` — formats for the tracker, `changelog.md`, technical references.
 - `Performance_Testing.md` / `Audit_and_Testing.md` — perf practice; the audit workflow.
 - `Path_Policy.md` — how anything names a location. **This file carries no absolute path.**
 - `Agent_Scope.md` — how far a session may reach. This is a **project** session.
@@ -56,8 +56,8 @@ starter blanks: `<env-root>/Templates/_Project_Template/`
   view over the store is the dashboard, opened by `Dashboard.bat` / `dashboard.sh` at the root. The
   reason is in the instruction log: `Commands/tracker.py` writes a header that describes the
   environment's own store, whatever store it is pointed at.
-- Core artifacts in `docs/core/`; handoffs, technical references, performance and audit documents in
-  their `docs/` subfolders. **This file is the only Markdown file at the repository root.**
+- Core artifacts in `docs/core/`; technical references, performance and audit documents in their
+  `docs/` subfolders. **This file is the only Markdown file at the repository root.**
 - **Shared Knowledge Base** — `<env-root>/Process/Knowledge_Base/`: consult it for browser, PWA and
   Playwright gotchas before stack-specific work, and **append** new lessons there.
 - **Model routing** — `<env-root>/Process/Model_Routing.md`.
@@ -74,9 +74,13 @@ Summaries — the canonical procedures live in `<env-root>/Process/Development_P
 | **Initialize** | First run on a fresh project. *(Done: adopted at v0.9.0 on 2026-08-23. The codebase predates the process.)* |
 | *(normal work)* | Feature loop: implement → `test` → fragment → changelog → **patch** bump → commit. One feature = one commit = one patch = one changelog entry = one fragment to built. |
 | **Track this: …** | Write a new `RLG-NNN` fragment with status `requested`; do not start it. |
-| **Perform milestone** | File audit; reconcile the store; run both harnesses; produce the distributable, or record exactly what is missing; write a timestamped handoff in `docs/milestones/`; bump **minor**; tag; push. Pace by context: suggest one at about 800k tokens on a 1M window. |
-| **Handoff** | New session after a context clear — read the latest `docs/milestones/milestone_*.md`; reconstruct what shipped since from `changelog.md` and the store; **verify the working tree is clean**; resume. |
+| *(after a clear)* | Read the thread: `python <env-root>/Commands/thread.py show --store docs/fragments`. It carries the focus, the next action **and its origin**, the constraints in force, and what is unfinished. That is the whole of re-entry. Verify the working tree is clean, then act by the origin — `stated`, do it; `asked`, do it; `inferred`, put it to the owner first; `absent`, say so and stop. |
 | **Perform audit** | Run `Audit_and_Testing.md`; produce a findings report; change no code. |
+
+**Milestones and handoffs are retired.** The environment replaced both with the **thread fragment**,
+`docs/fragments/THR-001.md`, which is **maintained continuously and never written at the threshold**
+— that is what makes a context clear cheap. Write it with `Commands/thread.py`, never by hand. This
+project keeps no `docs/milestones/` folder.
 
 ## Commands
 
