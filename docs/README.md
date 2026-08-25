@@ -3,6 +3,22 @@
 An arcade cabinet that lives in a browser tab. Eighteen games on three shelves, offline, with no
 server, no build step, and no network call at launch.
 
+## Play it
+
+**https://effigymedia.github.io/tiny_arcade/**
+
+That link is the whole arcade and it is the only one worth sharing. Two things about it are worth
+knowing before it is passed on:
+
+- **The path is case-sensitive and the underscore matters.** `/Tiny_Arcade/` and `/tiny-arcade/`
+  are not the same address and neither one exists.
+- **A link to one cabinet is not a link to the arcade.** The games moved into shelf folders, so
+  any cabinet link saved before that move is dead. Such a link now lands on a page that sends the
+  visitor to the launcher, but the front door above is what to send in the first place.
+
+On a phone, open it and use **Share → Add to Home Screen**. It installs as TINY ARCADE, launches
+full screen, and works with no signal after the first visit.
+
     index.html            the launcher - the arcade floor
     games/<shelf>/*.html  one self-contained game per file
     games.js              the catalog - one entry per machine
