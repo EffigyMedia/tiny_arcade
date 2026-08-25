@@ -139,20 +139,9 @@ body{
 .shvol.off input[type=range]{opacity:.35}
 .shnote{font-size:14px;line-height:1.4;color:#6b6488;margin-top:10px}
 
-#snd{
-  position:fixed;z-index:860;right:12px;
-  top:calc(env(safe-area-inset-top,0px) + 12px);
-  width:42px;height:42px;border-radius:50%;cursor:pointer;padding:0;
-  background:rgba(10,8,18,.82);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);
-  border:1px solid var(--line);color:var(--gold);
-  font-family:var(--px);font-size:13px;line-height:1;
-  display:grid;place-items:center;
-}
-#snd.off{color:#5b5573}
-#snd:active{background:rgba(255,194,60,.16)}
-#snd:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
-#snd .x{position:absolute;font-size:20px;color:#ff2d95;opacity:0}
-#snd.off .x{opacity:.9}
+/* `#snd` lived here: a speaker button that no longer exists in the markup.
+   Its rules were styling nothing. The sound controls are in the settings
+   sheet, one slider and one mute per channel. */
 
 #page{max-width:880px;margin:0 auto;padding:0 16px calc(env(safe-area-inset-bottom,0px) + 26px)}
 
@@ -2173,8 +2162,9 @@ onScroll();
    lands; when everything is already cached those messages arrive almost at
    once and the panel is gone in a blink.
 
-   A hard floor of 600ms stops it strobing, and a 6s ceiling means a bad
-   network can never lock you out of a game you already have.
+   A hard floor of 500ms stops it strobing, and a 20s ceiling means a bad
+   network can never lock you out of a game you already have. (Both numbers
+   said something else here until the audit read them against the code.)
    --------------------------------------------------------------------------- */
 (function(){
   var panel = document.getElementById('loading');

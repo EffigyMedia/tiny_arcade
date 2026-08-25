@@ -119,7 +119,7 @@ const snd = {
   bad(){ if(AR) AR.sfx.tone({ freq:300, to:110, dur:0.30, type:'sawtooth', gain:0.07, cutoff:1000 }); },
   lost(){ if(AR) AR.sfx.tone({ freq:260, to:60, dur:0.7, type:'sawtooth', gain:0.09, cutoff:800 }); },
   clear(){ if(!AR) return; [0,1,2,3].forEach(i =>
-    AR.sfx.tone({ t:AR.audio.ctx.currentTime + i*0.08, freq:440*Math.pow(1.26,i),
+    AR.sfx.tone({ t:AR.audio.now() + i*0.08, freq:440*Math.pow(1.26,i),
                   dur:0.26, type:'sine', gain:0.07, verb:0.5 })); },
   launch(){ if(AR) AR.sfx.tone({ freq:180, to:520, dur:0.16, type:'square', gain:0.06, cutoff:2400 }); },
   drop(){ if(AR) AR.sfx.tone({ freq:1200, dur:0.03, type:'sine', gain:0.025 }); }

@@ -331,13 +331,13 @@ const snd = {
   smash(){ if(AR){ AR.sfx.noise({ freq:1800, to:400, dur:0.24, gain:0.09, filter:'bandpass' });
                    AR.sfx.tone({ freq:220, to:80, dur:0.20, type:'square', gain:0.05 }); } },
   hammerUp(){ if(!AR) return; [0,4,7,12].forEach((n,i) =>
-    AR.sfx.tone({ t:AR.audio.ctx.currentTime+i*0.05, freq:440*Math.pow(2,n/12),
+    AR.sfx.tone({ t:AR.audio.now()+i*0.05, freq:440*Math.pow(2,n/12),
                   dur:0.18, type:'square', gain:0.065, cutoff:2600 })); },
   hammerOut(){ if(AR) AR.sfx.tone({ freq:520, to:180, dur:0.30, type:'square', gain:0.05, cutoff:1200 }); },
   die(){ if(AR){ AR.sfx.noise({ freq:600, to:70, dur:0.7, gain:0.10, filter:'lowpass' });
                  AR.sfx.tone({ freq:260, to:50, dur:0.75, type:'sawtooth', gain:0.07, cutoff:700 }); } },
   clear(){ if(!AR) return; [0,4,7,12,16].forEach((n,i) =>
-    AR.sfx.tone({ t:AR.audio.ctx.currentTime+i*0.09, freq:330*Math.pow(2,n/12),
+    AR.sfx.tone({ t:AR.audio.now()+i*0.09, freq:330*Math.pow(2,n/12),
                   dur:0.34, type:'square', gain:0.075, cutoff:2800, verb:0.4 })); }
 };
 

@@ -2178,22 +2178,14 @@ const snd = {
     AR.sfx.noise({ t, freq:1500, to:280, dur:0.13, gain:big?0.26:0.18, filter:'bandpass', q:0.8 });
     AR.sfx.tone({ t, freq:150, to:62, dur:0.16, type:'square', gain:big?0.20:0.13, cutoff:900 });
   },
-  arc(){
-    if (!AR) return;
-    const t = AR.audio.now();
-    AR.sfx.tone({ t, freq:2400, to:180, dur:0.26, type:'sawtooth', gain:0.16, cutoff:4000, cutoffTo:400 });
-    AR.sfx.noise({ t, freq:5000, to:900, dur:0.22, gain:0.11, filter:'highpass' });
-  },
+
   patch(){
     if (!AR) return;
     const t = AR.audio.now();
     AR.sfx.chord([392, 523.25, 659.25], { t, dur:0.5, type:'sine', gain:0.09*g,
                                           attack:0.05, spread:0.05, verb:0.5 });
   },
-  surge(){
-    if (!AR) return;
-    AR.sfx.tone({ freq:180, to:1100, dur:0.5, type:'sawtooth', gain:0.11, cutoff:1400, verb:0.3 });
-  },
+
   hurt(){
     if (!AR) return;
     const t = AR.audio.now();

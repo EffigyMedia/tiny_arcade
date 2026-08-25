@@ -341,10 +341,10 @@ const snd = {
   die(){ if(AR){ AR.sfx.noise({ freq:700, to:90, dur:0.75, gain:0.11, filter:'lowpass' });
                  AR.sfx.tone({ freq:180, to:40, dur:0.8, type:'sawtooth', gain:0.07, cutoff:600 }); } },
   bonusIn(){ if(!AR) return;
-    for(let i=0;i<8;i++) AR.sfx.tone({ t:AR.audio.ctx.currentTime + i*0.07,
+    for(let i=0;i<8;i++) AR.sfx.tone({ t:AR.audio.now() + i*0.07,
       freq: i%2 ? 880 : 660, dur:0.06, type:'sine', gain:0.035 }); },
   bonusHit(){ if(!AR) return; [0,1,2,3].forEach(i =>
-    AR.sfx.tone({ t:AR.audio.ctx.currentTime + i*0.05, freq:660*Math.pow(1.26,i),
+    AR.sfx.tone({ t:AR.audio.now() + i*0.05, freq:660*Math.pow(1.26,i),
                   dur:0.16, type:'sine', gain:0.07, verb:0.4 })); },
   wave(){ if(AR) AR.sfx.tone({ freq:220, to:660, dur:0.5, type:'square', gain:0.075, cutoff:2000 }); }
 };

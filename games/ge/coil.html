@@ -342,9 +342,9 @@ function draw(){
 function node(c, r, col, a){
   const x=c*U+U/2, y=r*U+U/2;
   const pu = 0.75 + Math.sin(performance.now()/220)*0.25;
-  const glow = g.createRadialGradient(x,y,0,x,y,U*0.9);
-  glow.addColorStop(0, col.replace(')', ',' + (0.45*a*pu) + ')').replace('#','rgba(').length>40
-    ? col : col);
+  /* a radial gradient used to be built here, fed through a ternary whose two
+     branches were the same value, and then never used - the node is drawn with
+     globalAlpha below. Deleted rather than repaired: nothing read it. */
   g.save();
   g.globalAlpha = 0.35*a*pu;
   g.fillStyle = col;

@@ -12,6 +12,14 @@ the development process. See `docs/core/tiny_arcade_design.md` section 0.
 
 ---
 
+<a id="v0-9-10"></a>
+## [0.9.10] — 2026-08-24 23:36:19
+- Changed: six cabinets used the raw audio clock instead of the guarded `Arcade.audio.now()`
+  ([RLG-056](../fragments/RLG-056.md)).
+- Removed: dead CSS for a deleted launcher button, an unused gradient, two empty `if` bodies, a
+  test for a foe kind that never exists, two orphaned sound definitions, and a comment whose
+  numbers disagreed with its code ([RLG-056](../fragments/RLG-056.md)).
+
 <a id="v0-9-9"></a>
 ## [0.9.9] — 2026-08-24 23:32:29
 - Fixed: Coil, Ribbit and Ziggurat took touch only on their canvas, leaving wide dead bands on a

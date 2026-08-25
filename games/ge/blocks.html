@@ -415,7 +415,6 @@ function draw(){
 function mini(cv, type){
   const g = cv.getContext('2d');
   const dpr = Math.min(2, window.devicePixelRatio || 1);
-  if(cv.width !== 104*dpr/2*2){ }
   g.setTransform(dpr,0,0,dpr,0,0);
   const w = cv.width/dpr, h = cv.height/dpr;
   g.clearRect(0,0,w,h);
@@ -453,9 +452,9 @@ const snd = {
     if(!AR) return;
     const base = 440;
     for(let i=0;i<n;i++)
-      AR.sfx.tone({ t:AR.audio.ctx.currentTime + i*0.06, freq:base*Math.pow(1.26,i),
+      AR.sfx.tone({ t:AR.audio.now() + i*0.06, freq:base*Math.pow(1.26,i),
                     dur:0.20, type:'square', gain:0.075, cutoff:2600 });
-    if(n === 4) AR.sfx.tone({ t:AR.audio.ctx.currentTime+0.26, freq:base*3, dur:0.42,
+    if(n === 4) AR.sfx.tone({ t:AR.audio.now()+0.26, freq:base*3, dur:0.42,
                               type:'sawtooth', gain:0.08, cutoff:2200, verb:0.5 });
   },
   level(){ if(AR) AR.sfx.tone({ freq:330, to:660, dur:0.30, type:'square', gain:0.08, cutoff:2400 }); },

@@ -329,11 +329,11 @@ const snd = {
                     AR.sfx.tone({ freq:300, to:90, dur:0.35, type:'sine', gain:0.05 }); } },
   squash(){ if(AR) AR.sfx.noise({ freq:400, to:70, dur:0.30, gain:0.10, filter:'lowpass' }); },
   home(){ if(!AR) return; [0,4,7].forEach((n,i) =>
-    AR.sfx.tone({ t:AR.audio.ctx.currentTime + i*0.06, freq:440*Math.pow(2,n/12),
+    AR.sfx.tone({ t:AR.audio.now() + i*0.06, freq:440*Math.pow(2,n/12),
                   dur:0.22, type:'sine', gain:0.07, verb:0.4 })); },
   warn(){ if(AR) AR.sfx.tone({ freq:1200, dur:0.05, type:'square', gain:0.035 }); },
   clear(){ if(!AR) return; [0,4,7,12].forEach((n,i) =>
-    AR.sfx.tone({ t:AR.audio.ctx.currentTime + i*0.09, freq:440*Math.pow(2,n/12),
+    AR.sfx.tone({ t:AR.audio.now() + i*0.09, freq:440*Math.pow(2,n/12),
                   dur:0.30, type:'square', gain:0.075, cutoff:2600, verb:0.4 })); }
 };
 

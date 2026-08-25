@@ -205,7 +205,9 @@ function land(){
   snd.land();
   /* something waiting on the tile you just took */
   for(const f of foes){
-    if(f.alive && f.r === you.r && f.c === you.c && f.kind !== 'disc') die();
+    /* `f.kind !== 'disc'` used to guard this. There is no 'disc' foe - the
+       escape discs are their own list - so the test was always true. */
+    if(f.alive && f.r === you.r && f.c === you.c) die();
   }
   if(flipped() >= total()) nextLevel();
   paintHud();

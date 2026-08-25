@@ -345,10 +345,7 @@ function step(dt){
       rk.shake -= dt;
       if(rk.shake <= 0 && !solid(rk.c, rk.r+1)){ rk.falling = true; rk.vy = 0; snd.rumble(); }
     }
-    if(!rk.falling){
-      if(!solid(rk.c, rk.r+1) && rk.settled && !open(rk.c,rk.r+1)) {}
-      continue;
-    }
+    if(!rk.falling) continue;
     rk.vy += 0.42*k; rk.y += rk.vy*k;
     const landRow = Math.floor(rk.y / U);
     /* it crushes anything in the column as it goes */
