@@ -12,6 +12,11 @@ the development process. See `docs/core/tiny_arcade_design.md` section 0.
 
 ---
 
+<a id="v0-9-8"></a>
+## [0.9.8] — 2026-08-24 23:29:18
+- Changed: Phalanx's title card draws the game's own medusa, crab and louse instead of the generic
+  pixel space-invader, which the clone posture forbids ([RLG-054](../fragments/RLG-054.md)).
+
 <a id="v0-9-7"></a>
 ## [0.9.7] — 2026-08-24 23:27:32
 - Fixed: Swarm and Aegis ran easier on high-refresh screens — their spawn odds were proportional to
