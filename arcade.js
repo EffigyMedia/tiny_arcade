@@ -36,7 +36,7 @@ var A = window.Arcade = window.Arcade || {};
    readable from anywhere in the arcade. There is no package.json to hold it, and a
    second copy in a file that nothing reads is how two answers to one question start.
    The git tag mirrors this string; a tag is a record, not a source. */
-A.version = '0.9.5';
+A.version = '0.9.6';
 
 /* every cabinet draws its name with the same hand */
 A.wordmark = wordmark;
@@ -140,6 +140,96 @@ A.options = {
    because every cabinet already has its own veil and its own typeface, and the
    shell should not impose a look on top of them.
    -------------------------------------------------------------------------- */
+/* ---- Arcade.menu: a cursor for every cabinet's own menus -----------------
+   EVERY GAME MENU COULD ONLY BE ANSWERED WITH THE FIRST BUTTON. The pattern
+   copied into all eighteen cabinets binds Enter (and pad A) to
+   `veilBody.querySelector('.btn').click()` - the FIRST one - so PLAY and PLAY
+   AGAIN worked and OPTIONS, CONTROLS and QUIT were pointer-only. The page that
+   exists to tell a keyboard player which keys to use was the page a keyboard
+   could not open.
+
+   This lives in the shell rather than in eighteen files because the fix is
+   identical everywhere and the games already agree on the shape: a container
+   that becomes visible, holding buttons. Nothing is imposed on their look - the
+   cursor is one class, and a cabinet that styles `.ark-cursor` gets its own.
+
+   It takes the keys in the CAPTURE phase and stops them there, because the
+   game's own handler is still bound to "Enter clicks the first button" and
+   would otherwise fire as well. Arrow keys are only claimed while a menu is
+   actually open, so gameplay steering is untouched.
+   ------------------------------------------------------------------------ */
+A.menu = (function(){
+  var BTN = 'button, .btn, .go, .mbtn, .ark-act, [data-act]';
+  var cursor = -1;
+
+  function shown(el){
+    if (!el) return false;
+    var r = el.getBoundingClientRect();
+    return r.width > 0 && r.height > 0;
+  }
+  /* the deepest visible panel that holds more than one button */
+  function panel(){
+    var cands = document.querySelectorAll('#veilBody, #veil, .ark-veil.on, .vw');
+    for (var i = cands.length - 1; i >= 0; i--){
+      var el = cands[i];
+      if (!shown(el)) continue;
+      if (el.closest && el.closest('.hidden')) continue;
+      if (buttons(el).length > 1) return el;
+    }
+    return null;
+  }
+  function buttons(el){
+    return [].slice.call(el.querySelectorAll(BTN)).filter(shown);
+  }
+  function paint(list){
+    for (var i = 0; i < list.length; i++)
+      list[i].classList.toggle('ark-cursor', i === cursor);
+  }
+  function move(d){
+    var el = panel(); if (!el) return false;
+    var list = buttons(el); if (!list.length) return false;
+    cursor = cursor < 0 ? 0 : (cursor + d + list.length) % list.length;
+    paint(list);
+    try { list[cursor].focus({ preventScroll:true }); } catch(e){}
+    return true;
+  }
+  function press(){
+    var el = panel(); if (!el) return false;
+    var list = buttons(el); if (!list.length) return false;
+    var pick = list[cursor >= 0 && cursor < list.length ? cursor : 0];
+    cursor = -1;
+    pick.click();
+    return true;
+  }
+  /* a fresh panel starts with no cursor, so the first arrow lands on the first
+     button rather than the second */
+  var seen = null;
+  setInterval(function(){
+    var el = panel();
+    if (el !== seen){ seen = el; cursor = -1; if (el) paint(buttons(el)); }
+  }, 140);
+
+  document.addEventListener('keydown', function(e){
+    if (!panel()) return;
+    var k = e.key;
+    if (k === 'ArrowDown' || k === 'ArrowRight'){ if (move(1)){ e.preventDefault(); e.stopPropagation(); } }
+    else if (k === 'ArrowUp' || k === 'ArrowLeft'){ if (move(-1)){ e.preventDefault(); e.stopPropagation(); } }
+    else if (k === 'Enter' || k === ' '){
+      if (cursor >= 0 && press()){ e.preventDefault(); e.stopPropagation(); }
+    }
+  }, true);
+
+  /* the pad, registered here so it is the FIRST subscriber and can swallow */
+  if (A.pad && A.pad.onPress) A.pad.onPress(function(name){
+    if (!panel()) return;
+    if (name === 'down' || name === 'right'){ return move(1); }
+    if (name === 'up'   || name === 'left'){  return move(-1); }
+    if ((name === 'a' || name === 'start') && cursor >= 0) return press();
+  });
+
+  return { move: move, press: press, open: function(){ return !!panel(); } };
+})();
+
 /* Back to the launcher. Every cabinet declares where home is in a meta tag;
    this is the one place that reads it, so QUIT means the same thing everywhere. */
 A.home = function(){
@@ -335,7 +425,16 @@ function pollPad(){
     else if (is && was && REPEAT_DIRS[name] && now > (padRepeat[name] || 0)){
       fire = true; padRepeat[name] = now + 150;
     }
-    if (fire) for (var q=0;q<padSubs.length;q++) try { padSubs[q](name); } catch(e){}
+    /* A SUBSCRIBER MAY SWALLOW A PRESS by returning true. The shell's menu
+       cursor is registered first and uses this: without it, A would move the
+       cursor AND fire the game's own "click the first button" handler, so a
+       pad could never choose anything but the first item. Every existing
+       subscriber returns undefined, so nothing else changes. */
+    if (fire) for (var q=0;q<padSubs.length;q++){
+      var swallowed = false;
+      try { swallowed = padSubs[q](name) === true; } catch(e){}
+      if (swallowed) break;
+    }
   }
   if (raf) raf(pollPad);
 }
@@ -646,6 +745,9 @@ function boot(){
     '.ark-act.tog.on b{color:var(--ark)}',
     '.ark-act.cursor{border-color:var(--ark);box-shadow:0 0 0 1px var(--ark) inset}',
     '.ark-hint{margin-top:10px;font-size:9px;letter-spacing:.14em;color:#565a70}',
+    /* the menu cursor: an outline, so it reads on any cabinet's palette
+       without knowing anything about it */
+    '.ark-cursor{outline:2px solid var(--ark)!important;outline-offset:2px!important}',
   ].join('\n');
   document.head.appendChild(css);
 

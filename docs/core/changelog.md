@@ -12,6 +12,17 @@ the development process. See `docs/core/tiny_arcade_design.md` section 0.
 
 ---
 
+<a id="v0-9-6"></a>
+## [0.9.6] — 2026-08-24 23:24:45
+- Fixed: **Aegis could not be played on a keyboard or a gamepad at all** — it has a driven
+  crosshair now ([RLG-051](../fragments/RLG-051.md)).
+- Fixed: Vector's gamepad could fire but never turn or thrust ([RLG-051](../fragments/RLG-051.md)).
+- Changed: Burrow's pad holds the pump instead of toggling it ([RLG-051](../fragments/RLG-051.md)).
+- Added: `Arcade.menu` — a keyboard and gamepad cursor for every cabinet's menus, so OPTIONS,
+  CONTROLS and QUIT stop being pointer-only ([RLG-052](../fragments/RLG-052.md)).
+- Changed: a `pad.onPress` subscriber can swallow a press by returning `true`
+  ([RLG-052](../fragments/RLG-052.md)).
+
 <a id="v0-9-5"></a>
 ## [0.9.5] — 2026-08-24 23:18:57
 - Fixed: a dead click handler answered every cabinet tap alongside the live one, playing a second

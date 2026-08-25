@@ -113,6 +113,10 @@ let S = 1;
 
 let bats, cities, tracks, darts, blasts, state, score, wave, best;
 let sweep = 0, waveT = 0, spawned = 0, quota = 0, runs = 0;
+/* the crosshair exists only once a key or a stick drives it, so a touch player
+   never sees a cursor they have no use for */
+let aiming = false;
+const cross = { x: 160, y: 170 };
 let lastCity = null, ending = 0;
 
 const BAT_X = [30, W/2, W-30];
@@ -456,6 +460,18 @@ function draw(){
     }
   }
 
+  /* the crosshair, drawn only while something is steering it */
+  if(aiming && state === 'play'){
+    g.strokeStyle = 'rgba(200,255,225,.85)'; g.lineWidth = 1.2;
+    g.beginPath(); g.arc(cross.x, cross.y, 7, 0, 6.2832); g.stroke();
+    g.beginPath();
+    g.moveTo(cross.x-12, cross.y); g.lineTo(cross.x-3, cross.y);
+    g.moveTo(cross.x+3,  cross.y); g.lineTo(cross.x+12, cross.y);
+    g.moveTo(cross.x, cross.y-12); g.lineTo(cross.x, cross.y-3);
+    g.moveTo(cross.x, cross.y+3);  g.lineTo(cross.x, cross.y+12);
+    g.stroke();
+  }
+
   if(ending > 0 && lastCity){
     g.fillStyle='rgba(255,59,92,'+Math.min(0.5, (2.6-ending)*0.3)+')';
     g.fillRect(0,0,W,H);
@@ -721,6 +737,7 @@ function showControls(){
   const touch=!!(AR&&AR.touch);
   const rows=[
     [touch?'Tap the sky':'Click the sky','an interceptor flies there, then bursts'],
+    ['Arrows or the stick','move the crosshair; space or A fires'],
     ['The nearest battery fires','so where you tap chooses the gun'],
     ['Lead the target','the burst takes time to arrive'],
     ['Anything entering a burst dies','and leaves a burst of its own'],
@@ -754,17 +771,55 @@ const toLocal = (cx, cy) => {
 };
 cv.addEventListener('pointerdown', e => {
   const p = toLocal(e.clientX, e.clientY);
+  aiming = false;                 /* a real pointer puts the crosshair away */
   firing(p.x, p.y);
 });
+
+/* ---- A CROSSHAIR, BECAUSE THIS GAME HAD NO KEYBOARD AND NO PAD -----------
+   Firing was a canvas pointerdown and nothing else, so on a keyboard or a
+   gamepad this cabinet could be opened and never played: not one shot was
+   reachable. A driven crosshair is how every console port of this game solved
+   it. Arrows or the stick move it; space or A fires where it sits. */
+const keysA = Object.create(null);
 window.addEventListener('keydown', e => {
   if(state!=='play'){
     if(e.key==='Enter'||e.key===' '){ const b=veilBody.querySelector('.btn'); if(b){ e.preventDefault(); b.click(); } }
+    return;
   }
+  if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown',' '].indexOf(e.key) >= 0) e.preventDefault();
+  keysA[e.key] = true;
+  if(e.key===' '){ aiming = true; firing(cross.x, cross.y); }
+  else if(e.key.indexOf('Arrow') === 0) aiming = true;
 });
+window.addEventListener('keyup', e => { keysA[e.key] = false; });
+
 if(AR && AR.pad) AR.pad.onPress(name => {
   if(AR.paused&&AR.paused()) return;
-  if(state!=='play'){ if(name==='a'||name==='start'){ const b=veilBody.querySelector('.btn'); if(b) b.click(); } }
+  if(state!=='play'){ if(name==='a'||name==='start'){ const b=veilBody.querySelector('.btn'); if(b) b.click(); } return; }
+  if(name==='a' || name==='rt'){ aiming = true; firing(cross.x, cross.y); }
 });
+
+setInterval(() => {
+  if(state!=='play') return;
+  let dx = 0, dy = 0;
+  if(keysA.ArrowLeft) dx -= 1;
+  if(keysA.ArrowRight) dx += 1;
+  if(keysA.ArrowUp) dy -= 1;
+  if(keysA.ArrowDown) dy += 1;
+  if(AR && AR.pad && AR.pad.connected && AR.pad.connected()){
+    const ax = AR.pad.axis();
+    if(Math.abs(ax.x) > 0.2){ dx = ax.x; aiming = true; }
+    if(Math.abs(ax.y) > 0.2){ dy = ax.y; aiming = true; }
+    if(AR.pad.down('left')){ dx = -1; aiming = true; }
+    if(AR.pad.down('right')){ dx =  1; aiming = true; }
+    if(AR.pad.down('up')){ dy = -1; aiming = true; }
+    if(AR.pad.down('down')){ dy =  1; aiming = true; }
+  }
+  if(dx || dy){
+    cross.x = Math.max(6, Math.min(W-6, cross.x + dx*5.5));
+    cross.y = Math.max(6, Math.min(GROUND-10, cross.y + dy*5.5));
+  }
+}, 16);
 if(AR && AR.onRestart) AR.onRestart(start);
 window.addEventListener('resize', fitTight);
 if(window.ResizeObserver) new ResizeObserver(fitTight).observe($('wrap'));
