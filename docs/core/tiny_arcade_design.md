@@ -283,8 +283,12 @@ and audio gestures.
 
 **Interaction principles.**
 
-- A thumb lands where it lands. Touch input goes through `Arcade.gesture`, so the whole page steers.
-  A 360-pixel canvas target is a fight with the game rather than with the game's hazards.
+- A thumb lands where it lands. Touch input reaches the whole page, not just the canvas — a
+  360-pixel target is a fight with the game rather than with the game's hazards. **This was
+  aspiration rather than fact until 2026-08-24**: thirteen cabinets bound touch to their canvas,
+  and the worst of them put a game's most important control off the canvas entirely. Corrected in
+  the four where it measurably hurt; the rest are near-full-height, where the canvas and the screen
+  are close to the same thing.
 - The front door only has to open. A title screen is the name and four buttons: no flavor
   paragraph, no legend, no control recap. The game teaches itself.
 - One control scheme per machine, not two. A mouse does what a thumb does. A separate keyboard
@@ -438,6 +442,11 @@ The packer enforces these and refuses to build otherwise:
 - A music bed, sound effects, and a best score.
 - Music routed to `bus: 'music'`.
 - An `attract` field whose function exists in the `draw` map in `index.html`.
+
+**And one flow the harness checks rather than the packer:** the launcher opens, a shelf opens, and
+tapping a cabinet opens *that* cabinet — with exactly one launch scheduled per tap. That path had
+no coverage at all until 2026-08-24, which is how a dead click handler survived eighteen green
+runs.
 
 ### The list a machine cannot check
 
@@ -604,6 +613,20 @@ frozen ancestors, where the source records no date.
 - **The 15% braking target is dropped in favor of the 7% to 12% the circuits actually produce** —
   the higher figure came from a note written before the corner work, and a target nothing has ever
   met is a target nobody reads — 2026-08-24.
+- **A cabinet's menus answer the keyboard and the pad, and the shell owns that** — every cabinet
+  bound Enter and pad A to "click the first button", so OPTIONS, CONTROLS and QUIT were
+  pointer-only on all eighteen; `Arcade.menu` moves a cursor instead — *the alternative was the
+  same fix copied eighteen times, and the veil pattern is already the project's largest
+  duplication* — 2026-08-24.
+- **A `pad.onPress` subscriber may swallow a press by returning `true`** — the shell's menu cursor
+  needs to stop a game's own handler from also firing, and every existing subscriber returns
+  `undefined`, so nothing else changes — 2026-08-24.
+- **Probability per frame is linear in `dt`, never in `dt` squared** — two cabinets scaled their
+  spawn odds with the refresh rate, so a 120 Hz phone played a materially easier game than a 60 Hz
+  one and no two devices produced comparable scores — 2026-08-24.
+- **Anything that decides life or death runs on the game clock, not the wall clock** — Ribbit's
+  pads sank on `performance.now()`, which keeps running while the shell holds the game paused, so
+  using the pause menu the shell promises could kill you — 2026-08-24.
 - **Highway and Raceway are `sw` shelf cabinets, and the design note that calls Highway an Effigy
   Original is stale** — owner ruling: "It's a Second Wind cabinet now." The shelf grew into the
   driving floor, so the catalog is right and the note is out of date — *the consequence: a
