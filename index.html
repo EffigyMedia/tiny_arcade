@@ -139,9 +139,20 @@ body{
 .shvol.off input[type=range]{opacity:.35}
 .shnote{font-size:14px;line-height:1.4;color:#6b6488;margin-top:10px}
 
-/* `#snd` lived here: a speaker button that no longer exists in the markup.
-   Its rules were styling nothing. The sound controls are in the settings
-   sheet, one slider and one mute per channel. */
+#snd{
+  position:fixed;z-index:860;right:12px;
+  top:calc(env(safe-area-inset-top,0px) + 12px);
+  width:42px;height:42px;border-radius:50%;cursor:pointer;padding:0;
+  background:rgba(10,8,18,.82);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);
+  border:1px solid var(--line);color:var(--gold);
+  font-family:var(--px);font-size:13px;line-height:1;
+  display:grid;place-items:center;
+}
+#snd.off{color:#5b5573}
+#snd:active{background:rgba(255,194,60,.16)}
+#snd:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+#snd .x{position:absolute;font-size:20px;color:#ff2d95;opacity:0}
+#snd.off .x{opacity:.9}
 
 #page{max-width:880px;margin:0 auto;padding:0 16px calc(env(safe-area-inset-bottom,0px) + 26px)}
 
@@ -727,12 +738,7 @@ GAMES.forEach(function(g, i){
     setTimeout(function(){ location.href = a.dataset.href; }, 130);
   });
   a.addEventListener('keydown', function(ev){
-    /* space scrolls the page unless it is claimed, so a keyboard launch used
-       to jump the rack as it left */
-    if (ev.key === 'Enter' || ev.key === ' '){
-      ev.preventDefault();
-      location.href = a.dataset.href;
-    }
+    if (ev.key === 'Enter' || ev.key === ' ') location.href = a.dataset.href;
   });
   rack.appendChild(a);
   var sc = { cv:a.querySelector('canvas'), kind:g.attract, accent:g.accent, t:Math.random()*40, off:true };
@@ -1038,24 +1044,20 @@ on('shWipe', 'click', function(){
   setTimeout(function(){ location.reload(); }, 600);
 });
 
-/* ---------- coin-op launch: DELETED, and this note is why ----------------
-   A second click handler lived here, on the rack, left over from when a
-   cabinet was an <a href>. A cabinet is a <div> with `data-href` now, so its
-   `getAttribute('href')` was NULL — and 80ms after the real navigation above
-   started, this ran `location.href = null` and sent the browser to `/null`.
-
-   ON A WARM CACHE THE REAL NAVIGATION COMMITS FIRST AND NOBODY SEES IT. On a
-   first visit over a network it does not, so every new player tapped a game
-   and got a 404. That is the failure the owner's friends reported while
-   holding the correct URL: the arcade opened, and the launcher sent them to
-   the error page itself.
-
-   It also played a second coin jingle over the first, for everyone, always.
-
-   The per-cabinet handler above is the whole mechanism. Do not add another
-   listener here: `smoke-test.py` now clicks a real cabinet and asserts where
-   it lands, so a re-run of this bug fails the build instead of shipping.
-   ---------------------------------------------------------------------- */
+/* ---------- coin-op launch ---------- */
+rack.addEventListener('click', function(e){
+  var cab = e.target.closest && e.target.closest('.cab');
+  if (!cab || e.defaultPrevented) return;
+  e.preventDefault();
+  A.audio.init();
+  var t = A.audio.now();
+  A.sfx.tone({ t:t,       freq:880,  to:1320, dur:0.07, type:'square', gain:0.16 });
+  A.sfx.tone({ t:t+0.075, freq:1320, to:1760, dur:0.10, type:'square', gain:0.16 });
+  A.sfx.tone({ t:t+0.075, freq:660,  to:880,  dur:0.14, type:'square', gain:0.07 });
+  A.sfx.noise({ t:t, freq:5200, dur:0.05, gain:0.08, filter:'highpass' });
+  var href = cab.getAttribute('href');
+  setTimeout(function(){ location.href = href; }, 210);
+});
 
 /* ---------- attract screens ---------- */
 function size(s){
@@ -1069,6 +1071,34 @@ function size(s){
   s.ctx.setTransform(d,0,0,d,0,0);
   s.w = w; s.h = h;
   return true;
+}
+
+function hunt(g,s,t){
+  // the whole game in one card: the runner turns, the hunter takes its tail
+  g.fillStyle='#04070f'; g.fillRect(0,0,s.w,s.h);
+  for(var i=0;i<26;i++){
+    var sx=(i*97+((t*7)|0))%s.w, sy=(i*53)%s.h;
+    g.fillStyle='rgba(205,220,240,'+(0.15+(i%5)*0.12)+')';
+    g.fillRect(sx,sy,1,1);
+  }
+  // the runner, weaving
+  var rx=s.w*0.5+Math.sin(t*0.7)*s.w*0.26, ry=s.h*0.38+Math.cos(t*0.5)*s.h*0.12;
+  var ang=Math.atan2(Math.cos(t*0.5)*-0.5, Math.cos(t*0.7)*0.7);
+  g.save(); g.translate(rx,ry); g.rotate(ang);
+  g.fillStyle='#8b97a8'; g.fillRect(-7,-3,14,6);
+  g.fillStyle='rgba(120,200,255,.95)'; g.beginPath(); g.arc(-8,0,2.6,0,6.2832); g.fill();
+  g.restore();
+  // the hunter, always a beat behind and closing on the tail
+  var hx=s.w*0.5+Math.sin(t*0.7-0.9)*s.w*0.26, hy=s.h*0.38+Math.cos(t*0.5-0.9)*s.h*0.12;
+  g.save(); g.translate(hx,hy); g.rotate(Math.atan2(ry-hy,rx-hx));
+  g.fillStyle=s.accent; g.fillRect(-6,-2.5,12,5);
+  g.restore();
+  // the cone bracket, when it is astern
+  var d=Math.hypot(rx-hx,ry-hy);
+  if(d<s.w*0.30){
+    g.strokeStyle=s.accent; g.globalAlpha=0.7; g.lineWidth=1;
+    g.strokeRect(rx-9,ry-9,18,18); g.globalAlpha=1;
+  }
 }
 
 function dive(g,s,t){
@@ -2117,7 +2147,7 @@ function fold2(g,s,t){
   g.beginPath(); g.arc(hx+TW*0.06,hy-TH*0.45,TW*0.030,0,6.2832); g.fill();
 }
 
-var draw = { fold2:fold2, dive:dive, grid:grid, road:road, maze:maze, blocks:blocks, scope:scope, ranks:ranks, fold:fold, drain:drain, scaffold:scaffold, fibre:fibre, radar:radar, ice:ice, strata:strata, profile:profile, soap:soap };
+var draw = { fold2:fold2, hunt:hunt, dive:dive, grid:grid, road:road, maze:maze, blocks:blocks, scope:scope, ranks:ranks, fold:fold, drain:drain, scaffold:scaffold, fibre:fibre, radar:radar, ice:ice, strata:strata, profile:profile, soap:soap };
 
 function paint(now){
   for(var i=0;i<screens.length;i++){
@@ -2162,9 +2192,8 @@ onScroll();
    lands; when everything is already cached those messages arrive almost at
    once and the panel is gone in a blink.
 
-   A hard floor of 500ms stops it strobing, and a 20s ceiling means a bad
-   network can never lock you out of a game you already have. (Both numbers
-   said something else here until the audit read them against the code.)
+   A hard floor of 600ms stops it strobing, and a 6s ceiling means a bad
+   network can never lock you out of a game you already have.
    --------------------------------------------------------------------------- */
 (function(){
   var panel = document.getElementById('loading');

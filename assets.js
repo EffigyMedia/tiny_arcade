@@ -3,6 +3,7 @@ window.CACHE_NAME = 'tiny-arcade-core-v24';
 window.ARCADE_ASSETS = [
   "./games/em/deep.html",
   "./games/em/derelict.html",
+  "./games/em/privateer.html",
   "./games/ge/aegis.html",
   "./games/ge/blocks.html",
   "./games/ge/burrow.html",

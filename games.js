@@ -185,6 +185,16 @@ window.TINY_ARCADE = [
     attract:'grid'
   },
   {
+    file:  'games/em/privateer.html',
+    id:    'privateer',
+    cat:   'em',
+    name:  'Privateer',
+    accent:'#ffb454',
+    genre: 'SPACE \u00B7 FIRST PERSON',
+    hook:  'Engines disable. Everything else destroys, and a wreck has no cargo.',
+    attract:'hunt'
+  },
+  {
     file:  'games/sw/highway.html',
     id:    'highway',
     cat:   'sw',

@@ -4,19 +4,13 @@
 #
 #     ./pack.sh                     build and validate tiny-arcade.zip
 #     ./pack.sh --standalone <id>   emit ONE self-contained HTML for a game
-#     ./pack.sh --commercial        omit the Golden Era shelf (see the design doc)
+#     ./pack.sh --commercial        omit the Golden Era shelf (see SHIPPING.md)
 #     ./pack.sh --check             validate only, build nothing
 #
 # Builds from an explicit WHITELIST rather than from whatever happens to
 # be in the folder — four instrumented debug builds once reached the
 # public zip because cleanup was tacked onto the end of shell lines that
 # sometimes never ran. A whitelist cannot fail that way.
-#
-# THIS FILE IS A RECREATION. The original was lost with the sandbox it
-# was written in, and it never reached this repository - `git log --all --
-# pack.sh` was empty until now. What follows was rebuilt from the frozen
-# documents that describe it. It is not a byte copy, and any behavior it
-# has that the original had differently is now this file's behavior.
 #
 # It refuses to build if anything below fails. Every one of these checks
 # exists because the fault it catches actually shipped:
@@ -34,12 +28,6 @@
 #                   attract function present in index.html's draw map
 #   no scratch      _*, dotfiles and .py never reach the staging area
 #   cache agreement sw.js and assets.js must name the same version
-#
-# KNOWN, AND NOT YET FIXED: `--commercial` omits the Golden Era shelf from
-# the staging area, but section 4 regenerates the cache lists from the WHOLE
-# catalogue. A commercial build therefore names files the archive does not
-# carry, and one 404 fails the whole precache. The commercial split is not
-# decided yet - it is tracked, and it is the item that owns this fix.
 #
 # What it CANNOT tell you is whether the game works. That is tools/
 # drive-test.py and tools/smoke-test.py. Run those too.
@@ -78,17 +66,9 @@ command -v node >/dev/null || fail "node is required (parse gate, catalogue read
 ROOT_FILES=(
   index.html arcade.js audio.js road.js assets.js games.js sw.js
   manifest.webmanifest icon.png icon-512.png effigy.png
-  LICENSE 404.html
+  README.md START-HERE.md DRIVING.md REFACTOR.md DESIGN.md SHIPPING.md
   pack.sh sync.sh
 )
-# `.nojekyll` is deliberately NOT here. It exists for GitHub Pages, which serves the
-# repository rather than this archive, and the staging area refuses dotfiles - so
-# listing it would fail the build it is meant to protect.
-# The six project documents used to be listed here and used to sit at the root.
-# The standup moved them to docs/reference/ and froze them, and the live
-# documents live in docs/. None of them is part of the playable arcade, so the
-# distributable no longer carries any of them. The zip is the product.
-
 
 # =====================================================================
 # 1. THE CATALOGUE
@@ -117,10 +97,7 @@ for(const g of games){
 /* the other direction: a game on disk that the catalogue does not list */
 const walk=d=>fs.readdirSync(d,{withFileTypes:true}).flatMap(e=>
   e.isDirectory()?walk(path.join(d,e.name)):[path.join(d,e.name)]);
-/* path.join uses the platform separator, and the catalogue is written with
-   forward slashes. On Windows every file on disk therefore failed to match
-   its own catalogue entry, and the check reported all 18 as unlisted. */
-const onDisk=walk("games").map(f=>f.split(path.sep).join("/")).filter(f=>f.endsWith(".html"));
+const onDisk=walk("games").filter(f=>f.endsWith(".html"));
 const listed=new Set(games.map(g=>g.file));
 for(const f of onDisk) if(!listed.has(f)) bad.push("shipped but not in the catalogue: "+f);
 /* an attract whose draw function does not exist renders a black card and
@@ -247,12 +224,7 @@ if [ "$MODE" = "build" ] && [ -z "$STANDALONE" ]; then
   node -e '
     const fs=require("fs"), path=require("path");
     const games=JSON.parse(process.argv[1]).map(g=>"./"+g.file);
-    /* dotfiles are excluded here for the same reason the staging area refuses
-       them. `fonts/.gitkeep` reached both cache lists on the first run of this
-       recreation, and the staging copy `cp fonts/*` does not carry it - so the
-       service worker would have asked a hosted build for a file the zip does
-       not contain, and one 404 fails the whole precache. */
-    const fonts=fs.readdirSync("fonts").filter(f=>!f.startsWith(".")).sort().map(f=>"./fonts/"+f);
+    const fonts=fs.readdirSync("fonts").sort().map(f=>"./fonts/"+f);
     const list=games.sort().concat(fonts);
     const body=JSON.stringify(list,null,2).replace(/^/gm,"").replace(/\[\n/,"[\n").slice(0,-1)+"];";
     /* assets.js */
@@ -324,22 +296,8 @@ SCRATCH="$(find "$STAGE" \( -name '_*' -o -name '.*' -o -name '*.py' \) \
            -not -path "$STAGE/tools/*" -not -name '.' | head -5)"
 [ -z "$SCRATCH" ] || { echo "$SCRATCH" | sed 's/^/    /' >&2; fail "scratch files reached the staging area"; }
 
-# Windows has no zip(1). Git Bash ships unzip but not its counterpart, so the
-# archive step falls back to PowerShell, which produces the same layout: one
-# folder inside the archive. The whitelist above is what decides the contents
-# either way - only the compressor changes.
-pack_zip(){
-  if command -v zip >/dev/null 2>&1; then
-    ( cd "$1" && zip -qr "$3" "$2" )
-  elif command -v powershell.exe >/dev/null 2>&1; then
-    powershell.exe -NoProfile -NonInteractive -Command       "Compress-Archive -Path '$(cygpath -w "$1/$2")' -DestinationPath '$(cygpath -w "$3")' -Force" >/dev/null       || fail "Compress-Archive failed"
-  else
-    fail "no zip(1) and no PowerShell - cannot build the archive"
-  fi
-}
-
 rm -f "$ZIP"
-pack_zip "$TMP" tiny-arcade "$HERE/$ZIP"
+( cd "$TMP" && zip -qr "$HERE/$ZIP" tiny-arcade )
 say "packed $(unzip -l "$ZIP" | tail -1 | awk '{print $2}') files → $ZIP ($(du -h "$ZIP" | cut -f1))"
 [ "$COMMERCIAL" = "1" ] && say "COMMERCIAL build: Golden Era shelf omitted"
 

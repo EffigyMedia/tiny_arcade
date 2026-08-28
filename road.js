@@ -18,6 +18,7 @@
      CFG.hudScore    (dist) => string          "4.6 MI" or "LAP 1/5"
      CFG.onReset     ()                        build a circuit, reset laps
      CFG.afterDraw   (ctx)                     the minimap
+     CFG.overlay     (ctx)                     a full-screen takeover, last
      CFG.onStep      (dt)                      lap counting
 
    Everything else — the road, the cars, the physics, the audio, the garage —
@@ -8218,7 +8219,7 @@ function drawFinish(){
 /* ---- full-render mirror -------------------------------------------------
    A second projection pass looking backward: the road receding behind you,
    with real perspective, and every sprite placed by the same maths as the
-   forward view. Costs a full extra pass — see MIRROR notes in docs/reference/DESIGN.md.
+   forward view. Costs a full extra pass — see MIRROR notes in DESIGN.md.
    -------------------------------------------------------------------------- */
 function drawMirrorFull(mx, my, mw, mh){
   ctx.save();
@@ -8770,6 +8771,14 @@ function frameLoop(now){
   drawFinish();
   if(optMirror !== 'OFF') drawMirror();
   drawBust(); hud();
+  /* ---- CFG.overlay(ctx) — the LAST thing on the frame -------------------
+     `afterDraw` runs inside the world transform, before the mirror, the bust
+     card and the HUD, which is right for a minimap but wrong for anything
+     that has to REPLACE the view: Raceway's pit box painted a full-screen
+     garage and the rear-view mirror still floated over it, a strip of road
+     hanging in mid-air indoors. This hook fires after everything, in plain
+     CSS pixels, for a fork that owns the whole screen for a moment. */
+  if(CFG.overlay) CFG.overlay(ctx);
   requestAnimationFrame(frameLoop);
 }
 
