@@ -28,8 +28,6 @@ from pathlib import Path
 
 from playwright.sync_api import sync_playwright
 
-from harness import console_utf8, launch_chromium
-
 ROOT = Path(__file__).resolve().parent.parent
 MPH = 200 / 15333          # MAX_SPD is 200mph, road.js:80
 
@@ -379,7 +377,6 @@ def run_game(browser, base, game, seconds, res):
 
 
 def main():
-    console_utf8()
     ap = argparse.ArgumentParser()
     ap.add_argument('games', nargs='*', choices=list(GAMES), default=None)
     ap.add_argument('--seconds', type=float, default=30.0)
@@ -392,8 +389,7 @@ def main():
     results = []
     print(f'drive-test  ·  {base}  ·  {args.seconds:g}s per game')
     with sync_playwright() as p:
-        browser = launch_chromium(
-            p,
+        browser = p.chromium.launch(
             headless=not args.headed,
             args=['--autoplay-policy=no-user-gesture-required', '--mute-audio'])
         for game in wanted:
