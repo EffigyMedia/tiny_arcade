@@ -67,8 +67,16 @@ ROOT_FILES=(
   index.html arcade.js audio.js road.js assets.js games.js sw.js
   manifest.webmanifest icon.png icon-512.png effigy.png
   README.md START-HERE.md DRIVING.md REFACTOR.md DESIGN.md SHIPPING.md
+  PRIVATEER.md
   pack.sh sync.sh
 )
+# A doc written after this list was drawn up does not ship, and nothing warns
+# you: the whitelist protects against stray files getting IN, and has no
+# opinion about wanted files being left OUT. PRIVATEER.md was written, edited
+# across five sessions, and packed zero times before anyone noticed. The check
+# below closes that: every .md in the folder must be either whitelisted above
+# or named here as deliberately excluded.
+NOT_SHIPPED=( )
 
 # =====================================================================
 # 1. THE CATALOGUE
@@ -111,6 +119,14 @@ for(const g of games){
 }
 if(bad.length){ console.error(bad.map(b=>"    "+b).join("\n")); process.exit(1); }
 ' "$CATALOGUE_JSON" "$COMMERCIAL" || fail "the catalogue and the folder disagree"
+for md in *.md; do
+  case " ${ROOT_FILES[*]} ${NOT_SHIPPED[*]} " in
+    *" $md "*) ;;
+    *) fail "$md is in the folder but in no list — add it to ROOT_FILES or NOT_SHIPPED" ;;
+  esac
+done
+say "docs: every .md is accounted for"
+
 say "catalogue: every game listed is present, every game present is listed"
 
 # =====================================================================

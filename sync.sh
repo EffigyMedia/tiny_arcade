@@ -43,7 +43,8 @@ cd "$HERE"
 # ---------------------------------------------------------------------------
 for f in index.html arcade.js audio.js road.js assets.js games.js sw.js \
          manifest.webmanifest icon.png icon-512.png effigy.png \
-         README.md DESIGN.md sync.sh; do
+         README.md START-HERE.md DRIVING.md REFACTOR.md DESIGN.md \
+         SHIPPING.md PRIVATEER.md pack.sh sync.sh; do
   [ -f "$f" ] && cp "$f" "$WORK/repo/$f"
 done
 for d in games fonts; do

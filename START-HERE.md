@@ -70,7 +70,7 @@ three read-only getters added to the API surface (`playerX`, `dmg`,
 **Privateer is BUILT and shipping** as an Effigy original (`games/em/privateer.html`,
 19 cabinets now). It is builds 1 and 2 of PRIVATEER.md joined at the seam:
 hold a ship in your rear cone, laser its engines dark, dock, walk aboard,
-take the cargo. Builds 3-8 in that document are still ahead — the locker,
+take the cargo, then survive the bounty hunter who comes for you. All eight builds in that document are done; what is left is depth, not scope — the locker,
 stations, contracts, and §5b BEING HUNTED, which is nearly free now that
 docking and boarding exist.
 
