@@ -70,8 +70,12 @@ canvas{display:block;width:100%;height:100%;touch-action:none}
 @keyframes bl{0%,100%{border-color:var(--red);background:rgba(255,51,85,.16)}
               50%{border-color:var(--blue);background:rgba(77,140,255,.16)}}
 
+/* pointer-events:none — this banner is full-width and sits ON TOP of the
+   canvas, so while a warning was on screen (PIT LANE, WRONG WAY, BUSTED) it
+   silently swallowed every tap that landed in its band. Nothing on it is
+   interactive; it should never have been a target. */
 #warn{
-  position:absolute;left:0;right:0;top:38%;text-align:center;
+  position:absolute;left:0;right:0;top:38%;text-align:center;pointer-events:none;
   font-family:var(--disp);font-weight:800;font-size:clamp(20px,6.4vw,30px);letter-spacing:.12em;
   color:#fff;text-shadow:0 0 18px var(--red),0 2px 0 #7a0d20;opacity:0;
 }
