@@ -497,6 +497,30 @@ function draw(){
     g.lineTo(ex+(x>0?-16:16), H*0.42+11); g.closePath(); g.fill();
   }
 
+  /* ---- the hunter, when there is one ---- */
+  if(HUN.live){
+    const hr=project(HUN.x-S.x, HUN.y-S.y, HUN.z-S.z);
+    if(hr){
+      const hz=Math.max(3, 2600*hr.s/90);
+      g.fillStyle = HUN.onTail ? '#e0332f' : '#a5606a';
+      g.fillRect(hr.x-hz*0.5, hr.y-hz*0.22, hz, hz*0.44);
+      g.fillStyle='rgba(255,140,110,.9)';
+      g.beginPath(); g.arc(hr.x, hr.y, hz*0.14, 0, 6.2832); g.fill();
+      g.strokeStyle='rgba(224,51,47,.9)'; g.lineWidth=2;
+      const hb=hz*0.85;
+      g.strokeRect(hr.x-hb, hr.y-hb, hb*2, hb*2);
+    } else if(HUN.onTail){
+      /* off the glass and shooting at you: the warning matters more than
+         the ship does */
+      g.fillStyle='rgba(224,51,47,.8)';
+      g.fillRect(0, H*0.5-2, W, 3);
+    }
+  }
+  if(S.hull < 100){
+    g.fillStyle='rgba(224,51,47,'+(0.10+(1-S.hull/100)*0.28)+')';
+    g.fillRect(0,0,W,6); g.fillRect(0,H-6,W,6);
+  }
+
   /* ---- the bridge: a frame around the glass, so you are SOMEWHERE ---- */
   const fh=H*0.11;
   const gd=g.createLinearGradient(0,H-fh*2.2,0,H);
@@ -529,14 +553,64 @@ function draw(){
 
 
 
+  /* ===== THE HUNTER — PRIVATEER.md 5b ==================================
+     The design closes on itself here, and it costs almost nothing: he flies
+     the pursuit the player just flew, wants the same rear cone, and takes
+     the same shot. The only difference is that the engines he is aiming at
+     are yours. Named HUN, not H — H is already this view's canvas height,
+     and finding that out by way of a syntax error was avoidable. */
+  const HUN = { x:0, y:-60, z:-1100, yaw:0, pitch:0, spd:0, live:0, fireT:0, onTail:0 };
+  S.hull = 100; S.disabled = 0;
+
+  function stepHunter(dt){
+    if(!HUN.live) return;
+    const dx=S.x-HUN.x, dy=S.y-HUN.y, dz=S.z-HUN.z, d=Math.hypot(dx,dy,dz);
+    const pf=facing(S.yaw,S.pitch);
+    const gx=S.x-pf.x*160, gy=S.y-pf.y*160, gz=S.z-pf.z*160;
+    const ax=gx-HUN.x, ay=gy-HUN.y, az=gz-HUN.z;
+    let dyaw=Math.atan2(ax,az)-HUN.yaw;
+    while(dyaw>Math.PI) dyaw-=6.2832; while(dyaw<-Math.PI) dyaw+=6.2832;
+    HUN.yaw += Math.max(-0.95*dt, Math.min(0.95*dt, dyaw));
+    const wantP = -Math.atan2(ay, Math.hypot(ax,az));
+    HUN.pitch += Math.max(-0.7*dt, Math.min(0.7*dt, wantP-HUN.pitch));
+    HUN.spd += ((d>420 ? 300 + HUN.heat*22 : 205) - HUN.spd) * Math.min(1, dt*1.1);
+    const hf=facing(HUN.yaw,HUN.pitch);
+    HUN.x+=hf.x*HUN.spd*dt; HUN.y+=hf.y*HUN.spd*dt; HUN.z+=hf.z*HUN.spd*dt;
+
+    /* the same cone test, pointed the other way */
+    const behind = (dx*pf.x+dy*pf.y+dz*pf.z)/Math.max(1,d);
+    HUN.onTail = behind < -0.60 && d < 660;
+    HUN.fireT -= dt;
+    if(HUN.onTail && HUN.fireT <= 0 && !S.disabled){
+      HUN.fireT = Math.max(0.6, 1.15 - HUN.heat*0.14);
+      if(Math.random() < 0.75){
+        S.hull -= 9 + HUN.heat*2;
+        if(S.hull <= 45 && Math.random() < 0.5) S.disabled = 1;
+        if(window.onHunterHit) window.onHunterHit();
+      }
+    }
+    if(S.disabled){ S.thr = 0; layoutThr(); }
+  }
+  function sendHunter(heat){
+    HUN.heat = heat || 0;               /* how badly they want you */
+    const pf=facing(S.yaw,S.pitch);
+    HUN.x = S.x - pf.x*1500; HUN.y = S.y - pf.y*1500 - 90; HUN.z = S.z - pf.z*1500;
+    HUN.yaw = S.yaw; HUN.pitch = S.pitch; HUN.spd = 230 + HUN.heat*18; HUN.live = 1; HUN.fireT = Math.max(1.2, 2.6 - HUN.heat*0.4);
+  }
+
   function reset(){
     S.x=S.y=S.z=0; S.yaw=S.pitch=0; S.vyaw=S.vpitch=0; S.thr=0; S.spd=0; S.heat=0; S.cut=0;
     T.x=0; T.y=40; T.z=900; T.yaw=0; T.pitch=0; T.spd=150; T.hull=100; T.disabled=0; T.dead=0;
+    S.hull=100; S.disabled=0;
+    HUN.live=0; HUN.x=0; HUN.y=-60; HUN.z=-1100;
+    HUN.yaw=0; HUN.pitch=0; HUN.spd=0; HUN.onTail=0;
     held=0; layoutThr();
   }
   return { resize:function(){ resize(); layoutThr(); },
-           step:function(dt){ stepShip(dt); stepTarget(dt); },
-           draw:draw, S:S, T:T, cone:coneState, setThr:setThr, reset:reset };
+           step:function(dt){ stepShip(dt); stepTarget(dt); stepHunter(dt); },
+           draw:draw, S:S, T:T, HUN:HUN, cone:coneState, setThr:setThr, reset:reset,
+           sendHunter:sendHunter,
+           hunterDist:function(){ return Math.hypot(S.x-HUN.x,S.y-HUN.y,S.z-HUN.z); } };
 })();
 </script>
 <script>
@@ -692,7 +766,7 @@ function shoot(){
     if(Math.abs(da) < tol && d < bestD && los(P.x,P.y,m.x,m.y)){ best = m; bestD = d; }
   }
   if(best){
-    best.hp -= 18; best.hit = 1; best.state = 'alert';
+    best.hp -= KIT.dmg; best.hit = 1; best.state = 'alert';
     if(best.hp <= 0){ best.dead = 1; snd.kill(); window.sayFoot('DOWN'); }
     else snd.hit();
   }
@@ -740,6 +814,17 @@ function stepMobs(dt){
         const nx = m.x + Math.cos(a)*sp, ny = m.y + Math.sin(a)*sp;
         if(!solid(nx, m.y) && !otherMob(m, nx, m.y)) m.x = nx;
         if(!solid(m.x, ny) && !otherMob(m, m.x, ny)) m.y = ny;
+      }
+      /* a raider is not here for you, it is here for the hold — so it
+         keeps moving toward the crate even when it cannot see you */
+      if(m.raider){
+        const a2=Math.atan2(crate.y-m.y, crate.x-m.x), sp2=0.95*dt;
+        const rx=m.x+Math.cos(a2)*sp2, ry=m.y+Math.sin(a2)*sp2;
+        if(!solid(rx,m.y) && !otherMob(m,rx,m.y)) m.x=rx;
+        if(!solid(m.x,ry) && !otherMob(m,m.x,ry)) m.y=ry;
+        if(Math.hypot(crate.x-m.x, crate.y-m.y) < 1.0 && !lost){
+          lost = true; window.sayFoot('THEY HAVE YOUR HOLD');
+        }
       }
       if(sees && m.t > 1.0){ m.state = 'wind'; m.wind = 0; snd.wind(); }
       if(!sees && m.t > 3) m.state = 'idle';
@@ -929,8 +1014,15 @@ function hud(){
 
 /* the harness reads this; nothing in the game does */
 
+  var SIDE='board', lost=false;
+  /* ---- THE LOCKER, where it lands ------------------------------------
+     A loadout screen is only a menu unless the numbers reach the fight.
+     These four are what a kit can move: how hard a shot hits, how many you
+     brought, how much you can take, and how fast you cross a corridor. */
+  var KIT = { dmg:18, ammo:24, hp:100, speed:2.6, name:'SIDEARM' };
+  function setKit(k){ KIT = k; }
   function step(dt){
-    if(!dead && !won){
+    if(!dead && !won && !lost){
       let fx = -(mvY), sxv = mvX;
       if(keys['w']||keys['arrowup']) fx = 1;
       if(keys['s']||keys['arrowdown']) fx = -1;
@@ -938,7 +1030,7 @@ function hud(){
       if(keys['d']) sxv = 1;
       if(keys['arrowleft'])  P.a -= 2.2*dt;
       if(keys['arrowright']) P.a += 2.2*dt;
-      const sp = 2.6*dt, dx = Math.cos(P.a), dy = Math.sin(P.a);
+      const sp = KIT.speed*dt, dx = Math.cos(P.a), dy = Math.sin(P.a);
       const nx = P.x + (dx*fx - dy*sxv) * sp, ny = P.y + (dy*fx + dx*sxv) * sp;
       if(!solid(nx + Math.sign(nx-P.x)*0.18, P.y) && !mobAt(nx, P.y)) P.x = nx;
       if(!solid(P.x, ny + Math.sign(ny-P.y)*0.18) && !mobAt(P.x, ny)) P.y = ny;
@@ -946,16 +1038,46 @@ function hud(){
     }
     P.kick = Math.max(0, P.kick - dt*6);
     P.hurt = Math.max(0, P.hurt - dt*2.2);
-    const near = !crate.taken && Math.hypot(crate.x-P.x, crate.y-P.y) < 1.6;
-    document.getElementById('fUse').classList.toggle('on', near && !dead);
+    if(SIDE==='defend'){
+      document.getElementById('fUse').classList.remove('on');
+      if(!dead && !lost && mobs.every(m=>m.dead)) won = true;
+    } else {
+      const near = !crate.taken && Math.hypot(crate.x-P.x, crate.y-P.y) < 1.6;
+      document.getElementById('fUse').classList.toggle('on', near && !dead);
+    }
   }
-  function reset(){
-    P.x=2.5; P.y=4.5; P.a=0; P.hp=100; P.ammo=24; P.cargo=0; P.kick=0; P.hurt=0;
-    mobs.length=0; mobs.push(mob(8.5,4.5)); mobs.push(mob(11.5,5.4));
-    crate.taken=0; dead=false; won=false; hud();
+  /* ---- one corridor, two situations ---------------------------------
+     'board'  = their ship. You walk in from the airlock, they are between
+                you and the cargo.
+     'defend' = YOURS. Same corridor, but you start at the bridge end, the
+                crate is your own hold, and they come in through the lock
+                at the far end and walk toward it. You know this deck; they
+                do not. That asymmetry is the whole of 5b. */
+  function reset(side){
+    SIDE = side || 'board';
+    P.hp=KIT.hp;
+    /* you defend with what is left in the rack, not a fresh crate */
+    P.ammo = SIDE==='defend' ? Math.max(8, Math.round(KIT.ammo*0.7)) : KIT.ammo;
+    P.cargo=0; P.kick=0; P.hurt=0;
+    mobs.length=0;
+    crate.taken=0; dead=false; won=false; lost=false;
+    if(SIDE==='defend'){
+      P.x=15.0; P.y=4.5; P.a=Math.PI;      /* stood over your own hold */
+      crate.x=15.4; crate.y=4.5;
+      mobs.push(mob(2.5,4.5)); mobs.push(mob(3.4,5.4));
+      for(const m of mobs){ m.state='alert'; m.seen=1; m.raider=1; }
+    } else {
+      P.x=2.5; P.y=4.5; P.a=0;
+      crate.x=15.4; crate.y=4.5;
+      mobs.push(mob(8.5,4.5)); mobs.push(mob(11.5,5.4));
+    }
+    hud();
   }
   return { resize:resize, step:step, draw:frame, P:P, shoot:shoot, use:useVerb,
-           reset:reset, get done(){ return won; }, get dead(){ return dead; } };
+           reset:reset, get done(){ return won; }, get dead(){ return dead; },
+           get lost(){ return lost; }, get side(){ return SIDE; }, setKit:setKit,
+           /* read-only, for a test to check that a kit reached the fight */
+           mobs:mobs };
 })();
 </script>
 <script>
@@ -968,7 +1090,7 @@ function hud(){
    cutscene; that is what dockHold is.
    =========================================================================== */
 var veil = document.getElementById('veil'), veilBody = document.getElementById('veilBody');
-var dockHold = 0, phase = '';
+var dockHold = 0, phase = '', hunted = 0, boardTimer = 0, kept = 1;
 
 function openVeil(html, acts){
   veilBody.innerHTML = html;
@@ -1031,15 +1153,196 @@ function options(){
 }
 
 function showFly(on){
+  /* each view has its own banner, and both were left in the DOM — so
+     "THEY DOCK IN 1" from the bridge sat on top of "THEY ARE ABOARD" from
+     the corridor, and the two overprinted into nonsense. Whichever view is
+     not up gets its banner cleared and hidden. */
+  var a = document.getElementById('msg'), bb = document.getElementById('fMsg');
+  (on ? bb : a).classList.remove('on');
+  (on ? bb : a).textContent = '';
+  a.classList.toggle('hidden', !on);
+  bb.classList.toggle('hidden', on);
   document.getElementById('flyHud').classList.toggle('hidden', !on);
   document.getElementById('flyCtl').classList.toggle('hidden', !on);
   document.getElementById('footHud').classList.toggle('hidden', on);
   document.getElementById('footCtl').classList.toggle('hidden', on);
 }
 
-function startRun(){
+/* ===========================================================================
+   THE STATION, AND WHAT YOU ARE — PRIVATEER.md §7 and §8
+
+   One room, four things in it, so the whole station is legible at a glance.
+   The trading is deliberately thin: a price is a number, not a market
+   simulation. If it turns into a spreadsheet the game has drifted away from
+   the corridor.
+
+   And the pirate/hunter split is a CONSEQUENCE, not a class you pick. Two
+   numbers, and the world's behaviour is the only feedback there is:
+
+     take a ship nobody asked you to touch   -> pirate standing rises
+     take a ship you were contracted to take -> hunter standing rises
+
+   Pirate standing is what sends the bounty hunter, and how hard he comes.
+   That is the whole loop closing: the thing you do for money is the thing
+   that makes someone come for you.
+   =========================================================================== */
+var credits  = (SV && SV.credits)  || 0;
+var pirate   = (SV && SV.pirate)   || 0;
+var hunter   = (SV && SV.hunter)   || 0;
+var owned    = (SV && SV.owned)    || { sidearm:1 };
+var contract = null;                 /* a named target, or null for free hunting */
+
+var PRICES = { breacher:340, carbine:260, armour:420 };
+
+function saveEcon(){
+  if(AR && AR.save) AR.save.merge(GAME_ID,
+    { credits:credits, pirate:pirate, hunter:hunter, owned:owned });
+}
+function standingLabel(){
+  if(pirate >= hunter + 3) return 'PIRATE';
+  if(hunter >= pirate + 3) return 'BOUNTY HUNTER';
+  return 'PRIVATEER';
+}
+/* a name to hunt, so a contract is a person and not a checkbox */
+var NAMES = ['VARDEN','KOSS','ILEX','MARROW','TASH','BRENNAN','OKONKWO','SELVA'];
+function newContract(){
+  return { name: NAMES[(Math.random()*NAMES.length)|0], pay: 180 + ((Math.random()*140)|0) };
+}
+var offered = newContract();
+
+function station(){
+  MODE = 'title';
+  openVeil(
+    '<h1 style="font-size:26px">STATION</h1>' +
+    '<div class="sub">' + credits + ' CR &middot; ' + standingLabel() + '</div>' +
+    '<button class="go" data-act="board">CONTRACT BOARD</button>' +
+    '<button data-act="armoury">ARMOURY</button>' +
+    '<button data-act="locker">LOCKER</button>' +
+    '<button data-act="dock">UNDOCK</button>' +
+    '<div class="opt"><span>PIRATE</span><b>' + pirate + '</b></div>' +
+    '<div class="opt"><span>HUNTER</span><b>' + hunter + '</b></div>' +
+    (best ? '<div class="sub" style="margin-top:14px">BEST RUN ' + best.toFixed(1) + 's</div>' : ''),
+    { board: contractBoard, armoury: armoury, locker: locker, dock: launch });
+}
+
+function contractBoard(){
+  openVeil(
+    '<h1 style="font-size:24px">CONTRACTS</h1>' +
+    '<div class="sub">A NAME, AND WHAT IT PAYS</div>' +
+    '<button class="go" data-act="take">' + offered.name +
+      '<div style="font-size:10px;opacity:.6;margin-top:4px">BOUNTY &middot; ' +
+      offered.pay + ' CR</div></button>' +
+    '<button data-act="free">HUNT FREE' +
+      '<div style="font-size:10px;opacity:.6;margin-top:4px">' +
+      'CARGO ONLY &middot; RAISES PIRATE</div></button>' +
+    (contract ? '<div class="sub">HOLDING: ' + contract.name + '</div>' : '') +
+    '<button data-act="back">BACK</button>',
+    { take: function(){ contract = offered; station(); },
+      free: function(){ contract = null; station(); },
+      back: station });
+}
+
+function armoury(){
+  var rows = ['breacher','carbine'].map(function(id){
+    var have = owned[id];
+    return '<button data-act="' + id + '"' + (have ? '' : ' class="go"') + '>' +
+      KITS[id].name + '<div style="font-size:10px;opacity:.6;margin-top:4px">' +
+      (have ? 'OWNED' : PRICES[id] + ' CR') + '</div></button>';
+  }).join('');
+  var acts = { back: station };
+  ['breacher','carbine'].forEach(function(id){
+    acts[id] = function(){
+      if(owned[id] || credits < PRICES[id]) return;
+      credits -= PRICES[id]; owned[id] = 1; saveEcon(); snd.ok(); armoury();
+    };
+  });
+  acts.armour = function(){
+    if(owned.armour || credits < PRICES.armour) return;
+    credits -= PRICES.armour; owned.armour = 1; saveEcon(); snd.ok(); armoury();
+  };
+  openVeil(
+    '<h1 style="font-size:24px">ARMOURY</h1>' +
+    '<div class="sub">' + credits + ' CR</div>' + rows +
+    '<button data-act="armour">ARMOUR' +
+      '<div style="font-size:10px;opacity:.6;margin-top:4px">' +
+      (owned.armour ? 'OWNED' : PRICES.armour + ' CR') + '</div></button>' +
+    '<button data-act="back">BACK</button>', acts);
+}
+
+/* ===========================================================================
+   THE LOCKER — PRIVATEER.md §4
+
+   Chosen HERE, in advance, which is what makes it a decision rather than a
+   menu tap during a fight. Three kits, and none of them is best:
+
+     SIDEARM   the middle of everything. Two shots a crewman.
+     BREACHER  one shot a crewman, and ten rounds in the whole magazine.
+               Miss twice and you are walking back empty.
+     CARBINE   forty rounds and it takes four of them, so it is the kit for
+               a ship you expect to be crowded — and the wrong one for the
+               defence, where they are already in the corridor.
+
+   The armour line is the honest trade: HULL against SPEED. A boarding is
+   ninety seconds of crossing open corridor, so weight is not free.
+   =========================================================================== */
+var KITS = {
+  sidearm:  { name:'SIDEARM',  dmg:18, ammo:24, hp:100, speed:2.6,
+              note:'2 shots a man &middot; 24 rounds' },
+  breacher: { name:'BREACHER', dmg:36, ammo:10, hp:100, speed:2.5,
+              note:'1 shot a man &middot; 10 rounds' },
+  carbine:  { name:'CARBINE',  dmg:10, ammo:40, hp:92,  speed:2.7,
+              note:'4 shots a man &middot; 40 rounds' }
+};
+var kitKey = (SV && SV.kit) || 'sidearm';
+var armour = (SV && SV.armour) ? 1 : 0;
+
+function kitNow(){
+  var k = KITS[kitKey] || KITS.sidearm;
+  /* armour is the same trade every time: take more, move slower */
+  return { name:k.name, dmg:k.dmg, ammo:k.ammo,
+           hp: k.hp + (armour ? 35 : 0),
+           speed: k.speed * (armour ? 0.82 : 1) };
+}
+
+function locker(){
+  var rows = Object.keys(KITS).map(function(id){
+    var k = KITS[id], have = owned[id];
+    return '<button data-act="' + (have ? id : 'nope') + '"' +
+           (id === kitKey ? ' class="go"' : '') + (have ? '' : ' disabled') + '>' +
+           k.name + '<div style="font-size:10px;opacity:.6;letter-spacing:.1em;margin-top:4px">' +
+           (have ? k.note : 'NOT OWNED &middot; ARMOURY') + '</div></button>';
+  }).join('');
+  var acts = {};
+  Object.keys(KITS).forEach(function(id){ acts[id] = function(){
+    if(!owned[id]) return;
+    kitKey = id;
+    if(AR && AR.save) AR.save.merge(GAME_ID, { kit:id });
+    locker();
+  }; });
+  acts.armour = function(){
+    if(!owned.armour) return;
+    armour = armour ? 0 : 1;
+    if(AR && AR.save) AR.save.merge(GAME_ID, { armour:!!armour });
+    locker();
+  };
+  acts.launch = launch;
+  acts.back = station;
+  openVeil(
+    '<h1 style="font-size:28px">LOCKER</h1>' +
+    '<div class="sub">WHAT YOU CARRY ACROSS</div>' + rows +
+    '<div class="opt"><span>ARMOUR &mdash; +35 HULL, SLOWER</span><b>' +
+      (owned.armour ? (armour ? 'ON' : 'OFF') : 'NOT OWNED') + '</b></div>' +
+    '<button data-act="armour">TOGGLE ARMOUR</button>' +
+    '<button class="go" data-act="launch">LAUNCH</button>' +
+    '<button data-act="back">BACK</button>', acts);
+}
+
+function startRun(){ station(); }
+
+function launch(){
   closeVeil(); snd.begin();
-  MODE = 'fly'; runT = 0; taken = 0; dockHold = 0; phase = '';
+  FOOT.setKit(kitNow());
+  MODE = 'fly'; runT = 0; taken = 0; dockHold = 0; phase = ''; hunted = 0; boardTimer = 9; kept = 1;
   FLY.reset(); FLY.resize(); showFly(true);
   say('TARGET AHEAD');
 }
@@ -1093,26 +1396,86 @@ function board(){
   FOOT.reset(); FOOT.resize(); showFly(false);
   sayFoot('BOARDING');
 }
+/* ---- the run does not end when you get the cargo ------------------------
+   It ends when you get AWAY with it. Taking a ship raises your name, and a
+   bounty hunter comes for you — the same chase, the same cone, the same
+   boarding, pointed the other way. PRIVATEER.md 5b. */
 function backToShip(){
   MODE = 'fly'; FLY.resize(); showFly(true);
-  say(taken ? 'CARGO ABOARD' : 'NOTHING TAKEN');
-  setTimeout(over, 900);
+  if(taken){
+    say('CARGO ABOARD');
+    setTimeout(function(){
+      if(MODE !== 'fly') return;
+      /* the more of a pirate you are, the sooner they dock and the harder
+         he flies. Nobody tells you this; the world just gets worse. */
+      FLY.sendHunter(Math.min(3, pirate));
+      hunted = 1;
+      boardTimer = Math.max(4.5, 9 - pirate * 1.1);
+      say(pirate >= 3 ? 'THEY WANT YOU BADLY' : 'BOUNTY HUNTER INBOUND');
+    }, 1400);
+  } else {
+    say('NOTHING TAKEN');
+    setTimeout(over, 900);
+  }
+}
+
+/* being disabled must be survivable and FRIGHTENING: you drift, weapons
+   offline, and you have a little time before they dock. What you do with it
+   is get out of the chair. */
+function stepHunted(dt){
+  if(!hunted) return;
+  if(FLY.S.hull <= 0){ hunted = 0; say('HULL BREACHED'); setTimeout(over, 1500); return; }
+  if(FLY.S.disabled){
+    boardTimer -= dt;
+    if(boardTimer <= 0){ defend(); return; }
+    if(Math.abs(boardTimer - Math.round(boardTimer)) < dt && boardTimer < 6.5)
+      say('THEY DOCK IN ' + Math.ceil(boardTimer));
+  }
+  /* outrun him and you keep the lot */
+  if(!FLY.S.disabled && FLY.hunterDist() > 2600){
+    hunted = 0; say('LOST HIM'); setTimeout(over, 1200);
+  }
+}
+function defend(){
+  MODE = 'board'; snd.dock();
+  FOOT.reset('defend'); FOOT.resize(); showFly(false);
+  sayFoot('THEY ARE ABOARD');
 }
 
 function over(){
   MODE = 'title';
-  var score = taken ? runT : 0;
-  if(taken && (!best || runT < best)){
-    best = runT;
-    if(AR && AR.save) AR.save.merge(GAME_ID, { bestRun: +runT.toFixed(1) });
+  /* ---- the settle ------------------------------------------------------
+     What the run was WORTH, and what it did to your name. Cargo pays a
+     price, a contract pays a bounty on top, and taking a ship nobody asked
+     you to touch is the thing that sends someone after you next time. */
+  var paid = 0, lines = [];
+  if(taken){
+    var cargoPay = 120 + ((Math.random()*90)|0);
+    paid += cargoPay; lines.push('CARGO ' + cargoPay + ' CR');
+    if(contract){
+      paid += contract.pay;
+      lines.push('BOUNTY &middot; ' + contract.name + ' ' + contract.pay + ' CR');
+      hunter++;
+    } else {
+      pirate++;
+      lines.push('UNSANCTIONED &middot; PIRATE +1');
+    }
+    if(kept){ lines.push('GOT AWAY CLEAN'); }
+    else { paid = Math.round(paid*0.4); lines.push('THEY TOOK MOST OF IT'); }
+    credits += paid;
+    if(!best || runT < best){ best = runT;
+      if(AR && AR.save) AR.save.merge(GAME_ID, { bestRun:+runT.toFixed(1) }); }
   }
+  contract = null; offered = newContract();
+  saveEcon();
   openVeil(
-    '<h1 style="font-size:30px">' + (taken ? 'TAKEN' : 'RUN OVER') + '</h1>' +
-    '<div class="sub">' + (taken ? runT.toFixed(1) + 's' : 'no cargo') + '</div>' +
-    (best ? '<div class="sub">BEST ' + best.toFixed(1) + 's</div>' : '') +
+    '<h1 style="font-size:30px">' + (taken ? (kept ? 'CLEAR' : 'ROBBED') : 'RUN OVER') + '</h1>' +
+    '<div class="sub">' + (taken ? '+' + paid + ' CR' : 'no cargo') + '</div>' +
+    lines.map(function(l){ return '<div class="opt"><span>' + l + '</span><b></b></div>'; }).join('') +
+    '<div class="sub" style="margin-top:12px">' + credits + ' CR &middot; ' + standingLabel() + '</div>' +
     '<button class="go" data-act="play">AGAIN</button>' +
-    '<button data-act="menu">MENU</button>',
-    { play: startRun, menu: title });
+    '<button data-act="station">STATION</button>',
+    { play: launch, station: station });
 }
 
 /* ---- weapon buttons and keys ---- */
@@ -1137,11 +1500,19 @@ function tick(t){
   var dt = Math.min(0.05, (t - last)/1000 || 0.016); last = t;
   if(MODE === 'fly'){
     runT += dt;
-    FLY.step(dt); stepDock(dt); FLY.draw();
+    FLY.step(dt); stepDock(dt); stepHunted(dt); FLY.draw();
     var cs = FLY.cone();
     document.getElementById('spd').querySelector('b').textContent = Math.round(FLY.S.spd);
     var lk = document.getElementById('lock');
     lk.classList.toggle('on', cs.in);
+    if(hunted){
+      lk.querySelector('b').textContent = FLY.S.disabled
+        ? 'BOARDERS ' + Math.max(0, Math.ceil(boardTimer))
+        : (FLY.HUN.onTail ? 'ON YOUR TAIL' : 'RUN');
+      lk.classList.toggle('on', false);
+      document.getElementById('spd').querySelector('b').textContent =
+        Math.round(FLY.S.spd) + (FLY.S.hull < 100 ? ' \u00b7 ' + Math.max(0,Math.round(FLY.S.hull)) : '');
+    } else
     lk.querySelector('b').textContent = FLY.T.disabled
       ? (dockHold > 0 ? 'DOCKING' : 'DISABLED')
       : (cs.in ? 'ON TAIL' : (cs.behind > 0.4 ? 'CLOSE' : '\u2014'));
@@ -1151,8 +1522,16 @@ function tick(t){
   } else if(MODE === 'board'){
     runT += dt;
     FOOT.step(dt); FOOT.draw();
-    if(FOOT.done && !taken){ taken = 1; backToShip(); }
-    if(FOOT.dead){ taken = 0; backToShip(); }
+    if(FOOT.side === 'defend'){
+      if(FOOT.done){ hunted = 0; MODE='fly'; FLY.resize(); showFly(true);
+                     say('REPELLED'); setTimeout(over, 1200); }
+      else if(FOOT.lost || FOOT.dead){ taken = 0; hunted = 0;
+                     MODE='fly'; FLY.resize(); showFly(true);
+                     kept = 0; say('THEY TOOK THE HOLD'); setTimeout(over, 1500); }
+    } else {
+      if(FOOT.done && !taken){ taken = 1; backToShip(); }
+      else if(FOOT.dead){ taken = 0; backToShip(); }
+    }
   } else {
     FLY.step(dt*0.25); FLY.draw();     /* the title flies itself, slowly */
   }
