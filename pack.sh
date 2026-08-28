@@ -69,6 +69,7 @@ ROOT_FILES=(
   README.md START-HERE.md DRIVING.md REFACTOR.md DESIGN.md SHIPPING.md
   PRIVATEER.md
   pack.sh sync.sh
+  LICENSE 404.html
 )
 # A doc written after this list was drawn up does not ship, and nothing warns
 # you: the whitelist protects against stray files getting IN, and has no
@@ -76,7 +77,10 @@ ROOT_FILES=(
 # across five sessions, and packed zero times before anyone noticed. The check
 # below closes that: every .md in the folder must be either whitelisted above
 # or named here as deliberately excluded.
-NOT_SHIPPED=( )
+# CLAUDE.md is the instruction file for an agent working in this repository.
+# It describes how the product is BUILT, not the product, so it stays out of
+# the archive on purpose.
+NOT_SHIPPED=( CLAUDE.md )
 
 # =====================================================================
 # 1. THE CATALOGUE
@@ -105,7 +109,10 @@ for(const g of games){
 /* the other direction: a game on disk that the catalogue does not list */
 const walk=d=>fs.readdirSync(d,{withFileTypes:true}).flatMap(e=>
   e.isDirectory()?walk(path.join(d,e.name)):[path.join(d,e.name)]);
-const onDisk=walk("games").filter(f=>f.endsWith(".html"));
+/* path.join uses the platform separator, and the catalogue is written with
+   forward slashes. On Windows every file on disk therefore failed to match
+   its own catalogue entry, and the check reported every cabinet as unlisted. */
+const onDisk=walk("games").map(f=>f.split(path.sep).join("/")).filter(f=>f.endsWith(".html"));
 const listed=new Set(games.map(g=>g.file));
 for(const f of onDisk) if(!listed.has(f)) bad.push("shipped but not in the catalogue: "+f);
 /* an attract whose draw function does not exist renders a black card and
@@ -240,7 +247,12 @@ if [ "$MODE" = "build" ] && [ -z "$STANDALONE" ]; then
   node -e '
     const fs=require("fs"), path=require("path");
     const games=JSON.parse(process.argv[1]).map(g=>"./"+g.file);
-    const fonts=fs.readdirSync("fonts").sort().map(f=>"./fonts/"+f);
+    /* dotfiles are excluded here for the same reason the staging area refuses
+       them. `fonts/.gitkeep` reached both cache lists on the first run of this
+       recreation, and the staging copy `cp fonts/*` does not carry it - so the
+       service worker asked for a file the archive did not hold, and one 404
+       fails the whole precache. */
+    const fonts=fs.readdirSync("fonts").filter(f=>f[0]!==".").sort().map(f=>"./fonts/"+f);
     const list=games.sort().concat(fonts);
     const body=JSON.stringify(list,null,2).replace(/^/gm,"").replace(/\[\n/,"[\n").slice(0,-1)+"];";
     /* assets.js */

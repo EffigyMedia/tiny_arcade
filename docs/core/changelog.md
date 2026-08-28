@@ -12,6 +12,22 @@ the development process. See `docs/core/tiny_arcade_design.md` section 0.
 
 ---
 
+<a id="v0-9-11"></a>
+## [0.9.11] — 2026-08-28 08:43:21
+- Fixed: **six shipped fixes had been reverted** by whole-file uploads from the chat session that
+  governed this project before the standup. A GitHub web-UI upload replaces a file outright, so
+  there is no merge and no conflict to warn anyone — the losses passed a green build
+  ([RLG-059](../fragments/RLG-059.md)).
+- Restored: `Arcade.version`; the `Arcade.menu` cursor and the pad-subscriber swallow it depends on,
+  without which every cabinet's menu can only answer with its first button; the dead rack-level
+  launch handler is deleted again; the space key is claimed again on a keyboard launch; both
+  harnesses import `harness.py` again and so run on Windows; `smoke-test.py` gets back the launcher
+  check; `pack.sh` gets back the Windows path-separator fix, the dotfile exclusion in the cache list,
+  and `LICENSE` and `404.html` in the archive ([RLG-059](../fragments/RLG-059.md)).
+- Kept: everything the chat built in the same uploads — Privateer, the `CFG.overlay` seam in the
+  driving engine, the `pointer-events` fix on Highway's warning banner, and the new gate that makes
+  `pack.sh` account for every `.md` in the folder ([RLG-059](../fragments/RLG-059.md)).
+
 <a id="v0-9-10"></a>
 ## [0.9.10] — 2026-08-24 23:36:19
 - Changed: six cabinets used the raw audio clock instead of the guarded `Arcade.audio.now()`

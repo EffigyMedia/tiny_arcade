@@ -738,7 +738,12 @@ GAMES.forEach(function(g, i){
     setTimeout(function(){ location.href = a.dataset.href; }, 130);
   });
   a.addEventListener('keydown', function(ev){
-    if (ev.key === 'Enter' || ev.key === ' ') location.href = a.dataset.href;
+    /* space scrolls the page unless it is claimed, so a keyboard launch used
+       to jump the rack as it left */
+    if (ev.key === 'Enter' || ev.key === ' '){
+      ev.preventDefault();
+      location.href = a.dataset.href;
+    }
   });
   rack.appendChild(a);
   var sc = { cv:a.querySelector('canvas'), kind:g.attract, accent:g.accent, t:Math.random()*40, off:true };
@@ -1044,20 +1049,26 @@ on('shWipe', 'click', function(){
   setTimeout(function(){ location.reload(); }, 600);
 });
 
-/* ---------- coin-op launch ---------- */
-rack.addEventListener('click', function(e){
-  var cab = e.target.closest && e.target.closest('.cab');
-  if (!cab || e.defaultPrevented) return;
-  e.preventDefault();
-  A.audio.init();
-  var t = A.audio.now();
-  A.sfx.tone({ t:t,       freq:880,  to:1320, dur:0.07, type:'square', gain:0.16 });
-  A.sfx.tone({ t:t+0.075, freq:1320, to:1760, dur:0.10, type:'square', gain:0.16 });
-  A.sfx.tone({ t:t+0.075, freq:660,  to:880,  dur:0.14, type:'square', gain:0.07 });
-  A.sfx.noise({ t:t, freq:5200, dur:0.05, gain:0.08, filter:'highpass' });
-  var href = cab.getAttribute('href');
-  setTimeout(function(){ location.href = href; }, 210);
-});
+/* ---------- coin-op launch: DELETED, and this note is why ----------------
+   A second click handler lived here, on the rack, left over from when a
+   cabinet was an <a href>. A cabinet is a <div> with `data-href` now, so its
+   `getAttribute('href')` is NULL - and 80ms after the real navigation above
+   starts, this ran `location.href = null`.
+
+   MEASURED, because the first write-up of this got it wrong. Both handlers do
+   fire, at about 130ms and 210ms. The stray one does not usually win: a browser
+   ignores a second assignment to `location` while a navigation is already
+   pending, so the page almost always reaches the game. The bug is real and the
+   deletion is right, but it is NOT the explanation for the 404s the owner's
+   friends reported - that claim was withdrawn. RLG-049 holds the causes that
+   survived measurement.
+
+   It also played a second coin jingle over the first, for everyone, always.
+
+   The per-cabinet handler above is the whole mechanism. Do not add another
+   listener here: `smoke-test.py` clicks a real cabinet and asserts that one tap
+   schedules exactly one launch, so a re-run of this fails the harness.
+   ---------------------------------------------------------------------- */
 
 /* ---------- attract screens ---------- */
 function size(s){
